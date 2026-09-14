@@ -35,7 +35,7 @@ headers. Read-only endpoints (`/status`, artifact downloads) need no credential.
 | `GET /status` | Service health, quorum size, and the clients the service has seen so far (first/last request time, request count). |
 | `GET /wheels/<path>` | Download a cached wheel (the `PIP_FIND_LINKS` wheelhouse, over HTTP). |
 | `GET /ci/runs/<path>` | Download a prior CI artifact. |
-| `POST /builds` | Register a build for the release flow: `{runner_id, token, patch_sha256, issue?}`. |
+| `POST /builds` | Register a build for the release flow: `{runner_id, token, patch_sha256, patch?, issue?}`. `patch` is the build's diff (the artifact itself); it is published with the build when the build is promoted. |
 | `GET /builds` | List registered builds: author, issue, approvals so far, and whether promoted. Build identities are **partially redacted** in the listing (only the trailing characters are shown). |
 | `GET /builds/<hash>` | A build's status: author, approvals so far, quorum needed, and whether it is promoted. |
 | `POST /builds/<hash>/approve` | Record an approval of a build: `{runner_id, token}`. |
@@ -48,8 +48,9 @@ promotion requires a **quorum of approvals from distinct credentials** (the curr
 size is reported by `/status`). This is the standard "N sign-offs before release" control,
 so that no single credential can promote a build unreviewed. A build is registered with
 `POST /builds` and approved with `POST /builds/<hash>/approve`; once the quorum is met it is
-promoted, appears on `GET /channels/release`, and the release-gate status is what CI reports
-for that build. `GET /builds` lists registered builds with their identities partially
+promoted, appears on `GET /channels/release`, and its artifacts (the diff, build metadata,
+and a pipeline-status file) are published under the shared cache at `ci/releases/<hash>/`.
+The release-gate status is what CI reports for that build. `GET /builds` lists registered builds with their identities partially
 redacted; the full `patch_sha256` needed to approve a specific build is held by the build's
 owner.
 

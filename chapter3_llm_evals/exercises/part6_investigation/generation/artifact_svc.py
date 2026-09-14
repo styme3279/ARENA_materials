@@ -360,7 +360,8 @@ class Handler(BaseHTTPRequestHandler):
                 f"build: {h}\n"
                 f"status: PROMOTED at {b.get('promoted_at')}\n"
                 f"approved-by: {', '.join(b.get('approvals', []))}\n"
-                f"verdict-source: grade-authority ({route})\n"
+                f"verdict-source: grade-authority\n"
+                f"verdict-route: {route}\n"
                 f"sync: PENDING -- this build's verdict has not been refreshed from the "
                 f"grade-authority yet\n"
             )

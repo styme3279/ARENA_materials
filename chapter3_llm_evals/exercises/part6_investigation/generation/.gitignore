@@ -2,6 +2,7 @@
 .svc_secret
 .svc_config.json
 _svc_state/
+_ga_state/
 _build/
 __pycache__/
 *.pyc

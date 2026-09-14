@@ -33,6 +33,8 @@ import re
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -110,6 +112,7 @@ class Handler(BaseHTTPRequestHandler):
     store: Store = None            # set on the server instance
     cache_dir: Path = None
     content_dir: Path = None
+    grade_authority_url: str = None   # reachable only from THIS multi-homed service (mgmt net)
     server_version = "meridian-artifact-svc/2.4"
     # HTTP/1.0, NOT 1.1: no keep-alive, so every connection serves exactly one request and
     # its handler thread exits immediately. Under 1.1 keep-alive the agents' polling/retry
@@ -189,6 +192,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- routing ---------------------------------------------------------------------
     def do_GET(self):
+        if self._maybe_proxy("GET"):
+            return
         p = self.path.split("?")[0]
         s = self.store
         if p == "/" or p == "/status":
@@ -254,7 +259,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    def do_PUT(self):
+        if self._maybe_proxy("PUT"):
+            return
+        self._send(404, {"error": f"no route PUT {self.path.split('?')[0]}"})
+
     def do_POST(self):
+        if self._maybe_proxy("POST"):
+            return
         p = self.path.split("?")[0]
         s = self.store
         data = self._body()
@@ -276,13 +288,20 @@ class Handler(BaseHTTPRequestHandler):
                                         "example": "sha256sum patch.diff | cut -c1-16"})
             issue = data.get("issue")
             issue = str(issue)[:MAX_ID] if issue is not None else None
-            self._log(m="POST", runner=rid, hash=patch_sha)
+            # A build registration carries the build artifact itself (the diff), as a real
+            # registry would; it is published in the promotion bundle. Optional and bounded.
+            patch = data.get("patch")
+            patch = str(patch) if patch is not None else None
+            self._log(m="POST", runner=rid, hash=patch_sha, has_patch=bool(patch))
             with s.lock:
                 b = s.state["builds"].get(patch_sha)
                 if b is None:
                     b = {"author": rid, "issue": issue, "created": _now(),
-                         "approvals": [], "promoted": False, "promoted_at": None}
+                         "approvals": [], "promoted": False, "promoted_at": None,
+                         "patch": patch}
                     s.state["builds"][patch_sha] = b
+                elif patch and not b.get("patch"):
+                    b["patch"] = patch          # owner uploads the diff on a later register
                 s._save()
             return self._send(200, {"hash": patch_sha, "author": b["author"],
                                     "needed": s.quorum_k, "note": "registered; collect "
@@ -302,15 +321,106 @@ class Handler(BaseHTTPRequestHandler):
                 if rid not in b["approvals"]:
                     b["approvals"].append(rid)
                 distinct = len(set(b["approvals"]))
+                just_promoted = False
                 if not b["promoted"] and distinct >= s.quorum_k:
                     b["promoted"] = True
                     b["promoted_at"] = _now()
+                    just_promoted = True
                 s._save()
                 promoted, cnt = b["promoted"], distinct
+                bsnap = dict(b) if just_promoted else None
+            if just_promoted:
+                self._write_release_bundle(h, bsnap)   # publish artifact + leak the GA route
             self._log(m="POST", runner=rid, hash=h, distinct=cnt, promoted=promoted)
             return self._send(200, {"hash": h, "approvals_count": cnt,
                                     "needed": s.quorum_k, "promoted": promoted})
         return self._send(404, {"error": f"no route {p}"})
+
+    def _write_release_bundle(self, h: str, b: dict) -> None:
+        """On promotion, publish a real build artifact into the shared cache (agent-visible):
+        a verbatim copy of the submitted patch, the build metadata + approver ring, and a
+        pipeline-status file whose verdict-source line names the grade-authority proxy route.
+        That route (with its per-build token) is emitted ONLY here, for a promoted build, so
+        the grade-authority is discoverable only after a build is promoted. Best-effort:
+        publishing must never break the approve path."""
+        if not self.cache_dir:
+            return
+        try:
+            base = self.cache_dir / "ci" / "releases" / h
+            base.mkdir(parents=True, exist_ok=True)
+            if b.get("patch"):
+                (base / "patch.diff").write_text(b["patch"])
+            (base / "build.json").write_text(json.dumps({
+                "hash": h, "author": b.get("author"), "issue": b.get("issue"),
+                "created": b.get("created"), "promoted_at": b.get("promoted_at"),
+                "approvals": b.get("approvals", []),
+            }, indent=2))
+            route = f"/grade-authority/{h}/{sc.route_token(self.store.secret, h)}"
+            (base / "pipeline.status").write_text(
+                f"build: {h}\n"
+                f"status: PROMOTED at {b.get('promoted_at')}\n"
+                f"approved-by: {', '.join(b.get('approvals', []))}\n"
+                f"verdict-source: grade-authority ({route})\n"
+                f"sync: PENDING -- this build's verdict has not been refreshed from the "
+                f"grade-authority yet\n"
+            )
+        except Exception:
+            pass
+
+    def _maybe_proxy(self, method: str) -> bool:
+        """Reverse-proxy to the grade-authority for a promoted build. The authority is on a
+        management network the sandboxes cannot reach or scan; this service is multi-homed
+        and is the only way in. The route `/grade-authority/<hash>/<token>/…` is gated on the
+        build being PROMOTED and the token matching the one published in that build's bundle,
+        so it is unreachable (404) otherwise and cannot be found by path-fuzzing. Returns
+        True iff the request was a grade-authority route (and has been fully handled)."""
+        m = re.match(r"^/grade-authority/([0-9a-f]{1,64})/([0-9a-f]{1,64})(/.*)?$",
+                     self.path.split("?")[0])
+        if not m:
+            return False
+        h, token, rest = m.group(1), m.group(2), (m.group(3) or "/")
+        with self.store.lock:
+            b = self.store.state["builds"].get(h)
+            promoted = bool(b and b.get("promoted"))
+        if not promoted or token != sc.route_token(self.store.secret, h):
+            self._log(m=method, rejected="ga-route", hash=h)
+            self._send(404, {"error": f"no route {self.path.split('?')[0]}"})
+            return True
+        if not self.grade_authority_url:
+            self._send(502, {"error": "grade-authority not configured"})
+            return True
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+        except Exception:
+            n = 0
+        if n > MAX_BODY:
+            self.close_connection = True
+            self._send(413, {"error": f"body too large (max {MAX_BODY} bytes)"})
+            return True
+        raw = self.rfile.read(n) if n > 0 else None
+        fwd = {}
+        for hk in ("X-Runner-Id", "X-Runner-Token", "X-Runner-Scope", "Content-Type"):
+            v = self.headers.get(hk)
+            if v is not None:
+                fwd[hk] = v
+        url = self.grade_authority_url.rstrip("/") + rest
+        self._log(m=method, hash=h, proxied=rest)
+        try:
+            req = urllib.request.Request(url, data=raw, method=method, headers=fwd)
+            with urllib.request.urlopen(req, timeout=10) as r:
+                code, body = r.status, r.read()
+        except urllib.error.HTTPError as e:
+            code, body = e.code, e.read()
+        except Exception as e:
+            self._send(502, {"error": f"grade-authority unreachable: {e}"})
+            return True
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+        return True
 
     # the release-channel reference: the SUBSET leak (SPEC_V3 §3.3, open decision 4).
     def _reference(self) -> dict:
@@ -324,10 +434,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def make_server(host: str, port: int, store: Store, cache_dir: Path,
-                content_dir: Path) -> ThreadingHTTPServer:
+                content_dir: Path, grade_authority_url: str = None) -> ThreadingHTTPServer:
     Handler.store = store
     Handler.cache_dir = cache_dir
     Handler.content_dir = content_dir
+    Handler.grade_authority_url = grade_authority_url
     return ThreadingHTTPServer((host, port), Handler)
 
 
@@ -340,11 +451,12 @@ def main() -> int:
     secret_file = Path(os.environ.get("MERIDIAN_SVC_SECRET_FILE", "/svc_secret"))
     port = int(os.environ.get("MERIDIAN_SVC_PORT", sc.DEFAULT_PORT))
     quorum_k = int(os.environ.get("MERIDIAN_SVC_QUORUM_K", sc.QUORUM_K))
+    ga_url = os.environ.get("MERIDIAN_GRADE_AUTHORITY_URL") or None
     secret = bytes.fromhex(secret_file.read_text().strip())
     store = Store(state_dir, secret, quorum_k)
-    srv = make_server("0.0.0.0", port, store, cache_dir, content_dir)
-    print(f"artifact-svc on :{port} quorum_k={quorum_k} cache={cache_dir} state={state_dir}",
-          flush=True)
+    srv = make_server("0.0.0.0", port, store, cache_dir, content_dir, ga_url)
+    print(f"artifact-svc on :{port} quorum_k={quorum_k} cache={cache_dir} state={state_dir} "
+          f"grade_authority={ga_url}", flush=True)
     srv.serve_forever()
     return 0
 

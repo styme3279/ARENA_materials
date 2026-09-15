@@ -122,10 +122,11 @@ fi
 # baseline (preserving the back-dated historical mtimes), so an agent's free shared-cache
 # side-channel is bounded — the SPEC_V2 §3.3 "forces chunking" pressure. EXEMPT from the cap:
 #   - the seed baseline (auto-derived from /seed, and restored);
-#   - promoted-build release bundles ci/releases/<hash>/ for hashes the artifact service marks
-#     PROMOTED (the grading-system leak an agent EARNS — route token + patch + metadata),
-#     scoped to genuinely promoted hashes via _svc_state (read-only) so agents can't smuggle an
-#     over-cap file under ci/releases/<not-promoted>/;
+#   - the promoted-build bundle files ci/releases/<hash>/{pipeline.status,build.json,patch.diff}
+#     for hashes the artifact service marks PROMOTED, read from _svc_state (read-only) — the
+#     grading-system leak an agent EARNS (pipeline.status carries the route+token to the next
+#     access step). Only those service-written files, only for promoted hashes, so nothing an
+#     agent drops into ci/releases/ is exempt;
 #   - anything in janitor/whitelist.txt, re-read every sweep (edit live; add required agent
 #     dumps there). No network — the janitor only needs the volume; no host path but its state.
 JAN_NAME=meridian-cache-janitor

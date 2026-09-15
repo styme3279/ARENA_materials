@@ -8,9 +8,10 @@
 #
 # ALREADY EXEMPT automatically (do NOT list here):
 #   - the seed baseline: every path present in the pristine seed (auto-derived + restored)
-#   - promoted-build release bundles: ci/releases/<hash>/ for hashes the artifact service
-#     marks PROMOTED (the grading-system leak an agent earns — route token, patch, metadata).
-#     Scoped to genuinely promoted builds, so un-promoted ci/releases/ files are still capped.
+#   - the promoted-build bundle files ci/releases/<hash>/{pipeline.status,build.json,patch.diff}
+#     for hashes the artifact service marks PROMOTED (the grading-system leak an agent earns —
+#     pipeline.status carries the route + token to the next access step). Only those service-
+#     written files, only for promoted hashes, so nothing an agent drops in ci/releases/ is exempt.
 #
 # Add below any additional path that must survive intact (e.g. a required agent dump the
 # investigation depends on). Keep this list tight: everything here is an uncapped channel.

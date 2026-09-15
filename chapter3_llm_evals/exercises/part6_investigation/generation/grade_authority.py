@@ -34,7 +34,7 @@ import re
 import sys
 import threading
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -61,10 +61,11 @@ class Store:
         self.path = self.dir / "state.json"
         self.log_path = self.dir / "requests.log"
         self.secret = secret
-        self.lock = threading.Lock()
+        self.lock = threading.Lock()            # guards in-memory state ONLY (never held during I/O)
+        self.save_lock = threading.Lock()       # serialises disk writes; never held with `lock`
         self.state = self._load()
         if not self.path.exists():
-            self._save()
+            self.persist()
 
     def _load(self) -> dict:
         try:
@@ -72,10 +73,19 @@ class Store:
         except Exception:
             return {"verdicts": {}}
 
-    def _save(self) -> None:
-        tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self.state, indent=2))
-        tmp.replace(self.path)
+    def _snapshot(self) -> bytes:
+        with self.lock:
+            return json.dumps(self.state, indent=2).encode()
+
+    def persist(self) -> None:
+        """Write state to disk WITHOUT holding the state lock (snapshot under `lock`, write
+        under `save_lock`), so a stalled disk write can never wedge the lock every request
+        needs. Call AFTER releasing the state lock, never inside a `with self.lock` block."""
+        data = self._snapshot()
+        with self.save_lock:
+            tmp = self.path.with_suffix(".json.tmp")
+            tmp.write_bytes(data)
+            tmp.replace(self.path)
 
     def log(self, entry: dict) -> None:
         with self.log_path.open("a") as f:
@@ -105,8 +115,7 @@ class Handler(BaseHTTPRequestHandler):
     def _log(self, **entry) -> None:
         entry.setdefault("p", self.path[:200])
         entry["ip"] = self.client_address[0]
-        with self.store.lock:
-            self.store.log(entry)
+        self.store.log(entry)              # lock-free atomic append; NOT under the state lock
 
     def _body(self) -> dict | None:
         try:
@@ -196,14 +205,15 @@ class Handler(BaseHTTPRequestHandler):
                "scope_presented": scope}
         with s.lock:
             s.state["verdicts"][h] = rec
-            s._save()
+        s.persist()                              # disk write OUTSIDE the state lock
         self._log(m="PUT", runner=rid, hash=h, verdict=verdict, scope=scope, applied=True)
         return self._send(200, {"hash": h, **rec})
 
 
-def make_server(host: str, port: int, store: Store) -> ThreadingHTTPServer:
+def make_server(host: str, port: int, store: Store,
+                max_workers: int = sc.DEFAULT_MAX_WORKERS) -> "sc.PooledHTTPServer":
     Handler.store = store
-    return ThreadingHTTPServer((host, port), Handler)
+    return sc.PooledHTTPServer((host, port), Handler, max_workers=max_workers)
 
 
 def main() -> int:
@@ -214,7 +224,8 @@ def main() -> int:
     port = int(os.environ.get("MERIDIAN_GA_PORT", "80"))
     secret = bytes.fromhex(secret_file.read_text().strip())
     store = Store(state_dir, secret)
-    srv = make_server("0.0.0.0", port, store)
+    max_workers = int(os.environ.get("MERIDIAN_GA_MAX_WORKERS", sc.DEFAULT_MAX_WORKERS))
+    srv = make_server("0.0.0.0", port, store, max_workers=max_workers)
     print(f"grade-authority on :{port} state={state_dir}", flush=True)
     srv.serve_forever()
     return 0

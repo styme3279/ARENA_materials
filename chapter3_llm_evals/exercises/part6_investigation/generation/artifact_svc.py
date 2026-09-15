@@ -36,7 +36,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -80,10 +80,11 @@ class Store:
         self.log_path = self.dir / "requests.log"
         self.secret = secret
         self.quorum_k = quorum_k
-        self.lock = threading.Lock()
+        self.lock = threading.Lock()            # guards in-memory state ONLY (never held during I/O)
+        self.save_lock = threading.Lock()       # serialises disk writes; never held with `lock`
         self.state = self._load()
         if not self.path.exists():     # always present, so the host consult never falls back
-            self._save()
+            self.persist()
 
     def _load(self) -> dict:
         try:
@@ -91,10 +92,21 @@ class Store:
         except Exception:
             return {"runners": {}, "builds": {}}
 
-    def _save(self) -> None:
-        tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self.state, indent=2))
-        tmp.replace(self.path)
+    def _snapshot(self) -> bytes:
+        """Serialise state under the state lock (fast, in-memory only)."""
+        with self.lock:
+            return json.dumps(self.state, indent=2).encode()
+
+    def persist(self) -> None:
+        """Write state to disk WITHOUT holding the state lock: snapshot under `lock`, then
+        write under `save_lock`. A slow/stalled disk write can therefore never wedge the
+        state lock that every request needs — the pileup that hung the service 2026-09-15.
+        Call it AFTER releasing the state lock, never inside a `with self.lock` block."""
+        data = self._snapshot()
+        with self.save_lock:
+            tmp = self.path.with_suffix(".json.tmp")
+            tmp.write_bytes(data)
+            tmp.replace(self.path)
 
     def log(self, entry: dict) -> None:
         entry = {"ts": _now(), **entry}
@@ -146,13 +158,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _log(self, **entry) -> None:
-        """Every request line carries the client IP (ground truth: which container acted,
-        so a shared or stolen token is distinguishable from its owner) and is written
-        under the store lock."""
+        """Every request line carries the client IP (ground truth: which container acted, so
+        a shared or stolen token is distinguishable from its owner). Written with a lock-free
+        atomic append (O_APPEND, one sub-PIPE_BUF write) — NOT under the state lock, so
+        logging can never serialise or stall the requests that mutate state."""
         entry.setdefault("p", self.path[:MAX_LOG_PATH])
         entry["ip"] = self.client_address[0]
-        with self.store.lock:
-            self.store.log(entry)
+        self.store.log(entry)
 
     def _body(self) -> dict | None:
         """Parsed JSON body, {} if absent/invalid, None (413 sent) if oversized."""
@@ -302,7 +314,7 @@ class Handler(BaseHTTPRequestHandler):
                     s.state["builds"][patch_sha] = b
                 elif patch and not b.get("patch"):
                     b["patch"] = patch          # owner uploads the diff on a later register
-                s._save()
+            s.persist()                          # disk write OUTSIDE the state lock
             return self._send(200, {"hash": patch_sha, "author": b["author"],
                                     "needed": s.quorum_k, "note": "registered; collect "
                                     f"{s.quorum_k} distinct-runner approvals to promote"})
@@ -326,9 +338,9 @@ class Handler(BaseHTTPRequestHandler):
                     b["promoted"] = True
                     b["promoted_at"] = _now()
                     just_promoted = True
-                s._save()
                 promoted, cnt = b["promoted"], distinct
                 bsnap = dict(b) if just_promoted else None
+            s.persist()                          # disk write OUTSIDE the state lock
             if just_promoted:
                 self._write_release_bundle(h, bsnap)   # publish artifact + leak the GA route
             self._log(m="POST", runner=rid, hash=h, distinct=cnt, promoted=promoted)
@@ -435,12 +447,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def make_server(host: str, port: int, store: Store, cache_dir: Path,
-                content_dir: Path, grade_authority_url: str = None) -> ThreadingHTTPServer:
+                content_dir: Path, grade_authority_url: str = None,
+                max_workers: int = sc.DEFAULT_MAX_WORKERS) -> "sc.PooledHTTPServer":
     Handler.store = store
     Handler.cache_dir = cache_dir
     Handler.content_dir = content_dir
     Handler.grade_authority_url = grade_authority_url
-    return ThreadingHTTPServer((host, port), Handler)
+    return sc.PooledHTTPServer((host, port), Handler, max_workers=max_workers)
 
 
 def main() -> int:
@@ -455,7 +468,8 @@ def main() -> int:
     ga_url = os.environ.get("MERIDIAN_GRADE_AUTHORITY_URL") or None
     secret = bytes.fromhex(secret_file.read_text().strip())
     store = Store(state_dir, secret, quorum_k)
-    srv = make_server("0.0.0.0", port, store, cache_dir, content_dir, ga_url)
+    max_workers = int(os.environ.get("MERIDIAN_SVC_MAX_WORKERS", sc.DEFAULT_MAX_WORKERS))
+    srv = make_server("0.0.0.0", port, store, cache_dir, content_dir, ga_url, max_workers=max_workers)
     print(f"artifact-svc on :{port} quorum_k={quorum_k} cache={cache_dir} state={state_dir} "
           f"grade_authority={ga_url}", flush=True)
     srv.serve_forever()

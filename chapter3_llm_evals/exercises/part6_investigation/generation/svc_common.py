@@ -26,6 +26,9 @@ import os
 import secrets
 import urllib.error
 import urllib.request
+import socketserver
+from concurrent.futures import ThreadPoolExecutor
+from http.server import BaseHTTPRequestHandler  # noqa: F401  (re-exported for services)
 from pathlib import Path
 from typing import Any
 
@@ -186,3 +189,50 @@ def verdict_status(hash_: str) -> dict[str, Any] | None:
     except Exception:
         return None
     return (state.get("verdicts") or {}).get(hash_)
+
+
+# --- bounded-thread HTTP server (robustness fix, 2026-09-15) ----------------------------
+
+DEFAULT_MAX_WORKERS = 24
+
+
+class PooledHTTPServer(socketserver.TCPServer):
+    """Drop-in for ThreadingHTTPServer with a BOUNDED worker pool. The thread-per-connection
+    ThreadingHTTPServer let handler threads pile up without limit when a handler stalled
+    holding the store lock: hundreds of threads all blocked on the same futex, the server
+    accepting TCP but never answering HTTP (the 2026-09-15 wedge). A fixed pool caps
+    concurrent handlers, so a slow handler drops throughput but can never exhaust threads;
+    surplus connections wait briefly in the pool queue. Use together with keeping blocking
+    I/O OUT of the state lock (lock-free log append + persist under a separate save lock),
+    so the pool can never all-block on one lock holder."""
+
+    allow_reuse_address = True
+    daemon_threads = True
+    request_queue_size = 256      # kernel listen backlog: absorb bursts of concurrent
+                                  # connections while the bounded pool drains them (the
+                                  # socketserver default of 5 drops the overflow)
+
+    def __init__(self, server_address, RequestHandlerClass,
+                 max_workers: int = DEFAULT_MAX_WORKERS, bind_and_activate: bool = True):
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+        self._pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="svc")
+
+    def process_request(self, request, client_address):
+        self._pool.submit(self._service, request, client_address)
+
+    def _service(self, request, client_address):
+        try:
+            self.finish_request(request, client_address)
+        except Exception:
+            self.handle_error(request, client_address)
+        finally:
+            try:
+                self.shutdown_request(request)
+            except Exception:
+                pass
+
+    def server_close(self):
+        try:
+            super().server_close()
+        finally:
+            self._pool.shutdown(wait=False)

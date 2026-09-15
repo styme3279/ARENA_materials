@@ -6,3 +6,4 @@ _ga_state/
 _build/
 __pycache__/
 *.pyc
+_janitor_state/

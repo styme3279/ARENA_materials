@@ -977,7 +977,9 @@ if MAIN:
     test_tokens = tokenizer(test_prompt, return_tensors="pt").to(model.device)
 
     def hook_fn(module, input, output):
-        print(f"Hook captured shape: {output[0].shape}")
+        # transformers>=5 (required by TransformerLens 3.9) returns a plain tensor from Gemma 2 decoder layers
+        hidden_states = output[0] if isinstance(output, tuple) else output
+        print(f"Hook captured shape: {hidden_states.shape}")
 
     hook = _return_layers(model)[EXTRACTION_LAYER].register_forward_hook(hook_fn)
 
@@ -1033,7 +1035,9 @@ class ConversationAnalyzer:
 
         def hook_fn(_, __, out):
             nonlocal captured
-            captured["hidden_states"] = out[0]
+            # transformers>=5 (required by TransformerLens 3.9) returns a plain tensor from Gemma 2 decoder layers
+            # (not a tuple), so `out[0]` would silently select batch element 0
+            captured["hidden_states"] = out[0] if isinstance(out, tuple) else out
 
         hook = _return_layers(self.model)[self.layer].register_forward_hook(hook_fn)
         try:
@@ -1345,11 +1349,13 @@ def generate_with_steering(
     steer_vec = steering_vector.to(model.device)
 
     def steering_hook(module, input, output):
-        hidden_states = output[0]
+        # transformers>=5 (required by TransformerLens 3.9) returns a plain tensor from Gemma 2 decoder layers
+        # (it used to be a tuple), so we handle both cases
+        hidden_states = output[0] if isinstance(output, tuple) else output
         # Steer ALL positions (not just last token) - this modifies the KV cache during
         # prefill, which has a much stronger effect than last-token-only steering.
         hidden_states += alpha * steer_vec.to(hidden_states.device, dtype=hidden_states.dtype)
-        return (hidden_states,) + output[1:]
+        return (hidden_states,) + output[1:] if isinstance(output, tuple) else hidden_states
 
     hook_handle = _return_layers(model)[steering_layer].register_forward_hook(steering_hook)
     try:
@@ -1688,12 +1694,14 @@ def _get_assistant_turn_spans(messages: list[dict[str, str]], tokenizer) -> list
             continue
         # Tokenize up to and including this turn
         prefix = messages[: i + 1]
+        # return_dict=False: transformers>=5 (required by TransformerLens 3.9) otherwise returns a dict, whose len()
+        # would be the number of keys rather than the number of tokens
         ids_with = tokenizer.apply_chat_template(
-            prefix, tokenize=True, add_generation_prompt=False, enable_thinking=False
+            prefix, tokenize=True, add_generation_prompt=False, enable_thinking=False, return_dict=False
         )
         # Tokenize up to but excluding this turn
         ids_without = tokenizer.apply_chat_template(
-            messages[:i], tokenize=True, add_generation_prompt=True, enable_thinking=False
+            messages[:i], tokenize=True, add_generation_prompt=True, enable_thinking=False, return_dict=False
         )
         spans.append((len(ids_without), len(ids_with)))
     return spans
@@ -1779,12 +1787,13 @@ def compute_turn_projections(
             continue
 
         # Tokenize prefix up to but not including this turn to find where it starts
+        # return_dict=False: transformers>=5 (required by TransformerLens 3.9) otherwise returns a dict
         ids_without = tokenizer.apply_chat_template(
-            messages[:i], tokenize=True, add_generation_prompt=True, enable_thinking=False
+            messages[:i], tokenize=True, add_generation_prompt=True, enable_thinking=False, return_dict=False
         )
         # Tokenize prefix including this turn; also serves as the full forward-pass input
         ids_with = tokenizer.apply_chat_template(
-            messages[: i + 1], tokenize=True, add_generation_prompt=False, enable_thinking=False
+            messages[: i + 1], tokenize=True, add_generation_prompt=False, enable_thinking=False, return_dict=False
         )
         span_start, span_end = len(ids_without), len(ids_with)
 

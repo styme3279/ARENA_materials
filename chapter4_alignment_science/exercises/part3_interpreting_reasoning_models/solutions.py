@@ -1187,7 +1187,10 @@ def get_resampled_rollouts(
 if MAIN:
     # Load the model for generation (only if you want to try this)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME_8B, dtype=dtype, device_map="auto")
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_8B)
+    # add_bos_token=True: the model expects a BOS token at the start of every sequence, but transformers loads these
+    # checkpoints with a tokenizer class that doesn't add one by default (huggingface/transformers#45741).
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_8B, add_bos_token=True)
+    assert tokenizer("x").input_ids[0] == tokenizer.bos_token_id, "expected the tokenizer to add a BOS token"
 
     t0 = time.time()
     full_answer_resampled, chunks_resampled, chunk_rollouts_resampled = get_resampled_rollouts(
@@ -1257,7 +1260,10 @@ def extract_attention_matrix(
 
 if MAIN:
     # Load model and tokenizer (with attention output enabled - important!)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_1B)
+    # add_bos_token=True: the model expects a BOS token at the start of every sequence, but transformers loads these
+    # checkpoints with a tokenizer class that doesn't add one by default (huggingface/transformers#45741).
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_1B, add_bos_token=True)
+    assert tokenizer("x").input_ids[0] == tokenizer.bos_token_id, "expected the tokenizer to add a BOS token"
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -1632,15 +1638,7 @@ if MAIN:
     sentences_subset = sentences_full[:n_chunks]
     # Find where the n_chunks-th sentence ends in the original text to extract the correct substring
     # This preserves the original text formatting and ensures tokenization consistency
-    end_char_pos = 0
-    for sent in sentences_subset:
-        # Find this sentence in the text starting from where we left off
-        sent_pos = text_full.find(sent, end_char_pos)
-        if sent_pos == -1:
-            # Try with stripped version
-            sent_pos = text_full.find(sent.strip(), end_char_pos)
-        if sent_pos != -1:
-            end_char_pos = sent_pos + len(sent)
+    end_char_pos = utils.get_sentence_char_boundaries(text_full, sentences_subset)[-1][1]
 
     text_subset = text_full[:end_char_pos]
 

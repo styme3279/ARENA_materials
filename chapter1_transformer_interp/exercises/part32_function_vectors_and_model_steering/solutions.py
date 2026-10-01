@@ -75,8 +75,9 @@ if MAIN:
     # Decoding a list of integers, into a concatenated string.
     print(tokenizer.decode([40, 1239, 714, 651, 262, 8181, 286, 48971, 12545, 13]))
     
-    # Using batch decode, on both 1D and 2D input.
-    print(tokenizer.batch_decode([4711, 2456, 481, 307, 6626, 510]))
+    # Using batch decode, on 2D input: one string per row. To split tokens individually, make each token its own row.
+    # In transformers>=5 (required by TransformerLens 3.9), a flat 1D list is decoded as a single sequence.
+    print(tokenizer.batch_decode([[4711], [2456], [481], [307], [6626], [510]]))
     print(tokenizer.batch_decode([[1212, 6827, 481, 307, 1978], [2396, 481, 428, 530]]))
     
     # Split sentence into tokens (note we see the special Ġ character in place of prepended spaces).
@@ -336,7 +337,9 @@ def calculate_h(model: LanguageModel, dataset: ICLDataset, layer: int = -1) -> t
         logits = model.lm_head.output[:, -1]
         next_tok_id = logits.argmax(dim=-1).save()
 
-    completions = model.tokenizer.batch_decode(next_tok_id)
+    # Unsqueeze so each token is its own row - in transformers>=5 (required by TransformerLens 3.9), batch_decode
+    # on a 1D tensor decodes it as one sequence (a single concatenated string) rather than one string per token
+    completions = model.tokenizer.batch_decode(next_tok_id.unsqueeze(-1))
     return completions, h
 
 
@@ -425,8 +428,9 @@ def intervene_with_h(
             token_completions_intervention = model.lm_head.output[:, -1].argmax(dim=-1).save()
 
     # Decode to get the string tokens
-    completions_zero_shot = model.tokenizer.batch_decode(token_completions_zero_shot)
-    completions_intervention = model.tokenizer.batch_decode(token_completions_intervention)
+    # Unsqueeze so each token is decoded separately (transformers>=5 batch_decode treats 1D input as one sequence)
+    completions_zero_shot = model.tokenizer.batch_decode(token_completions_zero_shot.unsqueeze(-1))
+    completions_intervention = model.tokenizer.batch_decode(token_completions_intervention.unsqueeze(-1))
 
     return completions_zero_shot, completions_intervention
 
@@ -526,8 +530,9 @@ def calculate_h_and_intervene(
             hidden[:, -1] += h
             intervene_tokens = model.lm_head.output[:, -1].argmax(dim=-1).save()
 
-    completions_zero_shot = tokenizer.batch_decode(clean_tokens)
-    completions_intervention = tokenizer.batch_decode(intervene_tokens)
+    # Unsqueeze so each token is decoded separately (transformers>=5 batch_decode treats 1D input as one sequence)
+    completions_zero_shot = tokenizer.batch_decode(clean_tokens.unsqueeze(-1))
+    completions_intervention = tokenizer.batch_decode(intervene_tokens.unsqueeze(-1))
     return completions_zero_shot, completions_intervention
 
 
@@ -1011,8 +1016,11 @@ def calculate_and_apply_steering_vector(
         with generator.invoke(act_add_prompts):
             # Get all the prompts from the activation additions, and put them in a list
             # (note, we slice from the end of the sequence because of left-padding)
+            # No `[0]` after `.output` here - in transformers>=5 (required by TransformerLens 3.9), GPT-2 blocks
+            # return the hidden states as a plain tensor rather than a tuple (unlike GPT-J earlier, which still returns
+            # a tuple). Writing `.output[0]` would silently index into batch element 0!
             act_add_vectors = [
-                model.transformer.h[layer].output[0][i, -seq_len:]
+                model.transformer.h[layer].output[i, -seq_len:]
                 for i, (layer, seq_len) in enumerate(zip(act_add_layers, act_add_seq_lens))
             ]
 
@@ -1025,7 +1033,7 @@ def calculate_and_apply_steering_vector(
         with generator.invoke(steered_prompts):
             # For each act_add prompt, add the vector to residual stream, at the start of the seq
             for i, (layer, coeff, seq_len) in enumerate(zip(act_add_layers, act_add_coeffs, act_add_seq_lens)):
-                model.transformer.h[layer].output[0][:, :seq_len] += coeff * act_add_vectors[i]
+                model.transformer.h[layer].output[:, :seq_len] += coeff * act_add_vectors[i]
             steered_out = model.generator.output.save()
 
     # Decode steered & unsteered completions (discarding the sequences we only used for extracting
@@ -1114,7 +1122,8 @@ if MAIN:
     # Code to calculate decoded vocabulary:
     logits = model._model.lm_head(fn_vector)
     max_logits = logits.topk(20).indices.tolist()
-    tokens = model.tokenizer.batch_decode(max_logits)
+    # One row per token - transformers>=5 batch_decode treats a flat list as a single sequence
+    tokens = model.tokenizer.batch_decode([[tok] for tok in max_logits])
     print("Top logits:\n" + "\n".join(map(repr, tokens)))
 
 # %%

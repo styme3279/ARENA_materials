@@ -1029,7 +1029,8 @@ if MAIN:
     
         # Tokenize and verify
         tokens = gemma.to_tokens(prompt)
-        str_tokens = gemma.to_str_tokens(prompt)
+        # Pass tokens rather than the string: in TransformerLens 3.9, to_str_tokens(<string>) fails for Gemma models
+        str_tokens = gemma.to_str_tokens(tokens)
         print(f"Prompt has {len(str_tokens)} tokens")
         print(f"First {START_POSN} tokens (masked): {str_tokens[:START_POSN]}")
         print(f"Remaining tokens: {str_tokens[START_POSN:]}")

@@ -158,7 +158,9 @@ if MAIN:
     outputs = model(**inputs)
     
     top_preds = outputs.logits[0, -1].topk(10).indices
-    top_preds_str = tokenizer.batch_decode(top_preds)
+    # Unsqueeze so each token is decoded separately - in transformers>=5 (required by TransformerLens 3.9), batch_decode
+    # on a 1D tensor decodes it as a single sequence
+    top_preds_str = tokenizer.batch_decode(top_preds.unsqueeze(-1))
     print(top_preds_str)
 
 # %%
@@ -614,6 +616,7 @@ def create_oracle_input(
         return_tensors=None,
         padding=False,
         enable_thinking=False,
+        return_dict=False,  # transformers>=5 (required by TransformerLens 3.9) returns a dict by default when tokenize=True
     )
 
     # Find ? token positions in the prompt

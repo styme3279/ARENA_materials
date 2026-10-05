@@ -349,7 +349,7 @@ def triangle_ray_intersects(A: Point, B: Point, C: Point, O: Point, D: Point) ->
 
     Return True if the ray and the triangle intersect.
     """
-
+    # print("START")
     # raise NotImplementedError()
     # print(ray)
 
@@ -358,11 +358,12 @@ def triangle_ray_intersects(A: Point, B: Point, C: Point, O: Point, D: Point) ->
     # L2 = segment[1,:2]
 
     # print(L1 - L2)
-    a = t.stack(-D, B-A, C-A), dim=1)
-    print(D.shape)
-    print(a.shape)
+    a = t.stack((-D, B-A, C-A), dim=1)
+    # print(D.shape)
+    # print(a.shape)
 
-    b = t.unsqueeze(L1-O, dim=0).T
+    # b = t.unsqueeze(O-A, dim=0).T
+    b = O - A
     # print(b)
 
     try:
@@ -370,10 +371,16 @@ def triangle_ray_intersects(A: Point, B: Point, C: Point, O: Point, D: Point) ->
         # print(intersection)
     except RuntimeError:
         return False
-    if intersection[0] >= 0.0 and intersection[1] >= 0.0 and intersection[1] <= 1.0:
+    #if intersection[0] >= 0.0 and intersection[1] >= 0.0 and intersection[1] <= 1.0:
+    if intersection[0] >= 0.0 and\
+       intersection[1] >= 0.0 and\
+       intersection[2] >= 0.0 and\
+       intersection[1] + intersection[2] <= 1.0:
         return True
     else:
         return False
 
 
 tests.test_triangle_ray_intersects(triangle_ray_intersects)
+
+# %%

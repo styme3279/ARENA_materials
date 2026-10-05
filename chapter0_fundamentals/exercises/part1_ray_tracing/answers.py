@@ -540,8 +540,17 @@ def raytrace_mesh(
             (intersections[:, :, 2] >= 0.0) &\
             (intersections[:, :, 1] + intersections[:, :, 2] <= 1.0)
 
-    return valid.any(dim=1)
+    print("hihihi")
+    print(valid.shape)
+    # return valid.any(dim=1)
 
+    print(rays.shape)
+    rays[~valid, :, :] = t.inf
+    min_dists = einops.reduce(rays, "rays tris points coords -> rays", "min")
+    # reduce(x, 'b h w c -> b h w', 'mean')
+    print(min_dists.shape)
+    # tris_dists = triangles
+    return min_dists
 
 triangles = t.load(section_dir / "pikachu.pt", weights_only=True)
 

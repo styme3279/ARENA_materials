@@ -394,6 +394,8 @@ img = intersects.reshape(num_pixels_y, num_pixels_z).int()
 imshow(img, origin="lower", width=600, title="Triangle (as intersected by rays)")
 
 
+# %%
+triangles = t.load(section_dir / "pikachu.pt", weights_only=True)
 
 # %%
 
@@ -405,7 +407,36 @@ def raytrace_mesh(
     For each ray, return the distance to the closest intersecting triangle, or infinity.
     """
     # Find whether intersects with each triangle
-    
+    nrays = rays.shape[0]
+    ntriangles = triangles.shape[0]
+    print(f"nrays.shape: {nrays}")
+    print(f"ntriangles.shape: {ntriangles}")
+    print(f"ntriangles*nrays: {nrays*ntriangles}")
+    print(f"*nrays: {nrays*ntriangles}")
+
+    As, Bs, Cs= triangles[:, 0], triangles[:, 1], triangles[:, 2]
+
+    O = rays[:, 0, :]
+    D = rays[:, 1, :] - O
+    print(f"D.shape: {D.shape}")
+
+    lhs = t.zeros((nrays*ntriangles, 3, 3))
+
+    lhs_d = einops.repeat(D,"nrays w ->  (nrays ntriangles) w", ntriangles=ntriangles)
+
+    stack = t.stack([Bs - As, Cs - As],dim=-1)
+    print(f"stack: {stack.shape}")
+    print(f"lhs_d: {lhs_d.shape}")
+    lhs_t = einops.repeat(stack,"ntriangles w h ->  (nrays ntriangles) w h", nrays=nrays)
+    print(f"lhs_t: {lhs_t.shape}")
+
+    lhs_combined = 
+
+
+    asdf
+
+    # lhs_l = einops.repeat(,"nsegments w-> (nrays nsegments) w", 
+    # nrays=rays.shape[0])
 
 
     # Find intersection points to each triangle

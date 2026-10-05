@@ -409,28 +409,21 @@ def raytrace_mesh(
     # Find whether intersects with each triangle
     nrays = rays.shape[0]
     ntriangles = triangles.shape[0]
-    print(f"nrays.shape: {nrays}")
-    print(f"ntriangles.shape: {ntriangles}")
-    print(f"ntriangles*nrays: {nrays*ntriangles}")
-    print(f"*nrays: {nrays*ntriangles}")
 
     As, Bs, Cs= triangles[:, 0], triangles[:, 1], triangles[:, 2]
 
     O = rays[:, 0, :]
-    print(f"O.shape: {O.shape}")
-    D = rays[:, 1, :] - O
+    D = rays[:, 1, :] #- O
 
     lhs = t.zeros((nrays*ntriangles, 3, 3))
 
     lhs_d = einops.repeat(-D,"nrays w ->  (nrays ntriangles) w", ntriangles=ntriangles)
 
     stack = t.stack([Bs - As, Cs - As],dim=-1)
-    print(f"lhs_d: {lhs_d.shape}")
     lhs_t = einops.repeat(stack,"ntriangles w h ->  (nrays ntriangles) w h", nrays=nrays)
 
 
     lhs = t.concat([lhs_d.unsqueeze(dim=2), lhs_t], dim=2)
-    print(f"lhs: {lhs.shape}")
     # lhs = einops.rearrange(lhs, 'i (k l) -> i l k', k=2, l=2)
 
 
@@ -441,13 +434,10 @@ def raytrace_mesh(
 
 
     As_broadcast = einops.repeat(As,"ntriangles w ->  (nrays ntriangles) w", nrays=nrays)
-    print(f"A_broa = {As_broadcast.shape}")
     rhs = O_broadcast - As_broadcast
 
-    print(f"rhs.shape: {rhs.shape}")
     
     x = t.linalg.solve(lhs, rhs)
-    print(f"x.shape: {x.shape}")
 
 
     intersect = x[:,0] >= 0  #t.any(x[:,0] >= 0)
@@ -457,10 +447,8 @@ def raytrace_mesh(
 
     # total = ((cond_b * cond_c * cond_d)*0+1).bool()
     total = (cond_b * cond_c * cond_d).bool()
-    print(f"total.shape: {total.shape}")
 
     total_mat = einops.rearrange(total, "(nrays ntriangles) -> nrays ntriangles", nrays=nrays, ntriangles=ntriangles)
-    print(f"total_mat.shape: {total_mat.shape}")
 
     # lhs_l = einops.repeat(,"nsegments w-> (nrays nsegments) w", 
     # nrays=rays.shape[0])
@@ -486,7 +474,7 @@ def raytrace_mesh(
 
 num_pixels_y = 120
 num_pixels_z = 120
-y_limit = z_limit = 2.5
+y_limit = z_limit = 1.2
 
 rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
 rays[:, 0] = t.tensor([-2, 0.0, 0.0])
@@ -501,5 +489,69 @@ for i, text in enumerate(["Intersects", "Distance"]):
     fig.layout.annotations[i]["text"] = text
 fig.show()
 
+# %%
+def rotation_matrix(theta: Float[Tensor, ""]) -> Float[Tensor, "rows cols"]:
+    """
+    Creates a rotation matrix representing a counterclockwise rotation of `theta` around the y-axis.
+    """
+    return t.tensor([
+        [t.cos(theta), 0.0, t.sin(theta)],
+        [0.0, 1.0, 0.0],
+        [-t.sin(theta), 0.0, t.cos(theta)],
+    ])
+
+
+tests.test_rotation_matrix(rotation_matrix)
+
+
+# %%
+
+def raytrace_mesh_video(
+    rays: Float[Tensor, "nrays points dim"],
+    triangles: Float[Tensor, "ntriangles points dims"],
+    rotation_matrix: Callable[[float], Float[Tensor, "rows cols"]],
+    raytrace_function: Callable,
+    num_frames: int,
+) -> Bool[Tensor, "nframes nrays"]:
+    """
+    Creates a stack of raytracing results, rotating the triangles by `rotation_matrix` each frame.
+    """
+    result = []
+    theta = t.tensor(2 * t.pi) / num_frames
+    R = rotation_matrix(theta)
+    for theta in tqdm(range(num_frames)):
+        triangles = triangles @ R
+        result.append(raytrace_function(rays, triangles))
+        t.cuda.empty_cache()  # clears GPU memory (this line will be more important later on!)
+    return t.stack(result, dim=0)
+
+
+def display_video(distances: Float[Tensor, "frames y z"]):
+    """
+    Displays video of raytracing results, using Plotly. `distances` is a tensor where the [i, y, z]
+    element is distance to the closest triangle for the i-th frame & the [y, z]-th ray in our 2D
+    grid of rays.
+    """
+    px.imshow(
+        distances,
+        animation_frame=0,
+        origin="lower",
+        zmin=0.0,
+        zmax=distances[distances.isfinite()].quantile(0.99).item(),
+        color_continuous_scale="viridis_r",  # "Brwnyl"
+    ).update_layout(coloraxis_showscale=False, width=550, height=600, title="Raytrace mesh video").show()
+
+
+num_pixels_y = 250
+num_pixels_z = 250
+y_limit = z_limit = 0.8
+num_frames = 50
+
+rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
+rays[:, 0] = t.tensor([-3.0, 0.0, 0.0])
+dists = raytrace_mesh_video(rays, triangles, rotation_matrix, raytrace_mesh, num_frames)
+dists = einops.rearrange(dists, "frames (y z) -> frames y z", y=num_pixels_y)
+
+display_video(dists)
 
 # %%

@@ -315,7 +315,7 @@ def raytrace_mesh(
     print(f"rays shape {rays.shape}")
 
     O, D = einops.repeat(rays, "NR OD XYZ -> NR n OD XYZ", n=triangles.shape[0]).unbind(dim=2)
-    A, B, C = einops.repeat(triangle, "NT ABC XYZ -> n NT ABC XYZ", n=rays.shape[0]).unbind(dim=2)
+    A, B, C = einops.repeat(triangles, "NT ABC XYZ -> n NT ABC XYZ", n=rays.shape[0]).unbind(dim=2)
 
     m = t.stack([-1*D, B - A, C - A], dim=-1)
 
@@ -328,9 +328,17 @@ def raytrace_mesh(
 
     print(f"sol {sol.shape}")
 
-    s, u, v = sol.unbind(dim=1)
+    s, u, v = sol.unbind(dim=2)
 
-    return (0 <= s) & (0 <= u) & (0 <= v) & (u + v <= 1) & ~is_singular
+    filter = (0 <= s) & (0 <= u) & (0 <= v) & (u + v <= 1) & ~is_singular
+
+    print("here")
+
+    s[filter] = float('inf')
+
+    filter = (0 <= s) & (0 <= u) & (0 <= v) & (u + v <= 1) & ~is_singular
+
+    return t.min(s, dim=1)
 
 
 num_pixels_y = 120
@@ -349,3 +357,4 @@ fig.update_layout(coloraxis_showscale=False)
 for i, text in enumerate(["Intersects", "Distance"]):
     fig.layout.annotations[i]["text"] = text
 fig.show()
+# %%

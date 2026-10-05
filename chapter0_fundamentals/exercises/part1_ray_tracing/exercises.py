@@ -158,3 +158,29 @@ x = t.randn(4,3)
 print(einops.repeat(x, "b c -> a c b", a=2))
 
 # %%
+D = t.ones(3)
+print(F)
+F = t.arange(0, 27).reshape(3, 3, 3)
+print(F[[True, True, True], [False, True, True], :])
+
+# %%
+def intersect_rays_1d(
+    rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
+) -> Bool[Tensor, " nrays"]:
+    print(f"rays: {rays}")
+    print(f"segments: {segments}")
+
+    rays = rays[..., :2]
+    segments = segments[..., :2]
+
+    l1 = segments[..., :2]
+    l2 = segments[1][:2]
+    o = rays[0][:2]
+    d = rays[1][:2]
+
+    return
+
+
+tests.test_intersect_rays_1d(intersect_rays_1d)
+tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
+# %%

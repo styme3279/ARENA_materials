@@ -157,11 +157,6 @@ tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
 x = t.randn(4,3)
 print(einops.repeat(x, "b c -> a c b", a=2))
 
-# %%
-D = t.ones(3)
-print(F)
-F = t.arange(0, 27).reshape(3, 3, 3)
-print(F[[True, True, True], [False, True, True], :])
 
 # %%
 def intersect_rays_1d(
@@ -258,4 +253,38 @@ def triangle_ray_intersects(A: Point, B: Point, C: Point, O: Point, D: Point) ->
 
 
 tests.test_triangle_ray_intersects(triangle_ray_intersects)
+# %%
+def raytrace_triangle(
+    rays: Float[Tensor, "nrays rayPoints=2 dims=3"],
+    triangle: Float[Tensor, "trianglePoints=3 dims=3"],
+) -> Bool[Tensor, " nrays"]:
+    """
+    For each ray, return True if the triangle intersects that ray.
+    """
+    print(f"rays shape {rays.shape}")
+
+    O, D = rays.unbind(dim=-1)
+    print(O)
+
+    A, B, C = triangle
+
+    t.stack(rays,B - A, C - A,)
+
+
+A = t.tensor([1, 0.0, -0.5])
+B = t.tensor([1, -0.5, 0.0])
+C = t.tensor([1, 0.5, 0.5])
+num_pixels_y = num_pixels_z = 15
+y_limit = z_limit = 0.5
+
+# Plot triangle & rays
+test_triangle = t.stack([A, B, C], dim=0)
+rays2d = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
+triangle_lines = t.stack([A, B, C, A, B, C], dim=0).reshape(-1, 2, 3)
+render_lines_with_plotly(rays2d, triangle_lines)
+
+# Calculate and display intersections
+intersects = raytrace_triangle(rays2d, test_triangle)
+img = intersects.reshape(num_pixels_y, num_pixels_z).int()
+imshow(img, origin="lower", width=600, title="Triangle (as intersected by rays)")
 # %%

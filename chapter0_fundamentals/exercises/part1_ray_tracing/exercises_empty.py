@@ -452,18 +452,31 @@ def raytrace_mesh(
     cond_c = x[:, 2] >= 0
     cond_d = x[:, 1] + x[:, 2] <= 1
 
-    total = cond_a * cond_b * cond_c * cond_d
+    total = (cond_a * cond_b * cond_c * cond_d).bool()
+    print(f"total.shape: {total.shape}")
+
+    total_mat = einops.rearrange(total, "(nrays ntriangles) -> nrays ntriangles", nrays=nrays, ntriangles=ntriangles)
+    print(f"total_mat.shape: {total_mat.shape}")
 
     # lhs_l = einops.repeat(,"nsegments w-> (nrays nsegments) w", 
     # nrays=rays.shape[0])
 
 
     # Compute distance to closest
-    both = einops.rearrange(both, "(nrays ntriangles) w -> nrays ntriangles w", w = 3)
+    x_matrix = einops.rearrange(x, "(nrays ntriangles) w -> nrays ntriangles w", w = 3, nrays=nrays, ntriangles=ntriangles)
+    print(f"x_matrix.shape: {x_matrix.shape}")
 
+    distances = t.sqrt(x_matrix[:, :, 0]**2 + x_matrix[:, :, 1]**2 + x_matrix[:, :, 2]**2)
+    print(f"distances.shape: {distances.shape}")
+    
+    # overwrite inf
+    distances[~total_mat] = t.inf
+    print(f"distances: {distances[0:5]}")
 
+    min_dist = t.min(min_dist, dim=1).values
+    print(f"min_dist: {min_dist}")
 
-    raise NotImplementedError()
+    return min_dist
 
 
 num_pixels_y = 120

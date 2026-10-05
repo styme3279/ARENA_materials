@@ -185,16 +185,20 @@ def intersect_rays_1d(
     L2 = segments[:, 1, :2]
 
     # print(L1 - L2)
-    a = t.stack((D, L1-L2), dim=1)
+    a = t.stack((D, L1-L2), dim=2)
     # print(a)
 
-    b = t.unsqueeze(L1-O, dim=0).T
+    b = t.unsqueeze(L1-O, dim=1).T
     # print(b)
 
     determinants = t.linalg.det(a)
     print(a.shape)
     print(determinants)
-    # determinants.abs() < 1e-6
+    is_singular = determinants.abs() < 1e-6
+    print(is_singular)
+    print(a.shape)
+    print(a[0, 0, :].shape)
+    a[is_singular] = t.eye(a[0, 0, :].shape)
 
     # try:
     #     intersection = t.linalg.solve(a, b)

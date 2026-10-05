@@ -170,13 +170,18 @@ def intersect_rays_1d(
     print(f"rays: {rays}")
     print(f"segments: {segments}")
 
-    rays = rays[..., :2]
-    segments = segments[..., :2]
+    o = rays[..., :2][:, 0, :]
+    d = rays[..., :2][:, 1, :]
+    l1 = einops.repeat(segments[..., :2][:, 0, :], "nsegments c -> nrays nsegments c", nrays=rays.shape[0])
+    l2 = einops.repeat(segments[..., :2][:, 1, :], "nsegments c -> nrays nsegments c", nrays=rays.shape[0])
 
-    l1 = segments[..., :2]
-    l2 = segments[1][:2]
-    o = rays[0][:2]
-    d = rays[1][:2]
+    print(f"o: {o}")
+    print(f"d: {d}")
+    print(f"l1: {l1}")
+    print(f"l2: {l2}")
+    print(l1.shape)
+    print(o.shape)
+    print(f"l1 - o: {l1 - o}")
 
     return
 

@@ -170,10 +170,33 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
     else:
         return False
 
-
 tests.test_intersect_ray_1d(intersect_ray_1d)
 tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
 
 
 
 # %%
+
+def intersect_rays_1d(
+    rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
+) -> Bool[Tensor, " nrays"]:
+    """
+    For each ray, return True if it intersects any segment.
+    [
+        [[0, 0, 0], [1, -1.0, 0]],
+        [[0, 0, 0], [1, -0.75, 0]],
+        [[0, 0, 0], [1, -0.5, 0]],
+        ...
+        [[0, 0, 0], [1, 0.75, 0]],
+        [[0, 0, 0], [1, 1, 0]],
+    ]
+    """
+
+    l1minl2_x = segments[:, 1, 0] - segments[:, 0, 0]
+    l1minl2_y = segments[:, 1, 1] - segments[:, 0, 1]
+    l1min0_x = segments[:, 1, 0]
+    l1min0_y = segments[:, 1, 1]
+
+
+tests.test_intersect_rays_1d(intersect_rays_1d)
+tests.test_intersect_rays_1d_special_case(intersect_rays_1d)

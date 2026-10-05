@@ -95,9 +95,10 @@ def intersect_rays_1d(
     """
     # breakpoint()
     rays = rays[..., :2]
-    Os, Ds = einops.rearrange(rays, "n p d -> p n d")
-    L1s, L2s, = einops.rearrange(segments[..., :2], "n p d -> p n d")
-    As = einops.rearrange([Ds, L1s - L2s], "n d p d -> n (d, p d)")
+    Os, Ds = einops.rearrange(rays, "n p d -> p n 1 d")
+    L1s, L2s, = einops.rearrange(segments[..., :2], "n p d -> p n 1 d")
+    # As = einops.rearrange([Ds, L1s - L2s], "n d p d -> n (d, p d)")
+    As = t.stack([Ds, L1s - L2s], dim=-1)
 
 
     # L1, L2 = segment[:, :2]

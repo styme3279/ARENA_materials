@@ -151,13 +151,29 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
     l1min0_x = segment[1, 0]
     l1min0_y = segment[1, 1]
 
-    lhs = t.array([[Dx, l1minl2_x], [Dy, l1minl2_y]])
-    rhs = t.array([l1min0_x, l1min0_y])
+    lhs = t.tensor([[Dx, l1minl2_x], [Dy, l1minl2_y]])
+    rhs = t.tensor([l1min0_x, l1min0_y])
 
-    x = t.linalg.solve(lhs, rhs)
+    # print(f"lhs shape: {lhs.shape}")
 
-    raise NotImplementedError()
+    # print(f"lhs shape: {lhs.shape}")
+    # print(f"rhs shape: {rhs.shape}")
+
+    try:
+        x = t.linalg.solve(lhs, rhs)
+    except:
+        return False
+    # print(f"x shape: {x.shape}")
+
+    if x[0] >= 0 and 0 <= x[1] <= 1:
+        return True
+    else:
+        return False
 
 
 tests.test_intersect_ray_1d(intersect_ray_1d)
 tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
+
+
+
+# %%

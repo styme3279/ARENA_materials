@@ -15,6 +15,7 @@ def test_intersect_ray_1d(intersect_ray_1d):
     actual = []
     for i, segment in enumerate(solutions.segments):
         for j, ray in enumerate(solutions.rays1d):
+            # print(f"ray: {ray}, segment: {segment}")
             if intersect_ray_1d(ray, segment):
                 actual.append((i, j))
     if expected != actual:

@@ -198,13 +198,22 @@ def intersect_rays_1d(
     l1min0_x = segments[:, 1, 0]
     l1min0_y = segments[:, 1, 1]
 
-    print(f"t.stack([Dx,Dy]: {t.stack([Dx,Dy],dim=1)}")
+    # print(f"t.stack([Dx,Dy]: {t.stack([Dx,Dy],dim=1)}")
 
-    lhs_d = einops.repeat(t.stack([Dx,Dy],dim=1),"nrays w -> nrays w nsegments", nsegments=segments.shape[0])
-    lhs_l = einops.repeat(t.stack([l1minl2_x,l1minl2_y],dim=1),"nsegments w-> nsegments w nrays", nrays=rays.shape[0])
-    print(lhs_d)
-    
+    lhs_d = einops.repeat(t.stack([Dx,Dy],dim=1),"nrays w ->  (nrays nsegments) w", nsegments=segments.shape[0])
+    lhs_l = einops.repeat(t.stack([l1minl2_x,l1minl2_y],dim=1),"nsegments w-> (nrays nsegments) w", 
+    nrays=rays.shape[0])
 
+    # print(lhs_l)
+    # print(lhs_l.shape)
+    # print(lhs_d.shape)
+
+    # einops.rearrange(lhs_l, )
+
+    lhs = t.concat([lhs_d, lhs_l], dim=1)
+    print(f"lhs: {lhs}")
+    einops.rearrange(lhs, 'i(kl) -> ikl')
+    asdf
 
 tests.test_intersect_rays_1d(intersect_rays_1d)
 tests.test_intersect_rays_1d_special_case(intersect_rays_1d)

@@ -330,7 +330,16 @@ def raytrace_triangle(
     """
     For each ray, return True if the triangle intersects that ray.
     """
-    raise NotImplementedError()
+
+    A, B, C = triangle[0], triangle[1], triangle[2]
+
+    O = rays[:, 0, :]
+    D = rays[:, 1, :] - O
+
+    Dx, Dy, Dz = D[:, 0], D[:, 1], D[:, 2]
+    BAx, BAy, BAz = B[0] - A[0], B[1] - A[1], B[2] - A[2]
+    CAx, CAy, CAz = C[0] - A[0], C[1] - A[1], C[2] - A[2]
+    OAx, OAy, OAz = O[0] - A[0], O[1] - A[1], O[2] - A[2]
 
 
 A = t.tensor([1, 0.0, -0.5])

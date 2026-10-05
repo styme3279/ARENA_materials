@@ -167,9 +167,12 @@ print(F[[True, True, True], [False, True, True], :])
 def intersect_rays_1d(
     rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
 ) -> Bool[Tensor, " nrays"]:
+    print(f"rays: {rays}")
+    print(f"segments: {segments}")
+    
     o = rays[..., :2][:, 0, :]
     d = rays[..., :2][:, 1, :]
-    d = einops.repeat(d, "b c -> a b c", a=3)
+    d = einops.repeat(d, "b c -> a b c", a=segments.shape[0])
     l1 = einops.repeat(segments[..., :2][:, 0, :], "nsegments c -> nsegments nrays c", nrays=rays.shape[0])
     l2 = einops.repeat(segments[..., :2][:, 1, :], "nsegments c -> nsegments nrays c", nrays=rays.shape[0])
 
@@ -177,8 +180,9 @@ def intersect_rays_1d(
 
     print(pre_sol)
     print(pre_sol.shape)
+    print((t.linalg.det(pre_sol) >= 1e-8))
 
-    print(t.lingalg.det(pre_sol, ) >= 1e-8)
+    pre_sol[(t.abs(t.linalg.det(pre_sol)) < 1e-8), ...] = t.eye(2)
 
     sol = t.linalg.solve(pre_sol, l1 - o)
 
@@ -191,3 +195,21 @@ def intersect_rays_1d(
 tests.test_intersect_rays_1d(intersect_rays_1d)
 tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
 # %%
+def make_rays_2d(num_pixels_y: int, num_pixels_z: int, y_limit: float, z_limit: float) -> Float[Tensor, "nrays 2 3"]:
+    """
+    num_pixels_y: The number of pixels in the y dimension
+    num_pixels_z: The number of pixels in the z dimension
+
+    y_limit: At x=1, the rays should extend from -y_limit to +y_limit, inclusive of both.
+    z_limit: At x=1, the rays should extend from -z_limit to +z_limit, inclusive of both.
+
+    Returns: shape (num_rays=num_pixels_y * num_pixels_z, num_points=2, num_dims=3).
+    """
+    res = t.zeros((num_pixels,2,3))
+    res[:,1,0] = 1
+    t.linspace(-1*y_limit,y_limit,num_pixels, out=res[:,1,1])
+    return res
+
+
+rays_2d = make_rays_2d(10, 10, 0.3, 0.3)
+render_lines_with_plotly(rays_2d)

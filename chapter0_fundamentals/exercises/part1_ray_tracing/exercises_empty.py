@@ -245,3 +245,93 @@ def intersect_rays_1d(
 tests.test_intersect_rays_1d(intersect_rays_1d)
 tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
 # %%
+
+def make_rays_2d(num_pixels_y: int, num_pixels_z: int, y_limit: float, z_limit: float) -> Float[Tensor, "nrays 2 3"]:
+    """
+    num_pixels_y: The number of pixels in the y dimension
+    num_pixels_z: The number of pixels in the z dimension
+
+    y_limit: At x=1, the rays should extend from -y_limit to +y_limit, inclusive of both.
+    z_limit: At x=1, the rays should extend from -z_limit to +z_limit, inclusive of both.
+
+    Returns: shape (num_rays=num_pixels_y * num_pixels_z, num_points=2, num_dims=3).
+    """
+    full_arr = t.zeros((num_pixels_y*num_pixels_z, 2, 3))
+    full_arr[:, 1, 0] = 1
+    y_arr = t.linspace(-y_limit, y_limit, num_pixels_y)
+    z_arr = t.linspace(-z_limit, z_limit, num_pixels_z)
+
+    yz_grid = t.cartesian_prod(y_arr,z_arr)
+    full_arr[:, 1, 1:] = yz_grid
+
+    return full_arr
+
+
+
+
+rays_2d = make_rays_2d(10, 10, 0.3, 0.3)
+render_lines_with_plotly(rays_2d)
+
+
+# %%
+
+one_triangle = t.tensor([[0, 0, 0], [4, 0.5, 0], [2, 3, 0]])
+A, B, C = one_triangle
+x, y, z = one_triangle.T
+
+fig: go.FigureWidget = setup_widget_fig_triangle(x, y, z)
+display(fig)
+
+
+@interact(u=(-0.5, 1.5, 0.01), v=(-0.5, 1.5, 0.01))
+def update(u=0.0, v=0.0):
+    P = A + u * (B - A) + v * (C - A)
+    fig.update_traces({"x": [P[0]], "y": [P[1]]}, 2)
+# %%
+Point = Float[Tensor, "points=3"]
+
+
+def triangle_ray_intersects(A: Point, B: Point, C: Point, O: Point, D: Point) -> bool:
+    """
+    A: shape (3,), one vertex of the triangle
+    B: shape (3,), second vertex of the triangle
+    C: shape (3,), third vertex of the triangle
+    O: shape (3,), origin point
+    D: shape (3,), direction point
+
+    Return True if the ray and the triangle intersect.
+    """
+
+    Dx, Dy, Dz = D[0], D[1], D[2]
+    BAx, BAy, BAz = B[0] - A[0], B[1] - A[1], B[2] - A[2]
+    CAx, CAy, CAz = C[0] - A[0], C[1] - A[1], C[2] - A[2]
+    OAx, OAy, OAz = O[0] - A[0], O[1] - A[1], O[2] - A[2]
+
+    lhs = t.tensor([[-Dx,BAx,CAx]])
+    rh
+tests.test_triangle_ray_intersects(triangle_ray_intersects)
+
+def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "points dims"]) -> bool:
+    """
+    ray: shape (n_points=2, n_dim=3)  # O, D points
+    [[0, 0, 0], [1, -1.0, 0]]
+    segment: shape (n_points=2, n_dim=3)  # L_1, L_2 points
+    [[0, 0, 0], [1, -1.0, 0]]
+    Return True if the ray intersects the segment.
+    """
+    Dx = ray[1,0] - ray[0, 0]
+    Dy = ray[1,1] - ray[0, 1]
+    l1minl2_x = (segment[1, 0] - segment[0, 0])
+    l1minl2_y = (segment[1, 1] - segment[0, 1])
+    l1min0_x = segment[1, 0]
+    l1min0_y = segment[1, 1]
+    lhs = t.tensor([[Dx, l1minl2_x], [Dy, l1minl2_y]])
+    rhs = t.tensor([l1min0_x, l1min0_y])
+    try:
+        x = t.linalg.solve(lhs, rhs)
+    except:
+        return False
+    if x[0] >= 0 and 0 <= x[1] <= 1:
+        return True
+    else:
+        return False

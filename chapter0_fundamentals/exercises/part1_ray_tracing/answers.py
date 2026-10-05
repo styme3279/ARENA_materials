@@ -334,3 +334,46 @@ render_lines_with_plotly(rays_2d)
     # print(rays.shape)
     # print(segments.shape)
 # %%
+
+
+Point = Float[Tensor, "points=3"]
+
+
+def triangle_ray_intersects(A: Point, B: Point, C: Point, O: Point, D: Point) -> bool:
+    """
+    A: shape (3,), one vertex of the triangle
+    B: shape (3,), second vertex of the triangle
+    C: shape (3,), third vertex of the triangle
+    O: shape (3,), origin point
+    D: shape (3,), direction point
+
+    Return True if the ray and the triangle intersect.
+    """
+
+    # raise NotImplementedError()
+    # print(ray)
+
+
+    # L1 = segment[0,:2]
+    # L2 = segment[1,:2]
+
+    # print(L1 - L2)
+    a = t.stack(-D, B-A, C-A), dim=1)
+    print(D.shape)
+    print(a.shape)
+
+    b = t.unsqueeze(L1-O, dim=0).T
+    # print(b)
+
+    try:
+        intersection = t.linalg.solve(a, b)
+        # print(intersection)
+    except RuntimeError:
+        return False
+    if intersection[0] >= 0.0 and intersection[1] >= 0.0 and intersection[1] <= 1.0:
+        return True
+    else:
+        return False
+
+
+tests.test_triangle_ray_intersects(triangle_ray_intersects)

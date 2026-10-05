@@ -210,25 +210,91 @@ def raytrace_triangle(
     For each ray, return True if the triangle intersects that ray.
     """
     nrays = rays.shape[0]
-    Os, Ds = einops.rearrange(rays[..., :2], "n p d -> p n d")
+    Os, Ds = einops.rearrange(rays, "n p d -> p n d")
     A, B, C = triangle.unbind(dim=0)
-    As = einops.repeat(A, )
-    raise NotImplementedError()
+    As = einops.repeat(A, "d -> nr d", nr=nrays)
+    Bs = einops.repeat(B, "d -> nr d", nr=nrays)
+    Cs = einops.repeat(C, "d -> nr d", nr=nrays)
+    mat = t.stack([-Ds, Bs-As, Cs-As], dim=-1)
+    vec = Os-As
+    
+    dets = t.linalg.det(mat)
+    is_singular = dets.abs() < 1e-8
+    mat[is_singular] = t.eye(3)
+
+    X = t.linalg.solve(mat, vec)
+    s, u, v = X.unbind(dim=-1)
+
+    hits = (s >= 0) & (u >= 0) & (v >= 0) & (u + v <= 1) & ~is_singular
+    return hits
+    # raise NotImplementedError()
 
 
-A = t.tensor([1, 0.0, -0.5])
-B = t.tensor([1, -0.5, 0.0])
-C = t.tensor([1, 0.5, 0.5])
-num_pixels_y = num_pixels_z = 15
-y_limit = z_limit = 0.5
+# A = t.tensor([1, 0.0, -0.5])
+# B = t.tensor([1, -0.5, 0.0])
+# C = t.tensor([1, 0.5, 0.5])
+# num_pixels_y = num_pixels_z = 150
+# y_limit = z_limit = 0.5
 
-# Plot triangle & rays
-test_triangle = t.stack([A, B, C], dim=0)
-rays2d = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
-triangle_lines = t.stack([A, B, C, A, B, C], dim=0).reshape(-1, 2, 3)
-render_lines_with_plotly(rays2d, triangle_lines)
+# # Plot triangle & rays
+# test_triangle = t.stack([A, B, C], dim=0)
+# rays2d = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
+# triangle_lines = t.stack([A, B, C, A, B, C], dim=0).reshape(-1, 2, 3)
+# render_lines_with_plotly(rays2d, triangle_lines)
 
-# Calculate and display intersections
-intersects = raytrace_triangle(rays2d, test_triangle)
-img = intersects.reshape(num_pixels_y, num_pixels_z).int()
-imshow(img, origin="lower", width=600, title="Triangle (as intersected by rays)")
+# # Calculate and display intersections
+# intersects = raytrace_triangle(rays2d, test_triangle)
+# img = intersects.reshape(num_pixels_y, num_pixels_z).int()
+# imshow(img, origin="lower", width=600, title="Triangle (as intersected by rays)")
+
+triangles = t.load(section_dir / "pikachu.pt", weights_only=True)
+print(triangles.shape)
+
+def raytrace_mesh(
+    rays: Float[Tensor, "nrays rayPoints=2 dims=3"],
+    triangles: Float[Tensor, "ntriangles trianglePoints=3 dims=3"],
+) -> Float[Tensor, " nrays"]:
+    """
+    For each ray, return the distance to the closest intersecting triangle, or infinity.
+    """
+
+    # raise NotImplementedError()
+    nrays = rays.shape[0]
+    ntris = triangles.shape[0]
+    Os, Ds = einops.rearrange(rays, "n p d -> p n d")
+    A, B, C = einops.rearrange(triangles, "n p d -> p n d")
+    As = einops.repeat(A, "nt d -> nr nt d", nr=nrays)
+    Bs = einops.repeat(B, "nt d -> nr nt d", nr=nrays)
+    Cs = einops.repeat(C, "nt d -> nr nt d", nr=nrays)
+    Os, Ds = einops.repeat(Os, "nr d -> nr nt d", nt=ntris), einops.repeat(Ds, "nr d -> nr nt d", nt=ntris) 
+    mat = t.stack([-Ds, Bs-As, Cs-As], dim=-1)
+    vec = Os-As
+    
+    dets = t.linalg.det(mat)
+    is_singular = dets.abs() < 1e-8
+    mat[is_singular] = t.eye(3)
+
+    X = t.linalg.solve(mat, vec)
+    s, u, v = X.unbind(dim=-1)
+
+    hits = (s >= 0) & (u >= 0) & (v >= 0) & (u + v <= 1) & ~is_singular
+    # breakpoint()
+    return t.Tensor([100.0 if e is True else float('inf') for e in hits.any(dim=1)])
+
+
+num_pixels_y = 120
+num_pixels_z = 120
+y_limit = z_limit = 1
+
+rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
+rays[:, 0] = t.tensor([-2, 0.0, 0.0])
+dists = raytrace_mesh(rays, triangles)
+intersects = t.isfinite(dists).view(num_pixels_y, num_pixels_z)
+dists_square = dists.view(num_pixels_y, num_pixels_z)
+img = t.stack([intersects, dists_square], dim=0)
+
+fig = px.imshow(img, facet_col=0, origin="lower", color_continuous_scale="magma", width=1000)
+fig.update_layout(coloraxis_showscale=False)
+for i, text in enumerate(["Intersects", "Distance"]):
+    fig.layout.annotations[i]["text"] = text
+fig.show()

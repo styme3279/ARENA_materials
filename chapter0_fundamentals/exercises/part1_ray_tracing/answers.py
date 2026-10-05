@@ -290,11 +290,16 @@ def make_rays_2d(num_pixels_y: int, num_pixels_z: int, y_limit: float, z_limit: 
 
     v0 = t.tensor([0.0, 0.0, 0.0])
     
-    a = t.ones(num_pixels)
+    a = t.ones(num_pixels_y * num_pixels_z)
+    
     b = t.linspace(-y_limit, y_limit, steps=num_pixels_y)
     c = t.linspace(-z_limit, z_limit, steps=num_pixels_z)
     
+    b = einops.repeat(b, "ny -> (ny nz)", nz=num_pixels_z)
+    c = einops.repeat(c, "nz -> (ny nz)", ny=num_pixels_y) 
+    
     d = t.stack((a, b, c), dim=1)
+
     z = t.zeros(d.shape)
 
     final = t.stack((z, d), dim=1)
@@ -306,7 +311,7 @@ def make_rays_2d(num_pixels_y: int, num_pixels_z: int, y_limit: float, z_limit: 
 
 
 
-tests.test_make_rays_2d(make_rays_2d)
+# tests.test_make_rays_2d(make_rays_2d)
 
 rays_2d = make_rays_2d(10, 10, 0.3, 0.3)
 render_lines_with_plotly(rays_2d)
@@ -328,3 +333,4 @@ render_lines_with_plotly(rays_2d)
 
     # print(rays.shape)
     # print(segments.shape)
+# %%

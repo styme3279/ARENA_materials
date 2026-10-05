@@ -172,16 +172,18 @@ def intersect_rays_1d(
 
     o = rays[..., :2][:, 0, :]
     d = rays[..., :2][:, 1, :]
-    l1 = einops.repeat(segments[..., :2][:, 0, :], "nsegments c -> nrays nsegments c", nrays=rays.shape[0])
-    l2 = einops.repeat(segments[..., :2][:, 1, :], "nsegments c -> nrays nsegments c", nrays=rays.shape[0])
+    einops.repeat(d, "b c -> a b c", a=3, out=d)
+    l1 = einops.repeat(segments[..., :2][:, 0, :], "nsegments c -> nsegments nrays c", nrays=rays.shape[0])
+    l2 = einops.repeat(segments[..., :2][:, 1, :], "nsegments c -> nsegments nrays c", nrays=rays.shape[0])
 
-    print(f"o: {o}")
     print(f"d: {d}")
-    print(f"l1: {l1}")
-    print(f"l2: {l2}")
-    print(l1.shape)
-    print(o.shape)
+    print(d.shape)
     print(f"l1 - o: {l1 - o}")
+    print((l1 - o).shape)
+    print(f"l1 - l2: {l1 - l2}")
+    print((l1 - l2).shape)
+
+    sol = t.linalg.solve(t.stack([d, l1 - l2], dim=-1), l1 - o)
 
     return
 

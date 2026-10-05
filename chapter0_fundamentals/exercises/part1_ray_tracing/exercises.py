@@ -154,4 +154,7 @@ tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
 
 
 # %%
+x = t.randn(4,3)
+print(einops.repeat(x, "b c -> a c b", a=2))
 
+# %%

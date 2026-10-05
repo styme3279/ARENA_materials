@@ -334,11 +334,11 @@ def raytrace_mesh(
 
     print("here")
 
-    s[filter] = float('inf')
+    s[~filter] = float('inf')
 
-    filter = (0 <= s) & (0 <= u) & (0 <= v) & (u + v <= 1) & ~is_singular
+    print(s)
 
-    return t.min(s, dim=1)
+    return einops.reduce(s * D[...,0], "NR NT -> NR", "min")
 
 
 num_pixels_y = 120

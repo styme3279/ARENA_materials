@@ -263,12 +263,26 @@ def raytrace_triangle(
     """
     print(f"rays shape {rays.shape}")
 
-    O, D = rays.unbind(dim=-1)
-    print(O)
-
+    O, D = rays.unbind(dim=1)
     A, B, C = triangle
 
-    t.stack(rays,B - A, C - A,)
+    A = einops.repeat(A, "A -> n A" , n=rays.shape[0])
+    B = einops.repeat(B, "B -> n B" , n=rays.shape[0])
+    C = einops.repeat(C, "C -> n C" , n=rays.shape[0])
+
+    m = t.stack([-1*D, B - A, C - A], dim=-1)
+
+    m[(t.abs(t.linalg.det(m)) < 1e-8), ...] = t.eye(3)
+
+    print(f"m shape {m.shape}")
+
+    sol = t.linalg.solve(m, O - A)
+
+    print(f"sol {sol.shape}")
+
+    s, u, v = sol.unbind(dim=1)
+
+    return (0 <= s) & (0 <= u) & (0 <= v) & (u + v <= 1)
 
 
 A = t.tensor([1, 0.0, -0.5])

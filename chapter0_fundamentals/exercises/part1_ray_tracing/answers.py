@@ -144,7 +144,8 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
 
     # print(L1 - L2)
     a = t.stack((D, L1-L2), dim=1)
-    # print(a)
+    print(D.shape)
+    print(a.shape)
 
     b = t.unsqueeze(L1-O, dim=0).T
     # print(b)
@@ -234,9 +235,46 @@ def intersect_rays_1d(
     # Create every combination
     n_rays = rays.shape[0]
     n_segments = segments.shape[0]
-    rays     = einops.repeat(rays,     "nrays 2 3 -> nrays nsegs 2 3", nsegments=n_segments)
-    segments = einops.repeat(segments, "nsegs 2 3 -> nrays nsegs 2 3", nsegments=n_rays)
-    
+    rays     = einops.repeat(rays,     "nrays h w -> nrays nsegs h w", nsegs=n_segments)
+    segments = einops.repeat(segments, "nsegs h w -> nrays nsegs h w", nrays=n_rays)
+
+    O = rays[:, :, 0]
+    D = rays[:, :, 1]
+
+    L_1 = segments[:, :, 0]
+    L_2 = segments[:, :, 1]
+
+    M = t.stack((D, L_1 - L_2), dim=-1)
+    # v = t.unsqueeze(L_1-O, dim=1).T
+    v = L_1-O
+    print(D.shape)
+    print(M.shape)
+    print(v.shape)
+
+    M = einops.rearrange(M, "a b h w -> (a b) h w")
+    print(M.shape)
+    determinants = t.linalg.det(M)
+    is_singular = determinants.abs() < 1e-6
+    M[is_singular] = t.eye(M.size(dim=-1))
+
+
+
+    v = L_1 - O
+    # v = t.unsqueeze(L_1-O, dim=1).T
+
+    intersections = t.linalg.solve(M, v)
+    intersections = einops.rearrange(intersections, '(rays segments) x -> rays segments x',rays=n_rays)
+    valid = (intersections[:,:,0] >= 0.0) & (intersections[:,:,1] >= 0) & (intersections[:,:,1] <= 1)
+
+    return valid.any(dim=1)
+
+
+
+
+tests.test_intersect_rays_1d(intersect_rays_1d)
+tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
+# %%
+
 
 
     # repeat(ims[0], "h w c -> h new_axis w c", new_axis=5).shape
@@ -248,38 +286,3 @@ def intersect_rays_1d(
 
     # print(rays.shape)
     # print(segments.shape)
-
-    O = rays[:, :, 0]
-    D = rays[:, :, 1]
-
-    L_1 = segments[:, :, 0]
-    L_2 = segments[:, :, 1]
-
-
-    M = t.stack((D, L_1 - L_2), dim=2)
-
-    print(M)
-
-    # determinants = t.linalg.det(M)
-    # is_singular = determinants.abs() < 1e-6
-    # M[is_singular] = t.eye(M.size(dim=-1))
-
-
-
-    # # v = L_1 - O
-    # v = t.unsqueeze(L_1-O, dim=1).T
-
-    # intersections = t.linalg.solve(M, v)
-
-    # intersections = einops.rearrange(intersections, '(rays segments) x -> rays segments x',rays=n_rays)
-
-    # valid = (intersections[:,:,0] >= 0.0) & (intersections[:,:,1] >= 0) & (intersections[:,:,1] <= 1)
-
-    # return valid.any(dim=1)
-
-
-
-
-tests.test_intersect_rays_1d(intersect_rays_1d)
-tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
-# %%

@@ -306,9 +306,7 @@ for i, text in enumerate(["Intersects", "Distance"]):
 fig.show()
 
 def rotation_matrix(theta: Float[Tensor, ""]) -> Float[Tensor, "rows cols"]:
-    """
-    Creates a rotation matrix representing a counterclockwise rotation of `theta` around the y-axis.
-    """
+    
     raise NotImplementedError()
 
 

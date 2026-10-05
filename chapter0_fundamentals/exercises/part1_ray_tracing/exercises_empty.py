@@ -307,31 +307,46 @@ def triangle_ray_intersects(A: Point, B: Point, C: Point, O: Point, D: Point) ->
     CAx, CAy, CAz = C[0] - A[0], C[1] - A[1], C[2] - A[2]
     OAx, OAy, OAz = O[0] - A[0], O[1] - A[1], O[2] - A[2]
 
-    lhs = t.tensor([[-Dx,BAx,CAx]])
-    rh
-tests.test_triangle_ray_intersects(triangle_ray_intersects)
-
-def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "points dims"]) -> bool:
-    """
-    ray: shape (n_points=2, n_dim=3)  # O, D points
-    [[0, 0, 0], [1, -1.0, 0]]
-    segment: shape (n_points=2, n_dim=3)  # L_1, L_2 points
-    [[0, 0, 0], [1, -1.0, 0]]
-    Return True if the ray intersects the segment.
-    """
-    Dx = ray[1,0] - ray[0, 0]
-    Dy = ray[1,1] - ray[0, 1]
-    l1minl2_x = (segment[1, 0] - segment[0, 0])
-    l1minl2_y = (segment[1, 1] - segment[0, 1])
-    l1min0_x = segment[1, 0]
-    l1min0_y = segment[1, 1]
-    lhs = t.tensor([[Dx, l1minl2_x], [Dy, l1minl2_y]])
-    rhs = t.tensor([l1min0_x, l1min0_y])
+    lhs = t.tensor([[-Dx,BAx,CAx],[-Dy,BAy,CAy],[-Dz,BAz,CAz]])
+    rhs = t.tensor([OAx,OAy,OAz])
+    
     try:
         x = t.linalg.solve(lhs, rhs)
     except:
         return False
-    if x[0] >= 0 and 0 <= x[1] <= 1:
+
+    if x[0] >= 0 and x[1] >= 0 and x[2] >= 0 and x[1] + x[2] <= 1:
         return True
     else:
         return False
+    
+tests.test_triangle_ray_intersects(triangle_ray_intersects)
+# %%
+
+def raytrace_triangle(
+    rays: Float[Tensor, "nrays rayPoints=2 dims=3"],
+    triangle: Float[Tensor, "trianglePoints=3 dims=3"],
+) -> Bool[Tensor, " nrays"]:
+    """
+    For each ray, return True if the triangle intersects that ray.
+    """
+    raise NotImplementedError()
+
+
+A = t.tensor([1, 0.0, -0.5])
+B = t.tensor([1, -0.5, 0.0])
+C = t.tensor([1, 0.5, 0.5])
+num_pixels_y = num_pixels_z = 15
+y_limit = z_limit = 0.5
+
+# Plot triangle & rays
+test_triangle = t.stack([A, B, C], dim=0)
+rays2d = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
+triangle_lines = t.stack([A, B, C, A, B, C], dim=0).reshape(-1, 2, 3)
+render_lines_with_plotly(rays2d, triangle_lines)
+
+# Calculate and display intersections
+intersects = raytrace_triangle(rays2d, test_triangle)
+img = intersects.reshape(num_pixels_y, num_pixels_z).int()
+imshow(img, origin="lower", width=600, title="Triangle (as intersected by rays)")
+# %%

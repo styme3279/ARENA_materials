@@ -123,3 +123,23 @@ def update(v=0.0, seed=0):
         fig.update_traces({"x": [P(v)[0]], "y": [P(v)[1]]}, 2)
 
 # %%
+def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "points dims"]) -> bool:
+    """
+    ray: shape (n_points=2, n_dim=3)  # O, D points
+    segment: shape (n_points=2, n_dim=3)  # L_1, L_2 points
+
+    Return True if the ray intersects the segment.
+    """
+    l1 = segment[0]
+    l2 = segment[1]
+    o = ray[0]
+    d = ray[1]
+    print(ray)
+    print(segment)
+
+
+tests.test_intersect_ray_1d(intersect_ray_1d)
+tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
+
+
+# %%

@@ -279,7 +279,13 @@ def raytrace_mesh(
 
     hits = (s >= 0) & (u >= 0) & (v >= 0) & (u + v <= 1) & ~is_singular
     # breakpoint()
-    return t.Tensor([100.0 if e is True else float('inf') for e in hits.any(dim=1)])
+
+    dists = t.where(hits, s, t.inf)
+    dists2 = dists.min(dim=-1).values
+    # breakpoint()
+    return dists2
+
+    # return t.Tensor([100.0 if e is True else float('inf') for e in hits.any(dim=1)])
 
 
 num_pixels_y = 120
@@ -287,7 +293,7 @@ num_pixels_z = 120
 y_limit = z_limit = 1
 
 rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
-rays[:, 0] = t.tensor([-2, 0.0, 0.0])
+rays[:, 0] = t.tensor([-2.5, 0.5, 0.0])
 dists = raytrace_mesh(rays, triangles)
 intersects = t.isfinite(dists).view(num_pixels_y, num_pixels_z)
 dists_square = dists.view(num_pixels_y, num_pixels_z)
@@ -298,3 +304,12 @@ fig.update_layout(coloraxis_showscale=False)
 for i, text in enumerate(["Intersects", "Distance"]):
     fig.layout.annotations[i]["text"] = text
 fig.show()
+
+def rotation_matrix(theta: Float[Tensor, ""]) -> Float[Tensor, "rows cols"]:
+    """
+    Creates a rotation matrix representing a counterclockwise rotation of `theta` around the y-axis.
+    """
+    raise NotImplementedError()
+
+
+tests.test_rotation_matrix(rotation_matrix)

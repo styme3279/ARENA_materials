@@ -247,20 +247,22 @@ def intersect_rays_1d(
     M = t.stack((D, L_1 - L_2), dim=-1)
     # v = t.unsqueeze(L_1-O, dim=1).T
     v = L_1-O
-    print(D.shape)
-    print(M.shape)
-    print(v.shape)
+    # print(D.shape)
+    # print(M.shape)
+    # print(v.shape)
 
     M = einops.rearrange(M, "a b h w -> (a b) h w")
-    print(M.shape)
+    # print(M.shape)
     determinants = t.linalg.det(M)
     is_singular = determinants.abs() < 1e-6
     M[is_singular] = t.eye(M.size(dim=-1))
 
-
-
     v = L_1 - O
+    v = einops.rearrange(v, "a b c -> (a b) c")
     # v = t.unsqueeze(L_1-O, dim=1).T
+
+
+    # print(M.shape, v.shape)
 
     intersections = t.linalg.solve(M, v)
     intersections = einops.rearrange(intersections, '(rays segments) x -> rays segments x',rays=n_rays)
@@ -274,6 +276,46 @@ def intersect_rays_1d(
 tests.test_intersect_rays_1d(intersect_rays_1d)
 tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
 # %%
+
+def make_rays_2d(num_pixels_y: int, num_pixels_z: int, y_limit: float, z_limit: float) -> Float[Tensor, "nrays 2 3"]:
+    """
+    num_pixels_y: The number of pixels in the y dimension
+    num_pixels_z: The number of pixels in the z dimension
+
+    y_limit: At x=1, the rays should extend from -y_limit to +y_limit, inclusive of both.
+    z_limit: At x=1, the rays should extend from -z_limit to +z_limit, inclusive of both.
+
+    Returns: shape (num_rays=num_pixels_y * num_pixels_z, num_points=2, num_dims=3).
+    """
+
+    v0 = t.tensor([0.0, 0.0, 0.0])
+    
+    a = t.ones(num_pixels)
+    b = t.linspace(-y_limit, y_limit, steps=num_pixels_y)
+    c = t.linspace(-z_limit, z_limit, steps=num_pixels_z)
+    
+    d = t.stack((a, b, c), dim=1)
+    z = t.zeros(d.shape)
+
+    final = t.stack((z, d), dim=1)
+
+    # print(final)
+
+    return final
+
+
+
+
+tests.test_make_rays_2d(make_rays_2d)
+
+rays_2d = make_rays_2d(10, 10, 0.3, 0.3)
+render_lines_with_plotly(rays_2d)
+
+
+
+
+
+
 
 
 

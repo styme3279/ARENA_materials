@@ -95,23 +95,38 @@ def intersect_rays_1d(
     NR = rays.size(0)
     NS = segments.size(0)
 
+    # [nrays, 2, 2]
     rays = rays[:, :, :2]
+    # [nsegments, 2, 2]
     segments = segments[:, :, :2]
 
+    # [nrays, nsegments, 2, 2]
     rays = einops.repeat(rays, "nrays point coord -> nrays nsegments point coord", nsegments=NS)
     segments = einops.repeat(segments, "nsegments point coord -> nrays nsegments point coord", nrays=NR)
 
-    # [nrays, nsegments, coord]
+    # [nrays, nsegments, 2]
     O = rays[:, :, 0, :]
+    # [nrays, nsegments, 2]
     D = rays[:, :, 1, :]
 
+    # [nrays, nsegments, 2]
     L_1 = segments[:, :, 0, :]
+    # [nrays, nsegments, 2]
     L_2 = segments[:, :, 1, :]
 
     # [nrays, nsegments, 2, 2]
     A = t.stack([D, L_1-L_2], dim=-1)
-    print(A.shape)
+    # [nrays, nsegments]
     dets = t.linalg.det(A)
+    is_singular = dets.abs() < 1e-6
+
+    A[is_singular] = t.eye(2)
+
+    B = L_1 - O
+    
+    sol = t.linalg.solve(A, B)
+
+    print(sol.shape)
 
 tests.test_intersect_rays_1d(intersect_rays_1d)
 tests.test_intersect_rays_1d_special_case(intersect_rays_1d)

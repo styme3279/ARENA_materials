@@ -94,12 +94,18 @@ def intersect_rays_1d(
     For each ray, return True if it intersects any segment.
     """
     # breakpoint()
-    rays = rays[..., :2]
-    Os, Ds = einops.rearrange([rays, segments[..., :2]], "nr p d, ns p d -> p (ns*nr) nr d")
-    L1s, L2s = einops.rearrange([rays, segments[..., :2]], "nr p d, ns p d -> p (ns*nr) ns d")
+    Os, Ds = einops.rearrange(rays[..., :2], "n p d -> p n d")
+    L1s, L2s = einops.rearrange(segments[..., :2], "n p d -> p n d")
+    D_grid = einops.repeat(Ds, "nr d -> nr ns d", ns=segments.shape[0])
+    O_grid = einops.repeat(Os, "nr d -> nr ns d", ns=segments.shape[0])
+    L1_grid = einops.repeat(L1s, "ns d -> nr ns d", nr=rays.shape[0])
+    L2_grid = einops.repeat(L2s, "ns d -> nr ns d", nr=rays.shape[0])
+    As = t.stack([D_grid, L1_grid - L2_grid], dim=-1)
+    print(As)
+    print(As.shape)
     # L1s, L2s, = einops.rearrange(segments[..., :2], "n p d -> p n 1 d")
     # As = einops.rearrange([Ds, L1s - L2s], "n d p d -> n (d, p d)")
-    As = t.stack([Ds, L1s - L2s], dim=-1)
+    # As = t.stack([Ds, L1s - L2s], dim=-1)
 
 
     # L1, L2 = segment[:, :2]

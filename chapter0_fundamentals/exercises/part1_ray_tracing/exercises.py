@@ -167,25 +167,25 @@ print(F[[True, True, True], [False, True, True], :])
 def intersect_rays_1d(
     rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
 ) -> Bool[Tensor, " nrays"]:
-    print(f"rays: {rays}")
-    print(f"segments: {segments}")
-
     o = rays[..., :2][:, 0, :]
     d = rays[..., :2][:, 1, :]
-    einops.repeat(d, "b c -> a b c", a=3, out=d)
+    d = einops.repeat(d, "b c -> a b c", a=3)
     l1 = einops.repeat(segments[..., :2][:, 0, :], "nsegments c -> nsegments nrays c", nrays=rays.shape[0])
     l2 = einops.repeat(segments[..., :2][:, 1, :], "nsegments c -> nsegments nrays c", nrays=rays.shape[0])
 
-    print(f"d: {d}")
-    print(d.shape)
-    print(f"l1 - o: {l1 - o}")
-    print((l1 - o).shape)
-    print(f"l1 - l2: {l1 - l2}")
-    print((l1 - l2).shape)
+    pre_sol = t.stack([d, l1 - l2], dim=-1)
 
-    sol = t.linalg.solve(t.stack([d, l1 - l2], dim=-1), l1 - o)
+    print(pre_sol)
+    print(pre_sol.shape)
 
-    return
+    print(t.lingalg.det(pre_sol, ) >= 1e-8)
+
+    sol = t.linalg.solve(pre_sol, l1 - o)
+
+    u = sol[..., 0]
+    v = sol[..., 1]
+
+    return t.any(((u >= 0) & (v >= 0) & (v <= 1)), dim=0)
 
 
 tests.test_intersect_rays_1d(intersect_rays_1d)

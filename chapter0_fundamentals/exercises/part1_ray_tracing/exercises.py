@@ -272,7 +272,8 @@ def raytrace_triangle(
 
     m = t.stack([-1*D, B - A, C - A], dim=-1)
 
-    m[(t.abs(t.linalg.det(m)) < 1e-8), ...] = t.eye(3)
+    is_singular = t.abs(t.linalg.det(m)) < 1e-8
+    m[is_singular, ...] = t.eye(3)
 
     print(f"m shape {m.shape}")
 
@@ -282,7 +283,7 @@ def raytrace_triangle(
 
     s, u, v = sol.unbind(dim=1)
 
-    return (0 <= s) & (0 <= u) & (0 <= v) & (u + v <= 1)
+    return (0 <= s) & (0 <= u) & (0 <= v) & (u + v <= 1) & ~is_singular
 
 
 A = t.tensor([1, 0.0, -0.5])
@@ -302,3 +303,49 @@ intersects = raytrace_triangle(rays2d, test_triangle)
 img = intersects.reshape(num_pixels_y, num_pixels_z).int()
 imshow(img, origin="lower", width=600, title="Triangle (as intersected by rays)")
 # %%
+triangles = t.load(section_dir / "pikachu.pt", weights_only=True)
+# %%
+def raytrace_mesh(
+    rays: Float[Tensor, "nrays rayPoints=2 dims=3"],
+    triangles: Float[Tensor, "ntriangles trianglePoints=3 dims=3"],
+) -> Float[Tensor, " nrays"]:
+    """
+    For each ray, return the distance to the closest intersecting triangle, or infinity.
+    """
+    print(f"rays shape {rays.shape}")
+
+    O, D = einops.repeat(rays, "NR OD XYZ -> NR n OD XYZ", n=triangles.shape[0]).unbind(dim=2)
+    A, B, C = einops.repeat(triangle, "NT ABC XYZ -> n NT ABC XYZ", n=rays.shape[0]).unbind(dim=2)
+
+    m = t.stack([-1*D, B - A, C - A], dim=-1)
+
+    is_singular = t.abs(t.linalg.det(m)) < 1e-8
+    m[is_singular, ...] = t.eye(3)
+
+    print(f"m shape {m.shape}")
+
+    sol = t.linalg.solve(m, O - A)
+
+    print(f"sol {sol.shape}")
+
+    s, u, v = sol.unbind(dim=1)
+
+    return (0 <= s) & (0 <= u) & (0 <= v) & (u + v <= 1) & ~is_singular
+
+
+num_pixels_y = 120
+num_pixels_z = 120
+y_limit = z_limit = 1
+
+rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
+rays[:, 0] = t.tensor([-2, 0.0, 0.0])
+dists = raytrace_mesh(rays, triangles)
+intersects = t.isfinite(dists).view(num_pixels_y, num_pixels_z)
+dists_square = dists.view(num_pixels_y, num_pixels_z)
+img = t.stack([intersects, dists_square], dim=0)
+
+fig = px.imshow(img, facet_col=0, origin="lower", color_continuous_scale="magma", width=1000)
+fig.update_layout(coloraxis_showscale=False)
+for i, text in enumerate(["Intersects", "Distance"]):
+    fig.layout.annotations[i]["text"] = text
+fig.show()

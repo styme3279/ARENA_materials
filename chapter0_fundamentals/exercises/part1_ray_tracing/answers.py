@@ -136,7 +136,25 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
     """
     # raise NotImplementedError()
     print(ray)
-    
+
+    O = ray[0,:2]
+    D = ray[1,:2]
+    L1 = segment[0,:2]
+    L2 = segment[1,:2]
+
+    # print(L1 - L2)
+    a = t.stack((D, L1-L2), dim=1)
+    print(a)
+
+    b = t.unsqueeze(L1-O, dim=0).T
+    print(b)
+
+    intersection = t.linalg.solve(a, b)
+    if intersection[0] >= 0.0 and intersection[1] >= 0.0 and intersection[1] <= 1.0:
+        return True
+    else:
+        return Falze
+
 
     # return None
 

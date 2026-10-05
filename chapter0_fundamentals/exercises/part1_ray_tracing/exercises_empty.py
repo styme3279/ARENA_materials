@@ -417,11 +417,12 @@ def raytrace_mesh(
     As, Bs, Cs= triangles[:, 0], triangles[:, 1], triangles[:, 2]
 
     O = rays[:, 0, :]
+    print(f"O.shape: {O.shape}")
     D = rays[:, 1, :] - O
 
     lhs = t.zeros((nrays*ntriangles, 3, 3))
 
-    lhs_d = einops.repeat(D,"nrays w ->  (nrays ntriangles) w", ntriangles=ntriangles)
+    lhs_d = einops.repeat(-D,"nrays w ->  (nrays ntriangles) w", ntriangles=ntriangles)
 
     stack = t.stack([Bs - As, Cs - As],dim=-1)
     print(f"lhs_d: {lhs_d.shape}")
@@ -436,9 +437,12 @@ def raytrace_mesh(
     # asdf
     # print(f"A = {A.shape}")
 
+    O_broadcast = einops.repeat(O,"nrays w ->  (nrays ntriangles) w", ntriangles=ntriangles)
+
+
     As_broadcast = einops.repeat(As,"ntriangles w ->  (nrays ntriangles) w", nrays=nrays)
     print(f"A_broa = {As_broadcast.shape}")
-    rhs = - As_broadcast
+    rhs = O_broadcast - As_broadcast
 
     print(f"rhs.shape: {rhs.shape}")
     
@@ -447,12 +451,12 @@ def raytrace_mesh(
 
 
     intersect = x[:,0] >= 0  #t.any(x[:,0] >= 0)
-    cond_a = x[:, 0] >= 0
     cond_b = x[:, 1] >= 0
     cond_c = x[:, 2] >= 0
     cond_d = x[:, 1] + x[:, 2] <= 1
 
-    total = (cond_a * cond_b * cond_c * cond_d).bool()
+    # total = ((cond_b * cond_c * cond_d)*0+1).bool()
+    total = (cond_b * cond_c * cond_d).bool()
     print(f"total.shape: {total.shape}")
 
     total_mat = einops.rearrange(total, "(nrays ntriangles) -> nrays ntriangles", nrays=nrays, ntriangles=ntriangles)
@@ -466,14 +470,15 @@ def raytrace_mesh(
     x_matrix = einops.rearrange(x, "(nrays ntriangles) w -> nrays ntriangles w", w = 3, nrays=nrays, ntriangles=ntriangles)
     print(f"x_matrix.shape: {x_matrix.shape}")
 
-    distances = t.sqrt(x_matrix[:, :, 0]**2 + x_matrix[:, :, 1]**2 + x_matrix[:, :, 2]**2)
+    # distances = t.sqrt(x_matrix[:, :, 0]**2 + x_matrix[:, :, 1]**2 + x_matrix[:, :, 2]**2)
+    distances = x_matrix[:, :, 0]
     print(f"distances.shape: {distances.shape}")
     
     # overwrite inf
     distances[~total_mat] = t.inf
     print(f"distances: {distances[0:5]}")
 
-    min_dist = t.min(min_dist, dim=1).values
+    min_dist, argmin = t.min(distances, dim=1)
     print(f"min_dist: {min_dist}")
 
     return min_dist
@@ -481,7 +486,7 @@ def raytrace_mesh(
 
 num_pixels_y = 120
 num_pixels_z = 120
-y_limit = z_limit = 1
+y_limit = z_limit = 2.5
 
 rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
 rays[:, 0] = t.tensor([-2, 0.0, 0.0])

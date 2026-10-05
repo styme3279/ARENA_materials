@@ -172,6 +172,54 @@ tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
 
 # %%
 
+# def intersect_rays_1d(
+#     rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
+# ) -> Bool[Tensor, " nrays"]:
+#     """
+#     For each ray, return True if it intersects any segment.
+#     """
+
+#     O = rays[:, 0,:2]
+#     D = rays[:, 1,:2]
+#     L1 = segments[:, 0, :2]
+#     L2 = segments[:, 1, :2]
+
+#     # print(L1 - L2)
+#     a = t.stack((D, L1-L2), dim=2)
+#     # print(a)
+
+#     b = t.unsqueeze(L1-O, dim=1).T
+#     # print(b)
+
+#     determinants = t.linalg.det(a)
+#     print(a.shape)
+#     print(determinants)
+#     is_singular = determinants.abs() < 1e-6
+#     print(is_singular)
+#     print(a.shape)
+#     print(a.size(dim=-1))
+#     a[is_singular] = t.eye(a.size(dim=-1))
+
+#     # try:
+#     #     intersection = t.linalg.solve(a, b)
+#     #     # print(intersection)
+#     # except RuntimeError:
+#     #     return False
+#     # if intersection[0] >= 0.0 and intersection[1] >= 0.0 and intersection[1] <= 1.0:
+#     #     return True
+#     # else:
+#     #     return False
+
+
+# # intersect_rays_1d(t.rand(5, 2, 3), t.rand(5, 2, 3))
+
+
+
+# tests.test_intersect_rays_1d(intersect_rays_1d)
+# tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
+
+# %%
+
 def intersect_rays_1d(
     rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
 ) -> Bool[Tensor, " nrays"]:
@@ -179,43 +227,59 @@ def intersect_rays_1d(
     For each ray, return True if it intersects any segment.
     """
 
-    O = rays[:, 0,:2]
-    D = rays[:, 1,:2]
-    L1 = segments[:, 0, :2]
-    L2 = segments[:, 1, :2]
+    # Remove z dimension
+    rays = rays[:,:,:-1]
+    segments = segments[:,:,:-1]
 
-    # print(L1 - L2)
-    a = t.stack((D, L1-L2), dim=2)
-    # print(a)
-
-    b = t.unsqueeze(L1-O, dim=1).T
-    # print(b)
-
-    determinants = t.linalg.det(a)
-    print(a.shape)
-    print(determinants)
-    is_singular = determinants.abs() < 1e-6
-    print(is_singular)
-    print(a.shape)
-    print(a[0, 0, :].shape)
-    a[is_singular] = t.eye(a[0, 0, :].shape)
-
-    # try:
-    #     intersection = t.linalg.solve(a, b)
-    #     # print(intersection)
-    # except RuntimeError:
-    #     return False
-    # if intersection[0] >= 0.0 and intersection[1] >= 0.0 and intersection[1] <= 1.0:
-    #     return True
-    # else:
-    #     return False
+    # Create every combination
+    n_rays = rays.shape[0]
+    n_segments = segments.shape[0]
+    rays     = einops.repeat(rays,     "nrays 2 3 -> nrays nsegs 2 3", nsegments=n_segments)
+    segments = einops.repeat(segments, "nsegs 2 3 -> nrays nsegs 2 3", nsegments=n_rays)
+    
 
 
-intersect_rays_1d(t.rand(5, 2, 3), t.rand(5, 2, 3))
+    # repeat(ims[0], "h w c -> h new_axis w c", new_axis=5).shape
+
+    # rays = t.concat([rays] * segments.shape[0])
+    # segments = t.concat([segments] * n_rays)
 
 
 
-# tests.test_intersect_rays_1d(intersect_rays_1d)
-# tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
+    # print(rays.shape)
+    # print(segments.shape)
 
+    O = rays[:, :, 0]
+    D = rays[:, :, 1]
+
+    L_1 = segments[:, :, 0]
+    L_2 = segments[:, :, 1]
+
+
+    M = t.stack((D, L_1 - L_2), dim=2)
+
+    print(M)
+
+    # determinants = t.linalg.det(M)
+    # is_singular = determinants.abs() < 1e-6
+    # M[is_singular] = t.eye(M.size(dim=-1))
+
+
+
+    # # v = L_1 - O
+    # v = t.unsqueeze(L_1-O, dim=1).T
+
+    # intersections = t.linalg.solve(M, v)
+
+    # intersections = einops.rearrange(intersections, '(rays segments) x -> rays segments x',rays=n_rays)
+
+    # valid = (intersections[:,:,0] >= 0.0) & (intersections[:,:,1] >= 0) & (intersections[:,:,1] <= 1)
+
+    # return valid.any(dim=1)
+
+
+
+
+tests.test_intersect_rays_1d(intersect_rays_1d)
+tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
 # %%

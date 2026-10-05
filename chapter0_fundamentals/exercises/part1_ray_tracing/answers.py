@@ -62,3 +62,10 @@ rays1d = make_rays_1d(9, 10.0)
 fig = render_lines_with_plotly(rays1d)
 
 # %%
+def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "points dims"]) -> bool:
+    """
+    ray: shape (n_points=2, n_dim=3)  # O, D points
+    segment: shape (n_points=2, n_dim=3)  # L_1, L_2 points
+
+    Return True if the ray intersects the segment.
+    """

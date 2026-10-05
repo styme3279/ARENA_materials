@@ -210,9 +210,19 @@ def intersect_rays_1d(
 
     # einops.rearrange(lhs_l, )
 
+
+
     lhs = t.concat([lhs_d, lhs_l], dim=1)
-    print(f"lhs: {lhs}")
-    einops.rearrange(lhs, 'i(kl) -> ikl')
+    # print(f"lhs: {lhs}")
+    lhs = einops.rearrange(lhs, 'i (k l) -> i l k', k=2, l=2)
+    # print(f"lhs: {lhs}")
+
+    # dets = lhs.det()
+    # lhs = [lhs[i] if dets[i] > 1e-8 else t.eye(2) for i in range(len(dets))]
+    # print(f"lhs: {lhs}")
+
+    
+
     asdf
 
 tests.test_intersect_rays_1d(intersect_rays_1d)

@@ -191,7 +191,8 @@ def intersect_rays_1d(
         [[0, 0, 0], [1, 1, 0]],
     ]
     """
-
+    Dx = rays[:, 1, 0] - rays[:, 0, 0]
+    Dy = rays[:, 1, 1] - rays[:, 0, 1]
     l1minl2_x = segments[:, 1, 0] - segments[:, 0, 0]
     l1minl2_y = segments[:, 1, 1] - segments[:, 0, 1]
     l1min0_x = segments[:, 1, 0]

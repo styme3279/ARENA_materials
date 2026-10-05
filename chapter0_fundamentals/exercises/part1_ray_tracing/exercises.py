@@ -93,9 +93,25 @@ def intersect_rays_1d(
     """
     For each ray, return True if it intersects any segment.
     """
-    breakpoint()
-    Os, Ds = rays[..., :, :2]
-    print(Os, Ds)
+    # breakpoint()
+    rays = rays[..., :2]
+    Os, Ds = einops.rearrange(rays, "n p d -> p n d")
+    L1s, L2s, = einops.rearrange(segments[..., :2], "n p d -> p n d")
+    As = einops.rearrange([Ds, L1s - L2s], "n d p d -> n (d, p d)")
+
+
+    # L1, L2 = segment[:, :2]
+    #     A = t.stack([D, L1 - L2], dim=1)
+    #     B = L1 - O
+    #     try:
+    #         X = t.linalg.solve(A, B)
+    #     except t.linalg.LinAlgError:
+    #         return False
+    
+    #     u, v = X
+    #     return u >= 0 and 0 <= v <= 1
+
+    # print(Os, Ds)
     # raise NotImplementedError()
 
 

@@ -54,7 +54,7 @@ def make_rays_1d(num_pixels: int, y_limit: float) -> Tensor:
     # return t.arange(start=-y_limit, end=y_limit, step=y_limit * 2 / num_pixels)
     out = t.zeros((num_pixels, 2, 3), dtype=t.float32)
     out[:, 1, 0] = 1
-    ar = t.arange(start=-y_limit, end=y_limit, step=(y_limit + 1) * 2 / num_pixels)
+    ar = t.linspace(-y_limit, y_limit, num_pixels)
     out[:, 1, 1] = ar
     # print(out)
     # raise NotImplementedError()
@@ -62,4 +62,17 @@ def make_rays_1d(num_pixels: int, y_limit: float) -> Tensor:
 
 
 rays1d = make_rays_1d(9, 10.0)
-fig = render_lines_with_plotly(rays1d)
+# fig = render_lines_with_plotly(rays1d)
+
+def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "points dims"]) -> bool:
+    """
+    ray: shape (n_points=2, n_dim=3)  # O, D points
+    segment: shape (n_points=2, n_dim=3)  # L_1, L_2 points
+
+    Return True if the ray intersects the segment.
+    """
+    raise NotImplementedError()
+
+
+tests.test_intersect_ray_1d(intersect_ray_1d)
+tests.test_intersect_ray_1d_special_case(intersect_ray_1d)

@@ -500,42 +500,49 @@ def raytrace_mesh(
 
     # Create every combination
     n_rays = rays.shape[0]
-    n_tris = tris.shape[0]
-    rays      = einops.repeat(rays,      "rays h w -> rays tris h w", segs=n_tris)
-    triangles = einops.repeat(triangles, "tris h w -> rays tris h w", rays=n_rays)
+    n_tris = triangles.shape[0]
+    rays      = einops.repeat(rays,      "rays raypoints dims -> rays tris raypoints dims", tris=n_tris)
+    triangles = einops.repeat(triangles, "tris tripoints dims -> rays tris tripoints dims", rays=n_rays)
 
-    O = rays[:, :, 0]
-    D = rays[:, :, 1]
+    # O = rays[:, :, 0]
+    # D = rays[:, :, 1]
+    O, D = rays.unbind(dim=2)
+    A, B, C = triangles.unbind(dim=2)
 
-    A, B, C = triangles.unbind(dim=-1)
-
-    M = t.stack((D, L_1 - L_2), dim=-1)
+    print(A.shape)
+    print(O.shape)
+    M = t.stack((-D, B-A, C-A), dim=-1)
     # v = t.unsqueeze(L_1-O, dim=1).T
-    v = L_1-O
     # print(D.shape)
     # print(M.shape)
     # print(v.shape)
 
     M = einops.rearrange(M, "a b h w -> (a b) h w")
-    # print(M.shape)
+    print(M.shape)
     determinants = t.linalg.det(M)
     is_singular = determinants.abs() < 1e-6
     M[is_singular] = t.eye(M.size(dim=-1))
 
-    v = L_1 - O
+    # v = L_1 - O
+    v = O-A
     v = einops.rearrange(v, "a b c -> (a b) c")
-    # v = t.unsqueeze(L_1-O, dim=1).T
+    # # v = t.unsqueeze(L_1-O, dim=1).T
 
 
-    # print(M.shape, v.shape)
+    # # print(M.shape, v.shape)
 
     intersections = t.linalg.solve(M, v)
     intersections = einops.rearrange(intersections, '(rays segments) x -> rays segments x',rays=n_rays)
-    valid = (intersections[:,:,0] >= 0.0) & (intersections[:,:,1] >= 0) & (intersections[:,:,1] <= 1)
+    # valid = (intersections[:,:,0] >= 0.0) & (intersections[:,:,1] >= 0) & (intersections[:,:,1] <= 1)
+    valid = (intersections[:, :, 0] >= 0.0) &\
+            (intersections[:, :, 1] >= 0.0) &\
+            (intersections[:, :, 2] >= 0.0) &\
+            (intersections[:, :, 1] + intersections[:, :, 2] <= 1.0)
 
     return valid.any(dim=1)
 
 
+triangles = t.load(section_dir / "pikachu.pt", weights_only=True)
 
 num_pixels_y = 120
 num_pixels_z = 120
@@ -555,3 +562,5 @@ for i, text in enumerate(["Intersects", "Distance"]):
 fig.show()
 
 
+
+# %%

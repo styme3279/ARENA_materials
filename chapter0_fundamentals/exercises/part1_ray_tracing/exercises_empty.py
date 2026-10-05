@@ -349,4 +349,36 @@ render_lines_with_plotly(rays2d, triangle_lines)
 intersects = raytrace_triangle(rays2d, test_triangle)
 img = intersects.reshape(num_pixels_y, num_pixels_z).int()
 imshow(img, origin="lower", width=600, title="Triangle (as intersected by rays)")
+
+
+def intersect_rays_1d(
+    rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
+) -> Bool[Tensor, " nrays"]:
+    """
+    """
+    Dx = rays[:, 1, 0] - rays[:, 0, 0]
+    Dy = rays[:, 1, 1] - rays[:, 0, 1]
+    l1minl2_x = segments[:, 1, 0] - segments[:, 0, 0]
+    l1minl2_y = segments[:, 1, 1] - segments[:, 0, 1]
+    l1min0_x = segments[:, 1, 0]
+    l1min0_y = segments[:, 1, 1]
+    lhs_d = einops.repeat(t.stack([Dx,Dy],dim=1),"nrays w ->  (nrays nsegments) w", nsegments=segments.shape[0])
+    lhs_l = einops.repeat(t.stack([l1minl2_x,l1minl2_y],dim=1),"nsegments w-> (nrays nsegments) w", 
+    nrays=rays.shape[0])
+    lhs = t.concat([lhs_d, lhs_l], dim=1)
+    lhs = einops.rearrange(lhs, 'i (k l) -> i l k', k=2, l=2)
+    dets = t.linalg.det(lhs)
+    is_singular = dets.abs() < 1e-8
+    lhs[is_singular] = t.eye(2)
+    new_tensor = t.stack([l1min0_x, l1min0_y], dim=1)
+    rhs = einops.repeat(new_tensor, "nsegments w-> (nrays nsegments) w", nrays=rays.shape[0])
+    x = t.linalg.solve(lhs, rhs)
+    intersect = x[:,0] >= 0  #t.any(x[:,0] >= 0)
+    valid_l =  x[:,1] >= 0
+    valid_r =  x[:,1] <= 1
+    valid = valid_l * valid_r
+    both = intersect * valid
+    both = einops.rearrange(both, "(n w) -> n w", w = segments.shape[0])
+    any_overlap = t.sum(both, dim=1).bool()
+    return any_overlap
 # %%

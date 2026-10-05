@@ -418,31 +418,49 @@ def raytrace_mesh(
 
     O = rays[:, 0, :]
     D = rays[:, 1, :] - O
-    print(f"D.shape: {D.shape}")
 
     lhs = t.zeros((nrays*ntriangles, 3, 3))
 
     lhs_d = einops.repeat(D,"nrays w ->  (nrays ntriangles) w", ntriangles=ntriangles)
 
     stack = t.stack([Bs - As, Cs - As],dim=-1)
-    print(f"stack: {stack.shape}")
     print(f"lhs_d: {lhs_d.shape}")
     lhs_t = einops.repeat(stack,"ntriangles w h ->  (nrays ntriangles) w h", nrays=nrays)
-    print(f"lhs_t: {lhs_t.shape}")
-
-    lhs_combined = 
 
 
-    asdf
+    lhs = t.concat([lhs_d.unsqueeze(dim=2), lhs_t], dim=2)
+    print(f"lhs: {lhs.shape}")
+    # lhs = einops.rearrange(lhs, 'i (k l) -> i l k', k=2, l=2)
+
+
+    # asdf
+    # print(f"A = {A.shape}")
+
+    As_broadcast = einops.repeat(As,"ntriangles w ->  (nrays ntriangles) w", nrays=nrays)
+    print(f"A_broa = {As_broadcast.shape}")
+    rhs = - As_broadcast
+
+    print(f"rhs.shape: {rhs.shape}")
+    
+    x = t.linalg.solve(lhs, rhs)
+    print(f"x.shape: {x.shape}")
+
+
+    intersect = x[:,0] >= 0  #t.any(x[:,0] >= 0)
+    cond_a = x[:, 0] >= 0
+    cond_b = x[:, 1] >= 0
+    cond_c = x[:, 2] >= 0
+    cond_d = x[:, 1] + x[:, 2] <= 1
+
+    total = cond_a * cond_b * cond_c * cond_d
 
     # lhs_l = einops.repeat(,"nsegments w-> (nrays nsegments) w", 
     # nrays=rays.shape[0])
 
 
-    # Find intersection points to each triangle
-
-
     # Compute distance to closest
+    both = einops.rearrange(both, "(nrays ntriangles) w -> nrays ntriangles w", w = 3)
+
 
 
     raise NotImplementedError()

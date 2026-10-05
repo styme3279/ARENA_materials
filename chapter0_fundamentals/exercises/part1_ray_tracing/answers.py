@@ -149,21 +149,25 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
     b = t.unsqueeze(L1-O, dim=0).T
     print(b)
 
-    intersection = t.linalg.solve(a, b)
+    try:
+        intersection = t.linalg.solve(a, b)
+        # print(intersection)
+    except RuntimeError:
+        return False
     if intersection[0] >= 0.0 and intersection[1] >= 0.0 and intersection[1] <= 1.0:
         return True
     else:
-        return Falze
+        return False
 
 
     # return None
 
 
 
-intersect_ray_1d(t.rand(2, 3), t.rand(2, 3))
+# intersect_ray_1d(t.rand(2, 3), t.rand(2, 3))
 
-# tests.test_intersect_ray_1d(intersect_ray_1d)
-# tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
+tests.test_intersect_ray_1d(intersect_ray_1d)
+tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
 
 
 # %%

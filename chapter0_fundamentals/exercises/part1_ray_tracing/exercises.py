@@ -137,8 +137,8 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
 
     m = t.stack([d, l1 - l2], dim=-1)
     v = l1 - o
-    print(m)
-    print(v)
+    # print(m)
+    #print(v)
     try:
         sol = t.linalg.solve(m,v)
     except RuntimeError:
@@ -155,15 +155,15 @@ tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
 
 # %%
 x = t.randn(4,3)
-print(einops.repeat(x, "b c -> a c b", a=2))
+#print(einops.repeat(x, "b c -> a c b", a=2))
 
 
 # %%
 def intersect_rays_1d(
     rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
 ) -> Bool[Tensor, " nrays"]:
-    print(f"rays: {rays}")
-    print(f"segments: {segments}")
+    #print(f"rays: {rays}")
+    #print(f"segments: {segments}")
     
     o = rays[..., :2][:, 0, :]
     d = rays[..., :2][:, 1, :]
@@ -173,9 +173,9 @@ def intersect_rays_1d(
 
     pre_sol = t.stack([d, l1 - l2], dim=-1)
 
-    print(pre_sol)
-    print(pre_sol.shape)
-    print((t.linalg.det(pre_sol) >= 1e-8))
+    # print(pre_sol)
+    # print(pre_sol.shape)
+    # print((t.linalg.det(pre_sol) >= 1e-8))
 
     pre_sol[(t.abs(t.linalg.det(pre_sol)) < 1e-8), ...] = t.eye(2)
 
@@ -259,7 +259,7 @@ def raytrace_triangle(
     """
     For each ray, return True if the triangle intersects that ray.
     """
-    print(f"rays shape {rays.shape}")
+    # print(f"rays shape {rays.shape}")
 
     O, D = rays.unbind(dim=1)
     A, B, C = triangle
@@ -320,21 +320,21 @@ def raytrace_mesh(
     is_singular = t.abs(t.linalg.det(m)) < 1e-8
     m[is_singular, ...] = t.eye(3).to("cuda")
 
-    print(f"m shape {m.shape}")
+    # print(f"m shape {m.shape}")
 
     sol = t.linalg.solve(m, O - A)
 
-    print(f"sol {sol.shape}")
+    # print(f"sol {sol.shape}")
 
     s, u, v = sol.unbind(dim=2)
 
     filter = (0 <= s) & (0 <= u) & (0 <= v) & (u + v <= 1) & ~is_singular
 
-    print("here")
+    # print("here")
 
     s[~filter] = float('inf')
 
-    print(s)
+    # print(s)
 
     return einops.reduce(s * D[...,0], "NR NT -> NR", "min")
 
@@ -369,6 +369,7 @@ def rotation_matrix(theta: Float[Tensor, ""]) -> Float[Tensor, "rows cols"]:
     )
 
 
+
 tests.test_rotation_matrix(rotation_matrix)
 
 # %%
@@ -383,7 +384,7 @@ def raytrace_mesh_video(
     Creates a stack of raytracing results, rotating the triangles by `rotation_matrix` each frame.
     """
     result = []
-    theta = t.tensor(6 * t.pi) / num_frames
+    theta = t.tensor(10 * t.pi) / num_frames
     R = rotation_matrix(theta)
     for theta in tqdm(range(num_frames)):
         triangles = triangles @ R
@@ -398,27 +399,38 @@ def display_video(distances: Float[Tensor, "frames y z"]):
     element is distance to the closest triangle for the i-th frame & the [y, z]-th ray in our 2D
     grid of rays.
     """
-    px.imshow(
+    fig = px.imshow(
         distances,
         animation_frame=0,
         origin="lower",
         zmin=0.0,
         zmax=distances[distances.isfinite()].quantile(0.99).item(),
         color_continuous_scale="viridis_r",  # "Brwnyl"
-    ).update_layout(coloraxis_showscale=False, width=550, height=600, title="Raytrace mesh video").show()
+    )
 
+    fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1
+    fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 0
+    fig.layout.sliders[0].transition.duration = 0
 
-num_pixels_y = 250
-num_pixels_z = 250
+    fig.update_layout(coloraxis_showscale=False, width=550, height=600,
+                  title="Raytrace mesh video").show()
+# %%
+
+num_pixels_y = 300
+num_pixels_z = 300
 y_limit = z_limit = 0.8
-num_frames = 50
+num_frames = 100
 
-rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
-rays[:, 0] = t.tensor([-3.0, 0.0, 0.0])
-dists = raytrace_mesh_video(rays, triangles, rotation_matrix, raytrace_mesh, num_frames)
-dists = einops.rearrange(dists, "frames (y z) -> frames y z", y=num_pixels_y)
+#rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
+#rays[:, 0] = t.tensor([-3.0, 0.0, 0.0])
+#dists = raytrace_mesh_video(rays, triangles, rotation_matrix, raytrace_mesh, num_frames)
+#dists = einops.rearrange(dists, "frames (y z) -> frames y z", y=num_pixels_y)
 
-display_video(dists)
+#display_video(dists)
+
+
+# %%
+t.cuda.empty_cache()
 
 # %%
 
@@ -427,13 +439,16 @@ def raytrace_mesh_gpu(
     triangles: Float[Tensor, "ntriangles trianglePoints=3 dims=3"],
 ) -> Float[Tensor, " nrays"]:
     """
+
     For each ray, return the distance to the closest intersecting triangle, or infinity.
 
     All computations should be performed on the GPU.
     """
+
     return raytrace_mesh(rays.to("cuda"), triangles.to("cuda"))
 
 
 dists = raytrace_mesh_video(rays, triangles, rotation_matrix, raytrace_mesh_gpu, num_frames)
 dists = einops.rearrange(dists, "frames (y z) -> frames y z", y=num_pixels_y)
 display_video(dists.cpu())
+# %%

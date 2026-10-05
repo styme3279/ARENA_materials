@@ -1,3 +1,48 @@
+# %%
+
+import os
+import sys
+from pathlib import Path
+
+IN_COLAB = "google.colab" in sys.modules
+
+chapter = "chapter0_fundamentals"
+repo = "ARENA_3.0"
+branch = "main"
+
+# Install dependencies
+try:
+    import jaxtyping
+except:
+    %pip install jaxtyping einops
+
+# Get root directory, handling 3 different cases: (1) Colab, (2) notebook not in ARENA repo, (3) notebook in ARENA repo
+root = (
+    "/content"
+    if IN_COLAB
+    else "/root"
+    if repo not in os.getcwd()
+    else str(next(p for p in Path.cwd().parents if p.name == repo))
+)
+
+if Path(root).exists() and not Path(f"{root}/{chapter}").exists():
+    if not IN_COLAB:
+        !sudo apt-get install unzip
+        %pip install jupyter ipython --upgrade
+
+    if not os.path.exists(f"{root}/{chapter}"):
+        !wget -P {root} https://github.com/callummcdougall/ARENA_3.0/archive/refs/heads/{branch}.zip
+        !unzip {root}/{branch}.zip '{repo}-{branch}/{chapter}/exercises/*' -d {root}
+        !mv {root}/{repo}-{branch}/{chapter} {root}/{chapter}
+        !rm {root}/{branch}.zip
+        !rmdir {root}/{repo}-{branch}
+
+
+if f"{root}/{chapter}/exercises" not in sys.path:
+    sys.path.append(f"{root}/{chapter}/exercises")
+
+os.chdir(f"{root}/{chapter}/exercises")
+
 #%%
 import os
 import sys
@@ -75,9 +120,32 @@ def make_rays_1d(num_pixels: int, y_limit: float) -> Tensor:
 
 # print(make_rays_1d(9, 1.0))
 
-tests.test_make_rays_1d(make_rays_1d)
+# tests.test_make_rays_1d(make_rays_1d)
 
 rays1d = make_rays_1d(9, 10.0)
 fig = render_lines_with_plotly(rays1d)
+
+# %%
+
+def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "points dims"]) -> bool:
+    """
+    ray: shape (n_points=2, n_dim=3)  # O, D points
+    segment: shape (n_points=2, n_dim=3)  # L_1, L_2 points
+
+    Return True if the ray intersects the segment.
+    """
+    # raise NotImplementedError()
+    print(ray)
+    
+
+    # return None
+
+
+
+intersect_ray_1d(t.rand(2, 3), t.rand(2, 3))
+
+# tests.test_intersect_ray_1d(intersect_ray_1d)
+# tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
+
 
 # %%

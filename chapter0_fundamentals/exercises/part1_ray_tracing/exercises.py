@@ -103,6 +103,19 @@ def intersect_rays_1d(
     As = t.stack([D_grid, L1_grid - L2_grid], dim=-1)
     print(As)
     print(As.shape)
+
+    Bs = L1_grid - O_grid
+    dets = t.linalg.det(As)
+    print(dets)
+    print(dets.shape)
+
+    is_singular = dets.abs() < 1e-8
+    As[is_singular] = t.eye(2)
+
+    X = t.linalg.solve(As, Bs)
+    print(X)
+    print(X.shape)
+
     # L1s, L2s, = einops.rearrange(segments[..., :2], "n p d -> p n 1 d")
     # As = einops.rearrange([Ds, L1s - L2s], "n d p d -> n (d, p d)")
     # As = t.stack([Ds, L1s - L2s], dim=-1)

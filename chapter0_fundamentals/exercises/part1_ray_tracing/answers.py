@@ -512,6 +512,7 @@ def raytrace_mesh(
     print(A.shape)
     print(O.shape)
     M = t.stack((-D, B-A, C-A), dim=-1)
+    print(M)
     # v = t.unsqueeze(L_1-O, dim=1).T
     # print(D.shape)
     # print(M.shape)

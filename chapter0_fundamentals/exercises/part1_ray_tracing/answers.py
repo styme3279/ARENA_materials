@@ -135,7 +135,7 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
     Return True if the ray intersects the segment.
     """
     # raise NotImplementedError()
-    print(ray)
+    # print(ray)
 
     O = ray[0,:2]
     D = ray[1,:2]
@@ -144,10 +144,10 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
 
     # print(L1 - L2)
     a = t.stack((D, L1-L2), dim=1)
-    print(a)
+    # print(a)
 
     b = t.unsqueeze(L1-O, dim=0).T
-    print(b)
+    # print(b)
 
     try:
         intersection = t.linalg.solve(a, b)
@@ -169,5 +169,49 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
 tests.test_intersect_ray_1d(intersect_ray_1d)
 tests.test_intersect_ray_1d_special_case(intersect_ray_1d)
 
+
+# %%
+
+def intersect_rays_1d(
+    rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
+) -> Bool[Tensor, " nrays"]:
+    """
+    For each ray, return True if it intersects any segment.
+    """
+
+    O = rays[:, 0,:2]
+    D = rays[:, 1,:2]
+    L1 = segments[:, 0, :2]
+    L2 = segments[:, 1, :2]
+
+    # print(L1 - L2)
+    a = t.stack((D, L1-L2), dim=1)
+    # print(a)
+
+    b = t.unsqueeze(L1-O, dim=0).T
+    # print(b)
+
+    determinants = t.linalg.det(a)
+    print(a.shape)
+    print(determinants)
+    # determinants.abs() < 1e-6
+
+    # try:
+    #     intersection = t.linalg.solve(a, b)
+    #     # print(intersection)
+    # except RuntimeError:
+    #     return False
+    # if intersection[0] >= 0.0 and intersection[1] >= 0.0 and intersection[1] <= 1.0:
+    #     return True
+    # else:
+    #     return False
+
+
+intersect_rays_1d(t.rand(5, 2, 3), t.rand(5, 2, 3))
+
+
+
+# tests.test_intersect_rays_1d(intersect_rays_1d)
+# tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
 
 # %%

@@ -116,6 +116,17 @@ def intersect_rays_1d(
     print(X)
     print(X.shape)
 
+    # X[~is_singular].any()
+
+    u, v = X.unbind(dim=-1)
+    print(u.shape, v.shape)
+    breakpoint()
+    hits = (u >= 0) & (0 <= v) & (v <= 1) 
+    return hits
+
+    # return
+
+
     # L1s, L2s, = einops.rearrange(segments[..., :2], "n p d -> p n 1 d")
     # As = einops.rearrange([Ds, L1s - L2s], "n d p d -> n (d, p d)")
     # As = t.stack([Ds, L1s - L2s], dim=-1)

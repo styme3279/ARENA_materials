@@ -339,8 +339,8 @@ def raytrace_mesh(
     return einops.reduce(s * D[...,0], "NR NT -> NR", "min")
 
 
-num_pixels_y = 500
-num_pixels_z = 500
+num_pixels_y = 100
+num_pixels_z = 100
 y_limit = z_limit = 1
 
 rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
@@ -408,7 +408,7 @@ def display_video(distances: Float[Tensor, "frames y z"]):
         color_continuous_scale="viridis_r",  # "Brwnyl"
     )
 
-    fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1
+    fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 30
     fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 0
     fig.layout.sliders[0].transition.duration = 0
 
@@ -416,17 +416,17 @@ def display_video(distances: Float[Tensor, "frames y z"]):
                   title="Raytrace mesh video").show()
 # %%
 
-num_pixels_y = 300
-num_pixels_z = 300
+num_pixels_y = 100
+num_pixels_z = 100
 y_limit = z_limit = 0.8
-num_frames = 100
+num_frames = 50
 
-#rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
-#rays[:, 0] = t.tensor([-3.0, 0.0, 0.0])
-#dists = raytrace_mesh_video(rays, triangles, rotation_matrix, raytrace_mesh, num_frames)
-#dists = einops.rearrange(dists, "frames (y z) -> frames y z", y=num_pixels_y)
+rays = make_rays_2d(num_pixels_y, num_pixels_z, y_limit, z_limit)
+rays[:, 0] = t.tensor([-3.0, 0.0, 0.0])
+dists = raytrace_mesh_video(rays, triangles, rotation_matrix, raytrace_mesh, num_frames)
+dists = einops.rearrange(dists, "frames (y z) -> frames y z", y=num_pixels_y)
 
-#display_video(dists)
+display_video(dists)
 
 
 # %%

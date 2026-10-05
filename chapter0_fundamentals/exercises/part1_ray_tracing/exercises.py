@@ -72,6 +72,7 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
     Return True if the ray intersects the segment.
     """
     O = ray[0, :2]
+    breakpoint()
     D = ray[1, :2]
     L = segment[:, :2]
     A = t.stack([D, L[0] - L[1]], dim=1)
@@ -80,6 +81,8 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
         X = t.linalg.solve(A, B)
     except t.linalg.LinAlgError:
         return False
+
+    print(X)
 
     u, v = X
     return u >= 0 and 0 <= v <= 1

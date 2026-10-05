@@ -160,12 +160,13 @@ def make_rays_2d(num_pixels_y: int, num_pixels_z: int, y_limit: float, z_limit: 
 
     Returns: shape (num_rays=num_pixels_y * num_pixels_z, num_points=2, num_dims=3).
     """
-    out = t.zeros((num_pixels, 2, 3), dtype=t.float32)
+    # breakpoint()
+    out = t.zeros((num_pixels_y * num_pixels_z, 2, 3), dtype=t.float32)
     out[:, 1, 0] = 1
     ar_y = t.linspace(-y_limit, y_limit, num_pixels_y)
-    out[:, 1, 1] = ar_y
     ar_z = t.linspace(-z_limit, z_limit, num_pixels_z)
-    out[:, 1, 2] = ar_z
+    out[:, 1, 1] = einops.repeat(ar_y, "y -> (y z)", z=num_pixels_z)
+    out[:, 1, 2] = einops.repeat(ar_z, "z -> (y z)", y=num_pixels_y)
     # print(out)
     # raise NotImplementedError()
     return out
@@ -173,4 +174,27 @@ def make_rays_2d(num_pixels_y: int, num_pixels_z: int, y_limit: float, z_limit: 
 
 
 rays_2d = make_rays_2d(10, 10, 0.3, 0.3)
-render_lines_with_plotly(rays_2d)
+# render_lines_with_plotly(rays_2d)
+
+def triangle_ray_intersects(A: Point, B: Point, C: Point, O: Point, D: Point) -> bool:
+    """
+    A: shape (3,), one vertex of the triangle
+    B: shape (3,), second vertex of the triangle
+    C: shape (3,), third vertex of the triangle
+    O: shape (3,), origin point
+    D: shape (3,), direction point
+
+    Return True if the ray and the triangle intersect.
+    """
+    A = t.stack([-D, B-A, C-A], dim=-1)
+    B = O-A
+    try:
+        X = t.linalg.solve(A, B)
+    except t.linalg.LinAlgError:
+        return False
+
+    s, u, v = X
+    return s >= 0 and u >= 0 and v >= 0 and u + v <= 1
+
+
+tests.test_triangle_ray_intersects(triangle_ray_intersects)

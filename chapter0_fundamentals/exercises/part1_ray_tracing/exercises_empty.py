@@ -204,13 +204,6 @@ def intersect_rays_1d(
     lhs_l = einops.repeat(t.stack([l1minl2_x,l1minl2_y],dim=1),"nsegments w-> (nrays nsegments) w", 
     nrays=rays.shape[0])
 
-    # print(lhs_l)
-    # print(lhs_l.shape)
-    # print(lhs_d.shape)
-
-    # einops.rearrange(lhs_l, )
-
-
 
     lhs = t.concat([lhs_d, lhs_l], dim=1)
     # print(f"lhs: {lhs}")
@@ -220,10 +213,34 @@ def intersect_rays_1d(
     # dets = lhs.det()
     # lhs = [lhs[i] if dets[i] > 1e-8 else t.eye(2) for i in range(len(dets))]
     # print(f"lhs: {lhs}")
+    dets = t.linalg.det(lhs)
+    # print(f"dets: {dets}")
+    is_singular = dets.abs() < 1e-8
+    # print(f"is_singular: {is_singular}")
+    # print(f"lhs.shape: {lhs.shape}")
+    # print(f"is_singular.shape: {is_singular.shape}")
 
+    lhs[is_singular] = t.eye(2)
+    # print(f"lhs: {lhs}")
+
+    new_tensor = t.stack([l1min0_x, l1min0_y], dim=1)
+    rhs = einops.repeat(new_tensor, "nsegments w-> (nrays nsegments) w", nrays=rays.shape[0])
+
+    x = t.linalg.solve(lhs, rhs)
+    # print(f"x[:,1]: {x[:,1]}")
+    intersect = x[:,0] >= 0  #t.any(x[:,0] >= 0)
+    # print(f"intersect: {intersect}")
     
+    valid_l =  x[:,1] >= 0
+    valid_r =  x[:,1] <= 1
+    valid = valid_l * valid_r
 
-    asdf
+    both = intersect * valid
+    both = einops.rearrange(both, "(n w) -> n w", w = segments.shape[0])
+
+    any_overlap = t.sum(both, dim=1).bool()
+
+    return any_overlap
 
 tests.test_intersect_rays_1d(intersect_rays_1d)
 tests.test_intersect_rays_1d_special_case(intersect_rays_1d)

@@ -205,11 +205,18 @@ def make_rays_2d(num_pixels_y: int, num_pixels_z: int, y_limit: float, z_limit: 
 
     Returns: shape (num_rays=num_pixels_y * num_pixels_z, num_points=2, num_dims=3).
     """
-    res = t.zeros((num_pixels,2,3))
+    res = t.zeros((num_pixels_y * num_pixels_z,2,3))
+    print(res)
     res[:,1,0] = 1
-    t.linspace(-1*y_limit,y_limit,num_pixels, out=res[:,1,1])
+    print(res)
+    t.linspace(-1*y_limit,y_limit,num_pixels_y, out=res[:,1,1])
+    print(t.linspace(-1*y_limit,y_limit,num_pixels_y))
+    print(res)
+    t.linspace(-1*z_limit,z_limit,num_pixels_z, out=res[:,1,2])
+    print(res)
     return res
 
 
 rays_2d = make_rays_2d(10, 10, 0.3, 0.3)
 render_lines_with_plotly(rays_2d)
+# %%

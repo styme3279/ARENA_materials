@@ -75,4 +75,45 @@ def intersect_ray_1d(ray: Float[Tensor, "points dims"], segment: Float[Tensor, "
     L_1, L_2 = segment
     A = t.stack(D, L_1-L_2, dim=-1)
     B = L_1 - O
-    return t.linalg.solve(A, B) 
+    try:
+        sol = t.linalg.solve(A, B)
+    except RuntimeError:
+        return False
+
+    u = sol[0].item()
+    v = sol[1].item()
+    return (u >= 0.0) and (v >= 0.0) and (v <= 1.0)
+
+
+# %%
+def intersect_rays_1d(
+    rays: Float[Tensor, "nrays 2 3"], segments: Float[Tensor, "nsegments 2 3"]
+) -> Bool[Tensor, " nrays"]:
+    """
+    For each ray, return True if it intersects any segment.
+    """
+    NR = rays.size(0)
+    NS = segments.size(0)
+
+    rays = rays[:, :, :2]
+    segments = segments[:, :, :2]
+
+    rays = einops.repeat(rays, "nrays point coord -> nrays nsegments point coord", nsegments=NS)
+    segments = einops.repeat(segments, "nsegments point coord -> nrays nsegments point coord", nrays=NR)
+
+    # [nrays, nsegments, coord]
+    O = rays[:, :, 0, :]
+    D = rays[:, :, 1, :]
+
+    L_1 = segments[:, :, 0, :]
+    L_2 = segments[:, :, 1, :]
+
+    # [nrays, nsegments, 2, 2]
+    A = t.stack([D, L_1-L_2], dim=-1)
+    print(A.shape)
+    dets = t.linalg.det(A)
+
+tests.test_intersect_rays_1d(intersect_rays_1d)
+tests.test_intersect_rays_1d_special_case(intersect_rays_1d)
+
+# %%

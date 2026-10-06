@@ -224,3 +224,40 @@ m = Conv2d(in_channels=24, out_channels=12, kernel_size=3, stride=2, padding=1)
 print(f"Manually verify that this is an informative repr: {m}")
 
 # %%
+class ResidualBlock(nn.Module):
+    def __init__(self, in_feats: int, out_feats: int, first_stride=1):
+        """
+        A single residual block with optional downsampling.
+
+        For compatibility with the pretrained model, declare the left side branch first using a
+        `Sequential`.
+
+        If first_stride is > 1, this means the optional (conv + bn) should be present on the right
+        branch. Declare it second using another `Sequential`.
+        """
+        super().__init__()
+        is_shape_preserving = (first_stride == 1) and (in_feats == out_feats)  # determines if right branch is identity
+        self.relu = nn.ReLU()
+        self.batch_norm1 = nn.BatchNorm2d()
+        self.batch_norm2 = nn.BatchNorm2d()
+        self.conv = nn.Conv2d()
+        self.strided_conv = nn.Conv2d()
+        # optional part
+        self.optional_strided_conv = nn.Conv2d()
+        self.optional.batch_norm = nn.BatchNorm2d()
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Compute the forward pass. If no downsampling block is present, the addition should just add
+        the left branch's output to the input.
+
+        x: shape (batch, in_feats, height, width)
+
+        Return: shape (batch, out_feats, height / stride, width / stride)
+        """
+        raise NotImplementedError()
+
+
+tests.test_residual_block(ResidualBlock)
+
+# %%

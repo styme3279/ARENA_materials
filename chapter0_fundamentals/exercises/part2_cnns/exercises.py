@@ -648,9 +648,14 @@ class ResNet34(nn.Module):
         self.out_features_per_group = out_features_per_group
         self.first_strides_per_group = first_strides_per_group
         self.n_classes = n_classes
+        blockgroups = [BlockGroup(n_blocks=n_blocks, in_feats=in)]
+        resnet = Sequential(
+            Conv2d(in_channels=64, out)
+        )
 
-        # YOUR CODE HERE - define all components of resnet34
+        
         raise NotImplementedError()
+
 
     def forward(self, x: Tensor) -> Tensor:
         """

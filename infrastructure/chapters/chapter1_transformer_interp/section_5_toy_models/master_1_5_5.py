@@ -336,7 +336,7 @@ if MAIN:
         labels=dict(x="stored feature", y="read-out for feature"),
     )
 
-    def tms_forward(x: Tensor) -> Tensor:
+    def tms_forward(x: Tensor, W_tms: Tensor, b_tms: Tensor) -> Tensor:
         return F.relu(W_tms.T @ (W_tms @ x) + b_tms)
 
     examples = {
@@ -345,7 +345,7 @@ if MAIN:
         "ALL five at once (never in training)": t.tensor([1.0, 1.0, 1.0, 1.0, 1.0]),
     }
     for name, x in examples.items():
-        out = tms_forward(x)
+        out = tms_forward(x, W_tms, b_tms)
         print(f"{name}   in:  {[round(v, 2) for v in x.tolist()]}")
         print(f"{'':40s}out: {[round(v, 2) for v in out.tolist()]}\n")
 # END HIDE
@@ -411,18 +411,24 @@ r'''
 We've given you a converged TMS weight matrix `W` (2×5, pentagon structure) and its bias `b` via `utils.load_pretrained_tms_5_2()` in the test cell below. Implement `svd_ablation_curve`, which asks, for every (SVD term, feature) combination: *"if I delete this term from the weights, how badly does the model's output change on an input where only that feature is active?"* Concretely:
 
 1. Compute the SVD of `W` and form the rank-1 terms $\sigma_i \vec{u}_i \vec{v}_i^\top$ (two of them, since $\text{rank}(W) = 2$; mind the `Vt` gotcha from the refresher).
-2. For each one-hot input $x = e_j$ and each SVD term $i$: build the ablated weights $W' = W - \sigma_i \vec{u}_i \vec{v}_i^\top$, and run the model **twice** — output $\text{ReLU}(W^\top W x + b)$ with the original $W$, and the same expression with $W'$ substituted in **both** places $W$ appears.
-3. The measurement is the **L2 norm of the difference between those two outputs** — and "output" means the **whole 5-dimensional output vector**, not just coordinate $j$: deleting a term can corrupt *other* features' read-outs, and that damage counts. One non-negative scalar per (term, input) pair; return them as a matrix of shape `(n_svd_terms, n_features)` = `(2, 5)`.
+2. For each one-hot input $x = e_j$ and each SVD term $i$: build the ablated weights $W' = W - \sigma_i \vec{u}_i \vec{v}_i^\top$, and run the model **twice** — reuse `tms_forward` from the demo cell: `tms_forward(x, W, b)` vs `tms_forward(x, W_ablated, b)`. Passing $W'$ as the weight argument substitutes it in **both** places $W$ appears.
+3. The measurement is the **relative output change**: $\|\text{out} - \text{out}'\|_2 \,/\, \|\text{out}\|_2$ — and "out" means the **whole 5-dimensional output vector**, not just coordinate $j$: deleting a term can corrupt *other* features' read-outs, and that damage counts. Dividing by the original output's norm makes the scale self-interpreting: **0 = unchanged, ≈1 = the output moved by about its own entire size**. One non-negative scalar per (term, input) pair; return them as a matrix of shape `(n_svd_terms, n_features)` = `(2, 5)`.
 
-How to read the result: entry $(i, j)$ near 0 would mean "term $i$ is ablatable when only feature $j$ is active" — the ablatability criterion for "term $i$ isn't part of feature $j$'s mechanism". For scale, the outputs themselves have norm ≈ 1 here, so values around 0.3+ mean the reconstruction is badly corrupted, and a genuinely unused piece would score ≈ 0 (you'll see values like that in section 2, when the decomposition actually matches the mechanisms).
+<figure class="diagram">
+<img src="https://cute.sus.cat/dev/img/svd-ablation-procedure.svg" alt="The full procedure of the SVD ablation exercise" width="900">
+<figcaption>The whole exercise in one picture: one (term, feature) pair of the loop — run both models, compare whole output vectors, write one scalar into the matrix.</figcaption>
+</figure>
+
+How to read the result: entry $(i, j)$ near 0 would mean "term $i$ is ablatable when only feature $j$ is active" — the ablatability criterion for "term $i$ isn't part of feature $j$'s mechanism". Values ≳ 0.3 mean the output moved by 30%+ of its own size — badly corrupted. A genuinely unused piece would score ≈ 0 (you'll see values like that in section 2, when the decomposition actually matches the mechanisms).
 
 <details>
 <summary>Help - my values look wrong / the test fails</summary>
 
-The three classic versions of this bug, in descending frequency:
+The four classic versions of this bug, in descending frequency:
 
-* **Comparing only output coordinate $j$** (`output[j]`) instead of the whole output vector. The measurement is `(out_original - out_ablated).norm()` over all 5 coordinates.
-* **Returning squared differences** (`(a - b)**2` elementwise) instead of the L2 norm of the difference.
+* **Comparing only output coordinate $j$** (`output[j]`) instead of the whole output vector. The measurement is `(out - out_ablated).norm() / out.norm()` over all 5 coordinates.
+* **Forgetting the normalisation** — returning the raw $\|\text{out} - \text{out}'\|_2$ without dividing by $\|\text{out}\|_2$.
+* **Returning the sum of squared differences** (`((a - b)**2).sum()`) — that's $\|\cdot\|_2^2$, not the norm; take its square root, or just use `.norm()`.
 * **Ablating only one occurrence of $W$** — the model uses $W$ twice ($W^\top W$); both must be the ablated $W'$.
 
 Also fine to know: ablating via SVD reconstruction (`S[i] = 0`, then `U @ diag(S) @ Vt`) is exactly equivalent to subtracting $\sigma_i \vec{u}_i \vec{v}_i^\top$ — either way works.
@@ -454,15 +460,17 @@ def svd_ablation_curve(
         b: the TMS output bias.
 
     Returns:
-        changes: changes[i, j] = ||output_original - output_ablated||_2 for SVD term i
-            on one-hot input e_j. ~0 would mean "term i is ablatable when only feature
-            j is active"; outputs have norm ~1, so 0.3+ means badly corrupted.
+        changes: changes[i, j] = ||out - out_ablated||_2 / ||out||_2 for SVD term i on
+            one-hot input e_j. 0 = output unchanged ("term i is ablatable when only
+            feature j is active"); ~1 = the output moved by about its own entire
+            magnitude; 0.3+ = badly corrupted.
     """
     U, S, Vt = t.linalg.svd(W, full_matrices=False)
     rank = S.shape[0]
     n_features = W.shape[1]
 
     def tms_out(W_: Tensor, x: Tensor) -> Tensor:
+        # same computation as the demo's tms_forward
         return F.relu(W_.T @ (W_ @ x) + b)
 
     changes = t.zeros(rank, n_features)
@@ -471,7 +479,9 @@ def svd_ablation_curve(
         for j in range(n_features):
             x = t.zeros(n_features)
             x[j] = 1.0
-            changes[i, j] = (tms_out(W, x) - tms_out(W_ablated, x)).norm()
+            out = tms_out(W, x)
+            out_ablated = tms_out(W_ablated, x)
+            changes[i, j] = (out - out_ablated).norm() / (out.norm() + 1e-8)
     return changes
 # END SOLUTION
 # EXERCISE
@@ -490,9 +500,10 @@ def svd_ablation_curve(
 #         b: the TMS output bias.
 
 #     Returns:
-#         changes: changes[i, j] = ||output_original - output_ablated||_2 for SVD term i
-#             on one-hot input e_j. ~0 would mean "term i is ablatable when only feature
-#             j is active"; outputs have norm ~1, so 0.3+ means badly corrupted.
+#         changes: changes[i, j] = ||out - out_ablated||_2 / ||out||_2 for SVD term i on
+#             one-hot input e_j. 0 = output unchanged ("term i is ablatable when only
+#             feature j is active"); ~1 = the output moved by about its own entire
+#             magnitude; 0.3+ = badly corrupted.
 #     """
 #     raise NotImplementedError()
 # END EXERCISE
@@ -505,7 +516,7 @@ if MAIN:
     changes = svd_ablation_curve(W_tms, b_tms)
     imshow(
         changes,
-        title="Output change when ablating SVD term i on one-hot input j (nothing is ablatable!)",
+        title="Relative output change when ablating SVD term i on one-hot input j (nothing is ablatable!)",
         labels=dict(x="Active feature j", y="SVD term i"),
     )
 # END HIDE

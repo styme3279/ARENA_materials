@@ -29,9 +29,10 @@ def test_svd_ablation_curve(svd_ablation_curve):
     assert changes.shape == (2, 5), f"Expected shape (2, 5), got {tuple(changes.shape)}"
     assert (changes >= 0).all(), "Output-change norms should be non-negative"
 
-    # Reference computation, plus fingerprints of the two most common mistakes
+    # Reference computation, plus fingerprints of the three most common mistakes
     U, S, Vt = t.linalg.svd(W, full_matrices=False)
     expected = t.zeros(2, 5)
+    no_normalise = t.zeros(2, 5)  # mistake: raw L2 norm, forgot to divide by ||out||
     only_coord_j = t.zeros(2, 5)  # mistake: compared just output coordinate j
     sq_not_norm = t.zeros(2, 5)  # mistake: summed squared diffs, no sqrt
     for i in range(2):
@@ -41,19 +42,27 @@ def test_svd_ablation_curve(svd_ablation_curve):
             x[j] = 1.0
             out_full = F.relu(W.T @ (W @ x) + b)
             out_abl = F.relu(W_abl.T @ (W_abl @ x) + b)
-            expected[i, j] = (out_full - out_abl).norm()
-            only_coord_j[i, j] = (out_full[j] - out_abl[j]).abs()
-            sq_not_norm[i, j] = ((out_full - out_abl) ** 2).sum()
+            denom = out_full.norm() + 1e-8
+            expected[i, j] = (out_full - out_abl).norm() / denom
+            no_normalise[i, j] = (out_full - out_abl).norm()
+            only_coord_j[i, j] = (out_full[j] - out_abl[j]).abs() / (out_full[j].abs() + 1e-8)
+            sq_not_norm[i, j] = ((out_full - out_abl) ** 2).sum() / denom**2
+    if t.allclose(changes, no_normalise, rtol=1e-3, atol=1e-4):
+        raise AssertionError(
+            "You returned the raw L2 norm of the change - divide by the ORIGINAL output's "
+            "norm (||out - out_ablated|| / ||out||) so that 0 = unchanged and ~1 = the "
+            "output moved by about its own size."
+        )
     if t.allclose(changes, only_coord_j, rtol=1e-3, atol=1e-4):
         raise AssertionError(
-            "You compared only output coordinate j. The measurement is the L2 norm of the "
-            "change of the WHOLE 5-dim output vector: (out_original - out_ablated).norm() - "
-            "deleting a term corrupts other features' read-outs too, and that damage counts."
+            "You compared only output coordinate j. The measurement uses the WHOLE 5-dim "
+            "output vector: (out - out_ablated).norm() / out.norm() - deleting a term "
+            "corrupts other features' read-outs too, and that damage counts."
         )
     if t.allclose(changes, sq_not_norm, rtol=1e-3, atol=1e-4):
         raise AssertionError(
-            "You returned the sum of squared differences - take its square root "
-            "(or just use .norm()) to get the L2 norm."
+            "You used squared norms (sum of squared differences over squared output norm) - "
+            "take square roots, i.e. (out - out_ablated).norm() / out.norm()."
         )
     t.testing.assert_close(changes, expected, rtol=1e-4, atol=1e-5)
     print("All tests in `test_svd_ablation_curve` passed!")

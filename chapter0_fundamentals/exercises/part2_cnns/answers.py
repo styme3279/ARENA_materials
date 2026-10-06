@@ -452,6 +452,9 @@ class ResidualBlock(nn.Module):
         super().__init__()
         is_shape_preserving = (first_stride == 1) and (in_feats == out_feats)  # determines if right branch is identity
         self.flag = is_shape_preserving 
+        # print('in feats - ', in_feats)
+        # print('out feats - ', out_feats)
+        # print('shape - ', (in_feats + 2*1 - 3)/first_stride + 1)
         self.left = nn.Sequential(
             Conv2d(in_feats,out_feats,kernel_size=3,stride=first_stride,padding=1),
             BatchNorm2d(out_feats),
@@ -459,10 +462,16 @@ class ResidualBlock(nn.Module):
             Conv2d(out_feats,out_feats,kernel_size=3,stride=1,padding=1),
             BatchNorm2d(out_feats)
         )
+        if not self.flag:
+            self.right = nn.Sequential(
+                            Conv2d(in_feats, out_feats,stride=first_stride, padding=0, kernel_size=1),
+                            BatchNorm2d(out_feats)
+                        )
+
         self.final_relu = ReLU()
-        self.in_feats = in_feats
-        self.out_feats = out_feats
-        self.first_stride=first_stride
+        # self.in_feats = in_feats
+        # self.out_feats = out_feats
+        # self.first_stride=first_stride
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -473,21 +482,55 @@ class ResidualBlock(nn.Module):
 
         Return: shape (batch, out_feats, height / stride, width / stride)
         """
-        print(x.shape)
         out = self.left(x)
-        print(out.shape)
         if self.flag:
             out = out + x
         else:
-            right = nn.Sequential(
-                Conv2d(self.in_feats, self.out_feats,stride= self.first_stride, padding=0, kernel_size=1),
-                BatchNorm2d(self.out_feats)
-            )
-            out = out + right(x)
-        print(out.shape)
+            out = out + self.right(x)
         return self.final_relu(out)
 
 
 tests.test_residual_block(ResidualBlock)
+
+
+
+# %%
+
+class BlockGroup(nn.Module):
+    def __init__(self, n_blocks: int, in_feats: int, out_feats: int, first_stride=1):
+        """
+        An n_blocks-long sequence of ResidualBlock where only the first block uses the provided
+        stride.
+        """
+        super().__init__()
+        # YOUR CODE HERE - define all components of block group
+
+        self.first_block = ResidualBlock(in_feats, out_feats, first_stride=first_stride),
+        self.block_list = []
+        for i in range(n_blocks-1):
+            self.block_list.append([
+                ResidualBlock(out_feats, out_feats, first_stride=1)
+            ])
+        
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Compute the forward pass.
+
+        x: shape (batch, in_feats, height, width)
+
+        Return: shape (batch, out_feats, height / first_stride, width / first_stride)
+        """
+        x = self.first_block(x)
+        for i in range(n_blocks-1):
+            self.block_list.append([
+                ResidualBlock(out_feats, out_feats, first_stride=1)
+            ])
+
+        return x
+
+
+tests.test_block_group(BlockGroup)
+
 
 # %%

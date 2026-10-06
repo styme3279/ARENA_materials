@@ -395,20 +395,26 @@ class BatchNorm2d(nn.Module):
         Return: shape (batch, channels, height, width)
         """
         
-        means = einops.reduce(x,"b c h w -> c", reduction='mean')
         if self.training:
             variance = t.var(x,dim=[0,2,3],correction=0)
-            variance_running = t.var(x,dim=[0,2,3], correction=1) 
+            mean = einops.reduce(x,"b c h w -> c", reduction='mean')
+            with t.no_grad():
+                self.running_var = (1-self.momentum)*self.running_var + self.momentum* t.var(x,dim=[0,2,3], correction=1)
+                self.running_mean =  (1-self.momentum)*self.running_mean + self.momentum*mean
         else:
             variance = self.running_var
+            mean = self.running_mean
 
-
-        means = einops.repeat(means,"c -> 1 c 1 1")
+        means = einops.repeat(mean,"c -> 1 c 1 1")
         variances = einops.repeat(variance, "c -> 1 c 1 1")
         x = x - means
-        x = x / t.sqrt(variances) 
-
-        return x
+        x = x / t.sqrt(variances + self.eps) 
+        print(x.shape)
+        print(self.weight.shape)
+        print(self.bias.shape)
+        w = einops.repeat(self.weight,"w -> 1 w 1 1")
+        b = einops.repeat(self.bias, "b -> 1 b 1 1")
+        return t.mul(x,w) + b
 
         
     def extra_repr(self) -> str:

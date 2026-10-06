@@ -344,6 +344,7 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], list[float], Simple
 
     optimizer = t.optim.Adam(model.parameters(), lr=args.learning_rate)
     loss_list = []
+    accuracy_list = []
 
     for epoch in range(args.epochs):
         pbar = tqdm(mnist_trainloader)
@@ -364,6 +365,8 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], list[float], Simple
             pbar.set_postfix(epoch=f"{epoch + 1}/{args.epochs}", loss=f"{loss:.3f}", refresh=False)
 
         with t.inference_mode():
+            total_correct = 0
+            total_preds = 0
             for imgs, labels in mnist_testloader:
                 # Move data to device, perform forward pass
                 imgs, labels = imgs.to(device), labels.to(device)
@@ -374,6 +377,11 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], list[float], Simple
                 batch_correct = (preds == labels).sum()
                 batch_num_preds = preds.shape[0]
 
+                total_correct += batch_correct
+                total_preds += batch_num_preds
+
+            accuracy = total_correct / total_preds
+            accuracy_list.append(accuracy.cpu())
 
     return loss_list, accuracy_list, model
 
@@ -390,3 +398,5 @@ line(
     width=800,
 )
 
+
+# %%

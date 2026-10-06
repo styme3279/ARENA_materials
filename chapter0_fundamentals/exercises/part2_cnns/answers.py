@@ -326,14 +326,23 @@ class ResNet34(nn.Module):
         self.first_strides_per_group = first_strides_per_group
         self.n_classes = n_classes
 
-        self.conv = nn.Conv2d(kernel_size=7, in_channels=out_feats0, out_channels=out_feats0, stride=2, padding=3)
+        self.conv = nn.Conv2d(kernel_size=7, in_channels=3, out_channels=out_feats0, stride=2, padding=3)
         self.batch_norm = nn.BatchNorm2d(num_features=out_feats0)
         self.relu = nn.ReLU()
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2)
 
-        
+        block_groups = []
+        for i in range(len(n_blocks_per_group)):
+            block_group = BlockGroup(
+                n_blocks = self.n_blocks_per_group[i],
+                in_feats=self.out_features_per_group[i-1],
+                out_feats=self.out_features_per_group[i],
+                first_stride=self.first_strides_per_group[i]
+            )
+            block_groups.append(block_group)
+        self.block_groups = nn.Sequential(*block_groups)
 
-        self.avg_pool = nn.AvgPool2d()
+        self.avg_pool = nn.AvgPool2d(kernel_size=3)
         self.linear = nn.Linear(in_features=out_feats0, out_features=n_classes)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -341,8 +350,13 @@ class ResNet34(nn.Module):
         x: shape (batch, channels, height, width)
         Return: shape (batch, n_classes)
         """
-        raise NotImplementedError()
-
+        y = self.conv(x)
+        y = self.batch_norm(y)
+        y = self.relu(y)
+        y = self.max_pool(y)
+        y = self.block_groups(y)
+        y = self.avg_pool(y)
+        return self.linear(y)
 
 my_resnet = ResNet34()
 
@@ -357,3 +371,5 @@ print(
     torchinfo.summary(target_resnet, input_size=(1, 3, 64, 64), depth=2),
     sep="\n",
 )
+
+# %%

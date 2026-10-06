@@ -1,7 +1,7 @@
 # %%
 import json
 import sys
-from collections import namedtuple
+from collections import OrderedDict, namedtuple
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -240,16 +240,16 @@ class ResidualBlock(nn.Module):
         is_shape_preserving = (first_stride == 1) and (in_feats == out_feats)  # determines if right branch is identity
         self.relu1 = nn.ReLU()
         self.relu2 = nn.ReLU()
-        self.batch_norm1 = nn.BatchNorm2d(num_features=in_feats)
-        self.batch_norm2 = nn.BatchNorm2d(num_features=in_feats)
+        self.batch_norm1 = nn.BatchNorm2d(num_features=out_feats)
+        self.batch_norm2 = nn.BatchNorm2d(num_features=out_feats)
         self.conv = nn.Conv2d(in_channels=out_feats, out_channels=out_feats, kernel_size=3, stride=1, padding=1)
         self.strided_conv = nn.Conv2d(in_channels=in_feats, out_channels=out_feats, stride=first_stride, kernel_size=3, padding=1)
         # optional part
         self.optional_strided_conv = None
         self.optional_batch_norm = None
-        if is_shape_preserving:
+        if first_stride > 1:
             self.optional_strided_conv = nn.Conv2d(kernel_size=1, in_channels=in_feats, out_channels=out_feats, stride=first_stride, padding=0)
-            self.optional_batch_norm = nn.BatchNorm2d(num_features=in_feats)
+            self.optional_batch_norm = nn.BatchNorm2d(num_features=out_feats)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -275,5 +275,31 @@ class ResidualBlock(nn.Module):
         return self.relu2(y)
 
 tests.test_residual_block(ResidualBlock)
+
+# %%
+from collections import OrderedDict
+class BlockGroup(nn.Module):
+    def __init__(self, n_blocks: int, in_feats: int, out_feats: int, first_stride=1):
+        """
+        An n_blocks-long sequence of ResidualBlock where only the first block uses the provided
+        stride.
+        """
+        super().__init__()
+        blocks = [("0", ResidualBlock(in_feats=in_feats, out_feats=out_feats, first_stride=first_stride))]
+        for i in range(n_blocks-1):
+            blocks.append((str(i+1), ResidualBlock(in_feats=in_feats, out_feats=out_feats)))
+        self.blocks = nn.Sequential(OrderedDict(blocks))
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Compute the forward pass.
+
+        x: shape (batch, in_feats, height, width)
+
+        Return: shape (batch, out_feats, height / first_stride, width / first_stride)
+        """
+        return self.blocks(x)
+
+tests.test_block_group(BlockGroup)
 
 # %%

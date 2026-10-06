@@ -437,3 +437,25 @@ class ResidualBlock(nn.Module):
         x_left = self.left(x)
         x_right = self.right(x)
         return self.relu(x_left + x_right)
+
+class BlockGroup(nn.Module):
+    def __init__(self, n_blocks: int, in_feats: int, out_feats: int, first_stride=1):
+        """
+        An n_blocks-long sequence of ResidualBlock where only the first block uses the provided
+        stride.
+        """
+        super().__init__()
+        self.blocks = Sequential(
+            ResidualBlock(in_feats, out_feats, first_stride),
+            *[ResidualBlock(out_feats, out_feats) for _ in range(n_blocks - 1)],
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Compute the forward pass.
+
+        x: shape (batch, in_feats, height, width)
+
+        Return: shape (batch, out_feats, height / first_stride, width / first_stride)
+        """
+        return self.blocks(x)

@@ -253,6 +253,66 @@ line(
 )
 
 # %%
+class MaxPool2d(nn.Module):
+    def __init__(self, kernel_size: int, stride: int | None = None, padding: int = 1):
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Call the functional version of maxpool2d."""
+        return F.max_pool2d(x, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding)
+
+    def extra_repr(self) -> str:
+        """Add additional information to the string representation of this class."""
+        return ", ".join([f"{key}={getattr(self, key)}" for key in ["kernel_size", "stride", "padding"]])
+    
+# %%
+class Sequential(nn.Module):
+    _modules: dict[str, nn.Module]
+
+    def __init__(self, *modules: nn.Module):
+        super().__init__()
+        for index, mod in enumerate(modules):
+            self._modules[str(index)] = mod
+
+    def __getitem__(self, index: int) -> nn.Module:
+        index %= len(self._modules)  # deal with negative indices
+        return self._modules[str(index)]
+
+    def __setitem__(self, index: int, module: nn.Module) -> None:
+        index %= len(self._modules)  # deal with negative indices
+        self._modules[str(index)] = module
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Chain each module together, with the output from one feeding into the next one."""
+        for mod in self._modules.values():
+            x = mod(x)
+        return x
+
+# %%
+class Conv2DMLP(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.flatten = Flatten()
+        self.conv1 = nn.Conv2d(1, 8, 3)
+        self.relu = ReLU()
+        self.conv2 = nn.Conv2d(8, 16, 2)
+        self.linear = Linear(in_features=144, out_features=10)
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.conv1(x)
+        x = self.relu(x)
+        x = MaxPool2d(3, 3)(x)
+        x = self.conv2(x)
+        x = self.relu(x)
+        x = MaxPool2d(3, 3)(x)
+        x = self.flatten(x)
+        x = self.linear(x)
+        return x
+
+# %%
 @dataclass
 class SimpleMLPTrainingArgs:
     """
@@ -271,7 +331,7 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
     Trains & returns the model, using training parameters from the `args` object. Returns the model,
     and loss list.
     """
-    model = SimpleMLP().to(device)
+    model = Conv2DMLP().to(device)
 
     mnist_trainset, _ = get_mnist()
     mnist_trainloader = DataLoader(mnist_trainset, batch_size=args.batch_size, shuffle=True)
@@ -280,6 +340,29 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
     optimizer = t.optim.Adam(model.parameters(), lr=args.learning_rate)
     loss_list = []
     val_loss_list = []
+
+    acc_correct = 0
+    acc_total = 0
+    acc_list = []
+    acc_accum = []
+    for imgs, labels in mnist_testloader:
+        # Move data to device, perform forward pass
+        imgs, labels = imgs.to(device), labels.to(device)
+        logits = model(imgs)
+
+        # Calculate loss, perform backward pass
+        loss = F.cross_entropy(logits, labels)
+
+        preds = t.argmax(logits, dim=-1)
+        acc_correct += (preds == labels).sum().item()
+        acc_total += imgs.shape[0]
+        acc = acc_correct / acc_total
+        acc_accum.append(acc)
+        
+        # Update logs & progress bar
+        val_loss_list.append(loss.item())
+    acc_list += [sum(acc_accum)/len(acc_accum)]
+    acc_accum = []
 
     for epoch in range(args.epochs):
         pbar = tqdm(mnist_trainloader)
@@ -299,10 +382,6 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
             loss_list.append(loss.item())
             pbar.set_postfix(epoch=f"{epoch + 1}/{args.epochs}", loss=f"{loss:.3f}", refresh=False)
 
-
-        acc_correct = 0
-        acc_total = 0
-        acc_list = []
         with t.no_grad():
             for imgs, labels in mnist_testloader:
                 # Move data to device, perform forward pass
@@ -316,16 +395,19 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
                 acc_correct += (preds == labels).sum().item()
                 acc_total += imgs.shape[0]
                 acc = acc_correct / acc_total
+                acc_accum.append(acc)
                 
                 # Update logs & progress bar
                 val_loss_list.append(loss.item())
                 pbar.set_postfix(epoch=f"{epoch + 1}/{args.epochs}", loss=f"{loss:.3f}", refresh=False)
+        acc_list.append(sum(acc_accum)/len(acc_accum))
+        acc_accum = []
 
-    return loss_list, acc, model
+    return loss_list, acc_list, model
 
 
 args = SimpleMLPTrainingArgs()
-loss_list, val_loss_list, model = train(args)
+loss_list, acc_list, model = train(args)
 
 # %%
 line(
@@ -337,10 +419,11 @@ line(
 )
 
 line(
-    val_loss_list,
+    acc_list,
     x_max=args.epochs * len(mnist_trainset),
-    labels={"x": "Examples seen", "y": "Cross entropy loss"},
+    labels={"x": "Examples seen", "y": "Accuracy"},
     title="SimpleMLP training on MNIST",
     width=700,
 )
+
 # %%

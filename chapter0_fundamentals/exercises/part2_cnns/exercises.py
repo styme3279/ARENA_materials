@@ -648,21 +648,25 @@ class ResNet34(nn.Module):
         self.out_features_per_group = out_features_per_group
         self.first_strides_per_group = first_strides_per_group
         self.n_classes = n_classes
-        blockgroups = [BlockGroup(n_blocks=n_blocks, in_feats=in)]
-        resnet = Sequential(
-            Conv2d(in_channels=64, out)
+        in_feats = 64
+        blockgroups = [BlockGroup(n_blocks=n_blocks, in_feats=in_feats, out_feats=out_feats, first_stride=first_stride) for (n_blocks, out_feats, first_stride) in zip(n_blocks_per_group, out_features_per_group, first_strides_per_group)]
+        self.resnet = Sequential(
+            Conv2d(in_channels=3, out_channels=in_feats, kernel_size=7, stride=2, padding=3),
+            BatchNorm2d(num_features=in_feats),
+            ReLU(),
+            MaxPool2d(kernel_size=3, stride=2),
+            *blockgroups,
+            AveragePool(),
+            Linear(in_features=out_features_per_group[-1], out_features=n_classes)
         )
-
-        
-        raise NotImplementedError()
-
+    
 
     def forward(self, x: Tensor) -> Tensor:
         """
         x: shape (batch, channels, height, width)
         Return: shape (batch, n_classes)
         """
-        raise NotImplementedError()
+        return self.resnet(x)
 
 
 my_resnet = ResNet34()
@@ -678,3 +682,4 @@ print(
     torchinfo.summary(target_resnet, input_size=(1, 3, 64, 64), depth=2),
     sep="\n",
 )
+# %%

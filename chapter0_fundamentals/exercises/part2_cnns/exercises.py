@@ -575,12 +575,18 @@ class ResidualBlock(nn.Module):
         """
         super().__init__()
         is_shape_preserving = (first_stride == 1) and (in_feats == out_feats)  # determines if right branch is identity
-        left_branch = Sequential(
-            Conv2d(in_channels=in_feats, out_channels=out_feats, kernel_size=3, stride=1, padding=1),
-            BatchNorm2d()
+        self.left_branch = Sequential(
+            Conv2d(in_channels=in_feats, out_channels=out_feats, kernel_size=3, stride=first_stride, padding=1),
+            BatchNorm2d(num_features=out_feats),
+            ReLU(),
+            Conv2d(in_channels=out_feats, out_channels=out_feats, kernel_size=3, stride=1, padding=1),
+            BatchNorm2d(num_features=out_feats)
         )
-
-        raise NotImplementedError()
+        self.right_branch = Sequential() if is_shape_preserving else Sequential(
+            Conv2d(in_channels=in_feats, out_channels=out_feats, kernel_size=1, stride=first_stride, padding=0),
+            BatchNorm2d(num_features=out_feats)
+        )
+        self.relu = ReLU()
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -591,7 +597,31 @@ class ResidualBlock(nn.Module):
 
         Return: shape (batch, out_feats, height / stride, width / stride)
         """
-        # raise NotImplementedError()
-
+        out = self.relu(self.left_branch(x) + self.right_branch(x))
+        return out
 
 tests.test_residual_block(ResidualBlock)
+# %%
+
+class BlockGroup(nn.Module):
+    def __init__(self, n_blocks: int, in_feats: int, out_feats: int, first_stride=1):
+        """
+        An n_blocks-long sequence of ResidualBlock where only the first block uses the provided
+        stride.
+        """
+        super().__init__()
+        # YOUR CODE HERE - define all components of block group
+        raise NotImplementedError()
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Compute the forward pass.
+
+        x: shape (batch, in_feats, height, width)
+
+        Return: shape (batch, out_feats, height / first_stride, width / first_stride)
+        """
+        raise NotImplementedError()
+
+
+tests.test_block_group(BlockGroup)

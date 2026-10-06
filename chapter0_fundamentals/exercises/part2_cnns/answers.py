@@ -127,3 +127,27 @@ class Flatten(nn.Module):
 
 
 # %%
+
+class SimpleMLP(nn.Module):
+    def __init__(self):
+        super().__init__()
+        input_dim = [28,28]
+        hidden_dim = 100
+        output_dim = 10
+
+        self.flatten = Flatten(start_dim=1, end_dim=-1)
+        self.linear1 = Linear(input_dim[0] * input_dim[1], hidden_dim)
+        self.relu    = ReLU()
+        self.linear2 = Linear(hidden_dim, output_dim)
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.flatten(x)
+        x = self.linear1(x)
+        x = self.relu(x)
+        x = self.linear2(x)
+        return x
+
+tests.test_mlp_module(SimpleMLP)
+tests.test_mlp_forward(SimpleMLP)
+
+# %%

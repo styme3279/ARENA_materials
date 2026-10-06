@@ -401,6 +401,7 @@ class BatchNorm2d(nn.Module):
             with t.no_grad():
                 self.running_var = (1-self.momentum)*self.running_var + self.momentum* t.var(x,dim=[0,2,3], correction=1)
                 self.running_mean =  (1-self.momentum)*self.running_mean + self.momentum*mean
+                self.num_batches_tracked += 1
         else:
             variance = self.running_var
             mean = self.running_mean
@@ -409,9 +410,6 @@ class BatchNorm2d(nn.Module):
         variances = einops.repeat(variance, "c -> 1 c 1 1")
         x = x - means
         x = x / t.sqrt(variances + self.eps) 
-        print(x.shape)
-        print(self.weight.shape)
-        print(self.bias.shape)
         w = einops.repeat(self.weight,"w -> 1 w 1 1")
         b = einops.repeat(self.bias, "b -> 1 b 1 1")
         return t.mul(x,w) + b
@@ -427,3 +425,58 @@ tests.test_batchnorm2d_running_mean(BatchNorm2d)
 tests.test_batchnorm2d_running_stats_detached(BatchNorm2d)
 
 # %%
+
+class AveragePool(nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        x: shape (batch, channels, height, width)
+        Return: shape (batch, channels)
+        """
+        return einops.reduce(x, "b c h w -> b c", reduction="mean")
+
+
+tests.test_averagepool(AveragePool)
+# %%
+
+class ResidualBlock(nn.Module):
+    def __init__(self, in_feats: int, out_feats: int, first_stride=1):
+        """
+        A single residual block with optional downsampling.
+
+        For compatibility with the pretrained model, declare the left side branch first using a
+        `Sequential`.
+
+        If first_stride is > 1, this means the optional (conv + bn) should be present on the right
+        branch. Declare it second using another `Sequential`.
+        """
+        super().__init__()
+        is_shape_preserving = (first_stride == 1) and (in_feats == out_feats)  # determines if right branch is identity
+        self.flag = is_shape_preserving 
+        self.left = nn.Sequential(
+            Conv2d(in_feats,out_feats,kernel_size=3,stride=first_stride,padding=1),
+            BatchNorm2d(out_feats),
+            ReLU(),
+            Conv2d(out_feats,out_feats,kernel_size=3,stride=1,padding=1),
+            BatchNorm2d(out_feats)
+        )
+
+        raise NotImplementedError()
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Compute the forward pass. If no downsampling block is present, the addition should just add
+        the left branch's output to the input.
+
+        x: shape (batch, in_feats, height, width)
+
+        Return: shape (batch, out_feats, height / stride, width / stride)
+        """
+
+        out = self.left(x)
+        if self.flag:
+            ...
+            # we got this far
+        raise NotImplementedError()
+
+
+tests.test_residual_block(ResidualBlock)

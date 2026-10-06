@@ -396,7 +396,21 @@ class BatchNorm2d(nn.Module):
         """
         
         means = einops.reduce(x,"b c h w -> c", reduction='mean')
-        variance = t.var(x,dim=[0,2,3])
+        if self.training:
+            variance = t.var(x,dim=[0,2,3],correction=0)
+            variance_running = t.var(x,dim=[0,2,3], correction=1) 
+        else:
+            variance = self.running_var
+
+
+        means = einops.repeat(means,"c -> 1 c 1 1")
+        variances = einops.repeat(variance, "c -> 1 c 1 1")
+        x = x - means
+        x = x / t.sqrt(variances) 
+
+        return x
+
+        
     def extra_repr(self) -> str:
         raise NotImplementedError()
 

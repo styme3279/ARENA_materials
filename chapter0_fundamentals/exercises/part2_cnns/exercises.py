@@ -522,7 +522,12 @@ class BatchNorm2d(nn.Module):
         # Use this data's mean & variance to normalize, then use it to update the buffers
             mean = t.mean(x, dim=[0, 2, 3])
             var = t.var(x, dim=[0, 2, 3])
-            y = (x - mean / t.sqrt(var + self.eps)) * self.weight + self.bias
+            print(x.shape, mean.shape)
+            num = x - mean
+            denom = t.sqrt(var + self.eps)
+            y = num / denom
+            y *= self.weight
+            y += self.bias
             self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
             self.running_var = (1 - self.momentum) * self.running_var + self.momentum * var
         else:
@@ -540,3 +545,5 @@ tests.test_batchnorm2d_module(BatchNorm2d)
 tests.test_batchnorm2d_forward(BatchNorm2d)
 tests.test_batchnorm2d_running_mean(BatchNorm2d)
 tests.test_batchnorm2d_running_stats_detached(BatchNorm2d)
+
+# %%

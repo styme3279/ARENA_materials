@@ -459,8 +459,10 @@ class ResidualBlock(nn.Module):
             Conv2d(out_feats,out_feats,kernel_size=3,stride=1,padding=1),
             BatchNorm2d(out_feats)
         )
-
-        raise NotImplementedError()
+        self.final_relu = ReLU()
+        self.in_feats = in_feats
+        self.out_feats = out_feats
+        self.first_stride=first_stride
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -471,12 +473,21 @@ class ResidualBlock(nn.Module):
 
         Return: shape (batch, out_feats, height / stride, width / stride)
         """
-
+        print(x.shape)
         out = self.left(x)
+        print(out.shape)
         if self.flag:
-            ...
-            # we got this far
-        raise NotImplementedError()
+            out = out + x
+        else:
+            right = nn.Sequential(
+                Conv2d(self.in_feats, self.out_feats,stride= self.first_stride, padding=0, kernel_size=1),
+                BatchNorm2d(self.out_feats)
+            )
+            out = out + right(x)
+        print(out.shape)
+        return self.final_relu(out)
 
 
 tests.test_residual_block(ResidualBlock)
+
+# %%

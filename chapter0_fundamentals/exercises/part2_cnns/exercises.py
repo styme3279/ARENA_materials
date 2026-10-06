@@ -158,3 +158,28 @@ class Flatten(nn.Module):
 
     def extra_repr(self) -> str:
         return ", ".join([f"{key}={getattr(self, key)}" for key in ["start_dim", "end_dim"]])
+
+
+# %%
+class SimpleMLP(nn.Module):
+    def __init__(self):
+        in_features = 28 * 28
+        hidden_dim = 100
+        out_features = 10
+        super().__init__()
+        self.flatten = Flatten(start_dim=-2, end_dim=-1)
+        self.linear1 = Linear(in_features= in_features, out_features=hidden_dim)
+        self.linear2 = Linear(in_features= hidden_dim, out_features=out_features)
+        self.relu = ReLU()
+        # raise NotImplementedError()
+
+    def forward(self, x: Tensor) -> Tensor:
+        out1 = self.flatten(x)
+        out2 = self.linear1(out1)
+        out3 = self.relu(out2)
+        out4 = self.linear2(out3)
+        return out4
+
+tests.test_mlp_module(SimpleMLP)
+tests.test_mlp_forward(SimpleMLP)
+# %%

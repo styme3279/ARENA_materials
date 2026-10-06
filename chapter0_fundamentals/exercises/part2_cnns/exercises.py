@@ -267,39 +267,16 @@ class MaxPool2d(nn.Module):
     def extra_repr(self) -> str:
         """Add additional information to the string representation of this class."""
         return ", ".join([f"{key}={getattr(self, key)}" for key in ["kernel_size", "stride", "padding"]])
-    
-# %%
-class Sequential(nn.Module):
-    _modules: dict[str, nn.Module]
-
-    def __init__(self, *modules: nn.Module):
-        super().__init__()
-        for index, mod in enumerate(modules):
-            self._modules[str(index)] = mod
-
-    def __getitem__(self, index: int) -> nn.Module:
-        index %= len(self._modules)  # deal with negative indices
-        return self._modules[str(index)]
-
-    def __setitem__(self, index: int, module: nn.Module) -> None:
-        index %= len(self._modules)  # deal with negative indices
-        self._modules[str(index)] = module
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Chain each module together, with the output from one feeding into the next one."""
-        for mod in self._modules.values():
-            x = mod(x)
-        return x
 
 # %%
 class Conv2DMLP(nn.Module):
     def __init__(self):
         super().__init__()
         self.flatten = Flatten()
-        self.conv1 = nn.Conv2d(1, 8, 3)
+        self.conv1 = nn.Conv2d(1, 32, 3)
         self.relu = ReLU()
-        self.conv2 = nn.Conv2d(8, 16, 2)
-        self.linear = Linear(in_features=144, out_features=10)
+        self.conv2 = nn.Conv2d(32, 32, 2)
+        self.linear = Linear(in_features=288, out_features=10)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.conv1(x)
@@ -322,8 +299,8 @@ class SimpleMLPTrainingArgs:
     """
 
     batch_size: int = 64
-    epochs: int = 3
-    learning_rate: float = 1e-3
+    epochs: int = 10
+    learning_rate: float = 3e-4
 
 
 def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
@@ -427,3 +404,124 @@ line(
 )
 
 # %%
+import matplotlib.pyplot as plt
+
+model.eval()
+
+all_imgs = []
+all_labels = []
+all_preds = []
+all_correct_probs = []
+
+with t.no_grad():
+    for imgs, labels in mnist_testloader:
+        imgs, labels = imgs.to(device), labels.to(device)
+
+        logits = model(imgs)
+        probs = F.softmax(logits, dim=-1)
+        preds = probs.argmax(dim=-1)
+
+        # Probability assigned to the true label
+        correct_probs = probs[
+            t.arange(len(labels), device=device),
+            labels
+        ]
+
+        all_imgs.append(imgs.cpu())
+        all_labels.append(labels.cpu())
+        all_preds.append(preds.cpu())
+        all_correct_probs.append(correct_probs.cpu())
+
+all_imgs = t.cat(all_imgs)
+all_labels = t.cat(all_labels)
+all_preds = t.cat(all_preds)
+all_correct_probs = t.cat(all_correct_probs)
+
+# Images where the true label received the lowest probability
+n = 16
+worst_indices = all_correct_probs.argsort()[:n]
+
+fig, axes = plt.subplots(4, 4, figsize=(10, 10))
+
+for ax, idx in zip(axes.flat, worst_indices):
+    # Undo MNIST normalisation for display
+    img = all_imgs[idx].squeeze() * 0.3081 + 0.1307
+
+    ax.imshow(img, cmap="gray")
+    ax.set_title(
+        f"True: {all_labels[idx].item()}, "
+        f"Pred: {all_preds[idx].item()}\n"
+        f"P(true): {all_correct_probs[idx]:.3f}"
+    )
+    ax.axis("off")
+
+plt.tight_layout()
+plt.show()
+
+# %%
+class Sequential(nn.Module):
+    _modules: dict[str, nn.Module]
+
+    def __init__(self, *modules: nn.Module):
+        super().__init__()
+        for index, mod in enumerate(modules):
+            self._modules[str(index)] = mod
+
+    def __getitem__(self, index: int) -> nn.Module:
+        index %= len(self._modules)  # deal with negative indices
+        return self._modules[str(index)]
+
+    def __setitem__(self, index: int, module: nn.Module) -> None:
+        index %= len(self._modules)  # deal with negative indices
+        self._modules[str(index)] = module
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Chain each module together, with the output from one feeding into the next one."""
+        for mod in self._modules.values():
+            x = mod(x)
+        return x
+    
+# %%
+class BatchNorm2d(nn.Module):
+    # The type hints below aren't functional, they're just for documentation
+    running_mean: Float[Tensor, " num_features"]
+    running_var: Float[Tensor, " num_features"]
+    num_batches_tracked: Int[Tensor, ""]  # This is how we denote a scalar tensor
+
+    def __init__(self, num_features: int, eps=1e-05, momentum=0.1):
+        """
+        Like nn.BatchNorm2d with track_running_stats=True and affine=True.
+
+        Name the learnable affine parameters `weight` and `bias` in that order.
+        """
+        super().__init__()
+        self.num_features = num_features
+        self.eps = eps
+        self.momentum = momentum
+
+        self.weight = nn.Parameter(t.ones(num_features))
+        self.bias = nn.Parameter(t.zeros(num_features))
+
+        self.register_buffer("running_mean", t.zeros(num_features))
+        self.register_buffer("running_var", t.ones(num_features))
+        self.register_buffer("num_batches_tracked", t.tensor(0))
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Normalize each channel.
+
+        In training mode, normalize using the biased variance `x.var(..., correction=0)`, but update
+        `running_var` using the unbiased variance `x.var(..., correction=1)`.
+        Hint: you may also find it helpful to use the argument `keepdim`.
+
+        x: shape (batch, channels, height, width)
+        Return: shape (batch, channels, height, width)
+        """
+        top = x - x.mean()
+        bottom = 
+
+
+tests.test_batchnorm2d_module(BatchNorm2d)
+tests.test_batchnorm2d_forward(BatchNorm2d)
+tests.test_batchnorm2d_running_mean(BatchNorm2d)
+tests.test_batchnorm2d_running_stats_detached(BatchNorm2d)

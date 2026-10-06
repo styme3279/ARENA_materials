@@ -716,5 +716,107 @@ def get_resnet_for_feature_extraction(n_classes: int) -> ResNet34:
     pretrained_resnet = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
     my_resnet = copy_weights(resnet, pretrained_resnet)
 
+    for layer in my_resnet.children():
+        layer.requires_grad_(False)
+
+    my_resnet.linear = Linear(512,n_classes)
+
+    return my_resnet
+
 
 tests.test_get_resnet_for_feature_extraction(get_resnet_for_feature_extraction)
+# %%
+
+@dataclass
+class ResNetTrainingArgs:
+    batch_size: int = 64
+    epochs: int = 5
+    learning_rate: float = 1e-3
+    n_classes: int = 10
+
+# %%
+
+from torch.utils.data import Subset
+
+
+def get_cifar_subset( trainset_size: int = 10_000, testset_size: int = 1_000,
+) -> tuple[Subset, Subset]:
+    """Returns a subset of CIFAR-10 train & test sets (slicing the first examples)."""
+    cifar_trainset = CIFAR10(train=True)
+    cifar_testset = CIFAR10(train=False)
+    return Subset(cifar_trainset, range(trainset_size)), Subset(cifar_testset, range(testset_size))
+
+
+def train(args: ResNetTrainingArgs) -> tuple[list[float], list[float], ResNet34]:
+    """
+    Performs feature extraction on ResNet, returning the model & lists of loss and accuracy.
+    """
+
+    model = SimpleMLP().to(device)
+
+    mnist_trainset, mnist_testset = get_mnist()
+    mnist_trainloader = DataLoader(mnist_trainset, batch_size=args.batch_size, shuffle=True)
+    mnist_testloader  = DataLoader(mnist_testset, batch_size=args.batch_size, shuffle=False)
+
+    optimizer = t.optim.Adam(model.parameters(), lr=args.learning_rate)
+    loss_list = []
+    val_loss_list = []
+    accuracy_list = []
+
+    for epoch in range(args.epochs):
+        pbar = tqdm(mnist_trainloader)
+
+        for imgs, labels in pbar:
+            # Move data to device, perform forward pass
+            imgs, labels = imgs.to(device), labels.to(device)
+            logits = model(imgs)
+
+            # Calculate loss, perform backward pass
+            loss = F.cross_entropy(logits, labels)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+            # Update logs & progress bar
+            loss_list.append(loss.item())
+            pbar.set_postfix(epoch=f"{epoch + 1}/{args.epochs}", loss=f"{loss:.3f}", refresh=False)
+
+
+        # validation
+        pbar_val = mnist_testloader
+
+        temp_accuracy_list = []
+        for imgs, labels in pbar_val:
+            # Move data to device, perform forward pass
+            imgs, labels = imgs.to(device), labels.to(device)
+            # with model.inference_mode():
+            logits = model(imgs)
+            answers = t.argmax(logits, dim=1)
+            # solution = t.argmax(labels)
+            # get mask answer == solution and the reduce with mean
+
+            mask = (answers == labels).to(t.float32)
+            temp_accuracy_list.append(t.mean(mask))
+            # accuracy_list = mask
+        
+        temp_accuracy_list = t.tensor(temp_accuracy_list)
+        accuracy_list.append(t.mean(temp_accuracy_list))
+        # print(accuracy_list[-1])
+
+    return loss_list, accuracy_list, model
+
+
+args = ResNetTrainingArgs()
+loss_list, accuracy_list, model = train(args)
+
+line(
+    y=[
+        loss_list,
+        [1 / args.n_classes] + accuracy_list,
+    ],  # we start by assuming a uniform accuracy of 10%
+    use_secondary_yaxis=True,
+    x_max=args.epochs * 10_000,
+    labels={"x": "Num examples seen", "y1": "Cross entropy loss", "y2": "Test Accuracy"},
+    title="ResNet Feature Extraction",
+    width=800,
+)

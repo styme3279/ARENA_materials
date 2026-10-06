@@ -517,11 +517,74 @@ class BatchNorm2d(nn.Module):
         x: shape (batch, channels, height, width)
         Return: shape (batch, channels, height, width)
         """
-        top = x - x.mean()
-        bottom = 
+        mean = x.mean(dim=(0, 2, 3))
+        var = t.var(x, dim=(0, 2, 3), correction=0)
+        var_unbiased = t.var(x, dim=(0, 2, 3), correction=1)
+        # y = (x - mean) / t.sqrt(var + self.eps)
+        # y = einops.einsum(y, self.weight, "b c h w, c -> b c h w") + self.bias.reshape(1, -1, 1, 1)
+
+        if self.training:
+            with t.no_grad():
+                self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean.detach()
+                self.running_var = (1 - self.momentum) * self.running_var + self.momentum * var_unbiased.detach()
+                self.num_batches_tracked += 1
+
+            y = (x - mean.reshape(1, -1, 1, 1)) / t.sqrt(var.reshape(1, -1, 1, 1) + self.eps)
+            y = einops.einsum(y, self.weight, "b c h w, c -> b c h w") + self.bias.reshape(1, -1, 1, 1)
+            return y
+
+        y = (x - self.running_mean.reshape(1, -1, 1, 1)) / t.sqrt(self.running_var.reshape(1, -1, 1, 1) + self.eps)
+        y = einops.einsum(y, self.weight, "b c h w, c -> b c h w") + self.bias.reshape(1, -1, 1, 1)
+
+        return y
+
+
 
 
 tests.test_batchnorm2d_module(BatchNorm2d)
 tests.test_batchnorm2d_forward(BatchNorm2d)
 tests.test_batchnorm2d_running_mean(BatchNorm2d)
 tests.test_batchnorm2d_running_stats_detached(BatchNorm2d)
+# %%
+
+class AveragePool(nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        x: shape (batch, channels, height, width)
+        Return: shape (batch, channels)
+        """
+        return x.mean(dim=(2, 3))
+
+
+tests.test_averagepool(AveragePool)
+
+# %%
+class ResidualBlock(nn.Module):
+    def __init__(self, in_feats: int, out_feats: int, first_stride=1):
+        """
+        A single residual block with optional downsampling.
+
+        For compatibility with the pretrained model, declare the left side branch first using a
+        `Sequential`.
+
+        If first_stride is > 1, this means the optional (conv + bn) should be present on the right
+        branch. Declare it second using another `Sequential`.
+        """
+        super().__init__()
+        is_shape_preserving = (first_stride == 1) and (in_feats == out_feats)  # determines if right branch is identity
+
+        self.conv1 = nn.Conv2d(in_feats, out_feats, 3)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Compute the forward pass. If no downsampling block is present, the addition should just add
+        the left branch's output to the input.
+
+        x: shape (batch, in_feats, height, width)
+
+        Return: shape (batch, out_feats, height / stride, width / stride)
+        """
+        raise NotImplementedError()
+
+
+tests.test_residual_block(ResidualBlock)

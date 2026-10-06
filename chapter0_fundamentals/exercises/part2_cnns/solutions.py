@@ -445,7 +445,7 @@ class BlockGroup(nn.Module):
         stride.
         """
         super().__init__()
-        self.blocks = Sequential(
+        self.blocks = nn.Sequential(
             ResidualBlock(in_feats, out_feats, first_stride),
             *[ResidualBlock(out_feats, out_feats) for _ in range(n_blocks - 1)],
         )

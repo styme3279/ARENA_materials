@@ -285,10 +285,18 @@ class BlockGroup(nn.Module):
         stride.
         """
         super().__init__()
-        blocks = [("0", ResidualBlock(in_feats=in_feats, out_feats=out_feats, first_stride=first_stride))]
-        for i in range(n_blocks-1):
-            blocks.append((str(i+1), ResidualBlock(in_feats=in_feats, out_feats=out_feats)))
-        self.blocks = nn.Sequential(OrderedDict(blocks))
+        # blocks = [("0", ResidualBlock(in_feats=in_feats, out_feats=out_feats, first_stride=first_stride))]
+        # for i in range(n_blocks):
+        #     if i == 0:
+        #         blocks.append((str(i), ResidualBlock(in_feats=in_feats, out_feats=out_feats, first_stride=first_stride)))
+        #     else: 
+        #         blocks.append((str(i), ResidualBlock(in_feats=in_feats, out_feats=out_feats)))
+        # self.blocks = nn.Sequential(OrderedDict(blocks))
+        # print(self.blocks)
+        self.blocks = nn.Sequential(
+            ResidualBlock(in_feats, out_feats, first_stride),
+            *[ResidualBlock(out_feats, out_feats) for _ in range(n_blocks - 1)],
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -303,3 +311,49 @@ class BlockGroup(nn.Module):
 tests.test_block_group(BlockGroup)
 
 # %%
+class ResNet34(nn.Module):
+    def __init__(
+        self,
+        n_blocks_per_group=[3, 4, 6, 3],
+        out_features_per_group=[64, 128, 256, 512],
+        first_strides_per_group=[1, 2, 2, 2],
+        n_classes=1000,
+    ):
+        super().__init__()
+        out_feats0 = 64
+        self.n_blocks_per_group = n_blocks_per_group
+        self.out_features_per_group = out_features_per_group
+        self.first_strides_per_group = first_strides_per_group
+        self.n_classes = n_classes
+
+        self.conv = nn.Conv2d(kernel_size=7, in_channels=out_feats0, out_channels=out_feats0, stride=2, padding=3)
+        self.batch_norm = nn.BatchNorm2d(num_features=out_feats0)
+        self.relu = nn.ReLU()
+        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2)
+
+        
+
+        self.avg_pool = nn.AvgPool2d()
+        self.linear = nn.Linear(in_features=out_feats0, out_features=n_classes)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        x: shape (batch, channels, height, width)
+        Return: shape (batch, n_classes)
+        """
+        raise NotImplementedError()
+
+
+my_resnet = ResNet34()
+
+# (1) Test via helper function `print_param_count`
+target_resnet = models.resnet34()  # without supplying a `weights` argument, we just initialize with random weights
+utils.print_param_count(my_resnet, target_resnet)
+
+# (2) Test via `torchinfo.summary`
+print("My model:", torchinfo.summary(my_resnet, input_size=(1, 3, 64, 64)), sep="\n")
+print(
+    "\nReference model:",
+    torchinfo.summary(target_resnet, input_size=(1, 3, 64, 64), depth=2),
+    sep="\n",
+)

@@ -330,3 +330,67 @@ line(
 )
 
 # %%
+class BatchNorm2d(nn.Module):
+    # The type hints below aren't functional, they're just for documentation
+    running_mean: Float[Tensor, " num_features"]
+    running_var: Float[Tensor, " num_features"]
+    num_batches_tracked: Int[Tensor, ""]  # This is how we denote a scalar tensor
+
+    def __init__(self, num_features: int, eps=1e-05, momentum=0.1):
+        """
+        Like nn.BatchNorm2d with track_running_stats=True and affine=True.
+
+        Name the learnable affine parameters `weight` and `bias` in that order.
+        """
+        super().__init__()
+        self.num_features = num_features
+        self.eps = eps
+        self.momentum = momentum
+
+        self.weight = nn.Parameter(t.ones(num_features))
+        self.bias = nn.Parameter(t.zeros(num_features))
+
+        self.register_buffer("running_mean", t.zeros(num_features))
+        self.register_buffer("running_var", t.ones(num_features))
+        self.register_buffer("num_batches_tracked", t.tensor(0))
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Normalize each channel.
+
+        In training mode, normalize using the biased variance `x.var(..., correction=0)`, but update
+        `running_var` using the unbiased variance `x.var(..., correction=1)`.
+        Hint: you may also find it helpful to use the argument `keepdim`.
+
+        x: shape (batch, channels, height, width)
+        Return: shape (batch, channels, height, width)
+        """
+        # Calculating mean and var over all dims except for the channel dim
+        if self.training:
+            # Take mean over all dimensions except the feature dimension
+            mean = x.mean(dim=(0, 2, 3))
+            # Normalize with the batch's actual variance (biased, dividing by n)
+            var = x.var(dim=(0, 2, 3), correction=0)
+            # Updating running mean and variance, in line with PyTorch documentation.
+            # Disable gradients as they are not parameters
+            with t.no_grad():
+                # running_var estimates the population variance, so use the unbiased estimator (dividing by n-1)
+                var_unbiased = x.var(dim=(0, 2, 3), correction=1)
+                self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
+                self.running_var = (1 - self.momentum) * self.running_var + self.momentum * var_unbiased
+                self.num_batches_tracked += 1
+        else:
+            mean = self.running_mean
+            var = self.running_var
+
+        # Rearranging these so they can be broadcasted
+        reshape = lambda x: einops.rearrange(x, "channels -> 1 channels 1 1")
+
+        # Normalize, then apply affine transformation from self.weight & self.bias
+        x_normed = (x - reshape(mean)) / (reshape(var) + self.eps).sqrt()
+        x_affine = x_normed * reshape(self.weight) + reshape(self.bias)
+        return x_affine
+
+    def extra_repr(self) -> str:
+        return ", ".join([f"{key}={getattr(self, key)}" for key in ["num_features", "eps", "momentum"]])
+# %%

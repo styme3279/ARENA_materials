@@ -752,23 +752,23 @@ def train(args: ResNetTrainingArgs) -> tuple[list[float], list[float], ResNet34]
     Performs feature extraction on ResNet, returning the model & lists of loss and accuracy.
     """
 
-    model = SimpleMLP().to(device)
+    model = get_resnet_for_feature_extraction(args.n_classes).to(device)
 
-    mnist_trainset, mnist_testset = get_mnist()
-    mnist_trainloader = DataLoader(mnist_trainset, batch_size=args.batch_size, shuffle=True)
-    mnist_testloader  = DataLoader(mnist_testset, batch_size=args.batch_size, shuffle=False)
+    cifar_trainset, cifar_testset = get_cifar_subset()
+    cifar_trainloader = DataLoader(cifar_trainset, args.batch_size, shuffle=True)
+    cifar_testloader = DataLoader(cifar_testset, args.batch_size, shuffle=False)
 
-    optimizer = t.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = t.optim.Adam(model.linear[-1].parameters(), lr=args.learning_rate)
     loss_list = []
-    val_loss_list = []
     accuracy_list = []
 
     for epoch in range(args.epochs):
-        pbar = tqdm(mnist_trainloader)
-
+        pbar = tqdm(cifar_trainloader)
+        model.train()
         for imgs, labels in pbar:
             # Move data to device, perform forward pass
             imgs, labels = imgs.to(device), labels.to(device)
+            imgs = IMAGENET_TRANSFORM(imgs)
             logits = model(imgs)
 
             # Calculate loss, perform backward pass
@@ -783,12 +783,15 @@ def train(args: ResNetTrainingArgs) -> tuple[list[float], list[float], ResNet34]
 
 
         # validation
-        pbar_val = mnist_testloader
+        pbar_val = cifar_testloader
 
         temp_accuracy_list = []
+        model.eval()
         for imgs, labels in pbar_val:
             # Move data to device, perform forward pass
             imgs, labels = imgs.to(device), labels.to(device)
+            imgs = IMAGENET_TRANSFORM(imgs)
+     
             # with model.inference_mode():
             logits = model(imgs)
             answers = t.argmax(logits, dim=1)
@@ -820,3 +823,4 @@ line(
     title="ResNet Feature Extraction",
     width=800,
 )
+# %%

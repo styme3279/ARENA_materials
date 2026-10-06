@@ -224,11 +224,14 @@ class SimpleMLPTrainingArgs:
     learning_rate: float = 1e-3
 
 
-def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
+def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], list[float], SimpleMLP]:
     """
-    Trains & returns the model, using training parameters from the `args` object. Returns the model,
-    and loss list.
+    Trains the model, using training parameters from the `args` object.
+
+    Returns:
+        The model, and lists of loss & accuracy.
     """
+    # YOUR CODE HERE - add a validation loop to the train function from above
     model = SimpleMLP().to(device)
 
     mnist_trainset, mnist_testset = get_mnist()
@@ -263,40 +266,19 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
         for imgs, labels in pbar_val:
             # Move data to device, perform forward pass
             imgs, labels = imgs.to(device), labels.to(device)
-            with model.inference_mode():
-                logits = model(imgs)
-                answer = t.argmax(logits)
-                solution = t.argmax(labels)
-                # get mask answer == solution and the reduce with mean
+            # with model.inference_mode():
+            logits = model(imgs)
+            answers = t.argmax(logits, dim=1)
+            # solution = t.argmax(labels)
+            # get mask answer == solution and the reduce with mean
 
+            mask = (answers == labels).to(t.float32)
+            # accuracy_list = mask
+            print(t.mean(mask))
 
-    return loss_list, model
-
-
-args = SimpleMLPTrainingArgs()
-loss_list, model = train(args)
-
-line(
-    loss_list,
-    x_max=args.epochs * len(mnist_trainset),
-    labels={"x": "Examples seen", "y": "Cross entropy loss"},
-    title="SimpleMLP training on MNIST",
-    width=700,
-)
-
-# %%
-
-def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], list[float], SimpleMLP]:
-    """
-    Trains the model, using training parameters from the `args` object.
-
-    Returns:
-        The model, and lists of loss & accuracy.
-    """
-    # YOUR CODE HERE - add a validation loop to the train function from above
+            break
 
     return loss_list, accuracy_list, model
-
 
 args = SimpleMLPTrainingArgs()
 loss_list, accuracy_list, model = train(args)
@@ -309,3 +291,5 @@ line(
     title="SimpleMLP training on MNIST",
     width=800,
 )
+
+# %%

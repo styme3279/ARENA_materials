@@ -545,6 +545,7 @@ class ResNet34(nn.Module):
         n_classes=1000,
     ):
         super().__init__()
+        image_size = 224
         out_feats0 = 64
         self.n_blocks_per_group = n_blocks_per_group
         self.out_features_per_group = out_features_per_group
@@ -557,9 +558,14 @@ class ResNet34(nn.Module):
         self.relu = ReLU()
         self.max_pool = MaxPool2d(kernel_size=3,stride=2)
 
+        out_features_extended = [64] + out_features_per_group
         self.blocks = nn.Sequential(*[
-            ResidualBlock(out_feats, out_feats, first_stride=1) for _ in range(n_blocks-1)
+            BlockGroup(n_blocks_per_group[i], out_features_extended[i], out_features_extended[i+1], first_stride=first_strides_per_group[i]) for i in range(len(n_blocks_per_group))
         ])
+
+        self.avg_pool = AveragePool()
+
+        self.linear = Linear()
 
 
     def forward(self, x: Tensor) -> Tensor:
@@ -567,7 +573,9 @@ class ResNet34(nn.Module):
         x: shape (batch, channels, height, width)
         Return: shape (batch, n_classes)
         """
-        raise NotImplementedError()
+        x = self.first_layer(x)
+        x = self.batch_norm(x)
+        x = self.relu(x)
 
 
 my_resnet = ResNet34()

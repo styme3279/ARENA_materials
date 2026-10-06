@@ -247,6 +247,7 @@ class ResidualBlock(nn.Module):
         # optional part
         self.optional_strided_conv = None
         self.optional_batch_norm = None
+        self.id = nn.Identity()
         if first_stride > 1:
             self.optional_strided_conv = nn.Conv2d(kernel_size=1, in_channels=in_feats, out_channels=out_feats, stride=first_stride, padding=0)
             self.optional_batch_norm = nn.BatchNorm2d(num_features=out_feats)
@@ -309,6 +310,14 @@ class BlockGroup(nn.Module):
         return self.blocks(x)
 
 tests.test_block_group(BlockGroup)
+# %%
+class AveragePool(nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        x: shape (batch, channels, height, width)
+        Return: shape (batch, channels)
+        """
+        return t.mean(x, dim=(2, 3))
 
 # %%
 class ResNet34(nn.Module):
@@ -326,24 +335,24 @@ class ResNet34(nn.Module):
         self.first_strides_per_group = first_strides_per_group
         self.n_classes = n_classes
 
-        self.conv = nn.Conv2d(kernel_size=7, in_channels=3, out_channels=out_feats0, stride=2, padding=3)
+        self.conv = nn.Conv2d(3, out_feats0, kernel_size=7, stride=2, padding=3)
         self.batch_norm = nn.BatchNorm2d(num_features=out_feats0)
         self.relu = nn.ReLU()
-        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2)
+        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         block_groups = []
         for i in range(len(n_blocks_per_group)):
             block_group = BlockGroup(
                 n_blocks = self.n_blocks_per_group[i],
-                in_feats=self.out_features_per_group[i-1],
+                in_feats=[64, *self.out_features_per_group][i],
                 out_feats=self.out_features_per_group[i],
                 first_stride=self.first_strides_per_group[i]
             )
             block_groups.append(block_group)
         self.block_groups = nn.Sequential(*block_groups)
 
-        self.avg_pool = nn.AvgPool2d(kernel_size=3)
-        self.linear = nn.Linear(in_features=out_feats0, out_features=n_classes)
+        self.avg_pool = AveragePool()
+        self.linear = nn.Linear(in_features=self.out_features_per_group[-1], out_features=n_classes)
 
     def forward(self, x: Tensor) -> Tensor:
         """

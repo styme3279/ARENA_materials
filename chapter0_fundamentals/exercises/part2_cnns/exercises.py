@@ -167,7 +167,7 @@ class SimpleMLP(nn.Module):
         hidden_dim = 100
         out_features = 10
         super().__init__()
-        self.flatten = Flatten(start_dim=-2, end_dim=-1)
+        self.flatten = Flatten()
         self.linear1 = Linear(in_features= in_features, out_features=hidden_dim)
         self.linear2 = Linear(in_features= hidden_dim, out_features=out_features)
         self.relu = ReLU()
@@ -178,7 +178,6 @@ class SimpleMLP(nn.Module):
         out2 = self.linear1(out1)
         out3 = self.relu(out2)
         out4 = self.linear2(out3)
-        print(f"Out shape is {out4.shape}")
         return out4
 
 tests.test_mlp_module(SimpleMLP)

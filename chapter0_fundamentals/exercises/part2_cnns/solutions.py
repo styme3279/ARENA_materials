@@ -41,7 +41,7 @@ from plotly_utils import line
 # On machines with many cores the default of one
 # thread per core makes small CPU tensor operations much slower
 t.set_num_threads(min(4, t.get_num_threads()))
-
+device = "cuda"
 # %%
 class ReLU(nn.Module):
     def forward(self, x: Tensor) -> Tensor:

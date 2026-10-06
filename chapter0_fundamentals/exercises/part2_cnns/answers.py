@@ -60,20 +60,25 @@ class Linear(nn.Module):
         If `bias` is False, set `self.bias` to None.
         """
         super().__init__()
-        self.W = nn.Parameter(t.Tensor((in_features, out_features)))
-        self.b =
+        self.weight = nn.Parameter(t.rand((out_features, in_features)), requires_grad=True)
+        self.bias = None
+        if bias:
+            self.bias = nn.Parameter(t.zeros((out_features)), requires_grad=True)
 
     def forward(self, x: Tensor) -> Tensor:
         """
         x: shape (*, in_features)
         Return: shape (*, out_features)
         """
-        raise NotImplementedError()
+        mul = x @ self.weight.T
+        if self.bias is not None:
+            return mul + self.bias
+        return mul
 
     def extra_repr(self) -> str:
-        return "Linear"
+        return f"weights={self.weight.shape}, bias={self.bias.shape}, ..."
 
-print(Linear(0,1))
+print(Linear(512,64))
 
 tests.test_linear_parameters(Linear, bias=False)
 tests.test_linear_parameters(Linear, bias=True)

@@ -573,7 +573,22 @@ class ResidualBlock(nn.Module):
         super().__init__()
         is_shape_preserving = (first_stride == 1) and (in_feats == out_feats)  # determines if right branch is identity
 
-        self.conv1 = nn.Conv2d(in_feats, out_feats, 3)
+        self.root = nn.Sequential(
+            nn.Conv2d(in_feats, out_feats, kernel_size=3, stride=first_stride, padding=1),
+            BatchNorm2d(out_feats),
+            ReLU(),
+            nn.Conv2d(out_feats, out_feats, kernel_size=3, stride=1, padding=1),
+            BatchNorm2d(out_feats)
+        )
+
+        # Opt
+        if not is_shape_preserving:
+            self.branch = nn.Sequential(
+                nn.Conv2d(in_feats, out_feats, kernel_size=1, stride=first_stride, padding=0),
+                BatchNorm2d(out_feats)
+            )
+        else:
+            self.branch = None
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -584,7 +599,12 @@ class ResidualBlock(nn.Module):
 
         Return: shape (batch, out_feats, height / stride, width / stride)
         """
-        raise NotImplementedError()
-
+        root = self.root(x)
+        if self.branch:
+            branch = self.branch(x)
+            root += branch
+        return t.relu(root)
 
 tests.test_residual_block(ResidualBlock)
+
+# %%

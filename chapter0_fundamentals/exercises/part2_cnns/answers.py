@@ -266,7 +266,8 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
             with model.inference_mode():
                 logits = model(imgs)
                 answer = t.argmax(logits)
-                solution = labe
+                solution = t.argmax(labels)
+                # get mask answer == solution and the reduce with mean
 
 
     return loss_list, model

@@ -242,13 +242,13 @@ class ResidualBlock(nn.Module):
         self.relu2 = nn.ReLU()
         self.batch_norm1 = nn.BatchNorm2d(num_features=out_feats)
         self.batch_norm2 = nn.BatchNorm2d(num_features=out_feats)
-        self.conv = nn.Conv2d(in_channels=out_feats, out_channels=out_feats, kernel_size=3, stride=1, padding=1)
-        self.strided_conv = nn.Conv2d(in_channels=in_feats, out_channels=out_feats, stride=first_stride, kernel_size=3, padding=1)
+        self.conv = nn.Conv2d(in_channels=out_feats, out_channels=out_feats, kernel_size=3, stride=1, padding=1, bias=False)
+        self.strided_conv = nn.Conv2d(in_channels=in_feats, out_channels=out_feats, stride=first_stride, kernel_size=3, padding=1, bias=False)
         # optional part
         self.optional_strided_conv = None
         self.optional_batch_norm = None
         if not is_shape_preserving:
-            self.optional_strided_conv = nn.Conv2d(kernel_size=1, in_channels=in_feats, out_channels=out_feats, stride=first_stride, padding=0)
+            self.optional_strided_conv = nn.Conv2d(kernel_size=1, in_channels=in_feats, out_channels=out_feats, stride=first_stride, padding=0, bias=False)
             self.optional_batch_norm = nn.BatchNorm2d(num_features=out_feats)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -398,7 +398,7 @@ class ResNet34(nn.Module):
         self.first_strides_per_group = first_strides_per_group
         self.n_classes = n_classes
 
-        self.conv = nn.Conv2d(3, out_feats0, kernel_size=7, stride=2, padding=3)
+        self.conv = nn.Conv2d(3, out_feats0, kernel_size=7, stride=2, padding=3, bias=False)
         self.batch_norm = BatchNorm2d(out_feats0)
         self.relu = nn.ReLU()
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -445,3 +445,185 @@ print(
 )
 
 # %%
+class ReLU(nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        return t.max(x, t.zeros(1))
+
+
+tests.test_relu(ReLU)
+
+device = "cuda"
+class SimpleMLP(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.flatten1 = nn.Flatten()
+        self.linear1 = nn.Linear(in_features=28*28, out_features=100)
+        self.relu1 = nn.ReLU()
+        self.linear2 = nn.Linear(in_features=100, out_features=10)
+
+    def forward(self, x: Tensor) -> Tensor:
+        y = self.flatten1(x)
+        y = self.linear1(y)
+        y = self.relu1(y)
+        y = self.linear2(y)
+        return y
+
+
+tests.test_mlp_module(SimpleMLP)
+tests.test_mlp_forward(SimpleMLP)
+
+
+def accuracy(logits, labels):
+    softmx = nn.Softmax(dim=1)
+    classifier = softmx(logits)
+    print(f"Classifier: {classifier}")
+    print(f"Logits shape: {logits.shape}")
+    print(f"Label shape: {labels.shape}")
+    round_classifier = t.argmax(classifier, dim=-1)
+    print(round_classifier, labels)
+    return sum(round_classifier == labels)
+
+
+
+def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], list[float], SimpleMLP]:
+    """
+    Trains the model, using training parameters from the `args` object.
+
+    Returns:
+        The model, and lists of loss & accuracy.
+    """
+    model = SimpleMLP().to(device)
+
+    mnist_trainset, mnist_testset = get_mnist()
+    mnist_trainloader = DataLoader(mnist_trainset, batch_size=args.batch_size, shuffle=True)
+    mnist_testloader = DataLoader(mnist_testset, batch_size=args.batch_size, shuffle=False)
+
+    optimizer = t.optim.Adam(model.parameters(), lr=args.learning_rate)
+    loss_list = []
+    accuracy_list = []
+    acc_list_batch = []
+    
+
+    for epoch in range(args.epochs):
+        pbar = tqdm(mnist_trainloader)
+        pbar_test = tqdm(mnist_testloader)
+
+
+        for imgs, labels in pbar:
+            # Move data to device, perform forward pass
+            imgs, labels = imgs.to(device), labels.to(device)
+            logits = model(imgs)
+            print(f"Img shape: {imgs.shape}")
+
+            # Calculate loss, perform backward pass
+            loss = F.cross_entropy(logits, labels)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+            # Update logs & progress bar
+            loss_list.append(loss.item())
+            pbar.set_postfix(epoch=f"{epoch + 1}/{args.epochs}", loss=f"{loss:.3f}", refresh=False)
+
+        with t.inference_mode():
+            for imgs, labels in pbar_test:
+                imgs, labels = imgs.to(device), labels.to(device)
+                logits = model(imgs)
+
+                acc = accuracy(logits, labels)
+                print(acc)
+                acc_list_batch.append(acc)
+
+        print(sum(acc_list_batch))
+        acc_epoch = sum(acc_list_batch)/len(acc_list_batch)
+        accuracy_list.append(acc_epoch.cpu())
+
+    
+
+    return loss_list, accuracy_list, model
+
+
+args = SimpleMLPTrainingArgs()
+loss_list, accuracy_list, model = train(args)
+
+class BatchNorm2d(nn.Module):
+    # The type hints below aren't functional, they're just for documentation
+    running_mean: Float[Tensor, " num_features"]
+    running_var: Float[Tensor, " num_features"]
+    num_batches_tracked: Int[Tensor, ""]  # This is how we denote a scalar tensor
+
+    def __init__(self, num_features: int, eps=1e-05, momentum=0.1):
+        """
+        Like nn.BatchNorm2d with track_running_stats=True and affine=True.
+
+        Name the learnable affine parameters `weight` and `bias` in that order.
+        """
+        super().__init__()
+        self.num_features = num_features
+        self.eps = eps
+        self.momentum = momentum
+
+        self.weight = nn.Parameter(t.ones(num_features))
+        self.bias = nn.Parameter(t.zeros(num_features))
+
+        self.register_buffer("running_mean", t.zeros(num_features))
+        self.register_buffer("running_var", t.ones(num_features))
+        self.register_buffer("num_batches_tracked", t.tensor(0))
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Normalize each channel.
+
+        In training mode, normalize using the biased variance `x.var(..., correction=0)`, but update
+        `running_var` using the unbiased variance `x.var(..., correction=1)`.
+        Hint: you may also find it helpful to use the argument `keepdim`.
+
+        x: shape (batch, channels, height, width)
+        Return: shape (batch, channels, height, width)
+        """
+        # Calculating mean and var over all dims except for the channel dim
+        if self.training:
+            # Take mean over all dimensions except the feature dimension
+            mean = x.mean(dim=(0, 2, 3))
+            # Normalize with the batch's actual variance (biased, dividing by n)
+            var = x.var(dim=(0, 2, 3), correction=0)
+            # Updating running mean and variance, in line with PyTorch documentation.
+            # Disable gradients as they are not parameters
+            with t.no_grad():
+                # running_var estimates the population variance, so use the unbiased estimator (dividing by n-1)
+                var_unbiased = x.var(dim=(0, 2, 3), correction=1)
+                self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
+                self.running_var = (1 - self.momentum) * self.running_var + self.momentum * var_unbiased
+                self.num_batches_tracked += 1
+        else:
+            mean = self.running_mean
+            var = self.running_var
+
+        # Rearranging these so they can be broadcasted
+        reshape = lambda x: einops.rearrange(x, "channels -> 1 channels 1 1")
+
+        # Normalize, then apply affine transformation from self.weight & self.bias
+        x_normed = (x - reshape(mean)) / (reshape(var) + self.eps).sqrt()
+        x_affine = x_normed * reshape(self.weight) + reshape(self.bias)
+        return x_affine
+
+    def extra_repr(self) -> str:
+        return ", ".join([f"{key}={getattr(self, key)}" for key in ["num_features", "eps", "momentum"]])
+
+
+tests.test_batchnorm2d_module(BatchNorm2d)
+tests.test_batchnorm2d_forward(BatchNorm2d)
+tests.test_batchnorm2d_running_mean(BatchNorm2d)
+tests.test_batchnorm2d_running_stats_detached(BatchNorm2d)
+
+
+class AveragePool(nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        x: shape (batch, channels, height, width)
+        Return: shape (batch, channels)
+        """
+        return t.mean(x, dim=(2, 3))
+
+
+tests.test_averagepool(AveragePool)

@@ -90,9 +90,40 @@ t.set_num_threads(min(4, t.get_num_threads()))
 class ReLU(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         out = t.zeros_like(x)
-        
+        out = t.maximum(x, out)
+        return out
 
 
 tests.test_relu(ReLU)
 
 # %%
+class Linear(nn.Module):
+    def __init__(self, in_features: int, out_features: int, bias=True):
+        """
+        A simple linear (technically, affine) transformation.
+
+        The fields should be named `weight` and `bias` for compatibility with PyTorch.
+        If `bias` is False, set `self.bias` to None.
+        """
+        super().__init__()
+        kaiming = 1 / t.sqrt(in_features)
+        self.weight = nn.Parameter(t.zeros((in_features, out_features), dtype=t.float32).uniform_(-kaiming, kaiming))
+        self.bias = nn.Parameter(t.zeros((out_features, ), dtype=t.float32).uniform_(-kaiming, kaiming))
+
+        # raise NotImplementedError()
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        x: shape (*, in_features)
+        Return: shape (*, out_features)
+        """
+        raise NotImplementedError()
+
+    def extra_repr(self) -> str:
+        raise NotImplementedError()
+
+
+tests.test_linear_parameters(Linear, bias=False)
+tests.test_linear_parameters(Linear, bias=True)
+tests.test_linear_forward(Linear, bias=False)
+tests.test_linear_forward(Linear, bias=True)

@@ -521,19 +521,25 @@ class BatchNorm2d(nn.Module):
         if self.training:
         # Use this data's mean & variance to normalize, then use it to update the buffers
             mean = t.mean(x, dim=[0, 2, 3]).reshape(self.num_features, 1, 1)
-            var = t.var(x, dim=[0, 2, 3]).reshape(self.num_features, 1, 1)
+            var = t.var(x, dim=[0, 2, 3], correction=0).reshape(self.num_features, 1, 1)
+            print(x.shape, mean.shape, var.shape)
             num = x - mean
             denom = t.sqrt(var + self.eps)
-            print(num.shape, denom.shape)
+            # print(num.shape, denom.shape)
             y = num / denom
             print(self.weight.shape, y.shape)
-            y *= self.weight
-            y += self.bias
-            self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
-            self.running_var = (1 - self.momentum) * self.running_var + self.momentum * var
+            y *= self.weight.reshape(self.num_features, 1, 1)
+            y += self.bias.reshape(self.num_features, 1, 1)
+            with t.no_grad():
+                self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
+                self.running_var = (1 - self.momentum) * self.running_var + self.momentum * var
         else:
         # Use the buffer mean & variance to normalize
-            y = (x - self.running_mean / t.sqrt(self.running_var + self.eps)) * self.weight + self.bias
+            # y = (x - self.running_mean / t.sqrt(self.running_var + self.eps)) * self.weight + self.bias
+            mean = self.running_mean
+            var = self.running_var
+
+        x_normed = 
 
         return y
             

@@ -182,7 +182,7 @@ t.testing.assert_close(img, img_batch[0])
 assert label == label_batch[0].item()
 
 # %%
-model = SimpleMLP().to(device)
+model = SimpleMLP().to("cuda")
 
 batch_size = 128
 epochs = 3

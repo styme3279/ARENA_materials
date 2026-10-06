@@ -602,6 +602,7 @@ class ResidualBlock(nn.Module):
 
 tests.test_residual_block(ResidualBlock)
 # %%
+from collections import OrderedDict
 
 class BlockGroup(nn.Module):
     def __init__(self, n_blocks: int, in_feats: int, out_feats: int, first_stride=1):
@@ -610,7 +611,12 @@ class BlockGroup(nn.Module):
         stride.
         """
         super().__init__()
-        # YOUR CODE HERE - define all components of block group
+        block0 = ResidualBlock(in_feats=in_feats, out_feats=out_feats, first_stride=first_stride)
+        residual_blocks = [ResidualBlock(in_feats=in_feats, out_feats=out_feats, first_stride=1) for _ in range(1, n_blocks)]
+        residual_blocks.insert(block0)
+        residual_blocks = OrderedDict(residual_blocks)
+        self.residual_blocks = Sequential(residual_blocks)
+            
         raise NotImplementedError()
 
     def forward(self, x: Tensor) -> Tensor:
@@ -621,7 +627,49 @@ class BlockGroup(nn.Module):
 
         Return: shape (batch, out_feats, height / first_stride, width / first_stride)
         """
-        raise NotImplementedError()
+        return self.residual_blocks(x)
 
 
 tests.test_block_group(BlockGroup)
+
+# %%
+
+class ResNet34(nn.Module):
+    def __init__(
+        self,
+        n_blocks_per_group=[3, 4, 6, 3],
+        out_features_per_group=[64, 128, 256, 512],
+        first_strides_per_group=[1, 2, 2, 2],
+        n_classes=1000,
+    ):
+        super().__init__()
+        out_feats0 = 64
+        self.n_blocks_per_group = n_blocks_per_group
+        self.out_features_per_group = out_features_per_group
+        self.first_strides_per_group = first_strides_per_group
+        self.n_classes = n_classes
+
+        # YOUR CODE HERE - define all components of resnet34
+        raise NotImplementedError()
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        x: shape (batch, channels, height, width)
+        Return: shape (batch, n_classes)
+        """
+        raise NotImplementedError()
+
+
+my_resnet = ResNet34()
+
+# (1) Test via helper function `print_param_count`
+target_resnet = models.resnet34()  # without supplying a `weights` argument, we just initialize with random weights
+utils.print_param_count(my_resnet, target_resnet)
+
+# (2) Test via `torchinfo.summary`
+print("My model:", torchinfo.summary(my_resnet, input_size=(1, 3, 64, 64)), sep="\n")
+print(
+    "\nReference model:",
+    torchinfo.summary(target_resnet, input_size=(1, 3, 64, 64), depth=2),
+    sep="\n",
+)

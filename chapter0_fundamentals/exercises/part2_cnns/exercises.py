@@ -520,12 +520,13 @@ class BatchNorm2d(nn.Module):
         """
         if self.training:
         # Use this data's mean & variance to normalize, then use it to update the buffers
-            mean = t.mean(x, dim=[0, 2, 3])
-            var = t.var(x, dim=[0, 2, 3])
-            print(x.shape, mean.shape)
+            mean = t.mean(x, dim=[0, 2, 3]).reshape(self.num_features, 1, 1)
+            var = t.var(x, dim=[0, 2, 3]).reshape(self.num_features, 1, 1)
             num = x - mean
             denom = t.sqrt(var + self.eps)
+            print(num.shape, denom.shape)
             y = num / denom
+            print(self.weight.shape, y.shape)
             y *= self.weight
             y += self.bias
             self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean

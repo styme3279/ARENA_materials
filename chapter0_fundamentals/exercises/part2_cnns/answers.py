@@ -675,7 +675,8 @@ def predict(
     ints respectively.
     """
     model.eval()
-    probs = t.softmax(model.forward(images)
+    probs = t.softmax(model.forward(images), dim=1)
+    return t.max(probs, dim=1, keepdim=False)
 
 with open(section_dir / "imagenet_labels.json") as f:
     imagenet_labels = list(json.load(f).values())
@@ -702,3 +703,18 @@ for i, img in enumerate(images):
     display(img)
 
 # %%
+
+def get_resnet_for_feature_extraction(n_classes: int) -> ResNet34:
+    """
+    Creates a ResNet34 instance, replaces its final linear layer with a classifier for `n_classes`
+    classes, and freezes all weights except the ones in this layer.
+
+    Returns the ResNet model.
+    """
+    resnet = ResNet34()
+
+    pretrained_resnet = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
+    my_resnet = copy_weights(resnet, pretrained_resnet)
+
+
+tests.test_get_resnet_for_feature_extraction(get_resnet_for_feature_extraction)

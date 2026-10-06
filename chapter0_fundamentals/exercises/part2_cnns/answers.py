@@ -65,21 +65,65 @@ class Linear(nn.Module):
         If `bias` is False, set `self.bias` to None.
         """
         super().__init__()
+
+        self.in_features = in_features
+        self.out_features = out_features
         
+        self.weight = nn.Parameter(1.0/np.sqrt(in_features) * (2 * t.rand(out_features, in_features) - 1))
+        if bias:
+            self.bias = nn.Parameter(t.zeros(out_features))
+        else:
+            self.bias = None
+
 
     def forward(self, x: Tensor) -> Tensor:
         """
         x: shape (*, in_features)
         Return: shape (*, out_features)
         """
+
+        result = einops.einsum(self.weight, x, "... i j, ... j -> ... i")
+        if self.bias is not None:
+            result = result + self.bias
         
-        
+        return result
 
     def extra_repr(self) -> str:
-        raise NotImplementedError()
+        return f"in_features={self.in_features}, out_features={self.out_features}"
 
 
 tests.test_linear_parameters(Linear, bias=False)
 tests.test_linear_parameters(Linear, bias=True)
 tests.test_linear_forward(Linear, bias=False)
 tests.test_linear_forward(Linear, bias=True)
+
+# %%
+
+class Flatten(nn.Module):
+    def __init__(self, start_dim: int = 1, end_dim: int = -1) -> None:
+        super().__init__()
+        self.start_dim = start_dim
+        self.end_dim = end_dim
+
+    def forward(self, input: Tensor) -> Tensor:
+        """
+        Flatten out dimensions from start_dim to end_dim, inclusive of both.
+        """
+        shape = input.shape
+
+        # Get start & end dims, handling negative indexing for end dim
+        start_dim = self.start_dim
+        end_dim = self.end_dim if self.end_dim >= 0 else len(shape) + self.end_dim
+
+        # Get the shapes to the left / right of flattened dims, as well as size of flattened middle
+        shape_left = shape[:start_dim]
+        shape_right = shape[end_dim + 1 :]
+        shape_middle = t.prod(t.tensor(shape[start_dim : end_dim + 1])).item()
+
+        return t.reshape(input, shape_left + (shape_middle,) + shape_right)
+
+    def extra_repr(self) -> str:
+        return ", ".join([f"{key}={getattr(self, key)}" for key in ["start_dim", "end_dim"]])
+
+
+# %%

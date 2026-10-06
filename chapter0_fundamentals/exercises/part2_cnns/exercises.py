@@ -299,6 +299,10 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
             loss_list.append(loss.item())
             pbar.set_postfix(epoch=f"{epoch + 1}/{args.epochs}", loss=f"{loss:.3f}", refresh=False)
 
+
+        acc_correct = 0
+        acc_total = 0
+        acc_list = []
         with t.no_grad():
             for imgs, labels in mnist_testloader:
                 # Move data to device, perform forward pass
@@ -307,12 +311,17 @@ def train(args: SimpleMLPTrainingArgs) -> tuple[list[float], SimpleMLP]:
 
                 # Calculate loss, perform backward pass
                 loss = F.cross_entropy(logits, labels)
-                breakpoint
+
+                preds = t.argmax(logits, dim=-1)
+                acc_correct += (preds == labels).sum().item()
+                acc_total += imgs.shape[0]
+                acc = acc_correct / acc_total
+                
                 # Update logs & progress bar
                 val_loss_list.append(loss.item())
                 pbar.set_postfix(epoch=f"{epoch + 1}/{args.epochs}", loss=f"{loss:.3f}", refresh=False)
 
-    return loss_list, val_loss_list, model
+    return loss_list, acc, model
 
 
 args = SimpleMLPTrainingArgs()

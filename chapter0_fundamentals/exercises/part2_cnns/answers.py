@@ -207,9 +207,8 @@ class Conv2d(nn.Module):
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
-        self.weight = nn.Parameter(t.Tensor((kernel_size, kernel_size, in_channels, out_channels)))
-        
-        raise NotImplementedError()
+        sf = 1 / np.sqrt(in_channels * kernel_size * kernel_size)
+        self.weight = nn.Parameter(sf * (2 * t.rand(out_channels, in_channels, kernel_size, kernel_size) - 1))
 
     def forward(self, x: Tensor) -> Tensor:
         """Apply the functional conv2d, which you can import."""

@@ -223,6 +223,7 @@ tests.test_conv2d_module(Conv2d)
 m = Conv2d(in_channels=24, out_channels=12, kernel_size=3, stride=2, padding=1)
 print(f"Manually verify that this is an informative repr: {m}")
 
+
 # %%
 class ResidualBlock(nn.Module):
     def __init__(self, in_feats: int, out_feats: int, first_stride=1):
@@ -237,14 +238,18 @@ class ResidualBlock(nn.Module):
         """
         super().__init__()
         is_shape_preserving = (first_stride == 1) and (in_feats == out_feats)  # determines if right branch is identity
-        self.relu = nn.ReLU()
-        self.batch_norm1 = nn.BatchNorm2d()
-        self.batch_norm2 = nn.BatchNorm2d()
-        self.conv = nn.Conv2d()
-        self.strided_conv = nn.Conv2d()
+        self.relu1 = nn.ReLU()
+        self.relu2 = nn.ReLU()
+        self.batch_norm1 = nn.BatchNorm2d(num_features=in_feats)
+        self.batch_norm2 = nn.BatchNorm2d(num_features=in_feats)
+        self.conv = nn.Conv2d(in_channels=out_feats, out_channels=out_feats, kernel_size=3, stride=1, padding=1)
+        self.strided_conv = nn.Conv2d(in_channels=in_feats, out_channels=out_feats, stride=first_stride, kernel_size=3, padding=1)
         # optional part
-        self.optional_strided_conv = nn.Conv2d()
-        self.optional.batch_norm = nn.BatchNorm2d()
+        self.optional_strided_conv = None
+        self.optional_batch_norm = None
+        if is_shape_preserving:
+            self.optional_strided_conv = nn.Conv2d(kernel_size=1, in_channels=in_feats, out_channels=out_feats, stride=first_stride, padding=0)
+            self.optional_batch_norm = nn.BatchNorm2d(num_features=in_feats)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -255,8 +260,19 @@ class ResidualBlock(nn.Module):
 
         Return: shape (batch, out_feats, height / stride, width / stride)
         """
-        raise NotImplementedError()
+        y1 = self.strided_conv(x)
+        y1 = self.batch_norm1(y1)
+        y1 = self.relu1(y1)
+        y1 = self.conv(y1)
+        y1 = self.batch_norm2(y1)
 
+        y2 = x
+        if self.optional_strided_conv is not None:
+            y2 = self.optional_strided_conv(x)
+            y2 = self.optional_batch_norm(y2)
+
+        y = y1 + y2
+        return self.relu2(y)
 
 tests.test_residual_block(ResidualBlock)
 

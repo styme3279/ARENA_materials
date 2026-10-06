@@ -394,3 +394,46 @@ class BatchNorm2d(nn.Module):
     def extra_repr(self) -> str:
         return ", ".join([f"{key}={getattr(self, key)}" for key in ["num_features", "eps", "momentum"]])
 # %%
+class ResidualBlock(nn.Module):
+    def __init__(self, in_feats: int, out_feats: int, first_stride=1):
+        """
+        A single residual block with optional downsampling.
+
+        For compatibility with the pretrained model, declare the left side branch first using a
+        `Sequential`.
+
+        If first_stride is > 1, this means the optional (conv + bn) should be present on the right
+        branch. Declare it second using another `Sequential`.
+        """
+        super().__init__()
+        is_shape_preserving = (first_stride == 1) and (in_feats == out_feats)  # determines if right branch is identity
+
+        self.left = nn.Sequential(
+            nn.Conv2d(in_feats, out_feats, kernel_size=3, stride=first_stride, padding=1),
+            BatchNorm2d(out_feats),
+            ReLU(),
+            nn.Conv2d(out_feats, out_feats, kernel_size=3, stride=1, padding=1),
+            BatchNorm2d(out_feats),
+        )
+        self.right = (
+            nn.Identity()
+            if is_shape_preserving
+            else nn.Sequential(
+                nn.Conv2d(in_feats, out_feats, kernel_size=1, stride=first_stride, padding=0),
+                BatchNorm2d(out_feats),
+            )
+        )
+        self.relu = ReLU()
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Compute the forward pass. If no downsampling block is present, the addition should just add
+        the left branch's output to the input.
+
+        x: shape (batch, in_feats, height, width)
+
+        Return: shape (batch, out_feats, height / stride, width / stride)
+        """
+        x_left = self.left(x)
+        x_right = self.right(x)
+        return self.relu(x_left + x_right)

@@ -234,13 +234,62 @@ class Adam:
             # if self.mu:
             # self.m[i] = self.beta1 * self.m[i] + g # rmsprob moment
             self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * g
-            g = g / (t.sqrt(self.v[i]) + self.eps)
-            # g = self.m[i]
+            mh = self.m[i] / (1 - self.beta1 ** self.t)
+            vh = self.v[i] / (1 - self.beta2 ** self.t)
+            g = mh / (t.sqrt(vh) + self.eps)
             p -= self.lr * g
+        self.t += 1
 
     def __repr__(self) -> str:
         return f"Adam(lr={self.lr}, beta1={self.beta1}, beta2={self.beta2}, eps={self.eps}, weight_decay={self.lmda})"
 
 
 tests.test_adam(Adam)
+# %%
+class AdamW:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float = 0.001,
+        betas: tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-08,
+        weight_decay: float = 0.0,
+    ):
+        """Implements AdamW.
+
+        Like the PyTorch version, but assumes amsgrad=False and maximize=False
+            https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html
+        """
+        self.params = list(params)
+        self.lr = lr
+        self.beta1, self.beta2 = betas
+        self.eps = eps
+        self.lmda = weight_decay
+        self.t = 1
+
+        self.m = [t.zeros_like(p) for p in self.params]
+        self.v = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        for p in self.params:
+            p.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        for i, p in enumerate(self.params):
+            g = p.grad
+            self.v[i] = self.beta2 * self.v[i] + (1 - self.beta2) * (g * g)
+            self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * g
+            mh = self.m[i] / (1 - self.beta1 ** self.t)
+            vh = self.v[i] / (1 - self.beta2 ** self.t)
+            g = mh / (t.sqrt(vh) + self.eps)
+            p *= self.lmda
+            p -= self.lr * g
+        self.t += 1
+
+    def __repr__(self) -> str:
+        return f"AdamW(lr={self.lr}, beta1={self.beta1}, beta2={self.beta2}, eps={self.eps}, weight_decay={self.lmda})"
+
+
+tests.test_adamw(AdamW)
 # %%

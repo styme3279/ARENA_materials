@@ -505,6 +505,114 @@ def test_resnet_on_random_input(model: ResNet34, n_inputs: int = 3, seed: int | 
 
 
 test_resnet_on_random_input(trainer.model)
+
+@dataclass
+class ResNetFinetuningArgs:
+    n_classes: int = 10
+    batch_size: int = 128
+    epochs: int = 2
+    learning_rate: float = 1e-3
+    weight_decay: float = 0.0
+
+
+class ResNetFinetuner:
+    def __init__(self, args: ResNetFinetuningArgs):
+        self.args = args
+
+    def pre_training_setup(self):
+        self.model = get_resnet_for_feature_extraction(self.args.n_classes).to(device)
+        self.optimizer = AdamW(
+            self.model.out_layers[-1].parameters(),
+            lr=self.args.learning_rate,
+            weight_decay=self.args.weight_decay,
+        )
+
+
+        self.trainset = CIFAR10(train=True)
+        self.testset = CIFAR10(train=False)
+
+        self.train_loader = DataLoader(
+            self.trainset,
+            batch_size=self.args.batch_size,
+            shuffle=True,
+        )
+        self.test_loader = DataLoader(
+            self.testset,
+            batch_size=self.args.batch_size,
+            shuffle=False,
+        )
+
+        self.logged_variables = {"loss": [], "accuracy": []}
+        self.examples_seen = 0
+
+    def training_step(
+        self,
+        imgs: Float[Tensor, "batch channels height width"],
+        labels: Int[Tensor, " batch"],
+    ) -> Float[Tensor, ""]:
+        """Perform a gradient update step on a single batch of data."""
+
+        # CPU -> GPU first, then perform preprocessing on GPU.
+        imgs = imgs.to(device)
+        labels = labels.to(device)
+        imgs = IMAGENET_TRANSFORM(imgs)
+
+        logits = self.model(imgs)
+        loss = F.cross_entropy(logits, labels)
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        self.examples_seen += imgs.shape[0]
+        self.logged_variables["loss"].append(loss.item())
+        return loss
+
+    @t.inference_mode()
+    def evaluate(self) -> float:
+        """Evaluate the model on the test set and return the accuracy."""
+        self.model.eval()
+        total_correct, total_samples = 0, 0
+
+        for imgs, labels in tqdm(self.test_loader, desc="Evaluating"):
+            # CPU -> GPU first, then perform preprocessing on GPU.
+            imgs = imgs.to(device)
+            labels = labels.to(device)
+            imgs = IMAGENET_TRANSFORM(imgs)
+
+            logits = self.model(imgs)
+            total_correct += (logits.argmax(dim=1) == labels).sum().item()
+            total_samples += len(imgs)
+
+        accuracy = total_correct / total_samples
+        self.logged_variables["accuracy"].append(accuracy)
+        return accuracy
+
+    def train(self) -> dict[str, list[float]]:
+        self.pre_training_setup()
+
+        accuracy = self.evaluate()
+
+        for epoch in range(self.args.epochs):
+            self.model.train()
+
+            pbar = tqdm(self.train_loader, desc="Training")
+            for imgs, labels in pbar:
+                loss = self.training_step(imgs, labels)
+                pbar.set_postfix(
+                    loss=f"{loss:.3f}",
+                    ex_seen=f"{self.examples_seen:06}",
+                    refresh=False,
+                )
+
+            accuracy = self.evaluate()
+            pbar.set_postfix(
+                loss=f"{loss:.3f}",
+                accuracy=f"{accuracy:.2f}",
+                ex_seen=f"{self.examples_seen:06}",
+            )
+
+        return self.logged_variables
+
 # %%
 @dataclass
 class WandbResNetFinetuningArgs(ResNetFinetuningArgs):
@@ -527,7 +635,7 @@ class WandbResNetFinetuner(ResNetFinetuner):
             name=self.args.wandb_name,
             config=self.args
         )
-        wandb.watch(models=self.model.out_layers[-1], log=all, log_freq=50)
+        wandb.watch(models=self.model.out_layers[-1], log='all', log_freq=50)
 
     def training_step(
         self,

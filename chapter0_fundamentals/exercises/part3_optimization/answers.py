@@ -176,14 +176,15 @@ class SGD:
     def step(self) -> None:
         """Performs a single optimization step of the SGD algorithm."""
 
-        # for param in self.params:
-        #     for i in range(1,len(param)):
-        #         grad = param.grad[i]
-        #         if self.lmda != 0:
-        #             grad = grad + self.lmda*
-        print('prarma')
-        for param in self.params:
-            print(param.shape)
+        for i, param in enumerate(self.params):
+            grads = param.grad
+            if self.lmda != 0:
+                grads += self.lmda*param
+            if self.mu != 0:
+                self.b[i] = self.mu*self.b[i] + grads
+                grads = self.b[i]
+            param -= self.lr*grads
+        return params
 
 
     def __repr__(self) -> str:
@@ -192,3 +193,44 @@ class SGD:
 
 tests.test_sgd(SGD)
 # %%
+
+class RMSprop:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float = 0.01,
+        alpha: float = 0.99,
+        eps: float = 1e-08,
+        weight_decay: float = 0.0,
+        momentum: float = 0.0,
+    ):
+        """Implements RMSprop.
+
+        Like the PyTorch version, but assumes centered=False
+            https://pytorch.org/docs/stable/generated/torch.optim.RMSprop.html
+        """
+        self.params = list(params)  # turn params into a list (because it might be a generator)
+        self.lr = lr
+        self.eps = eps
+        self.mu = momentum
+        self.lmda = weight_decay
+        self.alpha = alpha
+
+        self.b = [t.zeros_like(p) for p in self.params]
+        self.v = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        for p in self.params:
+            p.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        raise NotImplementedError()
+
+    def __repr__(self) -> str:
+        return (
+            f"RMSprop(lr={self.lr}, eps={self.eps}, momentum={self.mu}, weight_decay={self.lmda}, alpha={self.alpha})"
+        )
+
+
+tests.test_rmsprop(RMSprop)

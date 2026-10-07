@@ -117,26 +117,26 @@ assert t.cuda.device_count() > 1, "This example requires at least 2 GPUs per mac
 
 # %%
 
-# def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
-#     """
-#     Broadcast averaged gradients from rank `src` to all other ranks.
-#     """
-#     # dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
+    """
+    Broadcast averaged gradients from rank `src` to all other ranks.
+    """
+    # dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
-#     device = t.device(f"cuda:{rank}")
-#     tensor = tensor.to(device)
+    device = t.device(f"cuda:{rank}")
+    tensor = tensor.to(device)
 
-#     if rank == src:
-#         for trg in range(world_size):
-#             if trg != src:
-#             # Create a tensor, send it to rank 1
-#                 print(f"{rank=}, {device=}, sending {tensor=}")
-#                 dist.send(tensor, dst=trg)
-#     else:
-#         # Receive tensor from rank 0 (it needs to be on the GPU before receiving)
-#         print(f"{rank=}, {device=}, creating {tensor=}")
-#         dist.recv(tensor, src=src)  # this line overwrites the tensor's data with our `sending_tensor`
-#         print(f"{rank=}, {device=}, received {tensor=}")
+    if rank == src:
+        for trg in range(world_size):
+            if trg != src:
+            # Create a tensor, send it to rank 1
+                print(f"{rank=}, {device=}, sending {tensor=}")
+                dist.send(tensor, dst=trg)
+    else:
+        # Receive tensor from rank 0 (it needs to be on the GPU before receiving)
+        print(f"{rank=}, {device=}, creating {tensor=}")
+        dist.recv(tensor, src=src)  # this line overwrites the tensor's data with our `sending_tensor`
+        print(f"{rank=}, {device=}, received {tensor=}")
     
 
 
@@ -153,27 +153,74 @@ def reduce(tensor, rank, world_size, dst=0, op: Literal["sum", "mean"] = "sum"):
     device = t.device(f"cuda:{rank}")
     tensor = tensor.to(device)
 
-    if rank == src:
-        for trg in range(world_size):
-            if trg != src:
+    if rank == dst:
+        for src in range(world_size):
+            if src != dst:
             # Create a tensor, send it to rank 1
                 print(f"{rank=}, {device=}, sending {tensor=}")
-                dist.send(tensor, dst=trg)
+                temp_tensor = t.empty_like(tensor)
+                dist.recv(temp_tensor, src=src)
+                tensor += temp_tensor
+        if op == "mean":
+            tensor /= world_size
     else:
         # Receive tensor from rank 0 (it needs to be on the GPU before receiving)
         print(f"{rank=}, {device=}, creating {tensor=}")
-        dist.recv(tensor, src=src)  # this line overwrites the tensor's data with our `sending_tensor`
+        dist.send(tensor, dst=dst)  # this line overwrites the tensor's data with our `sending_tensor`
 #         print(f"{rank=}, {device=}, received {tensor=}")
-    
+
 
 
 def all_reduce(tensor, rank, world_size, op: Literal["sum", "mean"] = "sum"):
     """
     Allreduce the tensor across all ranks, using 0 as the initial gathering rank.
     """
-    raise NotImplementedError()
+
+    reduce(tensor, rank, world_size, 0, op)
+    broadcast(tensor, rank, world_size, 0)
+
+
+
+# if MAIN:
+#     tests.test_reduce(reduce, WORLD_SIZE)
+#     tests.test_all_reduce(all_reduce, WORLD_SIZE)
+
+class SimpleModel(t.nn.Module):
+    def __init__(self):
+        super(SimpleModel, self).__init__()
+        self.param = t.nn.Parameter(t.tensor([2.0]))
+
+    def forward(self, x: Tensor):
+        return x - self.param
+
+
+def run_simple_model(rank, world_size):
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+
+    device = t.device(f"cuda:{rank}")
+    model = SimpleModel().to(device)  # Move the model to the device corresponding to this process
+    optimizer = t.optim.SGD(model.parameters(), lr=0.1)
+
+    input = t.tensor([rank], dtype=t.float32, device=device)
+    output = model(input)
+    loss = output.pow(2).sum()
+    loss.backward()  # Each rank has separate gradients at this point
+
+    print(f"Rank {rank}, before all_reduce, grads: {model.param.grad=}")
+    all_reduce(model.param.grad, rank, world_size)  # Synchronize gradients
+    print(f"Rank {rank}, after all_reduce, synced grads (summed over processes): {model.param.grad=}")
+
+    optimizer.step()  # Step with the optimizer (this will update all models the same way)
+    print(f"Rank {rank}, new param: {model.param.data}")
+
+    dist.destroy_process_group()
 
 
 if MAIN:
-    tests.test_reduce(reduce, WORLD_SIZE)
-    tests.test_all_reduce(all_reduce, WORLD_SIZE)
+    world_size = 2
+    mp.spawn(
+        run_simple_model,
+        args=(world_size,),
+        nprocs=world_size,
+        join=True,
+    )

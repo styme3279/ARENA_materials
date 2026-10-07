@@ -68,17 +68,24 @@ def opt_fn_with_sgd(
     # Make sure tensor has requires_grad=True, otherwise it can't be optimized (more on this tomorrow!)
     assert xy.requires_grad
 
-    breakpoint()
+    # breakpoint()
     xy.detach().clone()
-    xy_val_list = []
+    xy_val_list = [xy.detach().clone()]
     opt = t.optim.SGD(params=(xy,), lr=lr, momentum=momentum)
     for _ in range(n_iters):
         opt.zero_grad()
         loss = fn(xy[0], xy[1])
+        loss.backward()
+        tens = t.tensor([1.0], requires_grad=True)
+        tens.backward()
+        # print(tens)
+        # print(tens.shape)
+        # exit()
         
         opt.step()
-        xy_val_list += xy.detach().clone()
-    return t.tensor(xy_val_list)
+        xy_val_list.append(xy.detach().clone())
+    return t.stack(xy_val_list)
+
 
 
 points = []
@@ -86,6 +93,7 @@ points = []
 optimizer_list = [
     (optim.SGD, {"lr": 0.1, "momentum": 0.0}),
     (optim.SGD, {"lr": 0.02, "momentum": 0.99}),
+    (optim.SGD, {"lr": 0.5, "momentum": 0.99}),
 ]
 
 for optimizer_class, params in optimizer_list:
@@ -95,4 +103,41 @@ for optimizer_class, params in optimizer_list:
     print(f"{params=}, last point={xys[-1]}")
 
 plot_fn_with_points(pathological_curve_loss, points=points, min_points=[(0, "y_min")])
+# %%
+class SGD:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float,
+        momentum: float = 0.0,
+        weight_decay: float = 0.0,
+    ):
+        """Implements SGD with momentum.
+
+        Like the PyTorch version, but assume nesterov=False, maximize=False, and dampening=0
+            https://pytorch.org/docs/stable/generated/torch.optim.SGD.html#torch.optim.SGD
+        """
+        self.params = list(params)  # turn params into a list (it might be a generator, so iterating over it empties it)
+        self.lr = lr
+        self.mu = momentum
+        self.lmda = weight_decay
+
+        self.b = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        """Zeros all gradients of the parameters in `self.params`."""
+        for param in self.params:
+            param.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        """Performs a single optimization step of the SGD algorithm."""
+        for p in self.params:
+            p -= p.grad * self.lr
+
+    def __repr__(self) -> str:
+        return f"SGD(lr={self.lr}, momentum={self.mu}, weight_decay={self.lmda})"
+
+
+tests.test_sgd(SGD)
 # %%

@@ -611,13 +611,12 @@ class BlockGroup(nn.Module):
         stride.
         """
         super().__init__()
-        block0 = ResidualBlock(in_feats=in_feats, out_feats=out_feats, first_stride=first_stride)
-        residual_blocks = [ResidualBlock(in_feats=in_feats, out_feats=out_feats, first_stride=1) for _ in range(1, n_blocks)]
-        residual_blocks.insert(block0)
-        residual_blocks = OrderedDict(residual_blocks)
-        self.residual_blocks = Sequential(residual_blocks)
-            
-        raise NotImplementedError()
+        self.residual_blocks = Sequential(
+            ResidualBlock(in_feats=in_feats, out_feats=out_feats, first_stride=first_stride),
+            *[ResidualBlock(in_feats=out_feats, out_feats=out_feats, first_stride=1) for _ in range(n_blocks - 1)]
+        )
+
+        # raise NotImplementedError()
 
     def forward(self, x: Tensor) -> Tensor:
         """

@@ -138,18 +138,19 @@ class Adam:
             if self.lmda:
                 gradient = gradient + self.lmda * param
             if self.beta1:
-                self.m[t] = self.beta1 * self.m[t-1] + gradient
-            self.v[t] = self.beta2 * self.v[t-1] + (1-self.beta2) * gradient * gradient
+                self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * gradient
+            self.v[i] = self.beta2 * self.v[i] + (1-self.beta2) * gradient * gradient
 
-            self.m[t] = self.m[t-1] / (1 - self.beta1) ** self.t
-            self.v[t] = self.v[t-1] / (1 - self.beta2) ** self.t
-            gradient = gradient / (np.sqrt(self.v[t]) + self.eps)
+            m_temp = self.m[i] / (1 - self.beta1** self.t) 
+            v_temp = self.v[i] / (1 - self.beta2** self.t) 
+            gradient = m_temp / (t.sqrt(v_temp) + self.eps)
             
             param -= self.lr * gradient
-            self.t += 1
+        self.t += 1
 
     def __repr__(self) -> str:
         return f"Adam(lr={self.lr}, beta1={self.beta1}, beta2={self.beta2}, eps={self.eps}, weight_decay={self.lmda})"
 
 
 tests.test_adam(Adam)
+# %%

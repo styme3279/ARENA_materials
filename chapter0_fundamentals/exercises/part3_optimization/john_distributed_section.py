@@ -19,9 +19,6 @@ WORLD_SIZE = min(t.cuda.device_count(), 3)
 os.environ["MASTER_ADDR"] = "localhost"
 os.environ["MASTER_PORT"] = "12345"
 
-
-# import dt
-
 def send_receive(rank, world_size):
     dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)
 
@@ -62,7 +59,15 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
     """
     Broadcast averaged gradients from rank `src` to all other ranks.
     """
-    raise NotImplementedError()
+    if rank == src:
+        for other_rank in range(world_size):
+            dist.send(tensor=tensor, dst=other_rank)
+
+    else:
+        received_tensor = t.zeros_like(tensor)
+        dist.recv(tensor=received_tensor, src=src)
+        tensor.copy_(received_tensor)
+        
 
 
 if __name__ == "__main__":
@@ -73,6 +78,6 @@ if __name__ == "__main__":
         nprocs=world_size,
         join=True,
     )
-    #tests.test_broadcast(broadcast, WORLD_SIZE)
+    tests.test_broadcast(broadcast, WORLD_SIZE)
 
 # %%

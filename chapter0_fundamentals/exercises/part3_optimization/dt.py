@@ -42,17 +42,15 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
     """
     Broadcast averaged gradients from rank `src` to all other ranks.
     """
-    # dist.init_process_group(backend="ncll", rank=rank, world_size=world_size)
+    if rank == src:
+        for r in range(world_size):
+            if r != src:
+                dist.send(tensor=tensor, dst=r)
+    else:
+        received_tensor = t.zeros(tensor.shape)
+        dist.recv(received_tensor, src=src)
+        tensor.copy_(received_tensor)
 
-    device = t.device(f"cuda:{rank}")
-
-    for r in [0, 1]:
-        if r != src:
-            print(f"{rank=}, {device=}, sending {tensor=}")
-            dist.send(tensor, dst=r)
-    
-
-    dist.destroy_process_group()
 
 
 if __name__ == "__main__":

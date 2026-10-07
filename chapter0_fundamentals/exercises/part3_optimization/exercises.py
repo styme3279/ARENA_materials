@@ -643,11 +643,18 @@ logged_variables = trainer.train()
 # %%
 # YOUR CODE HERE - fill `sweep_config` so it has the requested behaviour
 sweep_config = dict(
-    method = ...,
-    metric = ...,
-    parameters = ...,
+    method = "grid", # can be "grid", "random" or "bayes"
+    metric = dict(
+        name = "accuracy", # name of the metric you're optimising (should be a numeric type logged in `wandb.log`)
+        goal = "maximise", # either "maximize" or "minimize"
+    ),
+    parameters = dict(
+        beta1 = dict(values = [0.8, 0.9, 0.95],), # uniformly sample from list of values
+        beta2 = dict(values = [0.99, 0.999, 0.9999], probabilities = [0.2, 0.6, 0.2]), # sample from list with given probabilities
+        weight_decay = dict(min = 0.0, max = 0.1), # uniform distribution over [min, max), can either be ints or floats
+        learning_rate = dict(min = 1e-5, max = 1e-2, distribution = "log_uniform_values"), # use log-uniform distribution instead
+    )
 )
-
 
 def update_args(args: WandbResNetFinetuningArgs, sampled_parameters: dict) -> WandbResNetFinetuningArgs:
     """

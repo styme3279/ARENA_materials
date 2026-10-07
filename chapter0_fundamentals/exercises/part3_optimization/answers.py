@@ -679,9 +679,16 @@ trainer.train()
 # %%
 # YOUR CODE HERE - fill `sweep_config` so it has the requested behaviour
 sweep_config = dict(
-    method = ...,
-    metric = ...,
-    parameters = ...,
+    method = 'random',
+    metric = dict(
+        name =  'accuracy',
+        goal = 'maximze'
+    ),
+    parameters = dict(
+        lr = dict(min=1e-4, max=1e-1, distribution="log_uniform_values"),
+        batch_size = dict(values = [32,64,128,256], probabilities=[0.25,0.25,0.25,0.25])
+        weight_decay=
+    )
 )
 
 

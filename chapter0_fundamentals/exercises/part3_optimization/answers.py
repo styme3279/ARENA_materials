@@ -175,9 +175,14 @@ class SGD:
     @t.inference_mode()
     def step(self) -> None:
         """Performs a single optimization step of the SGD algorithm."""
-        print('param grad - ', self.params[0].grad)
-        print('param shape - ', len(self.params))
-        print('param shape 0 - ', len(self.params[0]))
+        momentum = [t.zeros_like(p) for p in self.params]
+
+        print('params - ', len(self.params)
+        # for param in self.params:
+        #     for i in range(len(param)):
+        #         grad = param.grad[i]
+        #         if self.lmda != 0:
+
 
     def __repr__(self) -> str:
         return f"SGD(lr={self.lr}, momentum={self.mu}, weight_decay={self.lmda})"

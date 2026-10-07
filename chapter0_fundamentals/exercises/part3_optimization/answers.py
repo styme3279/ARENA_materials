@@ -536,7 +536,7 @@ class WandbResNetFinetuner(ResNetFinetuner):
         """Initializes the wandb run using `wandb.init` and `wandb.watch`."""
         super().pre_training_setup()
         if args.use_wandb:
-            wandb.init(project=args.project, name=args.name, config=self.args)
+            wandb.init(project=args.wandb_project, name=args.wandb_name, config=self.args)
             wandb.watch(models=[self.model], log="all", log_freq=10)
 
     def training_step(
@@ -546,22 +546,30 @@ class WandbResNetFinetuner(ResNetFinetuner):
     ) -> Float[Tensor, ""]:
         """Equivalent to ResNetFinetuner.training_step, but logging the loss to wandb."""
         loss = super().training_step(imgs=imgs, labels=labels)
-        wandb.log(loss, self.examples_seen)
+        if args.use_wandb:
+            wandb.log({"loss": loss}, self.examples_seen)
         return loss
 
     @t.inference_mode()
     def evaluate(self) -> float:
         """Equivalent to ResNetFinetuner.evaluate, but logging the accuracy to wandb."""
         accuracy = super().evaluate()
-        wandb.log(accuracy, self.examples_seen)
+        if args.use_wandb:
+            wandb.log({"accuracy": accuracy}, self.examples_seen)
         return accuracy
 
     def train(self) -> None:
         """Equivalent to ResNetFinetuner.train, but with wandb integration."""
-        self.pre_training_setup()
-        raise NotImplementedError()
+        try:
+            super().train()
+        finally:
+            if args.use_wandb:
+                wandb.finish()
 
-
-args = WandbResNetFinetuningArgs(use_wandb=False)
+args = WandbResNetFinetuningArgs(use_wandb=True)
 trainer = WandbResNetFinetuner(args)
 trainer.train()
+
+# %%
+trainer.logged_variables
+# %%

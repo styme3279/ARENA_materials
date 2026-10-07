@@ -34,7 +34,7 @@ if MAIN:
     world_size = 2  # simulate 2 processes
     mp.spawn(
         send_receive,
-        args=(world_size,),
+        args=(world_size),
         nprocs=world_size,
         join=True,
     )
@@ -90,6 +90,20 @@ def run_broadcast(rank: int, world_size: int, broadcast):
     print(f"Rank {rank} broadcasted tensor: expected 0.0 (from rank 0), got {tensor}")
     t.testing.assert_close(tensor, t.full_like(tensor, 0.0))
 
+def broadcast(tensor: t.Tensor, rank: int, world_size: int, src: int = 0):
+    """
+    Broadcast averaged gradients from rank `src` to all other ranks.
+    """
+
+    if src == rank:
+        for i in range(world_size):
+            dist.send(tensor=tensor, dst=i)
+    else:
+        device = t.device(f"cuda:{rank}")
+        received_tensor = t.tensor([rank], device=device)
+        print(f"{rank=}, {device=}, creating {received_tensor=}")
+        dist.recv(received_tensor, src=rank)  # this line overwrites the tensor's data with our `sending_tensor`
+
 def test_broadcast(broadcast, world_size):
     world_size = world_size  # Number of processes (simulated ranks)
     mp.spawn(run_broadcast, args=(world_size, broadcast), nprocs=world_size, join=True)
@@ -97,10 +111,5 @@ def test_broadcast(broadcast, world_size):
 
 
 
-
-
-
-
 if MAIN:
     test_broadcast(broadcast, WORLD_SIZE)
-# %%

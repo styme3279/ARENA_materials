@@ -240,6 +240,19 @@ class DistResNetTrainer:
             sampler=self.train_sampler, 
             pin_memory=True,  # page-locked host memory makes the CPU -> GPU copy asynchronous and faster. For small data, may not make a difference.
         )
+
+        self.test_sampler = t.utils.data.DistributedSampler(
+            self.testset,
+            num_replicas=self.args.world_size, # we'll divide each batch up into this many random sub-batches
+            rank=self.rank, # this determines which sub-batch this process gets
+        )
+
+        self.test_loader = t.utils.data.DataLoader(
+            self.testset,
+            self.args.batch_size, # this is the sub-batch size, i.e. the batch size that each GPU gets
+            sampler=self.test_sampler, 
+            pin_memory=True,  # page-locked host memory makes the CPU -> GPU copy asynchronous and faster. For small data, may not make a difference.
+        )
         self.examples_seen = 0
         if self.rank == 0:
             wandb.init()

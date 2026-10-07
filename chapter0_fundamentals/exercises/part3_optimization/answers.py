@@ -100,7 +100,7 @@ optimizer_list = [
 
 for optimizer_class, params in optimizer_list:
     xy = t.tensor([2.5, 2.5], requires_grad=True)
-    xys = opt_fn_with_sgd(pathological_curve_loss, xy=xy, lr=params["lr"], momentum=params["momentum"])
+    xys = our_opt_fn_with_sgd(pathological_curve_loss, xy=xy, lr=params["lr"], momentum=params["momentum"])
     points.append((xys, optimizer_class, params))
     print(f"{params=}, last point={xys[-1]}")
 
@@ -194,10 +194,13 @@ class SGD:
             self.b = self.mu * self.b + g_t
             g_t = self.b
         #print(f"Params: {self.params}")
+        print(self.params[0].shape)
+        print(self.params[1].shape)
+        print(self.params[2].shape)
         print(g_t[0].shape)
         print(g_t[1].shape)
         print(g_t[2].shape)
-        self.params = self.params - self.lr * g_t
+        self.params = [p for p in [t.stack(self.params) - self.lr * t.stack(g_t)]]
 
 
     def __repr__(self) -> str:

@@ -80,8 +80,16 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
     """
     Broadcast averaged gradients from rank `src` to all other ranks.
     """
-    
+    if rank == src:
+        # Send tensor to rank 1
+        print(f"{rank}, sending {tensor}")
+        dist.send(tensor=tensor, dst=1)
+    elif rank == 1:
+        # Receive tensor from rank 0
+        dist.recv(tensor, src=0)  # this line overwrites the tensor's data with our `sending_tensor`
+        print(f"{rank}, received {tensor}")
 
 
 if __name__ == "__main__":
     tests.test_broadcast(broadcast, WORLD_SIZE)
+# %%

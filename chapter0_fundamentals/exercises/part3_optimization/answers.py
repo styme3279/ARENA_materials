@@ -757,7 +757,7 @@ def send_receive(rank, world_size):
     dist.destroy_process_group()
 
 
-if MAIN:
+if __name__ == '__main__':
     world_size = 2  # simulate 2 processes
     mp.spawn(
         send_receive,
@@ -769,17 +769,17 @@ if MAIN:
 
 # %%
 
-def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
-    """
-    Broadcast averaged gradients from rank `src` to all other ranks.
-    """
-    print('prints')
-    print(tensor.shape)
-    print(rank)
-    print(world_size)
-    print(src)
+# def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
+#     """
+#     Broadcast averaged gradients from rank `src` to all other ranks.
+#     """
+#     print('prints')
+#     print(tensor.shape)
+#     print(rank)
+#     print(world_size)
+#     print(src)
 
 
-if MAIN:
-    tests.test_broadcast(broadcast, WORLD_SIZE)
+# if MAIN:
+#     tests.test_broadcast(broadcast, WORLD_SIZE)
 # %%

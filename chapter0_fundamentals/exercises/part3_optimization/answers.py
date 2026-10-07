@@ -187,20 +187,14 @@ class SGD:
         print(g_t[0].shape)
         print(g_t[1].shape)
         print(g_t[2].shape)
-        if self.lmda != 0.0:
-            g_t = g_t + self.lmda * self.params
-        if self.mu != 0.0:
-            print(self.b)
-            self.b = self.mu * self.b + g_t
-            g_t = self.b
-        #print(f"Params: {self.params}")
-        print(self.params[0].shape)
-        print(self.params[1].shape)
-        print(self.params[2].shape)
-        print(g_t[0].shape)
-        print(g_t[1].shape)
-        print(g_t[2].shape)
-        self.params = [p for p in [t.stack(self.params) - self.lr * t.stack(g_t)]]
+        for i, param in enumerate(self.params):
+            if self.lmda != 0.0:
+                g_t[i] += self.lmda * self.params[i]
+            if self.mu != 0.0:
+                self.b[i] = self.mu * self.b[i] + g_t[i]
+                g_t[i].copy_(self.b[i])
+            self.params[i] -= self.lr * g_t[i]
+        
 
 
     def __repr__(self) -> str:

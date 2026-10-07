@@ -426,9 +426,9 @@ class ResNetFinetuner:
         self.args = args
 
     def pre_training_setup(self):
-        self.model = get_resnet_for_feature_extraction(self.args.n_classes).to(device)
+        self.model = get_resnet_for_feature_extraction(self.args.n_classes).to(self.device)
         self.optimizer = AdamW(
-            self.model.out_layers[-1].parameters(),
+            self.model.parameters(),
             lr=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
         )

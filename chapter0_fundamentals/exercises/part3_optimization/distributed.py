@@ -152,15 +152,15 @@ class DistResNetTrainer:
 
     def pre_training_setup(self):
         self.model: ResNet34 = get_untrained_resnet(self.args.n_classes)
-        self.model.to(device)
+        self.model.to(self.device)
         for param in self.model.parameters():
             broadcast(param.data, self.rank, self.args.world_size, SRC_RANK)
         
-        if self.rank == SRC_RANK:
-            self.optimizer = optim.AdamW(
-                self.model.out_layers[-1].parameters(),
-                lr=self.args.learning_rate,
-                weight_decay=self.args.weight_decay,
+        # if self.rank == SRC_RANK:
+        self.optimizer = optim.AdamW(
+            self.model.out_layers[-1].parameters(),
+            lr=self.args.learning_rate,
+            weight_decay=self.args.weight_decay,
             )
 
         self.trainset = CIFAR10(train=True)
@@ -198,8 +198,8 @@ class DistResNetTrainer:
 
     def training_step(self, imgs: Tensor, labels: Tensor) -> Tensor:
         # CPU -> GPU first, then perform preprocessing on GPU.
-        imgs = imgs.to(device)
-        labels = labels.to(device)
+        imgs = imgs.to(self.device)
+        labels = labels.to(self.device)
         imgs = IMAGENET_TRANSFORM(imgs)
 
         logits = self.model(imgs)
@@ -207,11 +207,11 @@ class DistResNetTrainer:
         loss.backward()
 
         for param in self.model.parameters():
-            reduce(param.grad, self.rank, self.args.world_size, SRC_RANK, "sum")
+            reduce(param.grad, self.rank, self.args.world_size, SRC_RANK, "mean")
 
         if self.rank == SRC_RANK:
             self.optimizer.step()
-            self.optimizer.zero_grad()
+        self.optimizer.zero_grad()
         
         for param in self.model.parameters():
             broadcast(param.data, self.rank, self.args.world_size, SRC_RANK)
@@ -226,12 +226,12 @@ class DistResNetTrainer:
     @t.inference_mode()
     def evaluate(self) -> float | None:
         self.model.eval()
-        total_info = t.zeros(2).to(device)
+        total_info = t.zeros(2).to(self.device)
 
         for imgs, labels in tqdm(self.test_loader, desc="Evaluating"):
             # CPU -> GPU first, then perform preprocessing on GPU.
-            imgs = imgs.to(device)
-            labels = labels.to(device)
+            imgs = imgs.to(self.device)
+            labels = labels.to(self.device)
             imgs = IMAGENET_TRANSFORM(imgs)
 
             logits = self.model(imgs)

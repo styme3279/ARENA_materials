@@ -244,11 +244,11 @@ class DistResNetTrainer:
         if self.rank == 0:
             wandb.init()
 
-        src_params = []
+        #src_params = []
         for param in self.model.parameters():
             broadcast(param.data, self.rank, self.args.world_size)
-            src_params.append(param) # local param contains param from src
-        self.model.parameters().data = src_params # set params from src after broadcast
+        #    src_params.append(param) # local param contains param from src
+        #self.model.parameters().data = src_params # set params from src after broadcast
 
 
     def training_step(
@@ -266,12 +266,14 @@ class DistResNetTrainer:
         logits = self.model(imgs)
         loss = F.cross_entropy(logits, labels)
         loss.backward()
+        for param in self.model.parameters():
+            all_reduce(param.grad, self.rank, self.args.world_size, op="mean")
         self.optimizer.step()
         self.optimizer.zero_grad()
 
-        # DDP
-        self.examples_seen += imgs.shape[0]
-        wandb.log({"loss": loss.item()}, self.examples_seen)
+        self.examples_seen += imgs.shape[0] * self.args.world_size
+        if self.rank == 0:
+            wandb.log({"loss": loss.item()}, self.examples_seen)
         return loss
 
     @t.inference_mode()
@@ -290,8 +292,13 @@ class DistResNetTrainer:
             total_correct += (logits.argmax(dim=1) == labels).sum().item()
             total_samples += len(imgs)
 
+        tensor = t.tensor([total_correct, total_samples], device=self.device)
+        all_reduce(tensor, self.rank, self.args.world_size, op="sum")    
+        total_correct, total_samples = tensor.tolist()
         accuracy = total_correct / total_samples
-        wandb.log({"accuracy": accuracy}, self.examples_seen)
+        
+        if self.rank == 0:
+            wandb.log({"accuracy": accuracy}, self.examples_seen)
         return accuracy
 
     def train(self) -> dict[str, list[float]]:
@@ -299,7 +306,7 @@ class DistResNetTrainer:
 
         accuracy = self.evaluate()
 
-        for epoch in range(self.args.epochs):
+        for _ in range(self.args.epochs):
             self.model.train()
 
             pbar = tqdm(self.train_loader, desc="Training")
@@ -317,7 +324,8 @@ class DistResNetTrainer:
                 accuracy=f"{accuracy:.2f}",
                 ex_seen=f"{self.examples_seen:06}",
             )
-        wandb.finish()
+        if self.rank == 0:
+            wandb.finish()
         return self.logged_variables
 
 
@@ -337,3 +345,5 @@ if MAIN:
         nprocs=world_size,
         join=True,
     )
+
+# %%

@@ -124,14 +124,15 @@ class SGD:
     @t.inference_mode()
     def step(self) -> None:
         """Performs a single optimization step of the SGD algorithm."""
-        buffer = 0
         for param in self.params:
-            for i in range(len(param)):
-                grad = param.grad()
-                if self.lmda != 0:
-                    grad += self.lmda * param[-1]
-                if self.mu != 0:
-                    buffer = self.mu 
+            grad = param.grad()[-1]
+            if self.lmda != 0:
+                grad += self.lmda * param[-1]
+            if self.mu != 0:
+                self.b = self.mu * buffer + grad
+                grad = buffer
+            grad -= self.lmda * grad
+            param.grad = t.tensor(grad)
                 
 
     def __repr__(self) -> str:

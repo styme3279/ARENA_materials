@@ -46,6 +46,7 @@ device = t.device("mps" if t.backends.mps.is_available() else "cuda" if t.cuda.i
 
 
 WORLD_SIZE = min(t.cuda.device_count(), 3)
+SRC_RANK = 0
 
 os.environ["MASTER_ADDR"] = "localhost"
 os.environ["MASTER_PORT"] = "12345"
@@ -109,8 +110,8 @@ def all_reduce(tensor, rank, world_size, op: Literal["sum", "mean"] = "sum"):
     Allreduce the tensor across all ranks, using 0 as the initial gathering rank.
     """
 
-    reduce(tensor, rank, world_size, 0, op)
-    broadcast(tensor, rank, world_size, 0)
+    reduce(tensor, rank, world_size, SRC_RANK, op)
+    broadcast(tensor, rank, world_size, SRC_RANK)
 
 # %%
 def get_untrained_resnet(n_classes: int) -> ResNet34:
@@ -121,6 +122,15 @@ def get_untrained_resnet(n_classes: int) -> ResNet34:
     resnet = ResNet34()
     resnet.out_layers[-1] = Linear(resnet.out_features_per_group[-1], n_classes)
     return resnet
+
+# %%
+@dataclass
+class ResNetFinetuningArgs:
+    n_classes: int = 10
+    batch_size: int = 128
+    epochs: int = 2
+    learning_rate: float = 1e-3
+    weight_decay: float = 0.0
 
 # %%
 @dataclass
@@ -137,8 +147,6 @@ class DistResNetTrainingArgs(WandbResNetFinetuningArgs):
     world_size: int = 1
     wandb_project: str | None = "day3-resnet-dist-training"
 
-SRC_RANK = 0
-
 
 class DistResNetTrainer:
     args: DistResNetTrainingArgs
@@ -152,9 +160,59 @@ class DistResNetTrainer:
         self.model: ResNet34 = get_untrained_resnet()
         for param in self.model.parameters():
             broadcast(param.data, self.rank, self.args.world_size, SRC_RANK)
+        
+        if self.rank == SRC_RANK:
+            self.optimizer = AdamW(
+                self.model.out_layers[-1].parameters(),
+                lr=self.args.learning_rate,
+                weight_decay=self.args.weight_decay,
+            )
+
+        self.trainset = CIFAR10(train=True)
+        self.testset = CIFAR10(train=False)
+
+        self.train_sampler = t.utils.data.DistributedSampler(
+            self.trainset,
+            num_replicas=self.args.world_size, # we'll divide each batch up into this many random sub-batches
+            rank=self.rank, # this determines which sub-batch this process gets
+        )
+        self.train_loader = t.utils.data.DataLoader(
+            self.trainset,
+            self.args.batch_size, # this is the sub-batch size, i.e. the batch size that each GPU gets
+            sampler=self.train_sampler, 
+            pin_memory=True,  # page-locked host memory makes the CPU -> GPU copy asynchronous and faster. For small data, may not make a difference.
+        )
+
+        self.examples_seen = 0
+
+        if self.args.use_wandb and self.rank == SRC_RANK:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name, config=self.args)
+            wandb.watch(models=[self.model], log="all", log_freq=10)
 
     def training_step(self, imgs: Tensor, labels: Tensor) -> Tensor:
-        raise NotImplementedError()
+        # CPU -> GPU first, then perform preprocessing on GPU.
+        imgs = imgs.to(device)
+        labels = labels.to(device)
+        imgs = IMAGENET_TRANSFORM(imgs)
+
+        logits = self.model(imgs)
+        loss = F.cross_entropy(logits, labels)
+        loss.backward()
+
+        for param in self.model.parameters():
+            all_reduce(param.grad, self.rank, self.args.world_size, "sum")
+                
+
+        # if self.
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        self.examples_seen += imgs.shape[0] * world_size
+
+        if self.args.use_wandb:
+            wandb.log({"loss": loss}, self.examples_seen)
+
+        return loss
 
     @t.inference_mode()
     def evaluate(self) -> float:

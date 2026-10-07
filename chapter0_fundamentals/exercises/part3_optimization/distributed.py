@@ -71,13 +71,10 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
         for trg in range(world_size):
             if trg != src:
                 # Create a tensor, send it to rank 1
-                print(f"{rank=}, {device=}, sending {tensor=}")
                 dist.send(tensor, dst=trg)
     else:
         # Receive tensor from rank 0 (it needs to be on the GPU before receiving)
-        print(f"{rank=}, {device=}, creating {tensor=}")
         dist.recv(tensor, src=src)  # this line overwrites the tensor's data with our `sending_tensor`
-        print(f"{rank=}, {device=}, received {tensor=}")
 
 # %%
 def reduce(tensor, rank, world_size, dst=0, op: Literal["sum", "mean"] = "sum"):
@@ -92,7 +89,6 @@ def reduce(tensor, rank, world_size, dst=0, op: Literal["sum", "mean"] = "sum"):
         for src in range(world_size):
             if src != dst:
             # Create a tensor, send it to rank 1
-                print(f"{rank=}, {device=}, sending {tensor=}")
                 temp_tensor = t.empty_like(tensor)
                 dist.recv(temp_tensor, src=src)
                 tensor += temp_tensor
@@ -100,9 +96,7 @@ def reduce(tensor, rank, world_size, dst=0, op: Literal["sum", "mean"] = "sum"):
             tensor /= world_size
     else:
         # Receive tensor from rank 0 (it needs to be on the GPU before receiving)
-        print(f"{rank=}, {device=}, creating {tensor=}")
         dist.send(tensor, dst=dst)  # this line overwrites the tensor's data with our `sending_tensor`
-        print(f"{rank=}, {device=}, received {tensor=}")
 
 # %%
 def all_reduce(tensor, rank, world_size, op: Literal["sum", "mean"] = "sum"):
@@ -157,12 +151,13 @@ class DistResNetTrainer:
         self.device = t.device(f"cuda:{rank}")
 
     def pre_training_setup(self):
-        self.model: ResNet34 = get_untrained_resnet()
+        self.model: ResNet34 = get_untrained_resnet(self.args.n_classes)
+        self.model.to(device)
         for param in self.model.parameters():
             broadcast(param.data, self.rank, self.args.world_size, SRC_RANK)
         
         if self.rank == SRC_RANK:
-            self.optimizer = AdamW(
+            self.optimizer = optim.AdamW(
                 self.model.out_layers[-1].parameters(),
                 lr=self.args.learning_rate,
                 weight_decay=self.args.weight_decay,
@@ -209,7 +204,7 @@ class DistResNetTrainer:
         for param in self.model.parameters():
             broadcast(param.data, self.rank, self.args.world_size, SRC_RANK)
 
-        self.examples_seen += imgs.shape[0] * world_size
+        self.examples_seen += imgs.shape[0] * self.args.world_size
 
         if self.args.use_wandb and self.rank == SRC_RANK:
             wandb.log({"loss": loss}, self.examples_seen)
@@ -217,9 +212,9 @@ class DistResNetTrainer:
         return loss
 
     @t.inference_mode()
-    def evaluate(self) -> float:
+    def evaluate(self) -> float | None:
         self.model.eval()
-        total_info = t.zeros(2)
+        total_info = t.zeros(2).to(device)
 
         for imgs, labels in tqdm(self.test_loader, desc="Evaluating"):
             # CPU -> GPU first, then perform preprocessing on GPU.
@@ -234,20 +229,45 @@ class DistResNetTrainer:
         reduce(total_info, self.rank, self.args.world_size, SRC_RANK, "sum")\
 
         if self.rank == SRC_RANK:
-            accuracy = total_info[]
+            accuracy = (total_info[0] / total_info[1]).item()
+            if self.args.use_wandb:
+                wandb.log({"accuracy": accuracy}, self.examples_seen)
+            return accuracy
 
-        if self.args.use_wandb:
-            wandb.log({"accuracy": accuracy}, self.examples_seen)
-
-        return -1.0
+        return None
 
     def train(self):
-        raise NotImplementedError()
+        try:
+            self.pre_training_setup()
+    
+            for epoch in range(self.args.epochs):
+                self.train_sampler.set_epoch(epoch)
+                self.model.train()
+    
+                pbar = tqdm(self.train_loader, desc="Training")
+                for imgs, labels in pbar:
+                    loss = self.training_step(imgs, labels)
+                    pbar.set_postfix(
+                        loss=f"{loss:.3f}",
+                        ex_seen=f"{self.examples_seen:06}",
+                        refresh=False,
+                    )
+
+                if self.rank == SRC_RANK:
+                    accuracy = self.evaluate()
+                    pbar.set_postfix(
+                        loss=f"{loss:.3f}",
+                        accuracy=f"{accuracy:.2f}",
+                        ex_seen=f"{self.examples_seen:06}",
+                    )
+        finally:
+            if self.args.use_wandb and SRC_RANK:
+                wandb.finish()
 
 
 def dist_train_resnet_from_scratch(rank, world_size):
     dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
-    args = DistResNetTrainingArgs(world_size=world_size, use_wandb=False)  # flip to True to log to wandb
+    args = DistResNetTrainingArgs(world_size=world_size, use_wandb=True)  # flip to True to log to wandb
     trainer = DistResNetTrainer(args, rank)
     trainer.train()
     dist.destroy_process_group()

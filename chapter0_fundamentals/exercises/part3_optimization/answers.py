@@ -136,16 +136,17 @@ class SGD:
         """Performs a single optimization step of the SGD algorithm."""
 
         for param, b in zip(self.params, self.b):
-        
+
+            g = param.grad
             if self.lmda != 0.0:
-                param.grad += self.lmda * param
+                g += self.lmda * param
 
             if self.mu != 0:
                 b *= self.mu
-                b += param.grad
-                param.grad = b
+                b += g
+                g = b
 
-            param += - self.lr * param.grad
+            param += - self.lr * g
 
     def __repr__(self) -> str:
         return f"SGD(lr={self.lr}, momentum={self.mu}, weight_decay={self.lmda})"
@@ -153,4 +154,199 @@ class SGD:
 tests.test_sgd(SGD)
 
 # %%
+class RMSprop:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float = 0.01,
+        alpha: float = 0.99,
+        eps: float = 1e-08,
+        weight_decay: float = 0.0,
+        momentum: float = 0.0,
+    ):
+        """Implements RMSprop.
 
+        Like the PyTorch version, but assumes centered=False
+            https://pytorch.org/docs/stable/generated/torch.optim.RMSprop.html
+        """
+        self.params = list(params)  # turn params into a list (because it might be a generator)
+        self.lr = lr
+        self.eps = eps
+        self.mu = momentum
+        self.lmda = weight_decay
+        self.alpha = alpha
+
+        self.b = [t.zeros_like(p) for p in self.params]
+        self.v = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        for p in self.params:
+            p.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        for theta, b, v in zip(self.params, self.b, self.v):
+            g = theta.grad
+            if self.lmda != 0:
+                g = g + self.lmda * theta
+            v.copy_(self.alpha * v + (1 - self.alpha) * g.pow(2))  # inplace operation, to modify value in self.v
+            g = g / (v.sqrt() + self.eps)  # not inplace operation
+            if self.mu > 0:
+                b.copy_(self.mu * b + g)  # inplace operation, to modify value in self.b
+                g = b
+            theta -= self.lr * g  # inplace operation, to modify params
+
+    def __repr__(self) -> str:
+        return (
+            f"RMSprop(lr={self.lr}, eps={self.eps}, momentum={self.mu}, weight_decay={self.lmda}, alpha={self.alpha})"
+        )
+
+tests.test_rmsprop(RMSprop)
+
+# %%
+class Adam:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float = 0.001,
+        betas: tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-08,
+        weight_decay: float = 0.0,
+    ):
+        """Implements Adam.
+
+        Like the PyTorch version, but assumes amsgrad=False and maximize=False
+            https://pytorch.org/docs/stable/generated/torch.optim.Adam.html
+        """
+        self.params = list(params)
+        self.lr = lr
+        self.beta1, self.beta2 = betas
+        self.eps = eps
+        self.lmda = weight_decay
+        self.t = 1
+
+        self.m = [t.zeros_like(p) for p in self.params]
+        self.v = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        for p in self.params:
+            p.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        for theta, m, v in zip(self.params, self.m, self.v):
+            g = theta.grad
+            if self.lmda != 0:
+                g = g + self.lmda * theta
+            m.copy_(self.beta1 * m + (1 - self.beta1) * g)
+            v.copy_(self.beta2 * v + (1 - self.beta2) * g.pow(2))
+            m_hat = m / (1 - self.beta1**self.t)
+            v_hat = v / (1 - self.beta2**self.t)
+            theta -= self.lr * m_hat / (v_hat.sqrt() + self.eps)
+        self.t += 1
+
+    def __repr__(self) -> str:
+        return f"Adam(lr={self.lr}, beta1={self.beta1}, beta2={self.beta2}, eps={self.eps}, weight_decay={self.lmda})"
+
+# %%
+
+class AdamW:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float = 0.001,
+        betas: tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-08,
+        weight_decay: float = 0.0,
+    ):
+        """Implements AdamW.
+
+        Like the PyTorch version, but assumes amsgrad=False and maximize=False
+            https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html
+        """
+        self.params = list(params)
+        self.lr = lr
+        self.beta1, self.beta2 = betas
+        self.eps = eps
+        self.lmda = weight_decay
+        self.t = 1
+
+        self.m = [t.zeros_like(p) for p in self.params]
+        self.v = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        for p in self.params:
+            p.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        for theta, m, v in zip(self.params, self.m, self.v):
+            g = theta.grad
+            theta *= 1 - self.lr * self.lmda
+            m.copy_(self.beta1 * m + (1 - self.beta1) * g)
+            v.copy_(self.beta2 * v + (1 - self.beta2) * g.pow(2))
+            m_hat = m / (1 - self.beta1**self.t)
+            v_hat = v / (1 - self.beta2**self.t)
+            theta -= self.lr * m_hat / (v_hat.sqrt() + self.eps)
+        self.t += 1
+
+    def __repr__(self) -> str:
+        return f"AdamW(lr={self.lr}, beta1={self.beta1}, beta2={self.beta2}, eps={self.eps}, weight_decay={self.lmda})"
+
+
+# %%
+
+def opt_fn(
+    fn: Callable,
+    xy: Tensor,
+    optimizer_class,
+    optimizer_hyperparams: dict,
+    n_iters: int = 100,
+) -> Tensor:
+    """Optimize a given function starting from the specified point.
+
+    optimizer_class: one of the optimizers you've defined, either SGD, RMSprop, Adam or AdamW
+    optimizer_hyperparams: keyword arguments passed to your optimiser (e.g. lr and weight_decay)
+    """
+    assert xy.requires_grad
+
+    optimizer = optimizer_class([xy], **optimizer_hyperparams)
+
+    xy_list = [xy.detach().clone()]  # so that we don't unintentionally modify past values in `xy_list`
+
+    for i in range(n_iters):
+        fn(xy[0], xy[1]).backward()
+        optimizer.step()
+        optimizer.zero_grad()
+        xy_list.append(xy.detach().clone())
+
+    return t.stack(xy_list)
+
+
+points = []
+
+optimizer_list = [
+    (SGD, {"lr": 0.03, "momentum": 0.99}),
+    (RMSprop, {"lr": 0.02, "alpha": 0.99, "momentum": 0.8}),
+    (Adam, {"lr": 0.2, "betas": (0.99, 0.99), "weight_decay": 0.005}),
+    (AdamW, {"lr": 0.2, "betas": (0.99, 0.99), "weight_decay": 0.005}),
+]
+
+for optimizer_class, params in optimizer_list:
+    xy = t.tensor([2.5, 2.5], requires_grad=True)
+    xys = opt_fn(
+        pathological_curve_loss,
+        xy=xy,
+        optimizer_class=optimizer_class,
+        optimizer_hyperparams=params,
+    )
+    points.append((xys, optimizer_class, params))
+
+plot_fn_with_points(pathological_curve_loss, min_points=[(0, "y_min")], points=points)
+
+
+
+
+
+
+# %%

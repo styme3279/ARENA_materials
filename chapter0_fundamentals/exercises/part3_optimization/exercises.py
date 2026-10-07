@@ -556,15 +556,88 @@ def test_resnet_on_random_input(model: ResNet34, n_inputs: int = 3, seed: int | 
 test_resnet_on_random_input(trainer.model)
 
 # %%
-import wandb
+@dataclass
+class WandbResNetFinetuningArgs(ResNetFinetuningArgs):
+    """Contains new params for use in wandb.init, as well as all the ResNetFinetuningArgs params."""
 
-wandb.init(project="your_project")
+    wandb_project: str | None = "day3-resnet"
+    wandb_name: str | None = None
+    use_wandb: bool = False
 
-try:
-    args = ResNetFinetuningArgs()
-    trainer = ResNetFinetuner(args)
-    logged_variables = trainer.train()
-    pass
-finally:
-    wandb.finish()
+
+class WandbResNetFinetuner(ResNetFinetuner):
+    args: WandbResNetFinetuningArgs  # adding this line helps with typechecker!
+    examples_seen: int = 0  # tracking examples seen (used as step for wandb)
+
+    def pre_training_setup(self):
+        """Initializes the wandb run using `wandb.init` and `wandb.watch`."""
+        super().pre_training_setup()
+        wandb.init(
+            project=self.args.wandb_project,
+            name=self.args.wandb_name,
+            config=self.args,
+            mode="online" if self.args.use_wandb else "disabled",
+        )
+        wandb.watch(self.model.out_layers[-1], log="all", log_freq=50)
+        self.examples_seen = 0
+
+    def training_step(
+        self,
+        imgs: Float[Tensor, "batch channels height width"],
+        labels: Int[Tensor, " batch"],
+    ) -> Float[Tensor, ""]:
+        """Equivalent to ResNetFinetuner.training_step, but logging the loss to wandb."""
+        imgs, labels = imgs.to(device), labels.to(device)
+        imgs = IMAGENET_TRANSFORM(imgs)
+
+        logits = self.model(imgs)
+        loss = F.cross_entropy(logits, labels)
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        self.examples_seen += imgs.shape[0]
+        wandb.log({"loss": loss.item()}, step=self.examples_seen)
+        return loss
+
+    @t.inference_mode()
+    def evaluate(self) -> float:
+        """Equivalent to ResNetFinetuner.evaluate, but logging the accuracy to wandb."""
+        self.model.eval()
+        total_correct, total_samples = 0, 0
+
+        for imgs, labels in tqdm(self.test_loader, desc="Evaluating"):
+            imgs, labels = imgs.to(device), labels.to(device)
+            imgs = IMAGENET_TRANSFORM(imgs)
+            logits = self.model(imgs)
+            total_correct += (logits.argmax(dim=1) == labels).sum().item()
+            total_samples += len(imgs)
+
+        accuracy = total_correct / total_samples
+        wandb.log({"accuracy": accuracy}, step=self.examples_seen)
+        return accuracy
+
+    def train(self) -> None:
+        """Equivalent to ResNetFinetuner.train, but with wandb integration."""
+        self.pre_training_setup()
+        accuracy = self.evaluate()
+
+        for epoch in range(self.args.epochs):
+            self.model.train()
+
+            pbar = tqdm(self.train_loader, desc="Training")
+            for imgs, labels in pbar:
+                loss = self.training_step(imgs, labels)
+                pbar.set_postfix(loss=f"{loss:.3f}", ex_seen=f"{self.examples_seen=:06}", refresh=False)
+
+            accuracy = self.evaluate()
+            pbar.set_postfix(loss=f"{loss:.3f}", accuracy=f"{accuracy:.2f}", ex_seen=f"{self.examples_seen=:06}")
+
+        wandb.finish()
+
+# %%
+args = WandbResNetFinetuningArgs(use_wandb=True)
+trainer = WandbResNetFinetuner(args)
+logged_variables = trainer.train()
+
 # %%

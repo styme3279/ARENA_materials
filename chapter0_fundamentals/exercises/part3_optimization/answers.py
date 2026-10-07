@@ -728,3 +728,6 @@ sweep_id = wandb.sweep(sweep=sweep_config, project="day3-resnet-sweep")
 wandb.agent(sweep_id=sweep_id, function=train, count=3)
 wandb.finish()
 # %%
+assert t.cuda.is_available()
+assert t.cuda.device_count() > 1, "This example requires at least 2 GPUs per machine"
+# %%

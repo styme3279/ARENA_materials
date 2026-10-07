@@ -167,16 +167,51 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
     """
     Broadcast averaged gradients from rank `src` to all other ranks.
     """
-    dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)
     if rank == src:
          sending_tensor = tensor
          print(f"{rank=}, sending {sending_tensor=}")
-         dist.send(sending_tensor, dst=)
+         for i in range(world_size):
+             if i is not src:
+                dist.send(sending_tensor, dst=i)
+    else:
+        received_tensor = tensor
+        dist.recv(tensor=received_tensor, src=src)
+        print(f"{rank=}, {device=}, received {received_tensor=}")
+    # raise NotImplementedError()
 
-    raise NotImplementedError()
 
 
 if MAIN:
     tests.test_broadcast(broadcast, WORLD_SIZE)
+
+# %%
+def reduce(tensor, rank, world_size, dst=0, op: Literal["sum", "mean"] = "sum"):
+    """
+    Reduces tensors to rank `dst`, so this process contains the sum or mean of all tensors across
+    processes.
+    """
+    if rank == dst:
+        receiving_tensor, reduced_tensor = t.zeros_like(tensor), t.zeros_like(tensor)
+        for i in range(world_size):
+            if i is not dst:
+                dist.recv(receiving_tensor, src=i)
+                reduced_tensor += receiving_tensor
+        if op == "mean":
+            reduced_tensor /= (world_size - 1)
+    else:
+        dst.send(tensor, dst=dst)
+    raise NotImplementedError()
+
+
+def all_reduce(tensor, rank, world_size, op: Literal["sum", "mean"] = "sum"):
+    """
+    Allreduce the tensor across all ranks, using 0 as the initial gathering rank.
+    """
+    raise NotImplementedError()
+
+
+if MAIN:
+    tests.test_reduce(reduce, WORLD_SIZE)
+    tests.test_all_reduce(all_reduce, WORLD_SIZE)
 
 # %%

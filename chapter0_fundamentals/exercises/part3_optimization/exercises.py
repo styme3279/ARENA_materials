@@ -125,11 +125,11 @@ class SGD:
     def step(self) -> None:
         """Performs a single optimization step of the SGD algorithm."""
         for param in self.params:
-            grad = param.grad()[-1]
+            grad = param.grad
             if self.lmda != 0:
-                grad += self.lmda * param[-1]
+                grad += self.lmda * param
             if self.mu != 0:
-                self.b = self.mu * buffer + grad
+                self.b = self.mu * self.b[i] + grad
                 grad = buffer
             grad -= self.lmda * grad
             param.grad = t.tensor(grad)

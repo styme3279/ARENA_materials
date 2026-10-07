@@ -677,4 +677,25 @@ args = WandbResNetFinetuningArgs(use_wandb=False)
 trainer = WandbResNetFinetuner(args)
 trainer.train()
 # %%
-§
+# YOUR CODE HERE - fill `sweep_config` so it has the requested behaviour
+sweep_config = dict(
+    method = ...,
+    metric = ...,
+    parameters = ...,
+)
+
+
+def update_args(args: WandbResNetFinetuningArgs, sampled_parameters: dict) -> WandbResNetFinetuningArgs:
+    """
+    Returns a new args object with modified values. The dictionary `sampled_parameters` will have
+    the same keys as your `sweep_config["parameters"]` dict, and values equal to the sampled values
+    of those hyperparameters.
+    """
+    assert set(sampled_parameters.keys()) == set(sweep_config["parameters"].keys())
+
+    # YOUR CODE HERE - update `args` based on `sampled_parameters`
+    raise NotImplementedError()
+
+
+tests.test_sweep_config(sweep_config)
+tests.test_update_args(update_args, sweep_config)

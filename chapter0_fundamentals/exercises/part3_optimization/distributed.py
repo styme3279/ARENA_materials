@@ -178,6 +178,18 @@ class DistResNetTrainer:
             pin_memory=True,  # page-locked host memory makes the CPU -> GPU copy asynchronous and faster. For small data, may not make a difference.
         )
 
+        self.test_sampler = t.utils.data.DistributedSampler(
+            self.testset,
+            num_replicas=self.args.world_size, # we'll divide each batch up into this many random sub-batches
+            rank=self.rank, # this determines which sub-batch this process gets
+        )
+        self.test_loader = t.utils.data.DataLoader(
+            self.testset,
+            self.args.batch_size, # this is the sub-batch size, i.e. the batch size that each GPU gets
+            sampler=self.test_sampler, 
+            pin_memory=True,  # page-locked host memory makes the CPU -> GPU copy asynchronous and faster. For small data, may not make a difference.
+        )
+
         self.examples_seen = 0
 
         if self.args.use_wandb and self.rank == SRC_RANK:
@@ -226,7 +238,7 @@ class DistResNetTrainer:
             total_info[0] += (logits.argmax(dim=1) == labels).sum().item()
             total_info[1] += len(imgs) 
 
-        reduce(total_info, self.rank, self.args.world_size, SRC_RANK, "sum")\
+        reduce(total_info, self.rank, self.args.world_size, SRC_RANK, "sum")
 
         if self.rank == SRC_RANK:
             accuracy = (total_info[0] / total_info[1]).item()
@@ -241,8 +253,11 @@ class DistResNetTrainer:
             self.pre_training_setup()
     
             for epoch in range(self.args.epochs):
+                print(1)
                 self.train_sampler.set_epoch(epoch)
+                print(2)
                 self.model.train()
+                print(3)
     
                 pbar = tqdm(self.train_loader, desc="Training")
                 for imgs, labels in pbar:
@@ -253,13 +268,15 @@ class DistResNetTrainer:
                         refresh=False,
                     )
 
+                print(4)
+                accuracy = self.evaluate()
                 if self.rank == SRC_RANK:
-                    accuracy = self.evaluate()
                     pbar.set_postfix(
                         loss=f"{loss:.3f}",
                         accuracy=f"{accuracy:.2f}",
                         ex_seen=f"{self.examples_seen:06}",
                     )
+                print(5)
         finally:
             if self.args.use_wandb and SRC_RANK:
                 wandb.finish()

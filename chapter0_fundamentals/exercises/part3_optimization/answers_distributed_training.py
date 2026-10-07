@@ -103,26 +103,34 @@ def reduce(tensor, rank, world_size, dst=0, op: Literal["sum", "mean"] = "sum"):
     if rank != dst:
         dist.send(tensor, dst=dst)
         print(f"Sending tensor from {rank=} to {dst=}")
-    else :
-        tensors = []
+    else:
+        tensors = [tensor]
+        print(f"Before receive: {tensors}")
         for rank in range(world_size):
+            print(f"Waiting for {rank=}")
             if rank != dst:
                 received_tensor = t.zeros_like(tensor)
                 dist.recv(received_tensor, src=rank)
-                tensor.copy_(received_tensor)
-                tensors.append(tensor)
+                tensors.append(received_tensor)
+                print(f"Received tensor from {rank=} on {dst=}")
         if op == "sum":
-            tensor = t.stack(tensors).sum(dim=-1)
+            print(f"Sum: {t.stack(tensors)}")
+            print(f"Sum: {t.stack(tensors).sum(dim=0)}")
+            tensor.copy_(t.stack(tensors).sum(dim=0))
         elif op == "mean":
-            tensor = t.stack(tensors).mean(dim=-1)
+            print(f"Mean: {t.stack(tensors)}")
+            print(f"Mean: {t.stack(tensors).sum(dim=0)}")
+            tensor.copy_(t.stack(tensors).mean(dim=0))
 
 def all_reduce(tensor, rank, world_size, op: Literal["sum", "mean"] = "sum"):
     """
     Allreduce the tensor across all ranks, using 0 as the initial gathering rank.
     """
-    raise NotImplementedError()
-
+    reduce(tensor, rank, world_size, op)
+    broadcast(tensor, rank, world_size)
 
 if MAIN:
     tests.test_reduce(reduce, WORLD_SIZE)
-    #tests.test_all_reduce(all_reduce, WORLD_SIZE)
+    tests.test_all_reduce(all_reduce, WORLD_SIZE)
+
+# %%

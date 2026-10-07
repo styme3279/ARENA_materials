@@ -179,7 +179,26 @@ class SGD:
     @t.inference_mode()
     def step(self) -> None:
         """Performs a single optimization step of the SGD algorithm."""
-        
+        #print(f"Params List: {[p for p in self.params]}")
+        g_t = [p.grad for p in self.params]
+        print(self.params[0].shape)
+        print(self.params[1].shape)
+        print(self.params[2].shape)
+        print(g_t[0].shape)
+        print(g_t[1].shape)
+        print(g_t[2].shape)
+        if self.lmda != 0.0:
+            g_t = g_t + self.lmda * self.params
+        if self.mu != 0.0:
+            print(self.b)
+            self.b = self.mu * self.b + g_t
+            g_t = self.b
+        #print(f"Params: {self.params}")
+        print(g_t[0].shape)
+        print(g_t[1].shape)
+        print(g_t[2].shape)
+        self.params = self.params - self.lr * g_t
+
 
     def __repr__(self) -> str:
         return f"SGD(lr={self.lr}, momentum={self.mu}, weight_decay={self.lmda})"

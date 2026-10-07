@@ -22,3 +22,5 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
 
 if __name__ == "__main__":
     tests.test_broadcast(broadcast, WORLD_SIZE)
+    tests.test_reduce(reduce, WORLD_SIZE)
+    tests.test_all_reduce(all_reduce, WORLD_SIZE)

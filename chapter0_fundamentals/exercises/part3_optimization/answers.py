@@ -102,7 +102,7 @@ def pathological_curve_loss(x: Tensor, y: Tensor):
 plot_fn(pathological_curve_loss, min_points=[(0, "y_min")])
 # %%
 def opt_fn_with_sgd(
-    fn: Callable, xy: Float[Tensor, "2"], lr=0.001, momentum=0.98, n_iters: int = 100
+    fn: Callable, xy: Float[Tensor, "2"], lr=0.001, momentum=0.98, n_iters: int = 1000
 ) -> Float[Tensor, "n_iters_plus_1 2"]:
     """
     Optimize a given function starting from the specified point.
@@ -124,10 +124,10 @@ def opt_fn_with_sgd(
     xy_list = []
     for i in range(n_iters):
         xy_list.append(xy.detach().clone())
-        loss = fn(xy[0],xy[1])
-        loss.backward()
+        fn(xy[0],xy[1]).backward()
         optimiser.step()
-
+        optimiser.zero_grad()
+    xy_list.append(xy.detach().clone())
     return t.stack(xy_list)
 
 
@@ -145,4 +145,43 @@ for optimizer_class, params in optimizer_list:
     print(f"{params=}, last point={xys[-1]}")
 
 plot_fn_with_points(pathological_curve_loss, points=points, min_points=[(0, "y_min")])
+# %%
+
+class SGD:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float,
+        momentum: float = 0.0,
+        weight_decay: float = 0.0,
+    ):
+        """Implements SGD with momentum.
+
+        Like the PyTorch version, but assume nesterov=False, maximize=False, and dampening=0
+            https://pytorch.org/docs/stable/generated/torch.optim.SGD.html#torch.optim.SGD
+        """
+        self.params = list(params)  # turn params into a list (it might be a generator, so iterating over it empties it)
+        self.lr = lr
+        self.mu = momentum
+        self.lmda = weight_decay
+
+        self.b = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        """Zeros all gradients of the parameters in `self.params`."""
+        for param in self.params:
+            param.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        """Performs a single optimization step of the SGD algorithm."""
+        print('param grad - ', self.params[0].grad)
+        print('param shape - ', len(self.params))
+        print('param shape 0 - ', len(self.params[0]))
+
+    def __repr__(self) -> str:
+        return f"SGD(lr={self.lr}, momentum={self.mu}, weight_decay={self.lmda})"
+
+
+tests.test_sgd(SGD)
 # %%

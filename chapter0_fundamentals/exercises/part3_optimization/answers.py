@@ -225,7 +225,17 @@ class RMSprop:
 
     @t.inference_mode()
     def step(self) -> None:
-        raise NotImplementedError()
+        for i, param in enumerate(self.params):
+            grads = param.grad
+            if self.lmda != 0:
+                grads += self.lmda*param
+            self.v[i] += self.alpha*self.v[i] + (1-self.alpha)*t.square(grads)
+            grads = grads / (t.sqrt(self.v[i]) + self.eps)
+            if self.mu != 0:
+                self.b[i] = self.mu*self.b[i] + grads
+                grads = self.b[i]
+            param -= self.lr*grads
+        return params
 
     def __repr__(self) -> str:
         return (
@@ -234,3 +244,4 @@ class RMSprop:
 
 
 tests.test_rmsprop(RMSprop)
+# %%

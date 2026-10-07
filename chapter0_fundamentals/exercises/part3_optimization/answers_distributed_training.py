@@ -185,6 +185,21 @@ def get_untrained_resnet(n_classes: int) -> ResNet34:
     resnet.out_layers[-1] = Linear(resnet.out_features_per_group[-1], n_classes)
     return resnet
 
+@dataclass
+class ResNetFinetuningArgs:
+    n_classes: int = 10
+    batch_size: int = 128
+    epochs: int = 2
+    learning_rate: float = 1e-3
+    weight_decay: float = 0.0
+
+@dataclass
+class WandbResNetFinetuningArgs(ResNetFinetuningArgs):
+    """Contains new params for use in wandb.init, as well as all the ResNetFinetuningArgs params."""
+
+    wandb_project: str | None = "day3-resnet"
+    wandb_name: str | None = None
+    use_wandb: bool = False
 
 @dataclass
 class DistResNetTrainingArgs(WandbResNetFinetuningArgs):
@@ -194,6 +209,7 @@ class DistResNetTrainingArgs(WandbResNetFinetuningArgs):
 
 class DistResNetTrainer:
     args: DistResNetTrainingArgs
+    examples_seen: int = 0  # tracking examples seen (used as step for wandb)
 
     def __init__(self, args: DistResNetTrainingArgs, rank: int):
         self.args = args
@@ -202,8 +218,38 @@ class DistResNetTrainer:
 
     def pre_training_setup(self):
         """Initializes the wandb run using `wandb.init` and `wandb.watch`."""
-        super().pre_training_setup()
-        wandb.init()
+        self.model = get_untrained_resnet(self.args.n_classes).to(device)
+        self.optimizer = t.optim.AdamW(
+            self.model.out_layers[-1].parameters(),
+            lr=self.args.learning_rate,
+            weight_decay=self.args.weight_decay,
+        )
+
+        self.trainset = CIFAR10(train=True)
+        self.testset = CIFAR10(train=False)
+
+        self.train_sampler = t.utils.data.DistributedSampler(
+            self.trainset,
+            num_replicas=self.args.world_size, # we'll divide each batch up into this many random sub-batches
+            rank=self.rank, # this determines which sub-batch this process gets
+        )
+
+        self.train_loader = t.utils.data.DataLoader(
+            self.trainset,
+            self.args.batch_size, # this is the sub-batch size, i.e. the batch size that each GPU gets
+            sampler=self.train_sampler, 
+            pin_memory=True,  # page-locked host memory makes the CPU -> GPU copy asynchronous and faster. For small data, may not make a difference.
+        )
+        self.examples_seen = 0
+        if self.rank == 0:
+            wandb.init()
+
+        src_params = []
+        for param in self.model.parameters():
+            broadcast(param.data, self.rank, self.args.world_size)
+            src_params.append(param) # local param contains param from src
+        self.model.parameters().data = src_params # set params from src after broadcast
+
 
     def training_step(
         self,
@@ -223,6 +269,7 @@ class DistResNetTrainer:
         self.optimizer.step()
         self.optimizer.zero_grad()
 
+        # DDP
         self.examples_seen += imgs.shape[0]
         wandb.log({"loss": loss.item()}, self.examples_seen)
         return loss

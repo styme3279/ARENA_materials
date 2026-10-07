@@ -740,3 +740,20 @@ def update_args(args: WandbResNetFinetuningArgs, sampled_parameters: dict) -> Wa
 tests.test_sweep_config(sweep_config)
 tests.test_update_args(update_args, sweep_config)
 # %%
+def train():
+    # Define args & initialize wandb
+    args = WandbResNetFinetuningArgs(use_wandb=False)
+    wandb.init(project=args.wandb_project, name=args.wandb_name, reinit=False)
+
+    # After initializing wandb, we can update args using `wandb.config`
+    args = update_args(args, dict(wandb.config))
+
+    # Train the model with these new hyperparameters (the second `wandb.init` call will be ignored)
+    trainer = WandbResNetFinetuner(args)
+    trainer.train()
+
+
+sweep_id = wandb.sweep(sweep=sweep_config, project="day3-resnet-sweep")
+wandb.agent(sweep_id=sweep_id, function=train, count=30)
+wandb.finish()
+# %%

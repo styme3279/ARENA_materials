@@ -19,25 +19,6 @@ os.environ["MASTER_ADDR"] = "localhost"
 os.environ["MASTER_PORT"] = "12345"
 
 
-# import dt
-
-def send_receive(rank, world_size):
-    dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)
-
-    if rank == 0:
-        # Send tensor to rank 1
-        sending_tensor = t.zeros(1)
-        print(f"{rank=}, sending {sending_tensor=}")
-        dist.send(tensor=sending_tensor, dst=1)
-    elif rank == 1:
-        # Receive tensor from rank 0
-        received_tensor = t.ones(1)
-        print(f"{rank=}, creating {received_tensor=}")
-        dist.recv(received_tensor, src=0)  # this line overwrites the tensor's data with our `sending_tensor`
-        print(f"{rank=}, received {received_tensor=}")
-
-    dist.destroy_process_group()
-
 def send_receive_nccl(rank, world_size):
     dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
@@ -61,7 +42,17 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
     """
     Broadcast averaged gradients from rank `src` to all other ranks.
     """
-    raise NotImplementedError()
+    # dist.init_process_group(backend="ncll", rank=rank, world_size=world_size)
+
+    device = t.device(f"cuda:{rank}")
+
+    for r in [0, 1]:
+        if r != src:
+            print(f"{rank=}, {device=}, sending {tensor=}")
+            dist.send(tensor, dst=r)
+    
+
+    dist.destroy_process_group()
 
 
 if __name__ == "__main__":

@@ -677,3 +677,4 @@ args = WandbResNetFinetuningArgs(use_wandb=False)
 trainer = WandbResNetFinetuner(args)
 trainer.train()
 # %%
+§

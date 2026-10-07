@@ -276,24 +276,22 @@ class Adam:
 
     @t.inference_mode()
     def step(self) -> None:
-        raise NotImplementedError()
+        for param, m, v in zip(self.params,self.m,self.v):
+            g = param.grad
 
-
-    def rms_propstep(self) -> None:
-        for i, param in enumerate(self.params):
-            grads = param.grad
             if self.lmda != 0:
                 grads += self.lmda*param
-            self.v[i] = self.alpha*self.v[i] + (1-self.alpha)*t.square(grads)
-            grads = grads / (t.sqrt(self.v[i]) + self.eps)
-            if self.mu != 0:
-                self.b[i] = self.mu*self.b[i] + grads
-                grads = self.b[i]
-            param -= self.lr*grads
-        return params
+
+            m = self.beta1*m + (1-self.beta1)*g
+            v = self.beta2*v + (1-self.beta2)*t.square(g)
+            m_hat = m / (1-self.beta1**self.t)
+            v_hat = v / (1-self.beta2**self.t)
+            param -= self.lr*m_hat/(v_hat.sqrt()+self.eps)
+        self.t += 1
 
     def __repr__(self) -> str:
         return f"Adam(lr={self.lr}, beta1={self.beta1}, beta2={self.beta2}, eps={self.eps}, weight_decay={self.lmda})"
 
 
 tests.test_adam(Adam)
+# %%

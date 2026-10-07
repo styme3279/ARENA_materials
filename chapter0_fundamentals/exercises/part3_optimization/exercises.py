@@ -223,13 +223,16 @@ class Adam:
     def step(self) -> None:
         for i, param in enumerate(self.params):
             grad = param.grad
+            
             if self.lmda != 0:
                 grad += self.lmda * param
-            self.v[i] = self.alpha * self.v[i] + (1 - self.alpha) * t.square(grad)
-            grad = grad / (t.sqrt(self.v[i]) + self.eps)
-            if self.mu != 0:
-                self.b[i] = self.mu * self.b[i] + grad
-                grad = self.b[i]
+            
+            self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * grad
+            self.v[i] = self.beta2 * self.v[i] + (1 - self.beta2) * t.square(grad)
+
+            m = self.m[i] / (1 - self.beta1**self.t)
+            v = self.v[i] / (1 - self.beta2**self.)
+            
             param -= self.lr * grad
 
     def __repr__(self) -> str:

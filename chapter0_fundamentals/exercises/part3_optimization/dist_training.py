@@ -421,11 +421,11 @@ if __name__ == "__main__":
     assert t.cuda.device_count() > 1, "This example requires at least 2 GPUs per machine"
 
     # Basic send & receiving: CPU processes (gloo), then GPUs (nccl)
-    mp.spawn(send_receive, args=(2,), nprocs=2, join=True)
+    # mp.spawn(send_receive, args=(2,), nprocs=2, join=True)
     # mp.spawn(send_receive_nccl, args=(2,), nprocs=2, join=True)
 
     # # Exercise - implement `broadcast`
-    # tests.test_broadcast(broadcast, WORLD_SIZE)
+    #tests.test_broadcast(broadcast, WORLD_SIZE)
 
     # # Exercise - implement `all_reduce`
     # tests.test_reduce(reduce, WORLD_SIZE)
@@ -441,4 +441,4 @@ if __name__ == "__main__":
     # mp.spawn(run, args=(2,), nprocs=2, join=True)
 
     # # Bonus - ring operations
-    # tests.test_all_reduce(ring_all_reduce, WORLD_SIZE)
+    tests.test_all_reduce(ring_all_reduce, WORLD_SIZE)

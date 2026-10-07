@@ -6,11 +6,16 @@ import numpy as np
 import torch as t
 import torch.distributed as dist
 import torch.multiprocessing as mp
+from torch.nn import Linear
 import torch.nn.functional as F
 from IPython.core.display import HTML
 from IPython.display import display
 from torch import Tensor, optim
+from tqdm import tqdm
 
+from chapter0_fundamentals.exercises.fundamentals_utils import CIFAR10
+from chapter0_fundamentals.exercises.part2_cnns.solutions import ResNet34
+from infrastructure.chapters.chapter0_fundamentals.master_0_3 import WandbResNetFinetuningArgs
 import tests
 
 
@@ -105,6 +110,125 @@ def run_simple_model(rank, world_size):
     optimizer.step()  # Step with the optimizer (this will update all models the same way)
     print(f"Rank {rank}, new param: {model.param.data}")
 
+    dist.destroy_process_group()
+
+def get_untrained_resnet(n_classes: int) -> ResNet34:
+    """
+    Gets untrained resnet using code from part2_cnns.solutions (you can replace this with your
+    implementation).
+    """
+    resnet = ResNet34()
+    resnet.out_layers[-1] = Linear(resnet.out_features_per_group[-1], n_classes)
+    return resnet
+
+
+@dataclass
+class DistResNetTrainingArgs(WandbResNetFinetuningArgs):
+    world_size: int = 1
+    wandb_project: str | None = "day3-resnet-dist-training"
+
+
+class DistResNetTrainer:
+    args: DistResNetTrainingArgs
+
+    def __init__(self, args: DistResNetTrainingArgs, rank: int):
+        self.args = args
+        self.rank = rank
+        self.device = t.device(f"cuda:{rank}")
+
+    def pre_training_setup(self):
+        self.model = ResNet34
+        self.optimizer = optim.AdamW(
+            self.model.parameters(),
+            lr=self.args.learning_rate,
+            weight_decay=self.args.weight_decay,
+        )
+
+
+        self.trainset = CIFAR10(train=True)
+        self.testset = CIFAR10(train=False)
+
+        self.train_loader = DataLoader(
+            self.trainset,
+            batch_size=self.args.batch_size,
+            shuffle=True,
+        )
+        self.test_loader = DataLoader(
+            self.testset,
+            batch_size=self.args.batch_size,
+            shuffle=False,
+        )
+
+        self.logged_variables = {"loss": [], "accuracy": []}
+        self.examples_seen = 0
+
+    def training_step(self, imgs: Tensor, labels: Tensor) -> Tensor:
+        # CPU -> GPU first, then perform preprocessing on GPU.
+        imgs = imgs.to(device)
+        labels = labels.to(device)
+        imgs = IMAGENET_TRANSFORM(imgs)
+
+        logits = self.model(imgs)
+        loss = F.cross_entropy(logits, labels)
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        self.examples_seen += imgs.shape[0]
+        self.logged_variables["loss"].append(loss.item())
+        return loss
+
+    @t.inference_mode()
+    def evaluate(self) -> float:
+        self.model.eval()
+        total_correct, total_samples = 0, 0
+
+        for imgs, labels in tqdm(self.test_loader, desc="Evaluating"):
+            # CPU -> GPU first, then perform preprocessing on GPU.
+            imgs = imgs.to(device)
+            labels = labels.to(device)
+            imgs = IMAGENET_TRANSFORM(imgs)
+
+            logits = self.model(imgs)
+            total_correct += (logits.argmax(dim=1) == labels).sum().item()
+            total_samples += len(imgs)
+
+        accuracy = total_correct / total_samples
+        self.logged_variables["accuracy"].append(accuracy)
+        return accuracy
+
+    def train(self):
+        self.pre_training_setup()
+        
+        accuracy = self.evaluate()
+
+        for epoch in range(self.args.epochs):
+            self.model.train()
+
+            pbar = tqdm(self.train_loader, desc="Training")
+            for imgs, labels in pbar:
+                loss = self.training_step(imgs, labels)
+                pbar.set_postfix(
+                    loss=f"{loss:.3f}",
+                    ex_seen=f"{self.examples_seen:06}",
+                    refresh=False,
+                )
+
+            accuracy = self.evaluate()
+            pbar.set_postfix(
+                loss=f"{loss:.3f}",
+                accuracy=f"{accuracy:.2f}",
+                ex_seen=f"{self.examples_seen:06}",
+            )
+
+        return self.logged_variables
+
+
+def dist_train_resnet_from_scratch(rank, world_size):
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    args = DistResNetTrainingArgs(world_size=world_size, use_wandb=False)  # flip to True to log to wandb
+    trainer = DistResNetTrainer(args, rank)
+    trainer.train()
     dist.destroy_process_group()
 
 

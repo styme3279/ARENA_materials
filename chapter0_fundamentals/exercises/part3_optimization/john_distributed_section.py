@@ -12,6 +12,8 @@ from IPython.display import display
 from torch import Tensor, optim
 import einops
 from typing import Literal
+from part2_cnns.solutions import Linear, ResNet34, get_resnet_for_feature_extraction
+
 
 import tests
 
@@ -124,7 +126,63 @@ def run_simple_model(rank, world_size):
 
     dist.destroy_process_group()
 
+def get_untrained_resnet(n_classes: int) -> ResNet34:
+    """
+    Gets untrained resnet using code from part2_cnns.solutions (you can replace this with your
+    implementation).
+    """
+    resnet = ResNet34()
+    resnet.out_layers[-1] = Linear(resnet.out_features_per_group[-1], n_classes)
+    return resnet
 
+
+@dataclass
+class DistResNetTrainingArgs(WandbResNetFinetuningArgs):
+    world_size: int = 1
+    wandb_project: str | None = "day3-resnet-dist-training"
+
+
+class DistResNetTrainer:
+    args: DistResNetTrainingArgs
+
+    def __init__(self, args: DistResNetTrainingArgs, rank: int):
+        self.args = args
+        self.rank = rank
+        self.device = t.device(f"cuda:{rank}")
+
+    def pre_training_setup(self):
+        raise NotImplementedError()
+
+    def training_step(self, imgs: Tensor, labels: Tensor) -> Tensor:
+        raise NotImplementedError()
+
+    @t.inference_mode()
+    def evaluate(self) -> float:
+        raise NotImplementedError()
+
+    def train(self):
+        raise NotImplementedError()
+
+
+def dist_train_resnet_from_scratch(rank, world_size):
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    args = DistResNetTrainingArgs(world_size=world_size, use_wandb=False)  # flip to True to log to wandb
+    trainer = DistResNetTrainer(args, rank)
+    trainer.train()
+    dist.destroy_process_group()
+
+
+if MAIN:
+    world_size = t.cuda.device_count()
+    mp.spawn(
+        dist_train_resnet_from_scratch,
+        args=(world_size,),
+        nprocs=world_size,
+        join=True,
+    )
+
+
+"""
 if __name__ == "__main__":
     world_size = 2
     mp.spawn(
@@ -133,6 +191,7 @@ if __name__ == "__main__":
         nprocs=world_size,
         join=True,
     )
+"""
 
 """
 if __name__ == "__main__":

@@ -71,18 +71,23 @@ def opt_fn_with_sgd(
     xy_list = [xy]
 
     for _ in range(n_iters):
+        assert xy.requires_grad
+        #xy.requires_grad()
         loss = fn(x=xy[0], y=xy[1])
         loss.backward()
         print(f"xy: {xy}")
         print(f"loss: {loss}")
         xy_grad = xy.grad
         print(f"gradient: {xy_grad}")
-        xy = xy - lr * xy_grad
+        update = lr * xy_grad
+        print(f'Update: {update}')
+        xy = xy - update
         xy_list.append(xy.detach().clone())
-        xy.grad = t.zeros(2)
+        xy.grad = t.zeros(2, requires_grad=True)
 
+    print(t.stack(xy_list).shape)
     print(xy_list)
-    return xy_list
+    return t.stack(xy_list).detach()
 
 
 

@@ -389,3 +389,179 @@ plot_fn(
 )
 
 # %%
+cifar_trainset = CIFAR10(train=True)
+cifar_testset = CIFAR10(train=False)
+
+imshow(
+    cifar_trainset.data[:15],
+    facet_col=0,
+    facet_col_wrap=5,
+    facet_labels=[cifar_trainset.classes[i] for i in cifar_trainset.targets[:15]],
+    title="CIFAR-10 images",
+    height=600,
+    width=1000,
+)
+
+# %%
+@dataclass
+class ResNetFinetuningArgs:
+    n_classes: int = 10
+    batch_size: int = 128
+    epochs: int = 2
+    learning_rate: float = 1e-3
+    weight_decay: float = 0.0
+
+
+class ResNetFinetuner:
+    def __init__(self, args: ResNetFinetuningArgs):
+        self.args = args
+
+    def pre_training_setup(self):
+        self.model = get_resnet_for_feature_extraction(self.args.n_classes).to(device)
+        self.optimizer = AdamW(
+            self.model.out_layers[-1].parameters(),
+            lr=self.args.learning_rate,
+            weight_decay=self.args.weight_decay,
+        )
+
+
+        self.trainset = CIFAR10(train=True)
+        self.testset = CIFAR10(train=False)
+
+        self.train_loader = DataLoader(
+            self.trainset,
+            batch_size=self.args.batch_size,
+            shuffle=True,
+        )
+        self.test_loader = DataLoader(
+            self.testset,
+            batch_size=self.args.batch_size,
+            shuffle=False,
+        )
+
+        self.logged_variables = {"loss": [], "accuracy": []}
+        self.examples_seen = 0
+
+    def training_step(
+        self,
+        imgs: Float[Tensor, "batch channels height width"],
+        labels: Int[Tensor, " batch"],
+    ) -> Float[Tensor, ""]:
+        """Perform a gradient update step on a single batch of data."""
+
+        # CPU -> GPU first, then perform preprocessing on GPU.
+        imgs = imgs.to(device)
+        labels = labels.to(device)
+        imgs = IMAGENET_TRANSFORM(imgs)
+
+        logits = self.model(imgs)
+        loss = F.cross_entropy(logits, labels)
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        self.examples_seen += imgs.shape[0]
+        self.logged_variables["loss"].append(loss.item())
+        return loss
+
+    @t.inference_mode()
+    def evaluate(self) -> float:
+        """Evaluate the model on the test set and return the accuracy."""
+        self.model.eval()
+        total_correct, total_samples = 0, 0
+
+        for imgs, labels in tqdm(self.test_loader, desc="Evaluating"):
+            # CPU -> GPU first, then perform preprocessing on GPU.
+            imgs = imgs.to(device)
+            labels = labels.to(device)
+            imgs = IMAGENET_TRANSFORM(imgs)
+
+            logits = self.model(imgs)
+            total_correct += (logits.argmax(dim=1) == labels).sum().item()
+            total_samples += len(imgs)
+
+        accuracy = total_correct / total_samples
+        self.logged_variables["accuracy"].append(accuracy)
+        return accuracy
+
+    def train(self) -> dict[str, list[float]]:
+        self.pre_training_setup()
+
+        accuracy = self.evaluate()
+
+        for epoch in range(self.args.epochs):
+            self.model.train()
+
+            pbar = tqdm(self.train_loader, desc="Training")
+            for imgs, labels in pbar:
+                loss = self.training_step(imgs, labels)
+                pbar.set_postfix(
+                    loss=f"{loss:.3f}",
+                    ex_seen=f"{self.examples_seen:06}",
+                    refresh=False,
+                )
+
+            accuracy = self.evaluate()
+            pbar.set_postfix(
+                loss=f"{loss:.3f}",
+                accuracy=f"{accuracy:.2f}",
+                ex_seen=f"{self.examples_seen:06}",
+            )
+
+        return self.logged_variables
+
+# %%
+args = ResNetFinetuningArgs()
+trainer = ResNetFinetuner(args)
+logged_variables = trainer.train()
+
+# %%
+line(
+    y=[logged_variables["loss"][: 391 * 3 + 1], logged_variables["accuracy"][:4]],
+    x_max=len(logged_variables["loss"][: 391 * 3 + 1] * args.batch_size),
+    yaxis2_range=[0, 1],
+    use_secondary_yaxis=True,
+    labels={"x": "Examples seen", "y1": "Cross entropy loss", "y2": "Test Accuracy"},
+    title="Feature extraction with ResNet34",
+    width=800,
+)
+
+# %%
+def test_resnet_on_random_input(model: ResNet34, n_inputs: int = 3, seed: int | None = 42):
+    if seed is not None:
+        np.random.seed(seed)
+    indices = np.random.choice(len(cifar_trainset), n_inputs).tolist()
+    classes = [cifar_trainset.classes[cifar_trainset.targets[i]] for i in indices]
+    imgs = cifar_trainset.data[indices]
+    device = next(model.parameters()).device
+    with t.inference_mode():
+        x = t.stack(list(map(IMAGENET_TRANSFORM, imgs)))
+        logits: Tensor = model(x.to(device))
+    probs = logits.softmax(-1)
+    if probs.ndim == 1:
+        probs = probs.unsqueeze(0)
+    for img, label, prob in zip(imgs, classes, probs):
+        display(HTML(f"<h2>Classification probabilities (true class = {label})</h2>"))
+        imshow(img, width=200, height=200, margin=0, xaxis_visible=False, yaxis_visible=False)
+        bar(
+            prob,
+            x=cifar_trainset.classes,
+            width=600,
+            height=400,
+            text_auto=".2f",
+            labels={"x": "Class", "y": "Prob"},
+        )
+
+
+test_resnet_on_random_input(trainer.model)
+
+# %%
+import wandb
+
+wandb.init(project="your_project")
+
+try:
+    # Your training code here
+    pass
+finally:
+    wandb.finish()

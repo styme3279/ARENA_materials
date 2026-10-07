@@ -134,24 +134,23 @@ class SGD:
     @t.inference_mode()
     def step(self) -> None:
         """Performs a single optimization step of the SGD algorithm."""
-        
-        for param, b in zip(params, self.b):
 
+        for param, b in zip(self.params, self.b):
+        
             if self.lmda != 0.0:
                 param.grad += self.lmda * param
 
             if self.mu != 0:
-                b = self.mu * b + param.grad
-                
-                
+                b *= self.mu
+                b += param.grad
+                param.grad = b
 
-            
-
-
-        
+            param += - self.lr * param.grad
 
     def __repr__(self) -> str:
         return f"SGD(lr={self.lr}, momentum={self.mu}, weight_decay={self.lmda})"
 
-
 tests.test_sgd(SGD)
+
+# %%
+

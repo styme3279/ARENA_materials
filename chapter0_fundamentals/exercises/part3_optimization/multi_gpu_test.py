@@ -1,3 +1,4 @@
+# %%
 import os
 import torch as t
 import torch.distributed as dist
@@ -40,7 +41,7 @@ if MAIN:
 
 assert t.cuda.is_available()
 assert t.cuda.device_count() > 1, "This example requires at least 2 GPUs per machine"
-
+# %%
 
 # %%
 def send_receive_nccl(rank, world_size):
@@ -71,4 +72,41 @@ if MAIN:
         nprocs=world_size,
         join=True,
     )
+# %%
+
+# %%
+
+def run_broadcast(rank: int, world_size: int, broadcast):
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    t.cuda.set_device(rank)
+
+    # Create a tensor for each rank with its rank as the value
+    tensor = t.tensor([float(rank)], dtype=t.float32).cuda()
+
+    # Run broadcast operation (tensor is broadcasted from rank 0 to all ranks)
+    broadcast(tensor, rank, world_size, src=0)
+
+    # Check and print results on all ranks
+    print(f"Rank {rank} broadcasted tensor: expected 0.0 (from rank 0), got {tensor}")
+    t.testing.assert_close(tensor, t.full_like(tensor, 0.0))
+
+def test_broadcast(broadcast, world_size):
+    world_size = world_size  # Number of processes (simulated ranks)
+    mp.spawn(run_broadcast, args=(world_size, broadcast), nprocs=world_size, join=True)
+    print("All tests in `test_broadcast` passed!")
+
+
+
+
+def broadcast(tensor, rank, world_size, src):
+    """
+    Broadcast averaged gradients from rank `src` to all other ranks.
+    """
+    avg = dist.reduce(tensor)
+    dist.broadcast(avg, rank, world_size, src=0)
+
+
+
+if MAIN:
+    test_broadcast(broadcast, WORLD_SIZE)
 # %%

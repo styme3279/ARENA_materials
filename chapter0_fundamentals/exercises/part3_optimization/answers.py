@@ -229,7 +229,7 @@ class RMSprop:
             grads = param.grad
             if self.lmda != 0:
                 grads += self.lmda*param
-            self.v[i] += self.alpha*self.v[i] + (1-self.alpha)*t.square(grads)
+            self.v[i] = self.alpha*self.v[i] + (1-self.alpha)*t.square(grads)
             grads = grads / (t.sqrt(self.v[i]) + self.eps)
             if self.mu != 0:
                 self.b[i] = self.mu*self.b[i] + grads
@@ -245,3 +245,55 @@ class RMSprop:
 
 tests.test_rmsprop(RMSprop)
 # %%
+
+class Adam:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float = 0.001,
+        betas: tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-08,
+        weight_decay: float = 0.0,
+    ):
+        """Implements Adam.
+
+        Like the PyTorch version, but assumes amsgrad=False and maximize=False
+            https://pytorch.org/docs/stable/generated/torch.optim.Adam.html
+        """
+        self.params = list(params)
+        self.lr = lr
+        self.beta1, self.beta2 = betas
+        self.eps = eps
+        self.lmda = weight_decay
+        self.t = 1
+
+        self.m = [t.zeros_like(p) for p in self.params]
+        self.v = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        for p in self.params:
+            p.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        raise NotImplementedError()
+
+
+    def rms_propstep(self) -> None:
+        for i, param in enumerate(self.params):
+            grads = param.grad
+            if self.lmda != 0:
+                grads += self.lmda*param
+            self.v[i] = self.alpha*self.v[i] + (1-self.alpha)*t.square(grads)
+            grads = grads / (t.sqrt(self.v[i]) + self.eps)
+            if self.mu != 0:
+                self.b[i] = self.mu*self.b[i] + grads
+                grads = self.b[i]
+            param -= self.lr*grads
+        return params
+
+    def __repr__(self) -> str:
+        return f"Adam(lr={self.lr}, beta1={self.beta1}, beta2={self.beta2}, eps={self.eps}, weight_decay={self.lmda})"
+
+
+tests.test_adam(Adam)

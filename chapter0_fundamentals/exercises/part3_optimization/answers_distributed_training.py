@@ -82,14 +82,14 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
     """
     if rank == src:
         # Send tensor to rank 1
-        print(f"{rank}, sending {tensor}")
+        #print(f"{rank}, sending {tensor}")
         for rank in range(world_size):
             if rank != src:
                 dist.send(tensor=tensor, dst=rank)
     else:
         # Receive tensor from rank 0
         dist.recv(tensor, src=0)  # this line overwrites the tensor's data with our `sending_tensor`
-        print(f"{rank}, received {tensor}")
+        #print(f"{rank}, received {tensor}")
 
 
 if __name__ == "__main__":
@@ -101,36 +101,192 @@ def reduce(tensor, rank, world_size, dst=0, op: Literal["sum", "mean"] = "sum"):
     processes.
     """
     if rank != dst:
+        #print(tensor, dst)
         dist.send(tensor, dst=dst)
-        print(f"Sending tensor from {rank=} to {dst=}")
+        #print(f"Sending tensor from {rank=} to {dst=}")
     else:
         tensors = [tensor]
-        print(f"Before receive: {tensors}")
+        #print(f"Before receive: {tensors}")
         for rank in range(world_size):
-            print(f"Waiting for {rank=}")
+            #print(f"Waiting for {rank=}")
             if rank != dst:
                 received_tensor = t.zeros_like(tensor)
                 dist.recv(received_tensor, src=rank)
                 tensors.append(received_tensor)
-                print(f"Received tensor from {rank=} on {dst=}")
+                #print(f"Received tensor from {rank=} on {dst=}")
         if op == "sum":
-            print(f"Sum: {t.stack(tensors)}")
-            print(f"Sum: {t.stack(tensors).sum(dim=0)}")
+            #print(f"Sum: {t.stack(tensors)}")
+            #print(f"Sum: {t.stack(tensors).sum(dim=0)}")
             tensor.copy_(t.stack(tensors).sum(dim=0))
         elif op == "mean":
-            print(f"Mean: {t.stack(tensors)}")
-            print(f"Mean: {t.stack(tensors).sum(dim=0)}")
+            #print(f"Mean: {t.stack(tensors)}")
+            #print(f"Mean: {t.stack(tensors).sum(dim=0)}")
             tensor.copy_(t.stack(tensors).mean(dim=0))
 
 def all_reduce(tensor, rank, world_size, op: Literal["sum", "mean"] = "sum"):
     """
     Allreduce the tensor across all ranks, using 0 as the initial gathering rank.
     """
-    reduce(tensor, rank, world_size, op)
-    broadcast(tensor, rank, world_size)
+    reduce(tensor, rank, world_size, dst=0, op=op)
+    broadcast(tensor, rank, world_size, src=0)
 
 if MAIN:
     tests.test_reduce(reduce, WORLD_SIZE)
     tests.test_all_reduce(all_reduce, WORLD_SIZE)
 
 # %%
+class SimpleModel(t.nn.Module):
+    def __init__(self):
+        super(SimpleModel, self).__init__()
+        self.param = t.nn.Parameter(t.tensor([2.0]))
+
+    def forward(self, x: Tensor):
+        return x - self.param
+
+
+def run_simple_model(rank, world_size):
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+
+    device = t.device(f"cuda:{rank}")
+    model = SimpleModel().to(device)  # Move the model to the device corresponding to this process
+    optimizer = t.optim.SGD(model.parameters(), lr=0.1)
+
+    input = t.tensor([rank], dtype=t.float32, device=device)
+    output = model(input)
+    loss = output.pow(2).sum()
+    loss.backward()  # Each rank has separate gradients at this point
+
+    print(f"Rank {rank}, before all_reduce, grads: {model.param.grad=}")
+    all_reduce(model.param.grad, rank, world_size)  # Synchronize gradients
+    print(f"Rank {rank}, after all_reduce, synced grads (summed over processes): {model.param.grad=}")
+
+    optimizer.step()  # Step with the optimizer (this will update all models the same way)
+    print(f"Rank {rank}, new param: {model.param.data}")
+
+    dist.destroy_process_group()
+
+
+if MAIN:
+    world_size = 2
+    mp.spawn(
+        run_simple_model,
+        args=(world_size,),
+        nprocs=world_size,
+        join=True,
+    )
+
+# %%
+def get_untrained_resnet(n_classes: int) -> ResNet34:
+    """
+    Gets untrained resnet using code from part2_cnns.solutions (you can replace this with your
+    implementation).
+    """
+    resnet = ResNet34()
+    resnet.out_layers[-1] = Linear(resnet.out_features_per_group[-1], n_classes)
+    return resnet
+
+
+@dataclass
+class DistResNetTrainingArgs(WandbResNetFinetuningArgs):
+    world_size: int = 1
+    wandb_project: str | None = "day3-resnet-dist-training"
+
+
+class DistResNetTrainer:
+    args: DistResNetTrainingArgs
+
+    def __init__(self, args: DistResNetTrainingArgs, rank: int):
+        self.args = args
+        self.rank = rank
+        self.device = t.device(f"cuda:{rank}")
+
+    def pre_training_setup(self):
+        """Initializes the wandb run using `wandb.init` and `wandb.watch`."""
+        super().pre_training_setup()
+        wandb.init()
+
+    def training_step(
+        self,
+        imgs: Float[Tensor, "batch channels height width"],
+        labels: Int[Tensor, " batch"],
+    ) -> Float[Tensor, ""]:
+        """Perform a gradient update step on a single batch of data."""
+
+        # CPU -> GPU first, then perform preprocessing on GPU.
+        imgs = imgs.to(device)
+        labels = labels.to(device)
+        imgs = IMAGENET_TRANSFORM(imgs)
+
+        logits = self.model(imgs)
+        loss = F.cross_entropy(logits, labels)
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        self.examples_seen += imgs.shape[0]
+        wandb.log({"loss": loss.item()}, self.examples_seen)
+        return loss
+
+    @t.inference_mode()
+    def evaluate(self) -> float:
+        """Evaluate the model on the test set and return the accuracy."""
+        self.model.eval()
+        total_correct, total_samples = 0, 0
+
+        for imgs, labels in tqdm(self.test_loader, desc="Evaluating"):
+            # CPU -> GPU first, then perform preprocessing on GPU.
+            imgs = imgs.to(device)
+            labels = labels.to(device)
+            imgs = IMAGENET_TRANSFORM(imgs)
+
+            logits = self.model(imgs)
+            total_correct += (logits.argmax(dim=1) == labels).sum().item()
+            total_samples += len(imgs)
+
+        accuracy = total_correct / total_samples
+        wandb.log({"accuracy": accuracy}, self.examples_seen)
+        return accuracy
+
+    def train(self) -> dict[str, list[float]]:
+        self.pre_training_setup()
+
+        accuracy = self.evaluate()
+
+        for epoch in range(self.args.epochs):
+            self.model.train()
+
+            pbar = tqdm(self.train_loader, desc="Training")
+            for imgs, labels in pbar:
+                loss = self.training_step(imgs, labels)
+                pbar.set_postfix(
+                    loss=f"{loss:.3f}",
+                    ex_seen=f"{self.examples_seen:06}",
+                    refresh=False,
+                )
+
+            accuracy = self.evaluate()
+            pbar.set_postfix(
+                loss=f"{loss:.3f}",
+                accuracy=f"{accuracy:.2f}",
+                ex_seen=f"{self.examples_seen:06}",
+            )
+        wandb.finish()
+        return self.logged_variables
+
+
+def dist_train_resnet_from_scratch(rank, world_size):
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    args = DistResNetTrainingArgs(world_size=world_size, use_wandb=False)  # flip to True to log to wandb
+    trainer = DistResNetTrainer(args, rank)
+    trainer.train()
+    dist.destroy_process_group()
+
+
+if MAIN:
+    world_size = t.cuda.device_count()
+    mp.spawn(
+        dist_train_resnet_from_scratch,
+        args=(world_size,),
+        nprocs=world_size,
+        join=True,
+    )

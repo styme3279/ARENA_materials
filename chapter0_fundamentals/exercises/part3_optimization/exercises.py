@@ -643,16 +643,16 @@ logged_variables = trainer.train()
 # %%
 # YOUR CODE HERE - fill `sweep_config` so it has the requested behaviour
 sweep_config = dict(
-    method = "grid", # can be "grid", "random" or "bayes"
+    method = "random", # can be "grid", "random" or "bayes"
     metric = dict(
         name = "accuracy", # name of the metric you're optimising (should be a numeric type logged in `wandb.log`)
         goal = "maximise", # either "maximize" or "minimize"
     ),
     parameters = dict(
-        beta1 = dict(values = [0.8, 0.9, 0.95],), # uniformly sample from list of values
-        beta2 = dict(values = [0.99, 0.999, 0.9999], probabilities = [0.2, 0.6, 0.2]), # sample from list with given probabilities
-        weight_decay = dict(min = 0.0, max = 0.1), # uniform distribution over [min, max), can either be ints or floats
-        learning_rate = dict(min = 1e-5, max = 1e-2, distribution = "log_uniform_values"), # use log-uniform distribution instead
+        batch_size = dict(values = [32, 64, 128, 256],), # uniformly sample from list of values
+        weight_decay = dict(min = 1e-4, max = 1e-2, disribution = "log_uniform_values"), # uniform distribution over [min, max), can either be ints or floats
+        learning_rate = dict(min = 1e-4, max = 1e-1, distribution = "log_uniform_values"), # use log-uniform distribution instead
+        weight_decay_bool = dict(values = [True, False])
     )
 )
 
@@ -665,8 +665,25 @@ def update_args(args: WandbResNetFinetuningArgs, sampled_parameters: dict) -> Wa
     assert set(sampled_parameters.keys()) == set(sweep_config["parameters"].keys())
 
     # YOUR CODE HERE - update `args` based on `sampled_parameters`
-    raise NotImplementedError()
 
 
 tests.test_sweep_config(sweep_config)
 tests.test_update_args(update_args, sweep_config)
+
+# %%
+def train():
+    # Define args & initialize wandb
+    args = WandbResNetFinetuningArgs(use_wandb=False)
+    wandb.init(project=args.wandb_project, name=args.wandb_name, reinit=False)
+
+    # After initializing wandb, we can update args using `wandb.config`
+    args = update_args(args, dict(wandb.config))
+
+    # Train the model with these new hyperparameters (the second `wandb.init` call will be ignored)
+    trainer = WandbResNetFinetuner(args)
+    trainer.train()
+
+
+sweep_id = wandb.sweep(sweep=sweep_config, project="day3-resnet-sweep")
+wandb.agent(sweep_id=sweep_id, function=train, count=3)
+wandb.finish()

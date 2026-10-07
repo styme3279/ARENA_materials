@@ -341,6 +341,34 @@ class AdamW:
 
 
 tests.test_adamw(AdamW)
+
+# %%
+
+def bivariate_gaussian(x, y, x_mean=0.0, y_mean=0.0, x_sig=1.0, y_sig=1.0):
+    norm = 1 / (2 * np.pi * x_sig * y_sig)
+    x_exp = 0.5 * ((x - x_mean) ** 2) / (x_sig**2)
+    y_exp = 0.5 * ((y - y_mean) ** 2) / (y_sig**2)
+    return norm * t.exp(-x_exp - y_exp)
+
+
+means = [(1.0, -0.5), (-1.0, 0.5), (-0.5, -0.8)]
+
+
+def neg_trimodal_func(x, y):
+    """
+    This function has 3 global minima, at `means`. Unstable methods can overshoot these minima, and
+    non-adaptive methods can fail to converge to them in the first place given how shallow the
+    gradients are everywhere except in the close vicinity of the minima.
+    """
+    z = -bivariate_gaussian(x, y, x_mean=means[0][0], y_mean=means[0][1], x_sig=0.2, y_sig=0.2)
+    z -= bivariate_gaussian(x, y, x_mean=means[1][0], y_mean=means[1][1], x_sig=0.2, y_sig=0.2)
+    z -= bivariate_gaussian(x, y, x_mean=means[2][0], y_mean=means[2][1], x_sig=0.2, y_sig=0.2)
+    return z
+
+
+plot_fn(neg_trimodal_func, x_range=(-2, 2), y_range=(-2, 2), min_points=means)
+
+
 # %%
 
 def opt_fn(
@@ -348,7 +376,7 @@ def opt_fn(
     xy: Tensor,
     optimizer_class,
     optimizer_hyperparams: dict,
-    n_iters: int = 100,
+    n_iters: int = 120,
 ) -> Tensor:
     """Optimize a given function starting from the specified point.
 
@@ -374,20 +402,20 @@ points = []
 
 optimizer_list = [
     (SGD, {"lr": 0.03, "momentum": 0.99}),
-    (RMSprop, {"lr": 0.02, "alpha": 0.99, "momentum": 0.8}),
-    (Adam, {"lr": 0.2, "betas": (0.99, 0.99), "weight_decay": 0.005}),
+    (RMSprop, {"lr": 0.2, "alpha": 0.9, "momentum": 0.05}),
+    (Adam, {"lr": 0.2, "betas": (0.99, 0.9), "weight_decay": 0.005}),
     (AdamW, {"lr": 0.2, "betas": (0.99, 0.99), "weight_decay": 0.005}),
 ]
 
 for optimizer_class, params in optimizer_list:
     xy = t.tensor([2.5, 2.5], requires_grad=True)
     xys = opt_fn(
-        pathological_curve_loss,
+        bivariate_gaussian,
         xy=xy,
         optimizer_class=optimizer_class,
         optimizer_hyperparams=params,
     )
     points.append((xys, optimizer_class, params))
 
-plot_fn_with_points(pathological_curve_loss, min_points=[(0, "y_min")], points=points)
+plot_fn_with_points(bivariate_gaussian, min_points=[(0, "y_min")], points=points)
 # %%

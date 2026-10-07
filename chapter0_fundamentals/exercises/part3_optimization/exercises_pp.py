@@ -235,7 +235,7 @@ class Adam:
             # self.m[i] = self.beta1 * self.m[i] + g # rmsprob moment
             self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * g
             g = g / (t.sqrt(self.v[i]) + self.eps)
-            g = self.m[i]
+            # g = self.m[i]
             p -= self.lr * g
 
     def __repr__(self) -> str:

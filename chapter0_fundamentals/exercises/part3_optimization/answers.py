@@ -552,3 +552,33 @@ line(
     title="Feature extraction with ResNet34",
     width=800,
 )
+# %%
+
+def test_resnet_on_random_input(model: ResNet34, n_inputs: int = 3, seed: int | None = 42):
+    if seed is not None:
+        np.random.seed(seed)
+    indices = np.random.choice(len(cifar_trainset), n_inputs).tolist()
+    classes = [cifar_trainset.classes[cifar_trainset.targets[i]] for i in indices]
+    imgs = cifar_trainset.data[indices]
+    device = next(model.parameters()).device
+    with t.inference_mode():
+        x = t.stack(list(map(IMAGENET_TRANSFORM, imgs)))
+        logits: Tensor = model(x.to(device))
+    probs = logits.softmax(-1)
+    if probs.ndim == 1:
+        probs = probs.unsqueeze(0)
+    for img, label, prob in zip(imgs, classes, probs):
+        display(HTML(f"<h2>Classification probabilities (true class = {label})</h2>"))
+        imshow(img, width=200, height=200, margin=0, xaxis_visible=False, yaxis_visible=False)
+        bar(
+            prob,
+            x=cifar_trainset.classes,
+            width=600,
+            height=400,
+            text_auto=".2f",
+            labels={"x": "Class", "y": "Prob"},
+        )
+
+
+test_resnet_on_random_input(trainer.model)
+# %%

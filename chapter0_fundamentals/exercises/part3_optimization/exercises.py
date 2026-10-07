@@ -561,7 +561,10 @@ import wandb
 wandb.init(project="your_project")
 
 try:
-    # Your training code here
+    args = ResNetFinetuningArgs()
+    trainer = ResNetFinetuner(args)
+    logged_variables = trainer.train()
     pass
 finally:
     wandb.finish()
+# %%

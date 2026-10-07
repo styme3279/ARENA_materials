@@ -1,3 +1,8 @@
+import sys
+sys.path.insert(0, "/root/ARENA_materials/chapter0_fundamentals/exercises")
+sys.path.insert(0, "/root/ARENA_materials")
+
+import dataclasses
 import os
 from dataclasses import dataclass
 from typing import Literal
@@ -12,9 +17,11 @@ from IPython.core.display import HTML
 from IPython.display import display
 from torch import Tensor, optim
 from tqdm import tqdm
+import wandb
 
-from chapter0_fundamentals.exercises.fundamentals_utils import CIFAR10
-from chapter0_fundamentals.exercises.part2_cnns.solutions import ResNet34
+from fundamentals_utils import IMAGENET_TRANSFORM, CIFAR10
+
+from part2_cnns.solutions import Linear, ResNet34, get_resnet_for_feature_extraction
 from infrastructure.chapters.chapter0_fundamentals.master_0_3 import WandbResNetFinetuningArgs
 import tests
 
@@ -82,36 +89,6 @@ def all_reduce(tensor, rank, world_size, op: Literal["sum", "mean"] = "sum"):
     broadcast(tensor, rank, world_size, src=0)
 
 
-class SimpleModel(t.nn.Module):
-    def __init__(self):
-        super(SimpleModel, self).__init__()
-        self.param = t.nn.Parameter(t.tensor([2.0]))
-
-    def forward(self, x: Tensor):
-        return x - self.param
-
-
-def run_simple_model(rank, world_size):
-    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
-
-    device = t.device(f"cuda:{rank}")
-    model = SimpleModel().to(device)  # Move the model to the device corresponding to this process
-    optimizer = t.optim.SGD(model.parameters(), lr=0.1)
-
-    input = t.tensor([rank], dtype=t.float32, device=device)
-    output = model(input)
-    loss = output.pow(2).sum()
-    loss.backward()  # Each rank has separate gradients at this point
-
-    print(f"Rank {rank}, before all_reduce, grads: {model.param.grad=}")
-    all_reduce(model.param.grad, rank, world_size)  # Synchronize gradients
-    print(f"Rank {rank}, after all_reduce, synced grads (summed over processes): {model.param.grad=}")
-
-    optimizer.step()  # Step with the optimizer (this will update all models the same way)
-    print(f"Rank {rank}, new param: {model.param.data}")
-
-    dist.destroy_process_group()
-
 def get_untrained_resnet(n_classes: int) -> ResNet34:
     """
     Gets untrained resnet using code from part2_cnns.solutions (you can replace this with your
@@ -137,40 +114,61 @@ class DistResNetTrainer:
         self.device = t.device(f"cuda:{rank}")
 
     def pre_training_setup(self):
-        self.model = ResNet34
+        self.model = ResNet34()
+
+        # Broadcast model weights
+        for p in self.model.parameters():
+            broadcast(p.data, self.rank, self.args.world_size, src=0)
+    
         self.optimizer = optim.AdamW(
             self.model.parameters(),
             lr=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
         )
 
-
+        # Load dataset
         self.trainset = CIFAR10(train=True)
         self.testset = CIFAR10(train=False)
 
-        self.train_loader = DataLoader(
+        self.train_sampler = t.utils.data.DistributedSampler(self.trainset, num_replicas=self.args.world_size, rank=self.rank)
+        self.test_sampler = t.utils.data.DistributedSampler(self.testset, num_replicas=self.args.world_size, rank=self.rank)
+        
+
+        self.train_loader = t.utils.data.DataLoader(
             self.trainset,
             batch_size=self.args.batch_size,
-            shuffle=True,
+            sampler=self.train_sampler
         )
-        self.test_loader = DataLoader(
+        self.test_loader = t.utils.data.DataLoader(
             self.testset,
             batch_size=self.args.batch_size,
-            shuffle=False,
+            sampler=self.train_sampler
         )
 
         self.logged_variables = {"loss": [], "accuracy": []}
         self.examples_seen = 0
 
+        wandb.init(
+            project=self.args.wandb_project,
+            name=self.args.wandb_name,
+            config=dataclasses.asdict(self.args),
+            mode="online" if self.args.use_wandb else "disabled",
+        )
+
     def training_step(self, imgs: Tensor, labels: Tensor) -> Tensor:
+
         # CPU -> GPU first, then perform preprocessing on GPU.
-        imgs = imgs.to(device)
-        labels = labels.to(device)
-        imgs = IMAGENET_TRANSFORM(imgs)
+        imgs = imgs.to(self.device)
+        labels = labels.to(self.device)
 
         logits = self.model(imgs)
         loss = F.cross_entropy(logits, labels)
         loss.backward()
+
+        # Gradient synchronization
+        for p in self.model.parameters():
+            all_reduce(p.data, self.rank, self.args.world_size, op="sum")
+
         self.optimizer.step()
         self.optimizer.zero_grad()
 
@@ -181,19 +179,19 @@ class DistResNetTrainer:
     @t.inference_mode()
     def evaluate(self) -> float:
         self.model.eval()
-        total_correct, total_samples = 0, 0
+        total_correct = t.zeros(size=(1,), device=self.device)
 
         for imgs, labels in tqdm(self.test_loader, desc="Evaluating"):
             # CPU -> GPU first, then perform preprocessing on GPU.
-            imgs = imgs.to(device)
-            labels = labels.to(device)
-            imgs = IMAGENET_TRANSFORM(imgs)
+            imgs = imgs.to(self.device)
+            labels = labels.to(self.device)
 
             logits = self.model(imgs)
             total_correct += (logits.argmax(dim=1) == labels).sum().item()
-            total_samples += len(imgs)
 
-        accuracy = total_correct / total_samples
+        all_reduce(total_correct, self.rank, self.args.world_size, op="mean")
+
+        accuracy = total_correct[0].item()
         self.logged_variables["accuracy"].append(accuracy)
         return accuracy
 
@@ -235,9 +233,4 @@ def dist_train_resnet_from_scratch(rank, world_size):
 if __name__ == "__main__":
 
     world_size = 2
-    mp.spawn(
-        run_simple_model,
-        args=(world_size,),
-        nprocs=world_size,
-        join=True,
-    )
+    dist_train_resnet_from_scratch(0, world_size)

@@ -12,8 +12,10 @@ from IPython.display import display
 from torch import Tensor, optim
 import einops
 from typing import Literal
-from part2_cnns.solutions import Linear, ResNet34, get_resnet_for_feature_extraction
-
+from part2_cnns.solutions import Linear, ResNet34
+import wandb
+from fundamentals_utils import IMAGENET_TRANSFORM, CIFAR10
+from torch.utils.data import DataLoader, DistributedSampler
 
 import tests
 
@@ -22,6 +24,23 @@ WORLD_SIZE = min(t.cuda.device_count(), 3)
 
 os.environ["MASTER_ADDR"] = "localhost"
 os.environ["MASTER_PORT"] = "12345"
+
+@dataclass
+class ResNetFinetuningArgs:
+    n_classes: int = 10
+    batch_size: int = 128
+    epochs: int = 2
+    learning_rate: float = 1e-3
+    weight_decay: float = 0.0
+
+
+class WandbResNetFinetuningArgs(ResNetFinetuningArgs):
+    """Contains new params for use in wandb.init, as well as all the ResNetFinetuningArgs params."""
+
+    wandb_project: str | None = "day3-resnet"
+    wandb_name: str | None = None
+    use_wandb: bool = False
+
 
 def send_receive(rank, world_size):
     dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)
@@ -151,7 +170,42 @@ class DistResNetTrainer:
         self.device = t.device(f"cuda:{rank}")
 
     def pre_training_setup(self):
-        raise NotImplementedError()
+        self.model = get_untrained_resnet(self.args.n_classes).to(self.device)
+        if self.args.world_size > 1:
+            for param in self.model.parameters():
+                broadcast(param.data, self.rank, self.args.world_size, src=0)
+
+        self.optimizer = t.optim.AdamW(
+            self.model.out_layers[-1].parameters(),
+            lr=self.args.learning_rate,
+            weight_decay=self.args.weight_decay,
+        )
+
+        self.trainset = CIFAR10(train=True)
+        self.testset = CIFAR10(train=False)
+        self.train_sampler
+        self.train_loader = DataLoader(
+            self.trainset,
+            batch_size=self.args.batch_size,
+            shuffle=True,
+        )
+        self.test_loader = DataLoader(
+            self.testset,
+            batch_size=self.args.batch_size,
+            shuffle=False,
+        )
+
+        self.logged_variables = {"loss": [], "accuracy": []}
+        self.examples_seen = 0
+        wandb.init(
+            project=self.args.wandb_project,
+            name=self.args.wandb_name,
+            config=self.args,
+            mode="online" if self.args.use_wandb else "disabled",          
+        )
+        wandb.watch(self.model.out_layers[-1], log="all", log_freq=50)
+        self.examples_seen = 0
+
 
     def training_step(self, imgs: Tensor, labels: Tensor) -> Tensor:
         raise NotImplementedError()
@@ -172,7 +226,7 @@ def dist_train_resnet_from_scratch(rank, world_size):
     dist.destroy_process_group()
 
 
-if MAIN:
+if __name__ == "__main__":
     world_size = t.cuda.device_count()
     mp.spawn(
         dist_train_resnet_from_scratch,

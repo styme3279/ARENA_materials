@@ -22,7 +22,17 @@ import wandb
 from fundamentals_utils import IMAGENET_TRANSFORM, CIFAR10
 
 from part2_cnns.solutions import Linear, ResNet34, get_resnet_for_feature_extraction
-from infrastructure.chapters.chapter0_fundamentals.master_0_3 import WandbResNetFinetuningArgs
+@dataclass
+class WandbResNetFinetuningArgs:
+    n_classes: int = 10
+    batch_size: int = 128
+    epochs: int = 3
+    learning_rate: float = 1e-3
+    weight_decay: float = 0.0
+    wandb_project: str | None = "day3-resnet"
+    wandb_name: str | None = None
+    use_wandb: bool = False
+
 import tests
 
 
@@ -224,13 +234,12 @@ class DistResNetTrainer:
 
 def dist_train_resnet_from_scratch(rank, world_size):
     dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
-    args = DistResNetTrainingArgs(world_size=world_size, use_wandb=False)  # flip to True to log to wandb
+    args = DistResNetTrainingArgs(world_size=world_size, use_wandb=True)  # flip to True to log to wandb
     trainer = DistResNetTrainer(args, rank)
     trainer.train()
     dist.destroy_process_group()
 
 
 if __name__ == "__main__":
-
     world_size = 2
     dist_train_resnet_from_scratch(0, world_size)

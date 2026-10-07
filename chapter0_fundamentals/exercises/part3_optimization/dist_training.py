@@ -435,10 +435,10 @@ if __name__ == "__main__":
     # mp.spawn(run_simple_model, args=(2,), nprocs=2, join=True)
 
     # # Exercise - complete `DistResNetTrainer` (full training on all GPUs)
-    # mp.spawn(dist_train_resnet_from_scratch, args=(t.cuda.device_count(),), nprocs=t.cuda.device_count(), join=True)
+    mp.spawn(dist_train_resnet_from_scratch, args=(t.cuda.device_count(),), nprocs=t.cuda.device_count(), join=True)
 
     # # Bonus - DDP
     # mp.spawn(run, args=(2,), nprocs=2, join=True)
 
     # # Bonus - ring operations
-    tests.test_all_reduce(ring_all_reduce, WORLD_SIZE)
+    #tests.test_all_reduce(ring_all_reduce, WORLD_SIZE)

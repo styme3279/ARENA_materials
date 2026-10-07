@@ -124,6 +124,8 @@ class SGD:
 
         self.b = [t.zeros_like(p) for p in self.params]
 
+        # self.first_step = True
+
     def zero_grad(self) -> None:
         """Zeros all gradients of the parameters in `self.params`."""
         for param in self.params:
@@ -133,19 +135,14 @@ class SGD:
     def step(self) -> None:
         """Performs a single optimization step of the SGD algorithm."""
         for i, p in enumerate(self.params):
-            p -= p.grad * self.lr
+            g = p.grad
             if self.lmda != 0:
-                p += p.grad * self.lmda
+                g += p * self.lmda
             if self.mu != 0:
-                if self.steps == 0:
-                    self.b[i] = p.grad
-                    p.grad  += self.mu * self.b[i]
-                else:
-                    self.b[i] = self.mu * self.b[i-1] * p.grad
+                self.b[i] = g + self.mu * self.b[i]
+                g = self.b[i]
+            p -= g * self.lr
                 
-
-        self.steps += 1
-
     def __repr__(self) -> str:
         return f"SGD(lr={self.lr}, momentum={self.mu}, weight_decay={self.lmda})"
 

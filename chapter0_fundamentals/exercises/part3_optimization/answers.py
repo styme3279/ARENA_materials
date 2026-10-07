@@ -571,6 +571,22 @@ trainer = WandbResNetFinetuner(args)
 trainer.train()
 
 # %%
+@dataclass
+class ResNetFinetuningArgs:
+    n_classes: int = 10
+    batch_size: int = 128
+    epochs: int = 2
+    learning_rate: float = 1e-3
+    weight_decay: float = 0.0
+
+@dataclass
+class WandbResNetFinetuningArgs(ResNetFinetuningArgs):
+    """Contains new params for use in wandb.init, as well as all the ResNetFinetuningArgs params."""
+
+    wandb_project: str | None = "day3-resnet"
+    wandb_name: str | None = None
+    use_wandb: bool = False
+
 sweep_config = dict(
     method = "random",
     metric = {
@@ -578,7 +594,10 @@ sweep_config = dict(
         "goal": "maximize"
     },
     parameters = {
-
+        "learning_rate": {"min": 1e-4, "max": 1e-1, "distribution": "log_uniform_values"},
+        "batch_size": {"values": [32, 64, 128, 256]},
+        "weight_decay": {"min": 1e-4, "max": 1e-2, "distribution": "log_uniform_values"},
+        "weight_decay_bool": {"values": [True, False], "probabilities": [0.5, 0.5]},
     },
 )
 
@@ -589,11 +608,20 @@ def update_args(args: WandbResNetFinetuningArgs, sampled_parameters: dict) -> Wa
     the same keys as your `sweep_config["parameters"]` dict, and values equal to the sampled values
     of those hyperparameters.
     """
+    import copy
+
     assert set(sampled_parameters.keys()) == set(sweep_config["parameters"].keys())
 
-    for key, value in 
+    ret_args = copy.deepcopy(args)
 
-    return args
+    for key, value in sampled_parameters.items():
+        if hasattr(ret_args, key):
+            if key == "weight_decay":
+                setattr(ret_args, key, value if sampled_parameters["weight_decay_bool"] else 0)
+            else:
+                setattr(ret_args, key, value)
+
+    return ret_args
 
 
 tests.test_sweep_config(sweep_config)

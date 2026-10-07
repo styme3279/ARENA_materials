@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 import torch as t
@@ -47,12 +48,46 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
             if r != src:
                 dist.send(tensor=tensor, dst=r)
     else:
-        received_tensor = t.zeros(tensor.shape)
-        dist.recv(received_tensor, src=src)
+        received_tensor = t.zeros(tensor.shape, device=tensor.device)
+        dist.recv(tensor=received_tensor, src=src)
         tensor.copy_(received_tensor)
 
+def reduce(tensor: Tensor, rank: int, world_size: int, dst: int = 0, op: Literal["sum", "mean"] = "sum"):
+    """
+    Reduces tensors to rank `dst`, so this process contains the sum or mean of all tensors across
+    processes.
+    """
+    if rank == dst:
+        tensors = []
+        for r in range(world_size):
+            if r != dst:
+                received_tensor = t.zeros(tensor.shape)
+                dist.recv(tensor=received_tensor, src=r)
+                tensors.append(received_tensor)
+
+        result: Tensor = None
+
+        if op == "sum":
+            result = t.sum(t.tensor(tensors, device=tensor.device))
+        elif op =="mean":
+            result = t.mean(t.tensor(tensors, device=tensor.device))
+
+        tensor.copy_(result)
+
+        
+
+    else:
+        dist.send(tensor=tensor, dst=dst)
+
+
+def all_reduce(tensor, rank, world_size, op: Literal["sum", "mean"] = "sum"):
+    """
+    Allreduce the tensor across all ranks, using 0 as the initial gathering rank.
+    """
+    raise NotImplementedError()
 
 
 if __name__ == "__main__":
 
-    tests.test_broadcast(broadcast, WORLD_SIZE)
+    tests.test_reduce(reduce, WORLD_SIZE)
+    tests.test_all_reduce(all_reduce, WORLD_SIZE)

@@ -61,7 +61,8 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
     """
     if rank == src:
         for other_rank in range(world_size):
-            dist.send(tensor=tensor, dst=other_rank)
+            if other_rank != src:
+                dist.send(tensor=tensor, dst=other_rank)
 
     else:
         received_tensor = t.zeros_like(tensor)

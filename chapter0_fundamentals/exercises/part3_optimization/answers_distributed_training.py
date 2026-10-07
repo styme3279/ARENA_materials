@@ -83,8 +83,10 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
     if rank == src:
         # Send tensor to rank 1
         print(f"{rank}, sending {tensor}")
-        dist.send(tensor=tensor, dst=1)
-    elif rank == 1:
+        for rank in range(world_size):
+            if rank != src:
+                dist.send(tensor=tensor, dst=rank)
+    else:
         # Receive tensor from rank 0
         dist.recv(tensor, src=0)  # this line overwrites the tensor's data with our `sending_tensor`
         print(f"{rank}, received {tensor}")
@@ -93,3 +95,34 @@ def broadcast(tensor: Tensor, rank: int, world_size: int, src: int = 0):
 if __name__ == "__main__":
     tests.test_broadcast(broadcast, WORLD_SIZE)
 # %%
+def reduce(tensor, rank, world_size, dst=0, op: Literal["sum", "mean"] = "sum"):
+    """
+    Reduces tensors to rank `dst`, so this process contains the sum or mean of all tensors across
+    processes.
+    """
+    if rank != dst:
+        dist.send(tensor, dst=dst)
+        print(f"Sending tensor from {rank=} to {dst=}")
+    else :
+        tensors = []
+        for rank in range(world_size):
+            if rank != dst:
+                received_tensor = t.zeros_like(tensor)
+                dist.recv(received_tensor, src=rank)
+                tensor.copy_(received_tensor)
+                tensors.append(tensor)
+        if op == "sum":
+            tensor = t.stack(tensors).sum(dim=-1)
+        elif op == "mean":
+            tensor = t.stack(tensors).mean(dim=-1)
+
+def all_reduce(tensor, rank, world_size, op: Literal["sum", "mean"] = "sum"):
+    """
+    Allreduce the tensor across all ranks, using 0 as the initial gathering rank.
+    """
+    raise NotImplementedError()
+
+
+if MAIN:
+    tests.test_reduce(reduce, WORLD_SIZE)
+    #tests.test_all_reduce(all_reduce, WORLD_SIZE)

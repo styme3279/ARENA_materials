@@ -283,8 +283,8 @@ class AdamW:
             mh = self.m[i] / (1 - self.beta1 ** self.t)
             vh = self.v[i] / (1 - self.beta2 ** self.t)
             g = mh / (t.sqrt(vh) + self.eps)
-            p *= self.lmda
-            p -= self.lr * g
+            p -= self.lr * g + p * self.lmda
+            # p -= p * self.lmda
         self.t += 1
 
     def __repr__(self) -> str:

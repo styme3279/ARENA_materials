@@ -181,12 +181,12 @@ class SGD:
         """Performs a single optimization step of the SGD algorithm."""
         #print(f"Params List: {[p for p in self.params]}")
         g_t = [p.grad for p in self.params]
-        print(self.params[0].shape)
-        print(self.params[1].shape)
-        print(self.params[2].shape)
-        print(g_t[0].shape)
-        print(g_t[1].shape)
-        print(g_t[2].shape)
+        # print(self.params[0].shape)
+        # print(self.params[1].shape)
+        # print(self.params[2].shape)
+        # print(g_t[0].shape)
+        # print(g_t[1].shape)
+        # print(g_t[2].shape)
         for i, param in enumerate(self.params):
             if self.lmda != 0.0:
                 g_t[i] += self.lmda * self.params[i]
@@ -204,3 +204,106 @@ class SGD:
 tests.test_sgd(SGD)
 
 # %%
+class RMSprop:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float = 0.01,
+        alpha: float = 0.99,
+        eps: float = 1e-08,
+        weight_decay: float = 0.0,
+        momentum: float = 0.0,
+    ):
+        """Implements RMSprop.
+
+        Like the PyTorch version, but assumes centered=False
+            https://pytorch.org/docs/stable/generated/torch.optim.RMSprop.html
+        """
+        self.params = list(params)  # turn params into a list (because it might be a generator)
+        self.lr = lr
+        self.eps = eps
+        self.mu = momentum
+        self.lmda = weight_decay
+        self.alpha = alpha
+
+        self.b = [t.zeros_like(p) for p in self.params]
+        self.v = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        for p in self.params:
+            p.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        g_t = [p.grad for p in self.params]
+        for i, param in enumerate(self.params):
+            if self.lmda != 0.0:
+                g_t[i] += self.lmda * self.params[i]
+            self.v[i] = self.alpha * self.v[i] + (1- self.alpha) * g_t[i]**2
+            g_t[i] = g_t[i] / (t.sqrt(self.v[i]) + self.eps)
+            if self.mu != 0.0:
+                self.b[i] = self.mu * self.b[i] + g_t[i]
+                g_t[i].copy_(self.b[i])
+            self.params[i] -= self.lr * g_t[i]
+
+    def __repr__(self) -> str:
+        return (
+            f"RMSprop(lr={self.lr}, eps={self.eps}, momentum={self.mu}, weight_decay={self.lmda}, alpha={self.alpha})"
+        )
+
+
+tests.test_rmsprop(RMSprop)
+
+# %%
+class Adam:
+    def __init__(
+        self,
+        params: Iterable[t.nn.parameter.Parameter],
+        lr: float = 0.001,
+        betas: tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-08,
+        weight_decay: float = 0.0,
+    ):
+        """Implements Adam.
+
+        Like the PyTorch version, but assumes amsgrad=False and maximize=False
+            https://pytorch.org/docs/stable/generated/torch.optim.Adam.html
+        """
+        self.params = list(params)
+        self.lr = lr
+        self.beta1, self.beta2 = betas
+        self.eps = eps
+        self.lmda = weight_decay
+        self.t = 1
+
+        self.m = [t.zeros_like(p) for p in self.params]
+        self.v = [t.zeros_like(p) for p in self.params]
+
+    def zero_grad(self) -> None:
+        for p in self.params:
+            p.grad = None
+
+    @t.inference_mode()
+    def step(self) -> None:
+        g_t = [p.grad for p in self.params]
+        for i, param in enumerate(self.params):
+            if self.lmda != 0.0:
+                g_t[i] += self.lmda * self.params[i]
+            self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * g_t[i]
+            self.v[i] = self.beta2 * self.v[i] + (1- self.beta2) * g_t[i]**2
+            m_hat = self.m[i] / (1 - self.beta1 ** t)
+            v_hat = self.v[i] / (1 - self.beta2 ** t)
+            
+            
+            g_t[i] = g_t[i] / (t.sqrt(self.v[i]) + self.eps)
+            if self.mu != 0.0:
+                self.b[i] = self.mu * self.b[i] + g_t[i]
+                g_t[i].copy_(self.b[i])
+            self.params[i] -= self.lr * g_t[i]
+            self.t +=1
+
+    def __repr__(self) -> str:
+        return f"Adam(lr={self.lr}, beta1={self.beta1}, beta2={self.beta2}, eps={self.eps}, weight_decay={self.lmda})"
+
+
+tests.test_adam(Adam)

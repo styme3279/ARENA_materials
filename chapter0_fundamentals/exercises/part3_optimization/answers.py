@@ -350,3 +350,52 @@ plot_fn_with_points(pathological_curve_loss, min_points=[(0, "y_min")], points=p
 
 
 # %%
+
+def bivariate_gaussian(x, y, x_mean=0.0, y_mean=0.0, x_sig=1.0, y_sig=1.0):
+    norm = 1 / (2 * np.pi * x_sig * y_sig)
+    x_exp = 0.5 * ((x - x_mean) ** 2) / (x_sig**2)
+    y_exp = 0.5 * ((y - y_mean) ** 2) / (y_sig**2)
+    return norm * t.exp(-x_exp - y_exp)
+
+
+means = [(1.0, -0.5), (-1.0, 0.5), (-0.5, -0.8)]
+
+
+def neg_trimodal_func(x, y):
+    """
+    This function has 3 global minima, at `means`. Unstable methods can overshoot these minima, and
+    non-adaptive methods can fail to converge to them in the first place given how shallow the
+    gradients are everywhere except in the close vicinity of the minima.
+    """
+    z = -bivariate_gaussian(x, y, x_mean=means[0][0], y_mean=means[0][1], x_sig=0.2, y_sig=0.2)
+    z -= bivariate_gaussian(x, y, x_mean=means[1][0], y_mean=means[1][1], x_sig=0.2, y_sig=0.2)
+    z -= bivariate_gaussian(x, y, x_mean=means[2][0], y_mean=means[2][1], x_sig=0.2, y_sig=0.2)
+    return z
+
+def rosenbrocks_banana_func(x: Tensor, y: Tensor, a=1, b=100) -> Tensor:
+    """
+    This function has a global minimum at `(a, a)` so in this case `(1, 1)`. It's characterized by a
+    long, narrow, parabolic valley (parameterized by `y = x**2`). Various gradient descent methods
+    have trouble navigating this valley because they often oscillate unstably (gradients from the
+    `b`-term dwarf the gradients from the `a`-term).
+
+    See more on this function: https://en.wikipedia.org/wiki/Rosenbrock_function.
+    """
+    return (a - x) ** 2 + b * (y - x**2) ** 2 + 1
+
+
+plot_fn(
+    rosenbrocks_banana_func,
+    x_range=(-2.5, 2.5),
+    y_range=(-2, 4),
+    z_range=(0, 100),
+    min_points=[(1, 1)],
+)
+
+
+plot_fn(neg_trimodal_func, x_range=(-2, 2), y_range=(-2, 2), min_points=means)
+plot_fn_with_points(rosenbrocks_banana_func, min_points=[(-1, "y_min")], points=points)
+
+
+
+# %%

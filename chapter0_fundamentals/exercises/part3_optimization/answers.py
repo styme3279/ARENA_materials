@@ -552,7 +552,7 @@ class WandbResNetFinetuner(ResNetFinetuner):
 
     @t.inference_mode()
     def evaluate(self) -> float:
-        """Equivalent to ResNetFinetuner.evaluate, but logging the accuracy to wandb."""
+        """Equivalexnt to ResNetFinetuner.evaluate, but logging the accuracy to wandb."""
         accuracy = super().evaluate()
         if args.use_wandb:
             wandb.log({"accuracy": accuracy}, self.examples_seen)

@@ -200,23 +200,46 @@ class DistResNetTrainer:
         loss.backward()
 
         for param in self.model.parameters():
-            all_reduce(param.grad, self.rank, self.args.world_size, "sum")
-                
+            reduce(param.grad, self.rank, self.args.world_size, SRC_RANK, "sum")
 
-        # if self.
-        self.optimizer.step()
-        self.optimizer.zero_grad()
+        if self.rank == SRC_RANK:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+        
+        for param in self.model.parameters():
+            broadcast(param.data, self.rank, self.args.world_size, SRC_RANK)
 
         self.examples_seen += imgs.shape[0] * world_size
 
-        if self.args.use_wandb:
+        if self.args.use_wandb and self.rank == SRC_RANK:
             wandb.log({"loss": loss}, self.examples_seen)
 
         return loss
 
     @t.inference_mode()
     def evaluate(self) -> float:
-        raise NotImplementedError()
+        self.model.eval()
+        total_info = t.zeros(2)
+
+        for imgs, labels in tqdm(self.test_loader, desc="Evaluating"):
+            # CPU -> GPU first, then perform preprocessing on GPU.
+            imgs = imgs.to(device)
+            labels = labels.to(device)
+            imgs = IMAGENET_TRANSFORM(imgs)
+
+            logits = self.model(imgs)
+            total_info[0] += (logits.argmax(dim=1) == labels).sum().item()
+            total_info[1] += len(imgs) 
+
+        reduce(total_info, self.rank, self.args.world_size, SRC_RANK, "sum")\
+
+        if self.rank == SRC_RANK:
+            accuracy = total_info[]
+
+        if self.args.use_wandb:
+            wandb.log({"accuracy": accuracy}, self.examples_seen)
+
+        return -1.0
 
     def train(self):
         raise NotImplementedError()

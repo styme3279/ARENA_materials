@@ -673,11 +673,6 @@ def sum_back(
     return np.broadcast_to(grad_out, x.shape)
 
 
-def _sum(x: Arr, dim: "int | tuple[int, ...] | None" = None, keepdim: bool = False) -> Arr:
-    """Like torch.sum, calling np.sum internally."""
-    return np.sum(x, axis=dim, keepdims=keepdim)
-
-
 sum = wrap_forward_fn(_sum)
 BACK_FUNCS.add_back_func(_sum, 0, sum_back)
 
@@ -1043,7 +1038,7 @@ class Linear(Module):
         """
         result = (x @ self.weight.T)
         if self.bias is not None:
-            result += self.bias
+            result = result + self.bias
         return result
 
     def extra_repr(self) -> str:
@@ -1250,4 +1245,14 @@ for epoch in range(num_epochs):
     test(model, test_loader, test_accuracy_list)
 
 print(f"\nCompleted in {time.time() - start: .2f}s")
+# %%
+line(
+    [train_loss_list, test_accuracy_list],
+    x_max=num_epochs,
+    yaxis2_range=[0, 1],
+    use_secondary_yaxis=True,
+    labels={"x": "Epoch", "y1": "Cross entropy loss", "y2": "Test accuracy"},
+    title="MLP training on MNIST from scratch",
+    width=800,
+)
 # %%

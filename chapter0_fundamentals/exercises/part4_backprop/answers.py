@@ -70,11 +70,26 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
         broadcasting rules.
     """
 
-    n_dim_broadcasted = len()
+    print(broadcasted.shape, original.shape)
+    n_dim_broadcasted = len(broadcasted.shape)
+    print(n_dim_broadcasted)
+
+    n_dim_original = len(original.shape)
+    print(n_dim_original)
+
+    assert n_dim_broadcasted >= n_dim_original
+    n_prepanded_dims = n_dim_broadcasted - n_dim_original
+    for i in range(n_prepanded_dims):
+        broadcasted = broadcasted.sum(axis=0)
+        print(broadcasted.shape)
+
+    assert n_dim_broadcasted == n_dim_original
+    for i, o in enumerate(original.shape):
+        if len(o) != len(broadcasted.shape[i]):
+            broadcasted = broadcasted.sum(axis=i, keepdims=True)
 
     assert broadcasted.shape == original.shape
     return broadcasted
-
 
 tests.test_unbroadcast(unbroadcast)
 

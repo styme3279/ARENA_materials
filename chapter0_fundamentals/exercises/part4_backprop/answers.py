@@ -45,24 +45,6 @@ def log_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
 tests.test_log_back(log_back)
 
 # %%
-x = np.ones((3, 1, 5))
-y = np.ones((1, 4, 5))
-
-z = x + y
-
-# %%
-x = np.ones((8, 2, 6))
-y = np.ones((8, 2))
-
-z = x + y
-
-# %%
-x = np.ones((4, 1))
-y = np.ones((4,))
-
-z = x + y
-
-# %%
 def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
     """
     Sum 'broadcasted' until it has the shape of 'original'.
@@ -277,7 +259,7 @@ class Tensor:
         return getitem(self, index)
 
     def add_(self, other: "Tensor", alpha: float = 1.0) -> "Tensor":
-        add_(self, other, alpha=alpha)
+        add_(self, other)
         return self
 
     def sub_(self, other: "Tensor", alpha: float = 1.0) -> "Tensor":
@@ -737,9 +719,7 @@ if MAIN:
 # %%
 
 add = wrap_forward_fn(np.add)
-#add_ = wrap_forward_fn(np.add)
 subtract = wrap_forward_fn(np.subtract)
-#sub_ = wrap_forward_fn(np.subtract)
 true_divide = wrap_forward_fn(np.true_divide)
 
 if MAIN:
@@ -813,7 +793,7 @@ def add_(x: Tensor, other: Tensor, alpha: float = 1.0) -> Tensor:
     """Like torch.add_. Compute x += other * alpha in-place and return tensor."""
     np.add(x.array, other.array * alpha, out=x.array)
     return x
-
+[]
 
 def sub_(x: Tensor, other: Tensor, alpha: float = 1.0) -> Tensor:
     """Like torch.sub_. Compute x -= other * alpha in-place and return tensor."""
@@ -1166,6 +1146,7 @@ tests.test_sum_dim_none(Tensor)
 tests.test_sum_nonscalar_grad_out(Tensor)
 
 add = wrap_forward_fn(np.add)
+# add_ = wrap_forward_fn(np.add)
 subtract = wrap_forward_fn(np.subtract)
 true_divide = wrap_forward_fn(np.true_divide)
 

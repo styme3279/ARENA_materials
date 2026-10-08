@@ -127,8 +127,10 @@ def multiply_back0(grad_out: Arr, out: Arr, x: Arr, y: Arr | float) -> Arr:
     """Backwards function for x * y wrt argument 0 aka x."""
     if not isinstance(y, Arr):
         y = np.array(y)
+    
+    return unbroadcast(y*grad_out,x)
 
-    raise NotImplementedError()
+
 
 
 def multiply_back1(grad_out: Arr, out: Arr, x: Arr | float, y: Arr) -> Arr:
@@ -136,8 +138,8 @@ def multiply_back1(grad_out: Arr, out: Arr, x: Arr | float, y: Arr) -> Arr:
     if not isinstance(x, Arr):
         x = np.array(x)
 
-    raise NotImplementedError()
-
+    return unbroadcast(x*grad_out,y)
 
 tests.test_multiply_back(multiply_back0, multiply_back1)
 tests.test_multiply_back_float(multiply_back0, multiply_back1)
+# %%

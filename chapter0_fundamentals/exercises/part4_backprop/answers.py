@@ -385,10 +385,11 @@ def tensor(array: Arr, requires_grad: bool = False) -> Tensor:
 
 # %%
 def log_forward(x: Tensor) -> Tensor:
-    x.array = np.log(x.array)
-    x.grad = x.grad * (1 / x) if x.grad is not None else (1 / x if x.requires_grad else x.grad)
+    out = Tensor(np.log(x.array), requires_grad = grad_tracking_enabled and  x.requires_grad)
+    # out.grad = x.grad * (1 / x) if x.grad is not None else (1 / x if out.requires_grad else x.grad)
+    out.recipe = Recipe(func=np.log, args=tuple(x.array, ), kwargs=None, parents={0: x})
     
-    raise NotImplementedError()
+    return out
 
 
 log = log_forward
@@ -400,3 +401,4 @@ b = log_forward(a)
 grad_tracking_enabled = True
 assert not b.requires_grad, "should not require grad if grad tracking globally disabled"
 assert b.recipe is None, "should not create recipe if grad tracking globally disabled"
+# %%

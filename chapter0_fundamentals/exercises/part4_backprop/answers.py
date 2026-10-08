@@ -583,8 +583,9 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
 
     # Create dict to store gradients
     grads: dict[Tensor, Arr] = {end_node: end_grad_arr}
-
     sorted_nodes = sorted_computational_graph(end_node)
+
+    # [first_node, last_node]
 
     pprint.pp([e.recipe for e in sorted_nodes])
 
@@ -593,10 +594,11 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         if node.requires_grad:
             node.grad = grads[node]
 
-        for p in node.recipe.parents:
+        if node.recipe is not None:
+            for i, p in node.recipe.parents.items():
+                grads[p] = BACK_FUNCS.get_back_func(node.recipe.func, i)(grads[node], node.array, *node.recipe.args)
 
-
-    raise NotImplementedError()
+        print(grads)
 
 
 tests.test_backprop(Tensor)

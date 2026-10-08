@@ -70,22 +70,22 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
         broadcasting rules.
     """
 
-    print(broadcasted.shape, original.shape)
+    #print(broadcasted.shape, original.shape)
     n_dim_broadcasted = len(broadcasted.shape)
-    print(n_dim_broadcasted)
+    #print(n_dim_broadcasted)
 
     n_dim_original = len(original.shape)
-    print(n_dim_original)
+    #print(n_dim_original)
 
     assert n_dim_broadcasted >= n_dim_original
     n_prepanded_dims = n_dim_broadcasted - n_dim_original
     for i in range(n_prepanded_dims):
         broadcasted = broadcasted.sum(axis=0)
-        print(broadcasted.shape)
+        #print(broadcasted.shape)
 
-    assert n_dim_broadcasted == n_dim_original
+    assert len(broadcasted.shape) == n_dim_original
     for i, o in enumerate(original.shape):
-        if len(o) != len(broadcasted.shape[i]):
+        if original.shape[i] != broadcasted.shape[i]:
             broadcasted = broadcasted.sum(axis=i, keepdims=True)
 
     assert broadcasted.shape == original.shape
@@ -94,3 +94,28 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
 tests.test_unbroadcast(unbroadcast)
 
 # %%
+def multiply_back0(grad_out: Arr, out: Arr, x: Arr, y: Arr | float) -> Arr:
+    """Backwards function for x * y wrt argument 0 aka x."""
+    if not isinstance(y, Arr):
+        y = np.array(y)
+
+    x
+    print(f"x.shape {x.shape}, y.shape {y.shape}, out.shape {out.shape}")
+    print((out/x).shape)
+    return grad_out * unbroadcast(out/x,y)
+
+
+def multiply_back1(grad_out: Arr, out: Arr, x: Arr | float, y: Arr) -> Arr:
+    """Backwards function for x * y wrt argument 1 aka y."""
+    if not isinstance(x, Arr):
+        x = np.array(x)
+
+    return grad_out * unbroadcast(out/y,x)
+
+
+tests.test_multiply_back(multiply_back0, multiply_back1)
+tests.test_multiply_back_float(multiply_back0, multiply_back1)
+
+# %%
+
+

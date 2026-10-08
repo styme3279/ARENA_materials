@@ -432,3 +432,91 @@ assert not b.requires_grad, "should not require grad if grad tracking globally d
 assert b.recipe is None, "should not create recipe if grad tracking globally disabled"
 
 # %%
+def wrap_forward_fn(numpy_func: Callable, is_differentiable: bool = True) -> Callable:
+    """
+    Args:
+        numpy_func:
+            takes any number of positional arguments, some of which may be NumPy arrays, and any
+            number of keyword arguments which we aren't allowing to be NumPy arrays at present. It
+            returns a single NumPy array.
+
+        is_differentiable:
+            if True, numpy_func is differentiable with respect to some input argument, so we may
+            need to track information in a Recipe. If False, we definitely don't need to track
+            information.
+
+    Returns:
+        tensor_func
+            It has the same signature as numpy_func, except it operates on Tensors instead of Arr.
+    """
+
+    def tensor_func(*args: Any, **kwargs: Any) -> Tensor:
+        # Get all function arguments as non-tensors (i.e. either ints or arrays)
+        arg_arrays = tuple([(a.array if isinstance(a, Tensor) else a) for a in args])
+        out = Tensor(numpy_func(*arg_arrays, **kwargs), requires_grad=is_differentiable and grad_tracking_enabled and any([getattr(a, "requires_grad", False) for a in args]))
+        if not is_differentiable:
+            out.recipe = None
+        else:
+            parents = {i:x for i, x in enumerate(args) if isinstance(x, Tensor)}
+            out.recipe = Recipe(func=numpy_func, args=(arg_arrays), kwargs=kwargs, parents=parents) if out.requires_grad else None
+
+        # YOUR CODE HERE - create output array & make it a tensor with requires_grad (& recipe)
+
+        return out
+
+    return tensor_func
+
+
+def _sum(x: Arr, dim: "int | tuple[int, ...] | None" = None, keepdim: bool = False) -> Arr:
+    # need to be careful with sum, because kwargs have different names in torch and numpy
+    return np.sum(x, axis=dim, keepdims=keepdim)
+
+
+log = wrap_forward_fn(np.log)
+multiply = wrap_forward_fn(np.multiply)
+eq = wrap_forward_fn(np.equal, is_differentiable=False)
+sum = wrap_forward_fn(_sum)
+
+tests.test_log(Tensor, log)
+tests.test_log_no_grad(Tensor, log)
+tests.test_multiply(Tensor, multiply)
+tests.test_multiply_no_grad(Tensor, multiply)
+tests.test_multiply_float(Tensor, multiply)
+tests.test_subclass_treated_as_tensor(Tensor, multiply)
+tests.test_eq(Tensor, eq)
+tests.test_sum(Tensor)
+
+# %%
+def topological_sort(node: Node, get_children: Callable) -> list[Node]:
+    """
+    Return all nodes reachable from `node` via `get_children`, in topological order
+    such that each node appears after all of its children (i.e. `node` itself is last).
+
+    Should raise an error if the graph contains a cycle.
+    """
+    result: list[Node] = []  # stores the list of nodes to be returned (in reverse topological order)
+    perm: set[Node] = set()  # same as `result`, but as a set (faster to check for membership)
+    temp: set[Node] = set()  # keeps track of previously visited nodes (to detect cyclicity)
+
+    def visit(cur: Node):
+        """
+        Recursive function which visits all the children of the current node,
+        and appends them all to `result` in the order they were found.
+        """
+        if cur in perm:
+            return
+        if cur in temp:
+            raise ValueError("Not a DAG!")
+        temp.add(cur)
+
+        for next in get_children(cur):
+            visit(next)
+
+        result.append(cur)
+        perm.add(cur)
+        temp.remove(cur)
+
+    visit(node)
+    return result
+
+# %%

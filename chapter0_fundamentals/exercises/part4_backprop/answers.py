@@ -61,10 +61,31 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
     # YOUR CODE HERE: sum over `broadcasted` until it has the shape of `original`
     reduced_dims = broadcasted.ndim - original.ndim
 
-    print(reduced_dims)
+    print(broadcasted.shape)
+    print(original.shape)
+
+    print([i + reduced_dims for i in original.shape if i == 1])
+
+    print("test")
+    # print([i for i in range(reduced_dims)])
+    print(np.argwhere(np.array([2, 1, 3]) == 1))
+    print((np.array(np.argwhere(np.array(original.shape) == 1)) + reduced_dims).tolist())
+    # print((np.argwhere(original.shape == 1) + reduced_dims).tolist())
+
+    print([i for i in range(reduced_dims)] + [i + reduced_dims for i in original.shape if i == 1])
+
     broadcasted = np.add.reduce(broadcasted,
-        axis=[i for i in range(reduced_dims)] + np.argwhere(broadcasted.shape[reduced_dims:] == 1).tolist()
+        axis=tuple([i for i in range(reduced_dims)],
+        keepdims=False)
     )
+    broadcasted = np.add.reduce(broadcasted,
+        axis=tuple([i + reduced_dims for i in original.shape if i == 1]),
+        keepdims=True
+    )
+
+
+    print(broadcasted.shape)
+
 
     assert broadcasted.shape == original.shape
     return broadcasted

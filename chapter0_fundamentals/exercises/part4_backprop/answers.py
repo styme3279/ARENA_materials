@@ -569,56 +569,31 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         print(node)
 
         outgrad = grads.pop(node)
+        print("grads:")
+        print(grads)
         
-        # looping through parents
-        for i, parent in parents.items():
-            # accumulating gradients in the current node
-            back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
-            grad += back_func(outgrad, node.array, *node.recipe.args, **node.recipe.kwargs)
-        
-            # update the grads dictionary
-            grads[parent] = grad
-
-        # check if it is a leaf
-        if (node.recipe is None or (node.recipe and node.recipe.parents is None)) and node.requires_grad: # check if leaf node
+        if node.recipe is None: # if true it is a scalar
+            continue
+        print(1)
+        if node.recipe.parents is None: # if true it is a leaf
+            print(2)
             # update the current node's gradient if it is a leaf
-            node.grad = grads[node]
+            node.grad = outgrad#grads[node]
+            print(2.5)
         else:
-            # otherwise set it to None
+            print(3)
+            # if leaf, then current node's grad is None but we still have to calculate the grad of potential parents
             node.grad = None
 
+            # looping through parents
+            for i, parent in parents.items():
+                print("parent loop: ", i)
+                # accumulating gradients in the current node
+                back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
+                grads[parent] = grads.get(parent, 0.0) + back_func(outgrad, node.array, *node.recipe.args, **node.recipe.kwargs)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-        # if isinstance(node, Tensor):
-        
-        #     grad = 0.0 # this might need to be a tensor
-        #     if node.recipe is not None:
-        #         parents = node.recipe.parents
-        #         print(parents)
-
-        #             for i, parent in parents.items():
-        #                 back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
-        #                 grad  += back_func(old_grad, node.array, *node.recipe.args, **node.recipe.kwargs)
-        #             grads[node] = None
-            
-        #     grads[node] = grad
-                
-        #     node.grad = grads[node]
-        #     print(char, "grad", node.grad)
-            
-            
+        print("grads:")
+        print(grads)
 
 tests.test_backprop(Tensor)
 tests.test_backprop_branching(Tensor)

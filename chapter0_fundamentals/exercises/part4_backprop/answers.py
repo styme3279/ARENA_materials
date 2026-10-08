@@ -601,13 +601,22 @@ def negative_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
     """Backward function for f(x) = -x elementwise."""
     return -grad_out
 
+negative = wrap_forward_fn(np.negative)
+BACK_FUNCS.add_back_func(np.negative, 0, negative_back)
+
 def exp_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
     """Backward function for f(x) = exp(x) elementwise."""
     return out * grad_out
 
+exp = wrap_forward_fn(np.exp)
+BACK_FUNCS.add_back_func(np.exp, 0, exp_back)
+
 def reshape_back(grad_out: Arr, out: Arr, x: Arr, new_shape: tuple[int, ...]) -> Arr:
     """Backward function for torch.reshape."""
     return np.reshape(grad_out, x.shape)
+
+reshape = wrap_forward_fn(np.reshape)
+BACK_FUNCS.add_back_func(np.reshape, 0, reshape_back)
 
 def permute_back(grad_out: Arr, out: Arr, x: Arr, axes: tuple[int, ...]) -> Arr:
     """
@@ -615,6 +624,9 @@ def permute_back(grad_out: Arr, out: Arr, x: Arr, axes: tuple[int, ...]) -> Arr:
     function.
     """
     return np.transpose(grad_out, np.argsort(axes))
+
+BACK_FUNCS.add_back_func(np.transpose, 0, permute_back)
+permute = wrap_forward_fn(np.transpose)
 
 # %%
 def sum_back(
@@ -786,6 +798,10 @@ def matmul2d_back0(grad_out: Arr, out: Arr, x: Arr, y: Arr) -> Arr:
 def matmul2d_back1(grad_out: Arr, out: Arr, x: Arr, y: Arr) -> Arr:
     return x.T @ grad_out
 
+matmul = wrap_forward_fn(_matmul2d)
+BACK_FUNCS.add_back_func(_matmul2d, 0, matmul2d_back0)
+BACK_FUNCS.add_back_func(_matmul2d, 1, matmul2d_back1)
+
 # %%
 class Parameter(Tensor):
     def __init__(self, tensor: Tensor, requires_grad: bool = True):
@@ -883,7 +899,14 @@ assert list(mod.parameters()) == [mod.param3, mod.inner.param1, mod.inner.param2
 print("Manually verify that the repr looks reasonable:")
 print(mod)
 print("All tests for `Module` passed!")
+
 # %%
+add = wrap_forward_fn(np.add)
+subtract = wrap_forward_fn(np.subtract)
+true_divide = wrap_forward_fn(np.true_divide)
+
+BACK_FUNCS.add_back_func(np.add, 0, lambda grad_out, out, x, y: unbroadcast(grad_out, x))
+
 class Linear(Module):
     weight: Parameter
     bias: Parameter | None
@@ -904,16 +927,20 @@ class Linear(Module):
         self.weight = Parameter(Tensor(np.random.uniform(low = -sf, high = sf, size=(out_features, in_features))))
 
         if bias:
-            self.bias = Parameter(Tensor(np.zeros(out_features, in_features)))
+            self.bias = Parameter(Tensor(np.zeros((1, out_features))))
         else:
-            self.bias = Tensor(np.zeros(out_features, in_features))
+            self.bias = Tensor(np.zeros((1, out_features)))
 
     def forward(self, x: Tensor) -> Tensor:
         """
         x: shape (*, in_features)
         Return: shape (*, out_features)
         """
-        return 
+        print(self.weight.shape)
+        print(x.shape)
+        print(self.bias.shape)
+
+        return (self.weight @ x.T + self.bias.T).T
 
     def extra_repr(self) -> str:
         return f"in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}"
@@ -934,4 +961,42 @@ expected_output = input @ linear.weight.T + linear.bias
 np.testing.assert_allclose(output.array, expected_output.array)
 
 print("All tests for `Linear` passed!")
+
+# %%
+class ReLU(Module):
+    def forward(self, x: Tensor) -> Tensor:
+        return relu(x)
+
+# %%
+class MLP(Module):
+    def __init__(self):
+        super().__init__()
+        self.linear1 = Linear(28 * 28, 64)
+        self.linear2 = Linear(64, 64)
+        self.relu1 = ReLU()
+        self.relu2 = ReLU()
+        self.output = Linear(64, 10)
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = x.reshape((x.shape[0], 28 * 28))
+        x = self.relu1(self.linear1(x))
+        x = self.relu2(self.linear2(x))
+        x = self.output(x)
+        return x
+
+# %%
+def cross_entropy(logits: Tensor, true_labels: Tensor) -> Tensor:
+    """Like torch.nn.functional.cross_entropy with reduction='none'.
+
+    logits: shape (batch, classes)
+    true_labels: shape (batch,). Each element is the index of the correct label in the logits.
+
+    Return: shape (batch, ) containing the per-example loss.
+    """
+    logit_max = Tensor(logits.array.max(-1, keepdims=True))
+    shifted_logits = logits - logit_max
+
+    probs = shifted_logits.exp() / shifted_logits.exp().sum(dim=1)
+
+tests.test_cross_entropy(Tensor, cross_entropy)
 # %%

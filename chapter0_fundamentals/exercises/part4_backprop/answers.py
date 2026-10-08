@@ -737,7 +737,9 @@ if MAIN:
 # %%
 
 add = wrap_forward_fn(np.add)
+#add_ = wrap_forward_fn(np.add)
 subtract = wrap_forward_fn(np.subtract)
+#sub_ = wrap_forward_fn(np.subtract)
 true_divide = wrap_forward_fn(np.true_divide)
 
 if MAIN:

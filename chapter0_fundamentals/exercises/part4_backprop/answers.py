@@ -579,7 +579,7 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         if node.recipe is None or not node.recipe.parents:
             continue
         for idx, parent in node.recipe.parents.items():
-            grads[parent] = np.ones_like(node.array, dtype=np.float32)
+            grads[parent] = np.ones_like(parent.array, dtype=np.float32)
             backward_fn = BACK_FUNCS.get_back_func(forward_fn=node.recipe.func, arg_position=idx)
             grad = backward_fn(grads[node], node.array, *node.recipe.args, **node.recipe.kwargs)
             grads[parent] *= grad
@@ -597,6 +597,26 @@ tests.test_backprop_shared_parent(Tensor)
 tests.test_backprop_grad_accumulation(Tensor)
 
 # %%
+def negative_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
+    """Backward function for f(x) = -x elementwise."""
+    return -grad_out
+
+def exp_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
+    """Backward function for f(x) = exp(x) elementwise."""
+    return out * grad_out
+
+def reshape_back(grad_out: Arr, out: Arr, x: Arr, new_shape: tuple[int, ...]) -> Arr:
+    """Backward function for torch.reshape."""
+    return np.reshape(grad_out, x.shape)
+
+def permute_back(grad_out: Arr, out: Arr, x: Arr, axes: tuple[int, ...]) -> Arr:
+    """
+    Backward function for torch.permute. Works by inverting the transposition in the forward
+    function.
+    """
+    return np.transpose(grad_out, np.argsort(axes))
+
+# %%
 def sum_back(
     grad_out: Arr, 
     out: Arr, 
@@ -605,14 +625,8 @@ def sum_back(
     keepdim: bool = False
 ) -> Arr:
     """Backward function for torch.sum"""
-    print(grad_out)
-    print(x)
-    print(dim)
-    print(keepdim)
-
-    if not keepdim:
-        np.expand_dims(grad_out, dim)
-        print(grad_out.shape)
+    if not keepdim and dim is not None:
+        grad_out = np.expand_dims(grad_out, dim)
 
     return np.broadcast_to(grad_out, x.shape)
 
@@ -629,5 +643,13 @@ tests.test_sum_keepdim_false(Tensor)
 tests.test_sum_keepdim_true(Tensor)
 tests.test_sum_dim_none(Tensor)
 tests.test_sum_nonscalar_grad_out(Tensor)
+
+# %%
+BACK_FUNCS.add_back_func(np.add, 0, lambda grad_out, out, x, y: unbroadcast(grad_out, x))
+BACK_FUNCS.add_back_func(np.add, 1, lambda grad_out, out, x, y: unbroadcast(grad_out, y))
+BACK_FUNCS.add_back_func(np.subtract, 0, lambda grad_out, out, x, y: unbroadcast(grad_out, x))
+BACK_FUNCS.add_back_func(np.subtract, 1, lambda grad_out, out, x, y: unbroadcast(-grad_out, y))
+BACK_FUNCS.add_back_func(np.true_divide, 0, lambda grad_out, out, x, y: unbroadcast(grad_out / y, x))
+BACK_FUNCS.add_back_func(np.true_divide, 1, lambda grad_out, out, x, y: unbroadcast(grad_out * (-x / y**2), y))
 
 # %%

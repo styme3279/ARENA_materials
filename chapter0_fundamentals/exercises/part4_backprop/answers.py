@@ -566,7 +566,9 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     grads = {}
     # print(comput_graph)
     old_grad = end_grad_arr
-    for node in comput_graph:
+    for i, node in enumerate(comput_graph):
+        char = chr(99 - i)
+        print()
         print("New node")
         print(node)
         print("Parents:")
@@ -576,12 +578,15 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
             grad = 0.0 # this might need to be a tensor
             for i, parent in parents.items():
                 back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
-                grad += back_func(old_grad, node.array, *node.recipe.args, **node.recipe.kwargs)
-            node.grad = grad
-            old_grad = grad
-
-
-
+                grad  += back_func(old_grad, node.array, *node.recipe.args, **node.recipe.kwargs)
+            print(char, "grad", grad)
+            grads[node] = grad
+            if parents:
+                grads[node] = None
+            
+            node.grad = grads[node]
+            
+            
 
 tests.test_backprop(Tensor)
 tests.test_backprop_branching(Tensor)
@@ -593,6 +598,9 @@ tests.test_backprop_grad_accumulation(Tensor)
 
 # %%
 
+
+chr(99)
 # assert BACK_FUNCS.get_back_func(np.log, 0) == log_back
 # assert BACK_FUNCS.get_back_func(np.multiply, 0) == multiply_back0
 # assert BACK_FUNCS.get_back_func(np.multiply, 1) == multiply_back1
+# %%

@@ -629,8 +629,7 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         else:
             for argnum, parent in node.recipe.parents.items():
                 grad_fn = BACK_FUNCS.get_back_func(node.recipe.func,argnum)
-                print(grad_fn)
-                new_grad = grad_fn(parent,node.array,*node.recipe.args,**node.recipe.kwargs)
+                new_grad = grad_fn(outgrad,node.array,*node.recipe.args,**node.recipe.kwargs)
                 grads[parent] = new_grad if (parent not in grads) else grads[parent] + new_grad
 
 tests.test_backprop(Tensor)
@@ -641,3 +640,74 @@ tests.test_backprop_float_arg(Tensor)
 tests.test_backprop_shared_parent(Tensor)
 tests.test_backprop_grad_accumulation(Tensor)
 # %%
+
+def negative_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
+    """Backward function for f(x) = -x elementwise."""
+    return -grad_out
+
+
+negative = wrap_forward_fn(np.negative)
+BACK_FUNCS.add_back_func(np.negative, 0, negative_back)
+
+tests.test_negative_back(Tensor)
+# %%
+def exp_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
+    """Backward function for f(x) = exp(x) elementwise."""
+    return grad_out * out
+
+exp = wrap_forward_fn(np.exp)
+BACK_FUNCS.add_back_func(np.exp, 0, exp_back)
+
+tests.test_exp_back(Tensor)
+# %%
+
+def reshape_back(grad_out: Arr, out: Arr, x: Arr, new_shape: tuple[int, ...]) -> Arr:
+    """Backward function for torch.reshape."""
+    return np.reshape(grad_out,x.shape)
+
+
+reshape = wrap_forward_fn(np.reshape)
+BACK_FUNCS.add_back_func(np.reshape, 0, reshape_back)
+
+tests.test_reshape_back(Tensor)
+# %%
+def permute_back(grad_out: Arr, out: Arr, x: Arr, axes: tuple[int, ...]) -> Arr:
+    """
+    Backward function for torch.permute. Works by inverting the transposition in the forward
+    function.
+    """
+    return np.transpose(grad_out, np.argsort(axes))
+
+
+BACK_FUNCS.add_back_func(np.transpose, 0, permute_back)
+permute = wrap_forward_fn(np.transpose)
+
+tests.test_permute_back(Tensor)
+# %%
+def sum_back(
+    grad_out: Arr, 
+    out: Arr, 
+    x: Arr, 
+    dim: "int | tuple[int, ...] | None" = None, 
+    keepdim: bool = False
+) -> Arr:
+    """Backward function for torch.sum
+    z = x_1 + x_2 + x_3
+    dg/d
+    
+    """
+    raise NotImplementedError()
+
+
+def _sum(x: Arr, dim: "int | tuple[int, ...] | None" = None, keepdim: bool = False) -> Arr:
+    """Like torch.sum, calling np.sum internally."""
+    return np.sum(x, axis=dim, keepdims=keepdim)
+
+
+sum = wrap_forward_fn(_sum)
+BACK_FUNCS.add_back_func(_sum, 0, sum_back)
+
+tests.test_sum_keepdim_false(Tensor)
+tests.test_sum_keepdim_true(Tensor)
+tests.test_sum_dim_none(Tensor)
+tests.test_sum_nonscalar_grad_out(Tensor)

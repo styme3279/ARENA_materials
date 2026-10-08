@@ -104,8 +104,6 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
 
     og_shape = original.shape
     b_shape = broadcasted.shape
-    print('og_shape - ', og_shape)
-    print('b_shape - ', b_shape)
 
     original_b = original.copy()
 
@@ -113,16 +111,33 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
     while len(original.shape) != len(broadcasted.shape):
         original = np.expand_dims(original,axis=0)
         added_dims += 1
-    print('updated og shape - ', original.shape)
-    print(len(original.shape))
+    sum_axis = []
     for i in range(len(original.shape)):
         if original.shape[i] != broadcasted.shape[i]:
-            broadcasted = broadcasted.sum(axis=i)
-    print('broadcasted shape - ', broadcasted.shape)
-    print('squeezed shape - ', broadcasted.squeeze().shape)
-    return broadcasted.squeeze()
+            sum_axis.append(i)
+    broadcasted = broadcasted.sum(axis=tuple(sum_axis),keepdims=True)
+    return broadcasted.reshape(og_shape)
     
 
 
 tests.test_unbroadcast(unbroadcast)
 # %%
+
+def multiply_back0(grad_out: Arr, out: Arr, x: Arr, y: Arr | float) -> Arr:
+    """Backwards function for x * y wrt argument 0 aka x."""
+    if not isinstance(y, Arr):
+        y = np.array(y)
+
+    raise NotImplementedError()
+
+
+def multiply_back1(grad_out: Arr, out: Arr, x: Arr | float, y: Arr) -> Arr:
+    """Backwards function for x * y wrt argument 1 aka y."""
+    if not isinstance(x, Arr):
+        x = np.array(x)
+
+    raise NotImplementedError()
+
+
+tests.test_multiply_back(multiply_back0, multiply_back1)
+tests.test_multiply_back_float(multiply_back0, multiply_back1)

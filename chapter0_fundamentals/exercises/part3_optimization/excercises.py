@@ -545,7 +545,6 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     for node in comp_graph:
         recipe = node.recipe
         array = node.array
-        
 
 tests.test_backprop(Tensor)
 tests.test_backprop_branching(Tensor)

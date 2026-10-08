@@ -148,9 +148,12 @@ def forward_and_back(a: Arr, b: Arr, c: Arr) -> tuple[Arr, Arr, Arr]:
     final_grad_out = np.ones_like(g)
 
     # YOUR CODE HERE - use your backward functions to compute the gradients of g wrt a, b, and c
-    df_dg = log_back(final_grad_out, g, f)
-    dd_df = multiply_back0(df_dg, f, d, e)
-    dd_df = multiply_back1(df_dg, f, d, e)
+    dg_df = log_back(final_grad_out, g, f)
+    dg_dd = multiply_back0(dg_df, f, d, e)
+    dg_de = multiply_back1(dg_df, f, d, e)
+    dg_dc = log_back(dg_de, e, c)
+    dg_da = multiply_back0(dg_dd, d, a, b)
+    dg_db = multiply_back1(dg_dd, d, a, b)
 
     return (dg_da, dg_db, dg_dc)
 

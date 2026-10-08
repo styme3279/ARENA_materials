@@ -52,6 +52,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator
 
 import numpy as np
+import torch as t
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
@@ -71,4 +72,27 @@ if str(exercises_dir) not in sys.path:
 import part4_backprop.tests as tests
 from part4_backprop.utils import get_mnist, visualize
 from plotly_utils import line
+
+# %%
+def log_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
+    """Backwards function for f(x) = log(x)
+
+    grad_out: Gradient of some loss wrt out
+    out: the output of np.log(x).
+    x: the input of np.log.
+
+    Return: gradient of the given loss wrt x
+    """
+    return grad_out * 1 / x
+
+tests.test_log_back(log_back)
+
+# %%
+x, y = 2.0, t.rand((3, 4), requires_grad=True)
+print(x, y)
+z = x * y
+print(z)
+z.backward()
+print(z.grad)
+
 # %%

@@ -993,10 +993,142 @@ def cross_entropy(logits: Tensor, true_labels: Tensor) -> Tensor:
 
     Return: shape (batch, ) containing the per-example loss.
     """
+    batch_size = logits.shape[0]
     logit_max = Tensor(logits.array.max(-1, keepdims=True))
-    shifted_logits = logits - logit_max
-
-    probs = shifted_logits.exp() / shifted_logits.exp().sum(dim=1)
+    logits = logits - logit_max
+    logprobs = logits - logits.exp().sum(-1, keepdim=True).log()
+    return -logprobs[arange(0, batch_size), true_labels]
 
 tests.test_cross_entropy(Tensor, cross_entropy)
+# %%
+class NoGrad:
+    """Context manager that disables grad inside the block. Like torch.no_grad."""
+
+    was_enabled: bool
+
+    def __enter__(self):
+        """
+        Method which is called whenever the context manager is entered, i.e. at the start of the
+        `with NoGrad():` block. This disables gradient tracking (but stores the value it had before,
+        so we can set it back to this on exit).
+        """
+        global grad_tracking_enabled
+        self.was_enabled = grad_tracking_enabled
+        grad_tracking_enabled = False
+
+    def __exit__(self, type: Any, value: Any, traceback: Any):
+        """
+        Method which is called whenever we exit the context manager. This sets the global
+        `grad_tracking_enabled` variable back to the value it had before we entered the context
+        manager.
+        """
+        global grad_tracking_enabled
+        grad_tracking_enabled = self.was_enabled
+
+
+assert grad_tracking_enabled
+with NoGrad():
+    assert not grad_tracking_enabled
+assert grad_tracking_enabled
+print("Verified that we've disabled gradients inside `NoGrad`, then set back to its previous value once we exit.")
+
+# %%
+class SGD:
+    def __init__(self, params: Iterable[Parameter], lr: float):
+        """Vanilla SGD with no additional features."""
+        self.params = list(params)
+        self.lr = lr
+        self.b = [None for _ in self.params]
+
+    def zero_grad(self):
+        """Iterates through params, and sets all grads to None."""
+        for param in self.params:
+            param.grad = None
+
+    def step(self):
+        """Iterates through params, and updates each of them by subtracting `param.grad * lr`."""
+        for param in self.params:
+            param -= param.grad * self.lr
+
+
+tests.test_sgd(Parameter, Tensor, SGD)
+
+# %%
+train_loader, test_loader = get_mnist()
+visualize(train_loader)
+
+# %%
+def train(
+    model: MLP,
+    train_loader: DataLoader,
+    optimizer: SGD,
+    epoch: int,
+    train_loss_list: list | None = None,
+):
+    print(f"Epoch: {epoch}")
+    progress_bar = tqdm(train_loader)
+    for data, target in progress_bar:
+        data, target = Tensor(data.numpy()), Tensor(target.numpy())
+        optimizer.zero_grad()
+        output = model(data)
+        loss = cross_entropy(output, target).sum() / len(output)
+        loss.backward()
+        progress_bar.set_description(f"Train set: Avg loss: {loss.item():.3f}")
+        for p in model.parameters():
+            assert p.grad is not None, (
+                "A parameter has no gradient after `loss.backward()`, so backprop never reached it. Common causes: "
+                "`wrap_forward_fn` using `type(x) == Tensor` instead of `isinstance` (so `Parameter` is skipped), or "
+                "`backprop` not recording gradients for every leaf with `requires_grad=True`."
+            )
+        optimizer.step()
+        if train_loss_list is not None:
+            train_loss_list.append(loss.item())
+
+
+def test(model: MLP, test_loader: DataLoader, test_accuracy_list: list | None = None):
+    test_loss = 0
+    test_accuracy = 0
+    with NoGrad():
+        for data, target in test_loader:
+            data, target = Tensor(data.numpy()), Tensor(target.numpy())
+            output: Tensor = model(data)
+            test_loss += cross_entropy(output, target).sum().item()
+            pred = output.argmax(dim=1, keepdim=True)
+            test_accuracy += (pred == target.reshape(pred.shape)).sum().item()
+    n_data = len(test_loader.dataset)
+    test_loss /= n_data
+    print(f"Test set:  Avg loss: {test_loss:.3f}, Accuracy: {test_accuracy}/{n_data} ({test_accuracy / n_data:.1%})")
+    if test_accuracy_list is not None:
+        test_accuracy_list.append(test_accuracy / n_data)
+
+
+# Cap BLAS threads: the matmuls here are small enough that on a many-core machine, the default
+# (one thread per core) is dominated by thread-sync overhead and can be ~10x slower than 4 threads.
+# Feel free to adjust/remove if this causes problems.
+from threadpoolctl import threadpool_limits
+threadpool_limits(4)
+
+num_epochs = 5
+model = MLP()
+start = time.time()
+train_loss_list = []
+test_accuracy_list = []
+optimizer = SGD(model.parameters(), 0.01)
+test(model, test_loader, test_accuracy_list) # pre-training baseline
+for epoch in range(num_epochs):
+    train(model, train_loader, optimizer, epoch, train_loss_list)
+    test(model, test_loader, test_accuracy_list)
+
+print(f"\nCompleted in {time.time() - start: .2f}s")
+
+# %%
+line(
+    [train_loss_list, test_accuracy_list],
+    x_max=num_epochs,
+    yaxis2_range=[0, 1],
+    use_secondary_yaxis=True,
+    labels={"x": "Epoch", "y1": "Cross entropy loss", "y2": "Test accuracy"},
+    title="MLP training on MNIST from scratch",
+    width=800,
+)
 # %%

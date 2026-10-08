@@ -1095,26 +1095,67 @@ def cross_entropy(logits: Tensor, true_labels: Tensor) -> Tensor:
 
     Return: shape (batch, ) containing the per-example loss.
     """
-    print(logits)
-    print(true_labels)
 
     logit_max = Tensor(logits.array.max(-1, keepdims=True))
     shifted_logits = logits - logit_max
 
     n = exp(shifted_logits)
     summed = sum(exp(shifted_logits), dim=1, keepdim=True)
-    print(n.shape)
-    print(summed.shape)
     result = -log(n / summed)
 
-    print(result.shape)
-    print(result[true_labels].shape)
-    print(true_labels.array)
-    print(true_labels.array.dtype)
-    r = result[true_labels.array, :]
-    print(r)
-
-    return (result[true_labels])
+    return (result[np.arange(0, logits.shape[0], dtype=np.int32),true_labels.array])
 
 tests.test_cross_entropy(Tensor, cross_entropy)
+# %%
+class NoGrad:
+    """Context manager that disables grad inside the block. Like torch.no_grad."""
+
+    was_enabled: bool
+
+    def __enter__(self):
+        """
+        Method which is called whenever the context manager is entered, i.e. at the start of the
+        `with NoGrad():` block. This disables gradient tracking (but stores the value it had before,
+        so we can set it back to this on exit).
+        """
+        global grad_tracking_enabled
+        self.was_enabled = grad_tracking_enabled
+        grad_tracking_enabled = False
+
+    def __exit__(self, type: Any, value: Any, traceback: Any):
+        """
+        Method which is called whenever we exit the context manager. This sets the global
+        `grad_tracking_enabled` variable back to the value it had before we entered the context
+        manager.
+        """
+        global grad_tracking_enabled
+        grad_tracking_enabled = self.was_enabled
+
+
+assert grad_tracking_enabled
+with NoGrad():
+    assert not grad_tracking_enabled
+assert grad_tracking_enabled
+print("Verified that we've disabled gradients inside `NoGrad`, then set back to its previous value once we exit.")
+# %%
+class SGD:
+    def __init__(self, params: Iterable[Parameter], lr: float):
+        """Vanilla SGD with no additional features."""
+        self.params = list(params)
+        self.lr = lr
+        self.b = [None for _ in self.params]
+
+    def zero_grad(self):
+        """Iterates through params, and sets all grads to None."""
+        for p in self.params:
+            p.grad = None
+
+    def step(self):
+        """Iterates through params, and updates each of them by subtracting `param.grad * lr`."""
+        for p in self.params:
+            if p.grad is not None:
+                p.array += p.grad * -self.lr
+
+
+tests.test_sgd(Parameter, Tensor, SGD)
 # %%

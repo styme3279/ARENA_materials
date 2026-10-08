@@ -561,3 +561,11 @@ tests.test_backprop_shared_parent(Tensor)
 tests.test_backprop_grad_accumulation(Tensor)
 
 # %%
+def negative_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
+    """Backward function for f(x) = -x elementwise."""
+    
+
+negative = wrap_forward_fn(np.negative)
+BACK_FUNCS.add_back_func(np.negative, 0, negative_back)
+
+tests.test_negative_back(Tensor)

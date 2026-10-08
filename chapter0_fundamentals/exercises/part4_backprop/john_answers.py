@@ -595,5 +595,54 @@ print([name_lookup[t] for t in sorted_computational_graph(g)])
 
 
 # %%
+def backprop(end_node: Tensor, end_grad: Tensor | None = None):
+    """Accumulates gradients in the grad field of each leaf node.
 
+    tensor.backward() is equivalent to backprop(tensor).
+
+    end_node:
+        The rightmost node in the computation graph. If it contains more than one element, end_grad
+        must be provided.
+    end_grad:
+        A tensor of the same shape as end_node. Set to 1 if not specified and end_node has only one
+        element.
+    """
+    # Get value of end_grad_arr
+    end_grad_arr = np.ones_like(end_node.array) if end_grad is None else end_grad.array
+
+    # Create dict to store gradients
+    grads: dict[Tensor, Arr] = {end_node: end_grad_arr}
+
+    for node in sorted_computational_graph(end_node):
+        # Get the outgrad from the grads dict
+        outgrad = grads.pop(node)
+
+        # (1) If it's a leaf node, then set/update gradient if requires_grad=True, and stop here.
+        if node.is_leaf:
+            if node.requires_grad:
+                node.grad = Tensor(outgrad) if node.grad is None else Tensor(node.grad.array + outgrad)
+
+        # (2) If not a leaf node then it must have a recipe, so we iterate through its parents and
+        # update their grads.
+        else:
+            for argnum, parent in node.recipe.parents.items():
+                # Get backward function, from the fwd function that created `node` from `parent`.
+                back_fn = BACK_FUNCS.get_back_func(node.recipe.func, argnum)
+
+                # Use it to compute the gradient we'll add onto parent from the path `parent -> node
+                # -> ... -> end_node`.
+                in_grad = back_fn(outgrad, node.array, *node.recipe.args, **node.recipe.kwargs)
+
+                # Add this gradient to the grads dict (handling special case where parent is not in
+                # grads yet).
+                grads[parent] = in_grad if (parent not in grads) else grads[parent] + in_grad
+
+
+tests.test_backprop(Tensor)
+tests.test_backprop_branching(Tensor)
+tests.test_backprop_requires_grad_sum(Tensor)
+tests.test_backprop_requires_grad_false(Tensor)
+tests.test_backprop_float_arg(Tensor)
+tests.test_backprop_shared_parent(Tensor)
+tests.test_backprop_grad_accumulation(Tensor)
 # %%

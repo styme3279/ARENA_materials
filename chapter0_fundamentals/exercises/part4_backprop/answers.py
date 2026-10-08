@@ -1102,12 +1102,17 @@ def cross_entropy(logits: Tensor, true_labels: Tensor) -> Tensor:
     shifted_logits = logits - logit_max
 
     n = exp(shifted_logits)
-    summed = sum(exp(shifted_logits), dim=1)
+    summed = sum(exp(shifted_logits), dim=1, keepdim=True)
     print(n.shape)
     print(summed.shape)
-    result = -log(n.T / summed)
+    result = -log(n / summed)
 
     print(result.shape)
+    print(result[true_labels].shape)
+    print(true_labels.array)
+    print(true_labels.array.dtype)
+    r = result[true_labels.array, :]
+    print(r)
 
     return (result[true_labels])
 

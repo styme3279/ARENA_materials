@@ -99,23 +99,41 @@ def multiply_back0(grad_out: Arr, out: Arr, x: Arr, y: Arr | float) -> Arr:
     if not isinstance(y, Arr):
         y = np.array(y)
 
-    x
+    assert out.shape == grad_out.shape
     print(f"x.shape {x.shape}, y.shape {y.shape}, out.shape {out.shape}")
     print((out/x).shape)
-    return grad_out * unbroadcast(out/x,y)
+    return unbroadcast(grad_out * y,x)
 
 
 def multiply_back1(grad_out: Arr, out: Arr, x: Arr | float, y: Arr) -> Arr:
     """Backwards function for x * y wrt argument 1 aka y."""
     if not isinstance(x, Arr):
         x = np.array(x)
-
-    return grad_out * unbroadcast(out/y,x)
+    return unbroadcast(grad_out * x,y)
 
 
 tests.test_multiply_back(multiply_back0, multiply_back1)
 tests.test_multiply_back_float(multiply_back0, multiply_back1)
 
 # %%
+def forward_and_back(a: Arr, b: Arr, c: Arr) -> tuple[Arr, Arr, Arr]:
+    """
+    Calculates the output of the computational graph above (g), then backpropagates the gradients
+    and returns dg/da, dg/db, and dg/dc.
+    """
+    d = a * b
+    e = np.log(c)
+    f = d * e
+    g = np.log(f)
+    final_grad_out = np.ones_like(g)
+
+    dg_df = log_back(final_grad_out, g, f)
+    df_de
+    df_dd
+
+    return (dg_da, dg_db, dg_dc)
 
 
+tests.test_forward_and_back(forward_and_back)
+
+# %%

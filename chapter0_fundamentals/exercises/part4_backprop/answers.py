@@ -206,8 +206,10 @@ class BackwardFuncLookup:
 
     def get_back_func(self, forward_fn: Callable, arg_position: int) -> Callable:
         dicty = self.lookup[forward_fn]
-        if forward_fn == np.log:
-            return 
+        if forward_fn == np.multiply:
+            ...
+        else:
+            return dicty['back_fn']
 
 
 BACK_FUNCS = BackwardFuncLookup()

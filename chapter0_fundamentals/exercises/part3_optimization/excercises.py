@@ -522,3 +522,30 @@ name_lookup = {a: "a", b: "b", c: "c", d: "d", e: "e", f: "f", g: "g"}
 print([name_lookup[t] for t in sorted_computational_graph(g)])
 
 # %%
+def backprop(end_node: Tensor, end_grad: Tensor | None = None):
+    """Accumulates gradients in the grad field of each leaf node.
+
+    tensor.backward() is equivalent to backprop(tensor).
+
+    end_node:
+        The rightmost node in the computation graph. If it contains more than one element, end_grad
+        must be provided.
+    end_grad:
+        A tensor of the same shape as end_node. Set to 1 if not specified and end_node has only one
+        element.
+    """
+    # Get value of end_grad_arr
+    end_grad_arr = np.ones_like(end_node.array) if end_grad is None else end_grad.array
+
+    # Create dict to store gradients
+    grads: dict[Tensor, Arr] = {end_node: end_grad_arr}
+
+    # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
+
+tests.test_backprop(Tensor)
+tests.test_backprop_branching(Tensor)
+tests.test_backprop_requires_grad_sum(Tensor)
+tests.test_backprop_requires_grad_false(Tensor)
+tests.test_backprop_float_arg(Tensor)
+tests.test_backprop_shared_parent(Tensor)
+tests.test_backprop_grad_accumulation(Tensor)

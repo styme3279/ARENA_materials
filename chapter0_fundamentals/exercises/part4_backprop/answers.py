@@ -88,11 +88,8 @@ def log_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
 tests.test_log_back(log_back)
 
 # %%
-x, y = 2.0, t.rand((3, 4), requires_grad=True)
-print(x, y)
-z = x * y
+x = t.tensor([2.0]*4, requires_grad=True)
+y = t.ones((3,4), requires_grad=True)
+z = t.sum(x @ y)
 print(z)
-z.backward()
-print(z.grad)
-
 # %%

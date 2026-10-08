@@ -595,4 +595,39 @@ tests.test_backprop_requires_grad_false(Tensor)
 tests.test_backprop_float_arg(Tensor)
 tests.test_backprop_shared_parent(Tensor)
 tests.test_backprop_grad_accumulation(Tensor)
+
+# %%
+def sum_back(
+    grad_out: Arr, 
+    out: Arr, 
+    x: Arr, 
+    dim: "int | tuple[int, ...] | None" = None, 
+    keepdim: bool = False
+) -> Arr:
+    """Backward function for torch.sum"""
+    print(grad_out)
+    print(x)
+    print(dim)
+    print(keepdim)
+
+    if not keepdim:
+        np.expand_dims(grad_out, dim)
+        print(grad_out.shape)
+
+    return np.broadcast_to(grad_out, x.shape)
+
+
+def _sum(x: Arr, dim: "int | tuple[int, ...] | None" = None, keepdim: bool = False) -> Arr:
+    """Like torch.sum, calling np.sum internally."""
+    return np.sum(x, axis=dim, keepdims=keepdim)
+
+
+sum = wrap_forward_fn(_sum)
+BACK_FUNCS.add_back_func(_sum, 0, sum_back)
+
+tests.test_sum_keepdim_false(Tensor)
+tests.test_sum_keepdim_true(Tensor)
+tests.test_sum_dim_none(Tensor)
+tests.test_sum_nonscalar_grad_out(Tensor)
+
 # %%

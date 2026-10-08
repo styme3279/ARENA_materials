@@ -499,11 +499,15 @@ def wrap_forward_fn(numpy_func: Callable, is_differentiable: bool = True) -> Cal
 
         # YOUR CODE HERE - create output array & make it a tensor with requires_grad (& recipe)
 
-        out = numpy_func(arg_arrays)
+        out = numpy_func(*arg_arrays,**kwargs)
 
-        grad = grad_tracking_enabled and any([isinstance(x,Tensor) and x.requires_grad for x in arg_arrays])
+        grad = (grad_tracking_enabled and is_differentiable and any([isinstance(x,Tensor) and x.requires_grad for x in args]))
 
         out = Tensor(out,grad)
+
+        if grad:
+            parents = {idx: arr for idx, arr in enumerate(args) if isinstance(arr,Tensor)}
+            out.recipe = Recipe(numpy_func, arg_arrays,kwargs,parents)
         return out
 
     return tensor_func
@@ -527,3 +531,34 @@ tests.test_multiply_float(Tensor, multiply)
 tests.test_subclass_treated_as_tensor(Tensor, multiply)
 tests.test_eq(Tensor, eq)
 tests.test_sum(Tensor)
+
+# %%
+
+
+# %%
+
+def sorted_computational_graph(tensor: Tensor) -> list[Tensor]:
+    """
+    For a given tensor, return a list of Tensors that make up the nodes of the given Tensor's
+    computational graph, in reverse topological order (i.e. `tensor` should be first).
+    """
+
+    def get_parents(tensor: Tensor) -> list[Tensor]:
+        if tensor.recipe is None:
+            return []
+        return list(tensor.recipe.parents.values())
+
+    return topological_sort(tensor, get_parents)[::-1]
+
+
+a = Tensor([1], requires_grad=True)
+b = Tensor([2], requires_grad=True)
+c = Tensor([3], requires_grad=True)
+d = a * b
+e = c.log()
+f = d * e
+g = f.log()
+name_lookup = {a: "a", b: "b", c: "c", d: "d", e: "e", f: "f", g: "g"}
+
+print([name_lookup[t] for t in sorted_computational_graph(g)])
+# %%

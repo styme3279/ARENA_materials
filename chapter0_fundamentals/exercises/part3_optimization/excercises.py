@@ -54,12 +54,14 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
     """
     # YOUR CODE HERE: sum over `broadcasted` until it has the shape of `original`
     prepended_dims = len(broadcasted) - len(original)
-    broadcasted = np.sum(broadcasted, axis=tuple(range(prepended_dims)))
+    broadcasted = broadcasted.sum(axis=tuple(range(prepended_dims)))
 
-    
+    broadcasted_dims = tuple(i for i, (o, b) in enumerate(zip(original.shape, broadcasted.shape)) if o == 1 and b > 1)
+    broadcasted = broadcasted.sum(axis=broadcasted_dims, keepdims=True) 
 
     assert broadcasted.shape == original.shape
     return broadcasted
 
 
 tests.test_unbroadcast(unbroadcast)
+# %%

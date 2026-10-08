@@ -549,7 +549,7 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         else:
             for i, parent in node.recipe.parents.items():
                 back_fn = BACK_FUNCS.get_back_func(node.recipe.func, i)
-                in_grad = back_fn(out_grad, node.array, *node.recipe.func, i)
+                in_grad = back_fn(out_grad, node.array, *node.recipe.args)
                 grads[parent] = in_grad if (parent not in grads) else grads[parent] + in_grad
 
 tests.test_backprop(Tensor)
@@ -559,3 +559,5 @@ tests.test_backprop_requires_grad_false(Tensor)
 tests.test_backprop_float_arg(Tensor)
 tests.test_backprop_shared_parent(Tensor)
 tests.test_backprop_grad_accumulation(Tensor)
+
+# %%

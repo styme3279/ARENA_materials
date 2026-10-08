@@ -587,19 +587,31 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
 
     # [first_node, last_node]
 
-    pprint.pp([e.recipe for e in sorted_nodes])
-
     for node in sorted_nodes:
 
+        print(f"Computing gradients for {node} with recipe {node.recipe}\n")
+
         if node.requires_grad:
-            node.grad = grads[node]
+            node.grad = Tensor(grads[node])
 
         if node.recipe is not None:
             for i, p in node.recipe.parents.items():
-                grads[p] = BACK_FUNCS.get_back_func(node.recipe.func, i)(grads[node], node.array, *node.recipe.args)
+                result_grad = BACK_FUNCS.get_back_func(node.recipe.func, i)(grads[node], node.array, *node.recipe.args)
+                if grads.get(p) == None:
+                    grads[p] = result_grad
+                else:
+                    grads[p] += result_grad 
 
-        print(grads)
+        # pprint.pp(grads)
 
+def test_backprop_simple(Tensor):
+    a = Tensor([1.0], requires_grad=True)
+    b = a.log()
+    b.backward([2.0])
+
+    assert b.grad is not
+
+test_backprop_simple()
 
 tests.test_backprop(Tensor)
 tests.test_backprop_branching(Tensor)

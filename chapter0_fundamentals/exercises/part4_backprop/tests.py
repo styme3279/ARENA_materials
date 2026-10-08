@@ -278,6 +278,7 @@ def test_topological_sort_cyclic(topological_sort):
     else:
         assert False
     print("All tests in `test_topological_sort_cyclic` passed!")
+    
 
 
 def test_backprop(Tensor):

@@ -362,6 +362,21 @@ def multiply_forward(a: Tensor | float, b: Tensor | float) -> Tensor:
     arg_a = a.array if isinstance(a, Tensor) else a
     arg_b = b.array if isinstance(b, Tensor) else b
 
+    if not isinstance(arg_a, Arr):
+        arg_a = np.ndarray(arg_a)
+    if not isinstance(arg_b, Arr):
+        arg_b = np.ndarray(arg_b)
+
+    array = np.multiply(arg_a, arg_b)
+    requires_grad = grad_tracking_enabled and (a.requires_grad or b.requires_grad)
+
+    out = Tensor(array=array, requires_grad=requires_grad)
+    if out.requires_grad:
+        out.recipe = Recipe(
+            func = np.multiply,
+            parents = {0: }
+        )
+
     raise NotImplementedError()
 
 

@@ -574,21 +574,21 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     grads: dict[Tensor, Arr] = {end_node: end_grad_arr}
 
     # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
-
     end_graph = sorted_computational_graph(end_node)
+    print(end_graph)
     for node in end_graph:
-       for idx, parent in node.recipe.parents.items():
-           grads[parent] = np.ones_like(node.array)
-           backward_fn = BACK_FUNCS.get_back_func(forward_fn=node.recipe.func, arg_position=idx)
-           grads[parent] *= backward_fn(grads[node], node.array, *node.recipe.args, **node.recipe.kwargs)
-           parent.grad = grads[parent] if node.requires_grad else None
+        if node.recipe is None or not node.recipe.parents:
+            continue
+        for idx, parent in node.recipe.parents.items():
+            grads[parent] = np.ones_like(node.array)
+            backward_fn = BACK_FUNCS.get_back_func(forward_fn=node.recipe.func, arg_position=idx)
+            grads[parent] *= backward_fn(grads[node], node.array, *node.recipe.args, **node.recipe.kwargs)
+            print("parent: ", parent, parent.recipe)
+            if node.requires_grad and parent.recipe is not None and parent.recipe.parents is None:
+                parent.grad = parent.grad + grads[parent] if parent.grad is not None else grads[parent]
 
-
-sorted_computational_graph(tensor: Tensor) -> list[Tensor]
-wrap_forward_fn(numpy_func: Callable, is_differentiable: bool = True) -> Callable
-Tensor
-BackwardFuncLookup
-
+    for node in end_graph:
+        print(f"node: {node} node.grad: {node.grad}")
 tests.test_backprop(Tensor)
 tests.test_backprop_branching(Tensor)
 tests.test_backprop_requires_grad_sum(Tensor)

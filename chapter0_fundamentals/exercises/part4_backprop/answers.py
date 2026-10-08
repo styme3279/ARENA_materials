@@ -427,11 +427,25 @@ def wrap_forward_fn(numpy_func: Callable, is_differentiable: bool = True) -> Cal
         # Get all function arguments as non-tensors (i.e. either ints or arrays)
         arg_arrays = tuple([(a.array if isinstance(a, Tensor) else a) for a in args])
 
-        # YOUR CODE HERE - create output array & make it a tensor with requires_grad (& recipe)
-
+        out = Tensor(
+            array = numpy_func(*arg_arrays, **kwargs),
+            requires_grad = False)
+        
+        if grad_tracking_enabled and \
+            is_differentiable and \
+            any(arg.requires_grad if isinstance(arg, Tensor) else False for arg in args):
+            out.requires_grad = True
+            out.recipe = Recipe(
+                numpy_func,
+                args = arg_arrays,
+                kwargs = kwargs,
+                parents = {i:arg for i , arg in enumerate(args) if isinstance(arg, Tensor)} 
+            )
+        
         return out
 
     return tensor_func
+
 
 
 def _sum(x: Arr, dim: "int | tuple[int, ...] | None" = None, keepdim: bool = False) -> Arr:
@@ -452,3 +466,4 @@ tests.test_multiply_float(Tensor, multiply)
 tests.test_subclass_treated_as_tensor(Tensor, multiply)
 tests.test_eq(Tensor, eq)
 tests.test_sum(Tensor)
+# %%

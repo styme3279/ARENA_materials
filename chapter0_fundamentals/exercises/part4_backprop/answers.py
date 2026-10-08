@@ -401,18 +401,22 @@ def multiply_forward(a: Tensor | float, b: Tensor | float) -> Tensor:
     """Performs np.multiply on a Tensor object."""
     assert isinstance(a, Tensor) or isinstance(b, Tensor)
 
+    requires_grad = grad_tracking_enabled and ((isinstance(a, Tensor) and a.requires_grad) or (isinstance(b, Tensor) and b.requires_grad))
+
     # Get all function arguments as non-tensors (i.e. either ints or arrays)
     arg_a = a.array if isinstance(a, Tensor) else a
     arg_b = b.array if isinstance(b, Tensor) else b
 
-requires_grad = grad_tracking_enabled and x.requires_grad
-    out = Tensor(np.log(x.array), requires_grad)
+    out = Tensor(np.multiply(arg_a, arg_b), requires_grad)
     if requires_grad:
-        out.recipe = Recipe(func=np.log, args=(x.array,), kwargs={}, parents={0: x})
+        parents = dict()
+        if isinstance(a, Tensor):
+            parents[0] = a
+        if isinstance(b, Tensor):
+            parents[1] = b
+        out.recipe = Recipe(func=np.multiply, args=(arg_a, arg_b), kwargs={}, parents=parents)
+
     return out
-
-
-    raise NotImplementedError()
 
 
 multiply = multiply_forward
@@ -426,3 +430,54 @@ b = multiply_forward(a, b)
 grad_tracking_enabled = True
 assert not b.requires_grad, "should not require grad if grad tracking globally disabled"
 assert b.recipe is None, "should not create recipe if grad tracking globally disabled"
+# %%
+
+def wrap_forward_fn(numpy_func: Callable, is_differentiable: bool = True) -> Callable:
+    """
+    Args:
+        numpy_func:
+            takes any number of positional arguments, some of which may be NumPy arrays, and any
+            number of keyword arguments which we aren't allowing to be NumPy arrays at present. It
+            returns a single NumPy array.
+
+        is_differentiable:
+            if True, numpy_func is differentiable with respect to some input argument, so we may
+            need to track information in a Recipe. If False, we definitely don't need to track
+            information.
+
+    Returns:
+        tensor_func
+            It has the same signature as numpy_func, except it operates on Tensors instead of Arr.
+    """
+
+    def tensor_func(*args: Any, **kwargs: Any) -> Tensor:
+        # Get all function arguments as non-tensors (i.e. either ints or arrays)
+        arg_arrays = tuple([(a.array if isinstance(a, Tensor) else a) for a in args])
+
+        out = [numpy.func(args, kwargs) for a in arg_arrays]
+
+        out = torch.stack(out)
+        
+        return out
+
+    return tensor_func
+
+
+def _sum(x: Arr, dim: "int | tuple[int, ...] | None" = None, keepdim: bool = False) -> Arr:
+    # need to be careful with sum, because kwargs have different names in torch and numpy
+    return np.sum(x, axis=dim, keepdims=keepdim)
+
+
+log = wrap_forward_fn(np.log)
+multiply = wrap_forward_fn(np.multiply)
+eq = wrap_forward_fn(np.equal, is_differentiable=False)
+sum = wrap_forward_fn(_sum)
+
+tests.test_log(Tensor, log)
+tests.test_log_no_grad(Tensor, log)
+tests.test_multiply(Tensor, multiply)
+tests.test_multiply_no_grad(Tensor, multiply)
+tests.test_multiply_float(Tensor, multiply)
+tests.test_subclass_treated_as_tensor(Tensor, multiply)
+tests.test_eq(Tensor, eq)
+tests.test_sum(Tensor)

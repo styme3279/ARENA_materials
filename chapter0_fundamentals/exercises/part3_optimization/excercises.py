@@ -362,22 +362,22 @@ def multiply_forward(a: Tensor | float, b: Tensor | float) -> Tensor:
     arg_a = a.array if isinstance(a, Tensor) else a
     arg_b = b.array if isinstance(b, Tensor) else b
 
-    if not isinstance(arg_a, Arr):
-        arg_a = np.ndarray(arg_a)
-    if not isinstance(arg_b, Arr):
-        arg_b = np.ndarray(arg_b)
+    # Calculate the output (which is a numpy array)
+    out_arr = arg_a * arg_b
+    assert isinstance(out_arr, np.ndarray)
 
-    array = np.multiply(arg_a, arg_b)
-    requires_grad = grad_tracking_enabled and (a.requires_grad or b.requires_grad)
+    # Find whether the tensor requires grad (need to check if ANY of the inputs do)
+    requires_grad = grad_tracking_enabled and any([isinstance(x, Tensor) and x.requires_grad for x in (a, b)])
 
-    out = Tensor(array=array, requires_grad=requires_grad)
-    if out.requires_grad:
-        out.recipe = Recipe(
-            func = np.multiply,
-            parents = {0: }
-        )
+    # Create the output tensor from the underlying data and the requires_grad flag
+    out = Tensor(out_arr, requires_grad)
 
-    raise NotImplementedError()
+    # If requires_grad, then create a recipe
+    if requires_grad:
+        parents = {idx: arr for idx, arr in enumerate([a, b]) if isinstance(arr, Tensor)}
+        out.recipe = Recipe(np.multiply, (arg_a, arg_b), {}, parents)
+
+    return out
 
 
 multiply = multiply_forward
@@ -391,3 +391,55 @@ b = multiply_forward(a, b)
 grad_tracking_enabled = True
 assert not b.requires_grad, "should not require grad if grad tracking globally disabled"
 assert b.recipe is None, "should not create recipe if grad tracking globally disabled"
+
+# %%
+def wrap_forward_fn(numpy_func: Callable, is_differentiable: bool = True) -> Callable:
+    """
+    Args:
+        numpy_func:
+            takes any number of positional arguments, some of which may be NumPy arrays, and any
+            number of keyword arguments which we aren't allowing to be NumPy arrays at present. It
+            returns a single NumPy array.
+
+        is_differentiable:
+            if True, numpy_func is differentiable with respect to some input argument, so we may
+            need to track information in a Recipe. If False, we definitely don't need to track
+            information.
+
+    Returns:
+        tensor_func
+            It has the same signature as numpy_func, except it operates on Tensors instead of Arr.
+    """
+
+    def tensor_func(*args: Any, **kwargs: Any) -> Tensor:
+        # Get all function arguments as non-tensors (i.e. either ints or arrays)
+        arg_arrays = tuple([(a.array if isinstance(a, Tensor) else a) for a in args])
+
+        # YOUR CODE HERE - create output array & make it a tensor with requires_grad (& recipe)
+        array = numpy_func(*arg_arrays, **kwargs)
+        requires_grad = grad_tracking_enabled and is_differentiable and any([isinstance(x, Tensor) and x.requires_grad for x in (*args)])
+        
+
+        return out
+
+    return tensor_func
+
+
+def _sum(x: Arr, dim: "int | tuple[int, ...] | None" = None, keepdim: bool = False) -> Arr:
+    # need to be careful with sum, because kwargs have different names in torch and numpy
+    return np.sum(x, axis=dim, keepdims=keepdim)
+
+
+log = wrap_forward_fn(np.log)
+multiply = wrap_forward_fn(np.multiply)
+eq = wrap_forward_fn(np.equal, is_differentiable=False)
+sum = wrap_forward_fn(_sum)
+
+tests.test_log(Tensor, log)
+tests.test_log_no_grad(Tensor, log)
+tests.test_multiply(Tensor, multiply)
+tests.test_multiply_no_grad(Tensor, multiply)
+tests.test_multiply_float(Tensor, multiply)
+tests.test_subclass_treated_as_tensor(Tensor, multiply)
+tests.test_eq(Tensor, eq)
+tests.test_sum(Tensor)

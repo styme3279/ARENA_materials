@@ -454,9 +454,24 @@ def wrap_forward_fn(numpy_func: Callable, is_differentiable: bool = True) -> Cal
         # Get all function arguments as non-tensors (i.e. either ints or arrays)
         arg_arrays = tuple([(a.array if isinstance(a, Tensor) else a) for a in args])
 
-        out = [numpy.func(args, kwargs) for a in arg_arrays]
+        print(args)
 
-        out = torch.stack(out)
+        inputs_require_grad: bool = False
+        parents = dict()
+        for i, a in enumerate(args):
+            if isinstance(a, Tensor):
+                inputs_require_grad = inputs_require_grad or a.requires_grad
+                parents[i] = a
+
+        print(parents)
+
+        result = numpy_func(*arg_arrays, *kwargs)
+
+        out = Tensor(np.array(result), requires_grad=(is_differentiable and inputs_require_grad))
+        if out.requires_grad:
+            out.recipe = Recipe(numpy_func, args, kwargs, parents=parents)
+
+        print(out.recipe)
         
         return out
 
@@ -481,3 +496,4 @@ tests.test_multiply_float(Tensor, multiply)
 tests.test_subclass_treated_as_tensor(Tensor, multiply)
 tests.test_eq(Tensor, eq)
 tests.test_sum(Tensor)
+# %%

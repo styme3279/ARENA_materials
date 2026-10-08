@@ -557,42 +557,66 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     """
     # Get value of end_grad_arr
     end_grad_arr = np.ones_like(end_node.array) if end_grad is None else end_grad.array
-
+    
     # Create dict to store gradients
     grads: dict[Tensor, Arr] = {end_node: end_grad_arr}
 
-    # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
-    comput_graph = sorted_computational_graph(end_node)
-    # print(comput_graph)
-    old_grad = end_grad_arr
-    for i, node in enumerate(comput_graph):
+    compute_graph = sorted_computational_graph(end_node)
+    for i, node in enumerate(compute_graph):
         char = chr(99 - i)
         print()
         print("New node")
         print(node)
-        print("Parents:")
 
-        grad = grads.pop(node)
+        outgrad = grads.pop(node)
+        
+        # looping through parents
+        for i, parent in parents.items():
+            # accumulating gradients in the current node
+            back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
+            grad += back_func(outgrad, node.array, *node.recipe.args, **node.recipe.kwargs)
+        
+            # update the grads dictionary
+            grads[parent] = grad
 
-        if node.recipe is None and node.requires_grad:
-            
-
-        if isinstance(node, Tensor):
-            grad = 0.0 # this might need to be a tensor
-            if node.recipe is not None:
-                parents = node.recipe.parents
-                print(parents)
-                
-                if parents:
-                    for i, parent in parents.items():
-                        back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
-                        grad  += back_func(old_grad, node.array, *node.recipe.args, **node.recipe.kwargs)
-                    grads[node] = None
-            
-            grads[node] = grad
-                
+        # check if it is a leaf
+        if (node.recipe is None or (node.recipe and node.recipe.parents is None)) and node.requires_grad: # check if leaf node
+            # update the current node's gradient if it is a leaf
             node.grad = grads[node]
-            print(char, "grad", node.grad)
+        else:
+            # otherwise set it to None
+            node.grad = None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # if isinstance(node, Tensor):
+        
+        #     grad = 0.0 # this might need to be a tensor
+        #     if node.recipe is not None:
+        #         parents = node.recipe.parents
+        #         print(parents)
+
+        #             for i, parent in parents.items():
+        #                 back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
+        #                 grad  += back_func(old_grad, node.array, *node.recipe.args, **node.recipe.kwargs)
+        #             grads[node] = None
+            
+        #     grads[node] = grad
+                
+        #     node.grad = grads[node]
+        #     print(char, "grad", node.grad)
             
             
 

@@ -631,7 +631,7 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
             for (i, parent) in enumerate(parents):
                 # new_grad = Tensor(outgrad) if node.grad is None else Tensor(parent.grad.array + outgrad)
                 grad_fn = BACK_FUNCS.get_back_func(parent.recipe.func,i)
-                new_grad = grad_fn()
+                new_grad = grad_fn(parent)
                 grads[parent] = new_grad
 
 

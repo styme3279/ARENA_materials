@@ -74,3 +74,36 @@ import part4_backprop.tests as tests
 from part4_backprop.utils import get_mnist, visualize
 from plotly_utils import line
 # %%
+def log_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
+    """Backwards function for f(x) = log(x)
+    f'(x) = 1/x
+    g(f(x)) = g(log(x))
+    d g(f(x)) /dx = g'(log(x)) d (log(x)) / dx
+
+
+    grad_out: Gradient of some loss wrt out
+    out: the output of np.log(x).
+    x: the input of np.log.
+
+    Return: gradient of the given loss wrt x
+    """
+    return grad_out / x
+
+
+tests.test_log_back(log_back)
+# %%
+
+def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
+    """
+    Sum 'broadcasted' until it has the shape of 'original'.
+
+    broadcasted: An array that was formerly of the same shape of 'original' and was expanded by
+        broadcasting rules.
+    """
+    # YOUR CODE HERE: sum over `broadcasted` until it has the shape of `original`
+
+    og_shape = original.shape
+    b_shape 
+
+
+tests.test_unbroadcast(unbroadcast)

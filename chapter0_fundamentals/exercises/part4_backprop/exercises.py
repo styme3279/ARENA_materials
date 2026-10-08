@@ -78,3 +78,14 @@ from plotly_utils import line
 # %%
 t.tensor([1,2,3]).recipe
 # %%
+[1,2,3,4]
+
+[3,1]
+
+ + np.argwhere(broadcasted.dim[reduced_dims:] == 1]
+
+
+2:
+# %%
+np.array([1,2,3]).shape
+tuple([1,2,3])

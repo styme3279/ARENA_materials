@@ -1095,15 +1095,21 @@ def cross_entropy(logits: Tensor, true_labels: Tensor) -> Tensor:
 
     Return: shape (batch, ) containing the per-example loss.
     """
+    print(logits)
+    print(true_labels)
+
     logit_max = Tensor(logits.array.max(-1, keepdims=True))
     shifted_logits = logits - logit_max
 
     n = exp(shifted_logits)
     summed = sum(exp(shifted_logits), dim=1)
-
+    print(n.shape)
+    print(summed.shape)
     result = -log(n.T / summed)
 
-    return (result[arange(0, logits.shape[0]), true_labels])
+    print(result.shape)
+
+    return (result[true_labels])
 
 tests.test_cross_entropy(Tensor, cross_entropy)
 # %%

@@ -1101,12 +1101,15 @@ def cross_entropy(logits: Tensor, true_labels: Tensor) -> Tensor:
     n = exp(logits)
     summed = sum(exp(logits).array, dim=-1)
 
-    result = log(n / summed)
+    print(n.shape)
+    print(summed.shape)
+
+    result = log(n.T / summed)
 
     print(result.shape)
     print(true_labels.shape)
     
-    return result @ true_labels.T
+    return (result @ true_labels).T
 
 tests.test_cross_entropy(Tensor, cross_entropy)
 # %%

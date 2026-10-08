@@ -281,7 +281,7 @@ def test_topological_sort_cyclic(topological_sort):
 
 def test_backprop(Tensor):
     a = Tensor([np.e, np.e**np.e], requires_grad=True)
-    b = a.log()
+    b = a.log()c
     c = b.log()
     try:
         c.backward(end_grad=np.array([1.0, 1.0]))

@@ -572,25 +572,30 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         print("grads:")
         print(grads)
         
-        if node.recipe is None: # if true it is a scalar
-            continue
+        # if node.recipe is None: # if true it is a scalar
+        #     continue
         print(1)
-        if node.recipe.parents is None: # if true it is a leaf
+        if (node.recipe is None or (node.recipe is not None and node.recipe.parents is None)) and node.requires_grad: # if true it is a leaf
             print(2)
             # update the current node's gradient if it is a leaf
-            node.grad = outgrad#grads[node]
+            node.grad = Tensor(outgrad, False)#grads[node]
+            print("Type")
+            print(type(node.grad))
             print(2.5)
         else:
             print(3)
-            # if leaf, then current node's grad is None but we still have to calculate the grad of potential parents
-            node.grad = None
 
+            print(node.recipe.parents)
             # looping through parents
-            for i, parent in parents.items():
+            for i, parent in node.recipe.parents.items():
                 print("parent loop: ", i)
                 # accumulating gradients in the current node
                 back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
                 grads[parent] = grads.get(parent, 0.0) + back_func(outgrad, node.array, *node.recipe.args, **node.recipe.kwargs)
+
+            # if not leaf, then current node's grad is None but we still have to calculate the grad of potential parents
+            node.grad = None
+
 
         print("grads:")
         print(grads)

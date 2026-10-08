@@ -623,17 +623,15 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
     for node in sorted_computational_graph(end_node):
         outgrad = grads.pop(node)
-        if node.isleaf():
+        if node.is_leaf:
             if node.requires_grad:
                 node.grad = Tensor(outgrad) if node.grad is None else Tensor(node.grad.array + outgrad)
         else:
-            parents = node.recipe.parents
-            for (i, parent) in enumerate(parents):
-                # new_grad = Tensor(outgrad) if node.grad is None else Tensor(parent.grad.array + outgrad)
-                grad_fn = BACK_FUNCS.get_back_func(parent.recipe.func,i)
-                new_grad = grad_fn(parent)
-                grads[parent] = new_grad
-
+            for argnum, parent in node.recipe.parents.items():
+                grad_fn = BACK_FUNCS.get_back_func(node.recipe.func,argnum)
+                print(grad_fn)
+                new_grad = grad_fn(parent,node.array,*node.recipe.args,**node.recipe.kwargs)
+                grads[parent] = new_grad if (parent not in grads) else grads[parent] + new_grad
 
 tests.test_backprop(Tensor)
 tests.test_backprop_branching(Tensor)

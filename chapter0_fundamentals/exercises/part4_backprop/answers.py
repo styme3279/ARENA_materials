@@ -575,21 +575,19 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
 
     # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
     end_graph = sorted_computational_graph(end_node)
-    print(end_graph)
     for node in end_graph:
         if node.recipe is None or not node.recipe.parents:
             continue
         for idx, parent in node.recipe.parents.items():
-            grads[parent] = np.ones_like(node.array)
+            grads[parent] = np.ones_like(node.array, dtype=np.float32)
             backward_fn = BACK_FUNCS.get_back_func(forward_fn=node.recipe.func, arg_position=idx)
-            grads[parent] *= backward_fn(grads[node], node.array, *node.recipe.args, **node.recipe.kwargs)
-            print("parent: ", parent, parent.recipe)
+            grad = backward_fn(grads[node], node.array, *node.recipe.args, **node.recipe.kwargs)
+            grads[parent] *= grad
             if node.requires_grad and (parent.recipe is None or parent.recipe.parents is None):
-                print("set it")
-                parent.grad = parent.grad + grads[parent] if parent.grad is not None else grads[parent]
-
-    for node in end_graph:
-        print(f"node: {node} node.grad: {node.grad}")
+                if parent.grad is not None:
+                    parent.grad.array = parent.grad.array + grads[parent]
+                elif parent.requires_grad:
+                    parent.grad = Tensor(grads[parent], requires_grad=False)
 tests.test_backprop(Tensor)
 tests.test_backprop_branching(Tensor)
 tests.test_backprop_requires_grad_sum(Tensor)
@@ -597,3 +595,4 @@ tests.test_backprop_requires_grad_false(Tensor)
 tests.test_backprop_float_arg(Tensor)
 tests.test_backprop_shared_parent(Tensor)
 tests.test_backprop_grad_accumulation(Tensor)
+# %%

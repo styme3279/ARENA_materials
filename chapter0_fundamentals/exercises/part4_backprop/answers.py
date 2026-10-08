@@ -563,6 +563,7 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
 
     # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
     comput_graph = sorted_computational_graph(end_node)
+    grads = {}
     # print(comput_graph)
     old_grad = end_grad_arr
     for node in comput_graph:

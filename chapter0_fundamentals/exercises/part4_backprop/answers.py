@@ -401,8 +401,26 @@ def tensor(array: Arr, requires_grad: bool = False) -> Tensor:
 
 def log_forward(x: Tensor) -> Tensor:
     """Performs np.log on a Tensor object."""
-    print(x)
-    return np.log(x)
+    
+    # get the fucntion output
+
+    out = np.log(x.array)
+
+    # Find whether it requires grad
+    if x.requires_grad and grad_tracking_enabled:
+        grad = True
+    else:
+        grad = False
+
+    # Create the tensor
+
+    out_tensor =Tensor(out,grad)
+
+    # set the recipe
+    if grad:
+        recipe = Recipe(func=np.log,args=(x.array,),kwargs={},parents={0:x})
+        out_tensor.recipe = recipe
+    return out_tensor
 
 
 log = log_forward
@@ -415,3 +433,28 @@ grad_tracking_enabled = True
 assert not b.requires_grad, "should not require grad if grad tracking globally disabled"
 assert b.recipe is None, "should not create recipe if grad tracking globally disabled"
 # %%
+
+def multiply_forward(a: Tensor | float, b: Tensor | float) -> Tensor:
+    """Performs np.multiply on a Tensor object."""
+    assert isinstance(a, Tensor) or isinstance(b, Tensor)
+
+    # Get all function arguments as non-tensors (i.e. either ints or arrays)
+    arg_a = a.array if isinstance(a, Tensor) else a
+    arg_b = b.array if isinstance(b, Tensor) else b
+
+    # get the function output
+
+    # Find whether it requires grad
+
+
+multiply = multiply_forward
+tests.test_multiply(Tensor, multiply_forward)
+tests.test_multiply_no_grad(Tensor, multiply_forward)
+tests.test_multiply_float(Tensor, multiply_forward)
+a = Tensor([2], requires_grad=True)
+b = Tensor([3], requires_grad=True)
+grad_tracking_enabled = False
+b = multiply_forward(a, b)
+grad_tracking_enabled = True
+assert not b.requires_grad, "should not require grad if grad tracking globally disabled"
+assert b.recipe is None, "should not create recipe if grad tracking globally disabled"

@@ -32,4 +32,36 @@ from plotly_utils import line
 
 # %%
 
+def log_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
+    """Backwards function for f(x) = log(x)
 
+    grad_out: Gradient of some loss wrt out
+    out: the output of np.log(x).
+    x: the input of np.log.
+
+    Return: gradient of the given loss wrt x
+    """
+    
+    return grad_out * 1/x
+
+
+
+tests.test_log_back(log_back)
+
+
+
+# %%
+def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
+    """
+    Sum 'broadcasted' until it has the shape of 'original'.
+
+    broadcasted: An array that was formerly of the same shape of 'original' and was expanded by
+        broadcasting rules.
+    """
+    # YOUR CODE HERE: sum over `broadcasted` until it has the shape of `original`
+
+    assert broadcasted.shape == original.shape
+    return broadcasted
+
+
+tests.test_unbroadcast(unbroadcast)

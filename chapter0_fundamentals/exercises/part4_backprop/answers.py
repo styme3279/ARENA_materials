@@ -103,7 +103,26 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
     # YOUR CODE HERE: sum over `broadcasted` until it has the shape of `original`
 
     og_shape = original.shape
-    b_shape 
+    b_shape = broadcasted.shape
+    print('og_shape - ', og_shape)
+    print('b_shape - ', b_shape)
+
+    original_b = original.copy()
+
+    added_dims = 0
+    while len(original.shape) != len(broadcasted.shape):
+        original = np.expand_dims(original,axis=0)
+        added_dims += 1
+    print('updated og shape - ', original.shape)
+    print(len(original.shape))
+    for i in range(len(original.shape)):
+        if original.shape[i] != broadcasted.shape[i]:
+            broadcasted = broadcasted.sum(axis=i)
+    print('broadcasted shape - ', broadcasted.shape)
+    print('squeezed shape - ', broadcasted.squeeze().shape)
+    return broadcasted.squeeze()
+    
 
 
 tests.test_unbroadcast(unbroadcast)
+# %%

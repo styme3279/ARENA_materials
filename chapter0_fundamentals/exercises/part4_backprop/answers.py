@@ -95,18 +95,12 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
     broadcasted: An array that was formerly of the same shape of 'original' and was expanded by
         broadcasting rules.
     """
-    print(f"original before = {original}")
-    print(f"broadcasted before = {broadcasted}")
-
     while len(broadcasted.shape) > len(original.shape):
         broadcasted = np.sum(broadcasted, axis=0)
 
-    for dim in original.shape:
-        if dim == 1:
-            broadcasted = np.sum(broadcasted, axis=0, keepdims=True)
-
-    print(f"original after = {original}")
-    print(f"broadcasted after = {broadcasted}")
+    for dim, dim_value in enumerate(original.shape):
+        if dim_value == 1:
+            broadcasted = np.sum(broadcasted, axis=dim, keepdims=True)
 
     assert broadcasted.shape == original.shape
     return broadcasted
@@ -115,4 +109,28 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
 tests.test_unbroadcast(unbroadcast)
 
 # %%
+def multiply_back0(grad_out: Arr, out: Arr, x: Arr, y: Arr | float) -> Arr:
+    """Backwards function for x * y wrt argument 0 aka x."""
+    if not isinstance(y, Arr):
+        y = np.array(y)
 
+    x = unbroadcast(x, y)
+    y = unbroadcast(y, x)
+
+    dL / dx = dL / df * df / dx = grad_out * y * dy / dx
+
+    return grad_out * 
+
+
+def multiply_back1(grad_out: Arr, out: Arr, x: Arr | float, y: Arr) -> Arr:
+    """Backwards function for x * y wrt argument 1 aka y."""
+    if not isinstance(x, Arr):
+        x = np.array(x)
+
+    raise NotImplementedError()
+
+
+tests.test_multiply_back(multiply_back0, multiply_back1)
+tests.test_multiply_back_float(multiply_back0, multiply_back1)
+
+# %%

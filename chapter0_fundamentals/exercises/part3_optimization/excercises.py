@@ -131,13 +131,14 @@ class Recipe:
 # %%
 class BackwardFuncLookup:
     def __init__(self):
-        raise NotImplementedError()
+        # {(foward_fn, arg_pos): back_fn}
+        self.lookup = {}
 
     def add_back_func(self, forward_fn: Callable, arg_position: int, back_fn: Callable):
-        raise NotImplementedError()
+        self.lookup[(forward_fn, arg_position)] = back_fn
 
     def get_back_func(self, forward_fn: Callable, arg_position: int) -> Callable:
-        raise NotImplementedError()
+        return self.lookup[(forward_fn, arg_position)]
 
 
 BACK_FUNCS = BackwardFuncLookup()
@@ -151,3 +152,5 @@ assert BACK_FUNCS.get_back_func(np.multiply, 0) == multiply_back0
 assert BACK_FUNCS.get_back_func(np.multiply, 1) == multiply_back1
 
 print("Tests passed - BackwardFuncLookup class is working as expected!")
+
+# %%

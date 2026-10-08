@@ -385,10 +385,8 @@ def tensor(array: Arr, requires_grad: bool = False) -> Tensor:
 
 # %%
 def log_forward(x: Tensor) -> Tensor:
-    out = Tensor(np.log(x.array), requires_grad = grad_tracking_enabled and  x.requires_grad)
-    # out.grad = x.grad * (1 / x) if x.grad is not None else (1 / x if out.requires_grad else x.grad)
-    out.recipe = Recipe(func=np.log, args=tuple(x.array, ), kwargs=None, parents={0: x})
-    
+    out = Tensor(np.log(x.array), requires_grad = grad_tracking_enabled and x.requires_grad)
+    out.recipe = Recipe(func=np.log, args=((x.array, )), kwargs={}, parents={0: x}) if out.requires_grad else None
     return out
 
 
@@ -401,4 +399,36 @@ b = log_forward(a)
 grad_tracking_enabled = True
 assert not b.requires_grad, "should not require grad if grad tracking globally disabled"
 assert b.recipe is None, "should not create recipe if grad tracking globally disabled"
+
+# %%
+def multiply_forward(a: Tensor | float, b: Tensor | float) -> Tensor:
+    """Performs np.multiply on a Tensor object."""
+    assert isinstance(a, Tensor) or isinstance(b, Tensor)
+
+    # Get all function arguments as non-tensors (i.e. either ints or arrays)
+    arg_a = a.array if isinstance(a, Tensor) else a
+    arg_b = b.array if isinstance(b, Tensor) else b
+
+    out = Tensor(arg_a * arg_b, requires_grad = grad_tracking_enabled and ((getattr(a, "requires_grad", False)) or (getattr(b, "requires_grad", False))))
+    parents = {i:x for i, x in enumerate([a, b]) if isinstance(x, Tensor)}
+    out.recipe = Recipe(func=np.multiply, args=((arg_a, arg_b)), kwargs={}, parents=parents) if out.requires_grad else None
+    return out
+
+
+
+    # raise NotImplementedError()
+
+
+multiply = multiply_forward
+tests.test_multiply(Tensor, multiply_forward)
+tests.test_multiply_no_grad(Tensor, multiply_forward)
+tests.test_multiply_float(Tensor, multiply_forward)
+a = Tensor([2], requires_grad=True)
+b = Tensor([3], requires_grad=True)
+grad_tracking_enabled = False
+b = multiply_forward(a, b)
+grad_tracking_enabled = True
+assert not b.requires_grad, "should not require grad if grad tracking globally disabled"
+assert b.recipe is None, "should not create recipe if grad tracking globally disabled"
+
 # %%

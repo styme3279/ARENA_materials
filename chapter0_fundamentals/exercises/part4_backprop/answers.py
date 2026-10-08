@@ -717,8 +717,15 @@ subtract = wrap_forward_fn(np.subtract)
 true_divide = wrap_forward_fn(np.true_divide)
 
 BACK_FUNCS.add_back_func(np.add, 0, lambda grad_out, out, x, y: unbroadcast(grad_out, x))
+BACK_FUNCS.add_back_func(np.add, 1, lambda grad_out, out, x, y: unbroadcast(grad_out, y))
 # YOUR CODE HERE - continue adding to BACK_FUNCS, for each of the 3 functions & both arg orders
+
+BACK_FUNCS.add_back_func(np.subtract, 0, lambda grad_out, out, x, y: unbroadcast(grad_out, x))
+BACK_FUNCS.add_back_func(np.subtract, 1, lambda grad_out, out, x, y: unbroadcast(grad_out, x))
+BACK_FUNCS.add_back_func(np.true_divide, 0, lambda grad_out, out, x, y: unbx / y)
+BACK_FUNCS.add_back_func(np.true_divide, 1, lambda grad_out, out, x, y: x / y)
 
 tests.test_add_broadcasted(Tensor)
 tests.test_subtract_broadcasted(Tensor)
 tests.test_truedivide_broadcasted(Tensor)
+# %%

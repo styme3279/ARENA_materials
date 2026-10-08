@@ -691,12 +691,11 @@ def sum_back(
     dim: "int | tuple[int, ...] | None" = None, 
     keepdim: bool = False
 ) -> Arr:
-    """Backward function for torch.sum
-    z = x_1 + x_2 + x_3
-    dg/d
-    
+    """Backward function for torch.sum 
     """
-    raise NotImplementedError()
+    if not keepdim and (dim is not None):
+        grad_out = np.expand_dims(grad_out,dim)
+    return np.broadcast_to(grad_out,x.shape)
 
 
 def _sum(x: Arr, dim: "int | tuple[int, ...] | None" = None, keepdim: bool = False) -> Arr:
@@ -711,3 +710,15 @@ tests.test_sum_keepdim_false(Tensor)
 tests.test_sum_keepdim_true(Tensor)
 tests.test_sum_dim_none(Tensor)
 tests.test_sum_nonscalar_grad_out(Tensor)
+# %%
+
+add = wrap_forward_fn(np.add)
+subtract = wrap_forward_fn(np.subtract)
+true_divide = wrap_forward_fn(np.true_divide)
+
+BACK_FUNCS.add_back_func(np.add, 0, lambda grad_out, out, x, y: unbroadcast(grad_out, x))
+# YOUR CODE HERE - continue adding to BACK_FUNCS, for each of the 3 functions & both arg orders
+
+tests.test_add_broadcasted(Tensor)
+tests.test_subtract_broadcasted(Tensor)
+tests.test_truedivide_broadcasted(Tensor)

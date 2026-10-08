@@ -417,8 +417,11 @@ def wrap_forward_fn(numpy_func: Callable, is_differentiable: bool = True) -> Cal
 
         # YOUR CODE HERE - create output array & make it a tensor with requires_grad (& recipe)
         array = numpy_func(*arg_arrays, **kwargs)
-        requires_grad = grad_tracking_enabled and is_differentiable and any([isinstance(x, Tensor) and x.requires_grad for x in (*args)])
-        
+        requires_grad = grad_tracking_enabled and is_differentiable and any([isinstance(x, Tensor) and x.requires_grad for x in args])
+        out = Tensor(array=array, requires_grad=requires_grad)
+        if out.requires_grad:
+            parents = {i: x for i, x in enumerate(args) if isinstance(x, Tensor)}
+            out.recipe = Recipe(numpy_func, arg_arrays, kwargs, parents)
 
         return out
 
@@ -443,3 +446,79 @@ tests.test_multiply_float(Tensor, multiply)
 tests.test_subclass_treated_as_tensor(Tensor, multiply)
 tests.test_eq(Tensor, eq)
 tests.test_sum(Tensor)
+
+# %%
+class Node:
+    def __init__(self, *children):
+        self.children = list(children)
+
+
+def get_children(node: Node) -> list[Node]:
+    return node.children
+
+
+def topological_sort(node: Node, get_children: Callable) -> list[Node]:
+    """
+    Return all nodes reachable from `node` via `get_children`, in topological order
+    such that each node appears after all of its children (i.e. `node` itself is last).
+
+    Should raise an error if the graph contains a cycle.
+    """
+    result: list[Node] = []  # stores the list of nodes to be returned (in reverse topological order)
+    perm: set[Node] = set()  # same as `result`, but as a set (faster to check for membership)
+    temp: set[Node] = set()  # keeps track of previously visited nodes (to detect cyclicity)
+
+    def visit(cur: Node):
+        """
+        Recursive function which visits all the children of the current node,
+        and appends them all to `result` in the order they were found.
+        """
+        if cur in perm:
+            return
+        if cur in temp:
+            raise ValueError("Not a DAG!")
+        temp.add(cur)
+
+        for next in get_children(cur):
+            visit(next)
+
+        result.append(cur)
+        perm.add(cur)
+        temp.remove(cur)
+
+    visit(node)
+    return result
+
+
+tests.test_topological_sort_linked_list(topological_sort)
+tests.test_topological_sort_branching(topological_sort)
+tests.test_topological_sort_rejoining(topological_sort)
+tests.test_topological_sort_cyclic(topological_sort)
+
+# %%
+def sorted_computational_graph(tensor: Tensor) -> list[Tensor]:
+    """
+    For a given tensor, return a list of Tensors that make up the nodes of the given Tensor's
+    computational graph, in reverse topological order (i.e. `tensor` should be first).
+    """
+
+    def get_parents(tensor: Tensor) -> list[Tensor]:
+        if tensor.recipe is None:
+            return []
+        return list(tensor.recipe.parents.values())
+
+    return topological_sort(tensor, get_parents)[::-1]
+
+
+a = Tensor([1], requires_grad=True)
+b = Tensor([2], requires_grad=True)
+c = Tensor([3], requires_grad=True)
+d = a * b
+e = c.log()
+f = d * e
+g = f.log()
+name_lookup = {a: "a", b: "b", c: "c", d: "d", e: "e", f: "f", g: "g"}
+
+print([name_lookup[t] for t in sorted_computational_graph(g)])
+
+# %%

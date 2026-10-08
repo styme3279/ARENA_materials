@@ -541,6 +541,11 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     grads: dict[Tensor, Arr] = {end_node: end_grad_arr}
 
     # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
+    comp_graph = sorted_computational_graph(end_node)
+    for node in comp_graph:
+        recipe = node.recipe
+        array = node.array
+        node
 
 tests.test_backprop(Tensor)
 tests.test_backprop_branching(Tensor)

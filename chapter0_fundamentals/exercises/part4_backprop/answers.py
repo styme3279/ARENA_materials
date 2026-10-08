@@ -563,7 +563,6 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
 
     # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
     comput_graph = sorted_computational_graph(end_node)
-    grads = {}
     # print(comput_graph)
     old_grad = end_grad_arr
     for i, node in enumerate(comput_graph):
@@ -572,19 +571,28 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         print("New node")
         print(node)
         print("Parents:")
-        if isinstance(node, Tensor) and node.recipe is not None:
-            parents = node.recipe.parents
-            print(parents)
-            grad = 0.0 # this might need to be a tensor
-            for i, parent in parents.items():
-                back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
-                grad  += back_func(old_grad, node.array, *node.recipe.args, **node.recipe.kwargs)
-            print(char, "grad", grad)
-            grads[node] = grad
-            if parents:
-                grads[node] = None
+
+        grad = grads.pop(node)
+
+        if node.recipe is None and node.requires_grad:
             
+
+        if isinstance(node, Tensor):
+            grad = 0.0 # this might need to be a tensor
+            if node.recipe is not None:
+                parents = node.recipe.parents
+                print(parents)
+                
+                if parents:
+                    for i, parent in parents.items():
+                        back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
+                        grad  += back_func(old_grad, node.array, *node.recipe.args, **node.recipe.kwargs)
+                    grads[node] = None
+            
+            grads[node] = grad
+                
             node.grad = grads[node]
+            print(char, "grad", node.grad)
             
             
 

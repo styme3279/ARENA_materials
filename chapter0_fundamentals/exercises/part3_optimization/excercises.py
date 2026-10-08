@@ -132,13 +132,13 @@ class Recipe:
 class BackwardFuncLookup:
     def __init__(self):
         # {(foward_fn, arg_pos): back_fn}
-        self.lookup = {}
+        self.back_funcs = {}
 
     def add_back_func(self, forward_fn: Callable, arg_position: int, back_fn: Callable):
-        self.lookup[(forward_fn, arg_position)] = back_fn
+        self.back_funcs[(forward_fn, arg_position)] = back_fn
 
     def get_back_func(self, forward_fn: Callable, arg_position: int) -> Callable:
-        return self.lookup[(forward_fn, arg_position)]
+        return self.back_funcs[(forward_fn, arg_position)]
 
 
 BACK_FUNCS = BackwardFuncLookup()
@@ -545,7 +545,7 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     for node in comp_graph:
         recipe = node.recipe
         array = node.array
-        node
+        
 
 tests.test_backprop(Tensor)
 tests.test_backprop_branching(Tensor)

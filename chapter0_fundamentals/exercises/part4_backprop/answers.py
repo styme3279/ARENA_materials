@@ -538,6 +538,34 @@ tests.test_topological_sort_branching(topological_sort)
 tests.test_topological_sort_rejoining(topological_sort)
 tests.test_topological_sort_cyclic(topological_sort)
 # %%
+
+def sorted_computational_graph(tensor: Tensor) -> list[Tensor]:
+    """
+    For a given tensor, return a list of Tensors that make up the nodes of the given Tensor's
+    computational graph, in reverse topological order (i.e. `tensor` should be first).
+    """
+
+    def get_parents(tensor: Tensor) -> list[Tensor]:
+        if tensor.recipe is None:
+            return []
+        return list(tensor.recipe.parents.values())
+
+    return topological_sort(tensor, get_parents)[::-1]
+
+
+a = Tensor([1], requires_grad=True)
+b = Tensor([2], requires_grad=True)
+c = Tensor([3], requires_grad=True)
+d = a * b
+e = c.log()
+f = d * e
+g = f.log()
+name_lookup = {a: "a", b: "b", c: "c", d: "d", e: "e", f: "f", g: "g"}
+
+print([name_lookup[t] for t in sorted_computational_graph(g)])
+
+# %%
+import pprint
 def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     """Accumulates gradients in the grad field of each leaf node.
 
@@ -556,13 +584,18 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     # Create dict to store gradients
     grads: dict[Tensor, Arr] = {end_node: end_grad_arr}
 
-    while len(grads) > 0:
+    sorted_nodes = sorted_computational_graph(end_node)
 
-        node, grad = grads.pop(list(grads.keys())[0])
+    pprint.pp([e.recipe for e in sorted_nodes])
 
-        
+    for node in sorted_nodes:
 
-    # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
+        if node.requires_grad:
+            node.grad = grads[node]
+
+        for p in node.recipe.parents:
+
+
     raise NotImplementedError()
 
 
@@ -573,3 +606,4 @@ tests.test_backprop_requires_grad_false(Tensor)
 tests.test_backprop_float_arg(Tensor)
 tests.test_backprop_shared_parent(Tensor)
 tests.test_backprop_grad_accumulation(Tensor)
+# %%

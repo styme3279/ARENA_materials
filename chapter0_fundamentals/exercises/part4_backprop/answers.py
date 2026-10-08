@@ -88,8 +88,31 @@ def log_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
 tests.test_log_back(log_back)
 
 # %%
-x = t.tensor([2.0]*4, requires_grad=True)
-y = t.ones((3,4), requires_grad=True)
-z = t.sum(x @ y)
-print(z)
+def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
+    """
+    Sum 'broadcasted' until it has the shape of 'original'.
+
+    broadcasted: An array that was formerly of the same shape of 'original' and was expanded by
+        broadcasting rules.
+    """
+    print(f"original before = {original}")
+    print(f"broadcasted before = {broadcasted}")
+
+    while len(broadcasted.shape) > len(original.shape):
+        broadcasted = np.sum(broadcasted, axis=0)
+
+    for dim in original.shape:
+        if dim == 1:
+            broadcasted = np.sum(broadcasted, axis=0, keepdims=True)
+
+    print(f"original after = {original}")
+    print(f"broadcasted after = {broadcasted}")
+
+    assert broadcasted.shape == original.shape
+    return broadcasted
+
+
+tests.test_unbroadcast(unbroadcast)
+
 # %%
+

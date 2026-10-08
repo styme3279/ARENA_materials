@@ -53,9 +53,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator
 
+import torch as t
 import numpy as np
 from torch.utils.data import DataLoader
-from tqdm.auto import tqdm
+# from tqdm.auto import tqdm
 
 Arr = np.ndarray
 grad_tracking_enabled = True
@@ -74,4 +75,6 @@ import part4_backprop.tests as tests
 from part4_backprop.utils import get_mnist, visualize
 from plotly_utils import line
 
+# %%
+t.tensor([1,2,3]).recipe
 # %%

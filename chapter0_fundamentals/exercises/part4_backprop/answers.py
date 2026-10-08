@@ -584,7 +584,8 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
             backward_fn = BACK_FUNCS.get_back_func(forward_fn=node.recipe.func, arg_position=idx)
             grads[parent] *= backward_fn(grads[node], node.array, *node.recipe.args, **node.recipe.kwargs)
             print("parent: ", parent, parent.recipe)
-            if node.requires_grad and parent.recipe is not None and parent.recipe.parents is None:
+            if node.requires_grad and (parent.recipe is None or parent.recipe.parents is None):
+                print("set it")
                 parent.grad = parent.grad + grads[parent] if parent.grad is not None else grads[parent]
 
     for node in end_graph:

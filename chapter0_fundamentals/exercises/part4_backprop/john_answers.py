@@ -668,3 +668,31 @@ BACK_FUNCS.add_back_func(np.exp, 0, exp_back)
 
 tests.test_exp_back(Tensor)
 # %%
+def reshape_back(grad_out: Arr, out: Arr, x: Arr, new_shape: tuple[int, ...]) -> Arr:
+    """Backward function for torch.reshape."""
+    return grad_out.reshape(x.shape)
+
+
+reshape = wrap_forward_fn(np.reshape)
+BACK_FUNCS.add_back_func(np.reshape, 0, reshape_back)
+
+tests.test_reshape_back(Tensor)
+
+
+# %%
+def permute_back(grad_out: Arr, out: Arr, x: Arr, axes: tuple[int, ...]) -> Arr:
+    """
+    Backward function for torch.permute. Works by inverting the transposition in the forward
+    function.
+    """
+    print(f"grad_out: {grad_out}")
+    print(f"x: {x}")
+    print(f"axes: {axes}")
+    return np.transpose(grad_out, np.argsort(axes))
+
+BACK_FUNCS.add_back_func(np.transpose, 0, permute_back)
+permute = wrap_forward_fn(np.transpose)
+
+tests.test_permute_back(Tensor)
+
+# %%

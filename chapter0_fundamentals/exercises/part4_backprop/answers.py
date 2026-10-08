@@ -621,7 +621,12 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
     grads: dict[Tensor, Arr] = {end_node: end_grad_arr}
 
     # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
-    raise NotImplementedError()
+    for node in sorted_computational_graph(end_node):
+        outgrad = grads.pop(node)
+        print(node.recipe)
+        # if node.isleaf():
+        #     if node.requires_grad:
+        #         back_fn = BACK_FUNCS.get_back_func(node.recipe.func,)
 
 
 tests.test_backprop(Tensor)
@@ -631,3 +636,4 @@ tests.test_backprop_requires_grad_false(Tensor)
 tests.test_backprop_float_arg(Tensor)
 tests.test_backprop_shared_parent(Tensor)
 tests.test_backprop_grad_accumulation(Tensor)
+# %%

@@ -91,7 +91,6 @@ def multiply_back1(grad_out: Arr, out: Arr, x: Arr | float, y: Arr) -> Arr:
 
 tests.test_multiply_back(multiply_back0, multiply_back1)
 tests.test_multiply_back_float(multiply_back0, multiply_back1)
-
 # %%
 
 
@@ -107,8 +106,16 @@ def forward_and_back(a: Arr, b: Arr, c: Arr) -> tuple[Arr, Arr, Arr]:
     final_grad_out = np.ones_like(g)
 
     # YOUR CODE HERE - use your backward functions to compute the gradients of g wrt a, b, and c
+    grad_f = log_back(final_grad_out, g, f)
+    grad_d = multiply_back0(grad_f, f, d, e)
+    grad_e = multiply_back1(grad_f, f, d, e)
+    dg_da = multiply_back0(grad_d, d, a, b)
+    dg_db = multiply_back1(grad_d, d, a, b)
+    dg_dc = log_back(grad_e, e, c)
 
     return (dg_da, dg_db, dg_dc)
 
 
 tests.test_forward_and_back(forward_and_back)
+
+# %%

@@ -592,14 +592,13 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         # print(f"Computing gradients for {node} with recipe {node.recipe}\n")
 
         if node.requires_grad and node.is_leaf:
-            if node.grad is None:
-                node.grad = Tensor(grads[node])
-            else:
-                node.grad = Tensor(node.grad.array + grads[node])
+            if node.grad is not None:
+                grads[node] += node.grad.array
+            node.grad = Tensor(grads[node])
 
         if node.recipe is not None:
             for i, p in node.recipe.parents.items():
-                result_grad = BACK_FUNCS.get_back_func(node.recipe.func, i)(grads[node], node.array, *node.recipe.args)
+                result_grad = BACK_FUNCS.get_back_func(node.recipe.func, i)(grads[node], node.array, *node.recipe.args, **node.recipe.kwargs)
                 if grads.get(p) is None:
                     grads[p] = result_grad
                 else:
@@ -1154,8 +1153,101 @@ class SGD:
         """Iterates through params, and updates each of them by subtracting `param.grad * lr`."""
         for p in self.params:
             if p.grad is not None:
-                p.array += p.grad * -self.lr
+                p += p.grad * -self.lr
 
 
 tests.test_sgd(Parameter, Tensor, SGD)
+
+# %%
+
+sum = wrap_forward_fn(_sum)
+BACK_FUNCS.add_back_func(_sum, 0, sum_back)
+
+tests.test_sum_keepdim_false(Tensor)
+tests.test_sum_keepdim_true(Tensor)
+tests.test_sum_dim_none(Tensor)
+tests.test_sum_nonscalar_grad_out(Tensor)
+
+add = wrap_forward_fn(np.add)
+subtract = wrap_forward_fn(np.subtract)
+true_divide = wrap_forward_fn(np.true_divide)
+
+BACK_FUNCS.add_back_func(np.add, 0, lambda grad_out, out, x, y: unbroadcast(grad_out, x))
+BACK_FUNCS.add_back_func(np.add, 1, lambda grad_out, out, x, y: unbroadcast(grad_out, y))
+BACK_FUNCS.add_back_func(np.subtract, 0, lambda grad_out, out, x, y: unbroadcast(grad_out, x))
+BACK_FUNCS.add_back_func(np.subtract, 1, lambda grad_out, out, x, y: unbroadcast(-grad_out, y))
+BACK_FUNCS.add_back_func(np.true_divide, 0, lambda grad_out, out, x, y: unbroadcast(grad_out / y, x))
+BACK_FUNCS.add_back_func(np.true_divide, 1, lambda grad_out, out, x, y: unbroadcast(grad_out * (-x / y**2), y))
+
+tests.test_add_broadcasted(Tensor)
+tests.test_subtract_broadcasted(Tensor)
+tests.test_truedivide_broadcasted(Tensor)
+
+
+# %%
+train_loader, test_loader = get_mnist()
+visualize(train_loader)
+# %%
+def train(
+    model: MLP,
+    train_loader: DataLoader,
+    optimizer: SGD,
+    epoch: int,
+    train_loss_list: list | None = None,
+):
+    print(f"Epoch: {epoch}")
+    progress_bar = tqdm(train_loader)
+    for data, target in progress_bar:
+        data, target = Tensor(data.numpy()), Tensor(target.numpy())
+        optimizer.zero_grad()
+        output = model(data)
+        loss = cross_entropy(output, target).sum() / len(output)
+        loss.backward()
+        progress_bar.set_description(f"Train set: Avg loss: {loss.item():.3f}")
+        for p in model.parameters():
+            assert p.grad is not None, (
+                "A parameter has no gradient after `loss.backward()`, so backprop never reached it. Common causes: "
+                "`wrap_forward_fn` using `type(x) == Tensor` instead of `isinstance` (so `Parameter` is skipped), or "
+                "`backprop` not recording gradients for every leaf with `requires_grad=True`."
+            )
+        optimizer.step()
+        if train_loss_list is not None:
+            train_loss_list.append(loss.item())
+
+
+def test(model: MLP, test_loader: DataLoader, test_accuracy_list: list | None = None):
+    test_loss = 0
+    test_accuracy = 0
+    with NoGrad():
+        for data, target in test_loader:
+            data, target = Tensor(data.numpy()), Tensor(target.numpy())
+            output: Tensor = model(data)
+            test_loss += cross_entropy(output, target).sum().item()
+            pred = output.argmax(dim=1, keepdim=True)
+            test_accuracy += (pred == target.reshape(pred.shape)).sum().item()
+    n_data = len(test_loader.dataset)
+    test_loss /= n_data
+    print(f"Test set:  Avg loss: {test_loss:.3f}, Accuracy: {test_accuracy}/{n_data} ({test_accuracy / n_data:.1%})")
+    if test_accuracy_list is not None:
+        test_accuracy_list.append(test_accuracy / n_data)
+
+
+# Cap BLAS threads: the matmuls here are small enough that on a many-core machine, the default
+# (one thread per core) is dominated by thread-sync overhead and can be ~10x slower than 4 threads.
+# Feel free to adjust/remove if this causes problems.
+from threadpoolctl import threadpool_limits
+threadpool_limits(4)
+
+num_epochs = 5
+model = MLP()
+start = time.time()
+train_loss_list = []
+test_accuracy_list = []
+optimizer = SGD(model.parameters(), 0.01)
+test(model, test_loader, test_accuracy_list) # pre-training baseline
+for epoch in range(num_epochs):
+    train(model, train_loader, optimizer, epoch, train_loss_list)
+    test(model, test_loader, test_accuracy_list)
+
+print(f"\nCompleted in {time.time() - start: .2f}s")
 # %%

@@ -563,9 +563,22 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
 
     # YOUR CODE HERE - iterate through the sorted computational graph, performing backprop algorithm
     comput_graph = sorted_computational_graph(end_node)
-    print(comput_graph)
+    # print(comput_graph)
+    old_grad = end_grad_arr
     for node in comput_graph:
-        node.recipe
+        print("New node")
+        print(node)
+        print("Parents:")
+        if isinstance(node, Tensor) and node.recipe is not None:
+            parents = node.recipe.parents
+            print(parents)
+            grad = 0.0 # this might need to be a tensor
+            for i, parent in parents.items():
+                back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
+                grad += back_func(old_grad, node.array, *node.recipe.args, **node.recipe.kwargs)
+            node.grad = grad
+            old_grad = grad
+
 
 
 

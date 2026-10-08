@@ -59,11 +59,17 @@ def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
         broadcasting rules.
     """
     # YOUR CODE HERE: sum over `broadcasted` until it has the shape of `original`
-    len(broadcasted
+    reduced_dims = broadcasted.ndim - original.ndim
 
+    print(reduced_dims)
+    broadcasted = np.add.reduce(broadcasted,
+        axis=[i for i in range(reduced_dims)] + np.argwhere(broadcasted.shape[reduced_dims:] == 1).tolist()
+    )
 
     assert broadcasted.shape == original.shape
     return broadcasted
 
 
 tests.test_unbroadcast(unbroadcast)
+
+# %%

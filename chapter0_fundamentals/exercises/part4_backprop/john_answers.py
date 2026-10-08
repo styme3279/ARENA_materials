@@ -89,3 +89,33 @@ def log_back(grad_out: Arr, out: Arr, x: Arr) -> Arr:
 
 tests.test_log_back(log_back)
 # %%
+
+def unbroadcast(broadcasted: Arr, original: Arr) -> Arr:
+    """
+    Sum 'broadcasted' until it has the shape of 'original'.
+
+    broadcasted: An array that was formerly of the same shape of 'original' and was expanded by
+        broadcasting rules.
+    """
+    # YOUR CODE HERE: sum over `broadcasted` until it has the shape of `original`
+    
+    # print(f"broadcasted.shape: {broadcasted.shape}")
+    # print(f"original.shape: {original.shape}")
+    shape_length_difference = len(broadcasted.shape) - len(original.shape)
+    # print(f"shape_length_difference: {shape_length_difference}")
+
+    # broadcasted = np.sum(broadcasted, axis=dim_arr)
+    broadcasted = np.sum(broadcasted, axis=tuple(range(shape_length_difference)))
+
+    # Step 2: sum over dims which were originally 1 (but don't remove them)
+    dims_to_sum = tuple([i for i, (o, b) in enumerate(zip(original.shape, broadcasted.shape)) if o == 1 and b > 1])
+    broadcasted = broadcasted.sum(axis=dims_to_sum, keepdims=True)
+
+    assert broadcasted.shape == original.shape
+    return broadcasted
+
+
+tests.test_unbroadcast(unbroadcast)
+
+
+# %%

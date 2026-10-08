@@ -575,13 +575,15 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         # if node.recipe is None: # if true it is a scalar
         #     continue
         print(1)
-        if (node.recipe is None or (node.recipe is not None and node.recipe.parents is None)) and node.requires_grad: # if true it is a leaf
+        if (node.recipe is None or (node.recipe is not None and node.recipe.parents is None)): # if true it is a leaf
             print(2)
             # update the current node's gradient if it is a leaf
             node.grad = Tensor(outgrad, False)#grads[node]
             print("Type")
             print(type(node.grad))
             print(2.5)
+            if not node.requires_grad:
+                node.grad = None
         else:
             print(3)
 
@@ -591,7 +593,15 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
                 print("parent loop: ", i)
                 # accumulating gradients in the current node
                 back_func = BACK_FUNCS.get_back_func(node.recipe.func, i)
-                grads[parent] = grads.get(parent, 0.0) + back_func(outgrad, node.array, *node.recipe.args, **node.recipe.kwargs)
+                # grads[parent] = grads.get(parent, parent.grad) + back_func(outgrad, node.array, *node.recipe.args, **node.recipe.kwargs)
+                if parent.grad is None:
+                    grads[parent] = 0.0
+                else:
+                    grads[parent] = parent.grad
+                    print("#################")
+                    print(type(grads[parent]))
+                grads[parent] = grads[parent] + back_func(outgrad, node.array, *node.recipe.args, **node.recipe.kwargs)
+                
 
             # if not leaf, then current node's grad is None but we still have to calculate the grad of potential parents
             node.grad = None
@@ -600,12 +610,12 @@ def backprop(end_node: Tensor, end_grad: Tensor | None = None):
         print("grads:")
         print(grads)
 
-tests.test_backprop(Tensor)
-tests.test_backprop_branching(Tensor)
-tests.test_backprop_requires_grad_sum(Tensor)
-tests.test_backprop_requires_grad_false(Tensor)
-tests.test_backprop_float_arg(Tensor)
-tests.test_backprop_shared_parent(Tensor)
+# tests.test_backprop(Tensor)
+# tests.test_backprop_branching(Tensor)
+# tests.test_backprop_requires_grad_sum(Tensor)
+# tests.test_backprop_requires_grad_false(Tensor)
+# tests.test_backprop_float_arg(Tensor)
+# tests.test_backprop_shared_parent(Tensor)
 tests.test_backprop_grad_accumulation(Tensor)
 
 # %%

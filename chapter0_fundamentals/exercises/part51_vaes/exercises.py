@@ -121,9 +121,15 @@ class AutoencoderTrainer:
         Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
         if enabled.
         """
+        self.optimizer.zero_grad()
         recon_img = self.model(img)
-        loss = nn.MSELoss()()
-        
+        loss = nn.MSELoss()
+        output = loss(img, recon_img)
+        output.backward()
+        self.optimizer.step()
+        self.step += 1
+        if self.steps 
+        return output
 
     @t.inference_mode()
     def log_samples(self) -> None:
@@ -148,6 +154,11 @@ class AutoencoderTrainer:
             wandb.watch(self.model)
 
         # YOUR CODE HERE - iterate over epochs, and train your model
+        for epoch in range(self.args.epochs):
+            for img, label in self.trainloader:
+                img = self.trainset.transform(img.to(device))
+                loss = self.training_step(img)
+            print("Loss:", loss.item())
 
         if self.args.use_wandb:
             wandb.finish()
@@ -158,3 +169,5 @@ class AutoencoderTrainer:
 args = AutoencoderArgs(use_wandb=False)
 trainer = AutoencoderTrainer(args)
 autoencoder = trainer.train()
+
+# %%

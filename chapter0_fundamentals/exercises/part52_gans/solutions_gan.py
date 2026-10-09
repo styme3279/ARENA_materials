@@ -388,6 +388,7 @@ class DCGANTrainer:
 
         for epoch in range(self.args.epochs):
             for img_real, label in self.trainloader:
+                img_real = self.trainset.transform(img_real).to(device)
                 # YOUR CODE HERE - fill in the training step for generator & discriminator
                 noise = t.randn(self.args.batch_size, self.args.latent_dim_size).to(device)
                 img_fake = self.model.netG(noise).to(device)

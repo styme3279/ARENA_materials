@@ -118,7 +118,7 @@ class Generator(nn.Module):
         )
         hidden_layers_list = []
         for i in range(n_layers-1):
-            hidden_layers_list.append(nn.ConvTranspose2d(in_channels=hidden_channels[i], out_channels=hidden_channels[i+1], kernel_size=4, stride=2, padding=1))
+            hidden_layers_list.append(nn.ConvTranspose2d(in_channels=hidden_channels[i], out_channels=hidden_channels[i+1], kernel_size=4, stride=2, padding=1, bias=False))
             hidden_layers_list.append(nn.BatchNorm2d(hidden_channels[i+1]))
             hidden_layers_list.append(nn.ReLU())
 
@@ -167,7 +167,7 @@ class Discriminator(nn.Module):
         self.hidden_channels = hidden_channels
         hidden_layers_list = []
         for i in range(n_layers-1):
-            hidden_layers_list.append(nn.Conv2d(hidden_channels[i], hidden_channels[i+1], kernel_size=4, stride=2, padding=1))
+            hidden_layers_list.append(nn.Conv2d(hidden_channels[i], hidden_channels[i+1], kernel_size=4, stride=2, padding=1, bias=False))
             hidden_layers_list.append(nn.BatchNorm2d(hidden_channels[i+1]))
             hidden_layers_list.append(LeakyReLU())
         self.hidden_layers = nn.Sequential(*hidden_layers_list)
@@ -216,7 +216,23 @@ def initialize_weights(model: nn.Module) -> None:
     Initializes weights according to the DCGAN paper (details at the end of page 3 of the DCGAN
     paper), by modifying the weights of the model in place.
     """
-    print(model.parameters)
+    for module in model.modules():
+        print(module)
+        if isinstance(module, (nn.BatchNorm2d, BatchNorm2d)):
+            print('nice')
+        else:
+            print('no nice')
+
+    # pytorch_layer_obj = getattr(model, name)
+
+    # for name, param in model.named_parameters():
+
+    #     shape = param.shape
+    #     if name == "weight":
+    #         nn.init.normal_(param, mean=0.0, std=0.02)
+    #     elif name == "bias":
+    #         nn.init.normal_(param, mean=0.0, std=0.02)
+        # print(type(param))
 
 
 tests.test_initialize_weights(initialize_weights, nn.ConvTranspose2d, Conv2d, Linear, nn.BatchNorm2d)

@@ -262,14 +262,13 @@ def initialize_weights(model: nn.Module) -> None:
     Initializes weights according to the DCGAN paper (details at the end of page 3 of the DCGAN
     paper), by modifying the weights of the model in place.
     """
-    print("helllllooo")
-
-    for param in model.parameters():
-        print("HELLLLLOOO")
-        print(param)
-        # param -= param
-        print(param)
-        param = t.randn_like(param) * (0.02)**2 + 1 if model.isinstance(nn.BatchNorm2d) else 0
+    for module in model.modules():
+        is_conv_transpose = isinstance(module, nn.ConvTranspose2d) or type(module).__name__ == "ConvTranspose2d"
+        if is_conv_transpose or isinstance(module, (Conv2d, Linear)):
+            nn.init.normal_(module.weight.data, 0.0, 0.02)
+        elif isinstance(module, nn.BatchNorm2d):
+            nn.init.normal_(module.weight.data, 1.0, 0.02)
+            nn.init.constant_(module.bias.data, 0.0)
 
 
 tests.test_initialize_weights(initialize_weights, nn.ConvTranspose2d, Conv2d, Linear, nn.BatchNorm2d)

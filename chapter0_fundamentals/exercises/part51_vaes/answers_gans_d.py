@@ -126,9 +126,9 @@ class Generator(nn.Module):
         
         
         self.project_and_reshape = nn.Sequential(
-            nn.Linear(self.latent_dim_size,8*8*512, bias=False),
-            Rearrange('b (c h w) -> b c h w',c=512,h=8,w=8),
-            BatchNorm2d(512),
+            nn.Linear(self.latent_dim_size,first_size, bias=False),
+            Rearrange('b (c h w) -> b c h w',c=hidden_channels[0],h=first_height,w=first_height),
+            BatchNorm2d(hidden_channels[0]),
             nn.ReLU()
         )
         self.hidden_layers = nn.Sequential(
@@ -196,7 +196,7 @@ class Discriminator(nn.Module):
         )
         self.classifier = nn.Sequential(
             Rearrange("b c h w -> b (c h w)"),
-            nn.Linear(512*8*8,1, bias=False)
+            nn.Linear(hidden_channels[-1]*(img_size // 2**len(hidden_channels))**2,1, bias=False)
         )
 
     def forward(
@@ -354,8 +354,8 @@ class DCGANTrainer:
         minimize -(log(D(x)) + log(1-D(G(z)))). Logs to wandb if enabled.
         """
         self.optD.zero_grad()
-        logits_fake = self.model.netD(img_fake)
         logits_real = self.model.netD(img_real)
+        logits_fake = self.model.netD(img_fake)
         loss = - (F.logsigmoid(logits_real) + F.logsigmoid(-logits_fake))
         if self.args.clip_grad_norm is not None:
             nn.utils.clip_grad_norm_(self.model.netD.parameters(), self.args.clip_grad_norm)
@@ -418,8 +418,9 @@ class DCGANTrainer:
                 noise =  t.randn(img_real.shape[0], self.args.latent_dim_size).to(device)
                 img_fake = self.model.netG(noise)
                 #noise = self.trainset.transform(img_fake)
-                loss_g = self.training_step_generator(img_fake)
                 loss_d = self.training_step_discriminator(img_real,img_fake.detach())
+                loss_g = self.training_step_generator(img_fake)
+
 
                 self.step += 1
 

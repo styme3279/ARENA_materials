@@ -174,7 +174,7 @@ class Discriminator(nn.Module):
         self.img_channels = img_channels
         self.hidden_channels = hidden_channels
         self.hidden_layers = nn.Sequential(
-            nn.Conv2d(img_channels, 128, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.Conv2d(img_channels, hidden_channels[0], kernel_size=4, stride=2, padding=1, bias=False),
             LeakyReLU(.2),
             *[layer for i in range(img_channels-1) for layer in [
                 nn.Conv2d(self.hidden_channels[i], self.hidden_channels[i+1], kernel_size=4, stride=2, padding=1, bias=False), 
@@ -360,17 +360,17 @@ class DCGANTrainer:
         self.optD.zero_grad()
         pred_r = self.model.netD(img_real)
         pred_f = self.model.netD(self.model.netG(img_fake))
-        loss = -t.logsigmoid(pred_r) + t.logsigmoid(-pred_f)
+        loss_d = -t.logsigmoid(pred_r).mean() - t.logsigmoid(-pred_f).mean()
         if self.args.clip_grad_norm is not None:
             nn.utils.clip_grad_norm_(self.model.netD.parameters(), self.args.clip_grad_norm)
-        loss.backward()
+        loss_d.backward()
         self.optD.step()
         self.step += 1
         if self.args.use_wandb:
-            wandb.log({'step':self.step, 'loss':loss})
+            wandb.log({'step':self.step, 'loss_d':loss_d})
         if self.step % self.args.log_every_n_steps == 0:
             self.log_samples()
-        return loss
+        return loss_d
 
     def training_step_generator(
         self, img_fake: Float[Tensor, "batch channels height width"]
@@ -379,18 +379,18 @@ class DCGANTrainer:
         Performs a gradient step on the generator to minimize -log(D(G(z))). Logs to wandb if enabled.
         """
         self.optG.zero_grad()
-        pred_f = self.model.netD(self.model.netG(img_fake))
-        loss = -t.logsigmoid(pred_f)
+        pred_f = self.model.netD(img_fake)
+        loss_g = -t.logsigmoid(pred_f).mean()
         if self.args.clip_grad_norm is not None:
             nn.utils.clip_grad_norm_(self.model.netG.parameters(), self.args.clip_grad_norm)
-        loss.backward()
+        loss_g.backward()
         self.optG.step()
         self.step += 1
         if self.args.use_wandb:
-            wandb.log({'step':self.step, 'loss':loss})
+            wandb.log({'step':self.step, 'loss_g':loss_g})
         if self.step % self.args.log_every_n_steps == 0:
             self.log_samples()
-        return loss
+        return loss_g
 
     @t.inference_mode()
     def log_samples(self) -> None:
@@ -425,13 +425,17 @@ class DCGANTrainer:
 
         for epoch in range(self.args.epochs):
             for img_real, label in tqdm(self.trainloader, position=1):
-
-                noise = t.randn_like(img_real)
-                noise = self.trainset.transform(noise.to(device))
+                
                 img_real = self.trainset.transform(img_real.to(device))
+                noise = t.randn(img_real.shape[0], self.args.latent_dim_size).to(device)
+                img_fake = self.model.netG(noise)
+            
+                loss_d = self.training_step_discriminator(img_real, img_fake.detach())
+                loss_g = self.training_step_generator(img_fake)
 
-                img_fake = self.training_step_generator(noise)
-                loss = self.training_step_discriminator(img_real.detach(), img_fake.detach())
+
+                progress_bar.set_description(f"epoch: {e}, loss_g: {loss_g}, loss_d: {loss_d}", refresh=False)
+                progress_bar.update()
 
         progress_bar.close()
         if self.args.use_wandb:

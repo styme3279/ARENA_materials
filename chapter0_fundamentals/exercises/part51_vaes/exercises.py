@@ -220,8 +220,27 @@ class VAE(nn.Module):
 
     def __init__(self, latent_dim_size: int, hidden_dim_size: int):
         super().__init__()
-        self.encoder = ...
-        self.decoder = ...
+        self.encoder = Sequential(
+                Conv2d(1, 16, 4, stride=2, padding=1),
+                ReLU(),
+                Conv2d(16, 32, 4, stride=2, padding=1),
+                ReLU(),
+                Rearrange("b c h w -> b (c h w)"),
+                Linear(7 * 7 * 32, hidden_dim_size),
+                ReLU(),
+                Linear(hidden_dim_size, 2 * latent_dim_size),
+                Rearrange("b (e l) -> e b l", e=2)
+        )
+        self.decoder = nn.Sequential(
+            Linear(latent_dim_size, hidden_dim_size),
+            ReLU(),
+            Linear(hidden_dim_size, 7 * 7 * 32),
+            ReLU(),
+            Rearrange("b (c h w) -> b c h w", c=32, h=7, w=7),
+            nn.ConvTranspose2d(32, 16, 4, stride=2, padding=1, bias=False),
+            ReLU(),
+            nn.ConvTranspose2d(16, 1, 4, stride=2, padding=1, bias=False),
+        )
 
     def sample_latent_vector(
         self, x: Float[Tensor, "batch 1 height width"]
@@ -235,7 +254,10 @@ class VAE(nn.Module):
         This function can be used in `forward`, but also used on its own to generate samples for
         evaluation.
         """
-        raise NotImplementedError()
+        encoded = self.encoder(x)
+        epsilon = t.normal(mean=0.0, std=1.0, size=encoded[0].shape)
+        return (encoded[0] + epsilon * encoded[1])
+
 
     def forward(
         self, x: Float[Tensor, "batch 1 height width"]
@@ -248,7 +270,9 @@ class VAE(nn.Module):
         Passes `x` through the encoder and decoder. Returns the reconstructed input, as well as mu
         and logsigma.
         """
-        raise NotImplementedError()
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
 
 
 tests.test_vae(VAE)

@@ -217,24 +217,40 @@ def initialize_weights(model: nn.Module) -> None:
     paper), by modifying the weights of the model in place.
     """
     for module in model.modules():
-        print(module)
         if isinstance(module, (nn.BatchNorm2d, BatchNorm2d)):
-            print('nice')
-        else:
-            print('no nice')
+            nn.init.normal_(module.weight.data, mean=1.0, std=0.02)
+            nn.init.constant_(module.bias.data, 0)
 
-    # pytorch_layer_obj = getattr(model, name)
-
-    # for name, param in model.named_parameters():
-
-    #     shape = param.shape
-    #     if name == "weight":
-    #         nn.init.normal_(param, mean=0.0, std=0.02)
-    #     elif name == "bias":
-    #         nn.init.normal_(param, mean=0.0, std=0.02)
-        # print(type(param))
-
+        elif isinstance(module, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear, Conv2d, Linear)):
+            nn.init.normal_(module.weight.data, mean=0.0, std=0.02)
 
 tests.test_initialize_weights(initialize_weights, nn.ConvTranspose2d, Conv2d, Linear, nn.BatchNorm2d)
+
+# %%
+class DCGAN(nn.Module):
+    netD: Discriminator
+    netG: Generator
+
+    def __init__(
+        self,
+        latent_dim_size: int = 100,
+        img_size: int = 64,
+        img_channels: int = 3,
+        hidden_channels: list[int] = [128, 256, 512],
+    ):
+        super().__init__()
+        self.latent_dim_size = latent_dim_size
+        self.img_size = img_size
+        self.img_channels = img_channels
+        self.hidden_channels = hidden_channels
+        self.netD = Discriminator(img_size, img_channels, hidden_channels)
+        self.netG = Generator(latent_dim_size, img_size, img_channels, hidden_channels)
+        initialize_weights(self.netD)
+        initialize_weights(self.netG)
+
+model = DCGAN().to(device)
+x = t.randn(3, 100).to(device)
+print(torchinfo.summary(model.netG, input_data=x), end="\n\n")
+print(torchinfo.summary(model.netD, input_data=model.netG(x)))
 
 # %%

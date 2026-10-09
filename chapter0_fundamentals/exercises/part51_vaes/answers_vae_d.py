@@ -113,7 +113,6 @@ tests.test_autoencoder(Autoencoder)
 
 # %%
 
-@dataclass
 class AutoencoderArgs:
     # architecture
     latent_dim_size: int = 5
@@ -131,6 +130,27 @@ class AutoencoderArgs:
     wandb_project: str | None = "day5-autoencoder"
     wandb_name: str | None = None
     log_every_n_steps: int = 250
+
+# %%
+
+@dataclass
+class AutoencoderArgs:
+    # architecture
+    latent_dim_size: int = 5
+    hidden_dim_size: int = 128
+
+    # data / training
+    dataset: Literal["MNIST", "CELEB"] = "MNIST"
+    batch_size: int = 512
+    epochs: int = 10
+    lr: float = 1e-3
+    betas: tuple[float, float] = (0.5, 0.999)
+
+    # logging
+    use_wandb: bool = True
+    wandb_project: str | None = "day5-autoencoder"
+    wandb_name: str | None = None
+    log_every_n_steps: int = 118
 
 
 class AutoencoderTrainer:
@@ -210,7 +230,12 @@ class AutoencoderTrainer:
 
 args = AutoencoderArgs(use_wandb=False)
 trainer = AutoencoderTrainer(args)
-autoencoder = trainer.train()
+#autoencoder = trainer.train()
+
+# %%
+
+args = AutoencoderArgs(use_wandb=False)
+trainer = AutoencoderTrainer(args)
 
 # %%
 
@@ -228,13 +253,13 @@ def create_grid_of_latents(
     return grid_latent.flatten(0, 1)  # flatten over (rows, cols) into a single batch dimension
 
 
-grid_latent = create_grid_of_latents(autoencoder, interpolation_range=(-3, 3))
+#grid_latent = create_grid_of_latents(autoencoder, interpolation_range=(-3, 3))
 
 # Map grid latent through the decoder
-output = autoencoder.decoder(grid_latent)
+#output = autoencoder.decoder(grid_latent)
 
 # Visualize the output
-utils.visualise_output(output, grid_latent, title="Autoencoder latent space visualization")
+# utils.visualise_output(output, grid_latent, title="Autoencoder latent space visualization")
 
 # %%
 # Get a small dataset with 5000 points
@@ -341,7 +366,6 @@ class VAETrainer:
         ).to(device)
         self.optimizer = t.optim.Adam(self.model.parameters(), lr=args.lr, betas=args.betas)
         self.mse = nn.MSELoss()
-        self.kl = nn.KLDivLoss()
         self.beta = args.beta_kl
 
     def training_step(
@@ -354,7 +378,9 @@ class VAETrainer:
         self.optimizer.zero_grad()
         out, mu, log_sigma = self.model(img)
 
-        loss = self.mse(out,img) + self.beta*self.kl()
+        reconstruction_loss = self.mse(out,img) 
+        kl_loss = (0.5*(mu**2 + t.exp(log_sigma)**2 - 1) -log_sigma).mean()
+        loss = reconstruction_loss + self.beta*kl_loss
         loss.backward()
         self.optimizer.step()
 
@@ -402,3 +428,23 @@ class VAETrainer:
 args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=False)
 trainer = VAETrainer(args)
 vae = trainer.train()
+
+# %%
+
+grid_latent = create_grid_of_latents(vae, interpolation_range=(-1, 1))
+output = vae.decoder(grid_latent)
+utils.visualise_output(output, grid_latent, title="VAE latent space visualization")
+
+# %%
+
+small_dataset = Subset(trainset_mnist, indices=range(0, 5000))
+imgs = trainset_mnist.transform(t.stack([img for img, label in small_dataset]).to(device))
+labels = t.tensor([label for img, label in small_dataset]).to(device).int()
+
+# We're getting the mean vector, which is the [0]-indexed output of the encoder
+latent_vectors = vae.encoder(imgs)[0, :, :2]
+holdout_latent_vectors = vae.encoder(HOLDOUT_DATA)[0, :, :2]
+
+utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)
+
+# %%

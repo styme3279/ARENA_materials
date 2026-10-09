@@ -229,7 +229,7 @@ class AutoencoderTrainer:
 
 args = AutoencoderArgs(use_wandb=False)
 trainer = AutoencoderTrainer(args)
-autoencoder = trainer.train()
+#autoencoder = trainer.train()
 
 
 # %%
@@ -334,3 +334,108 @@ class VAE(nn.Module):
 
 
 tests.test_vae(VAE)
+
+# %%
+@dataclass
+class VAEArgs(AutoencoderArgs):
+    wandb_project: str | None = "day5-vae-mnist"
+    beta_kl: float = 0.1
+
+
+class VAETrainer:
+    def __init__(self, args: VAEArgs):
+        self.args = args
+        self.trainset = get_dataset(args.dataset)
+        self.trainloader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
+        self.model = VAE(
+            latent_dim_size=args.latent_dim_size,
+            hidden_dim_size=args.hidden_dim_size,
+        ).to(device)
+        self.optimizer = t.optim.Adam(self.model.parameters(), lr=args.lr, betas=args.betas)
+        self.loss = nn.MSELoss()
+
+    def training_step(
+        self, img: Float[Tensor, "batch 1 height width"]
+    ) -> Float[Tensor, ""]:
+        """
+        Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
+        if enabled.
+        """
+        self.optimizer.zero_grad()
+        pred_img, mean, log_sd = self.model(img)
+        kl_loss = self.args.beta_kl * ((t.exp(log_sd)**2 + mean**2 - 1)/2 - log_sd).mean()
+        loss = self.loss(pred_img, img) + kl_loss
+        loss.backward()
+        self.optimizer.step()
+        self.step += 1
+        if self.args.use_wandb:
+            wandb.log({'step':self.step, 'total_loss':loss.item(), 'mean':mean.mean(), 'sd':t.exp(log_sd).mean()})
+        if self.step % self.args.log_every_n_steps == 0:
+            self.log_samples()
+        return loss
+
+    @t.inference_mode()
+    def log_samples(self) -> None:
+        """
+        Evaluates model on holdout data, either logging to wandb or displaying output inline.
+        """
+        assert self.step > 0, "First call should come after a training step. Remember to increment `self.step`."
+        output = self.model(HOLDOUT_DATA)[0]
+        if self.args.use_wandb:
+            output = (output - output.min()) / (output.max() - output.min())  # Normalize to [0, 1]
+            output = (output * 255).to(dtype=t.uint8)  # Convert to uint8 for logging
+            wandb.log({"images": [wandb.Image(arr) for arr in output.cpu().numpy()]}, step=self.step)
+        else:
+            self.live_image.update(t.concat([HOLDOUT_DATA, output]), nrows=2)  # top: input, bottom: reconstruction
+
+    def train(self) -> VAE:
+        """Performs a full training run."""
+        self.step = 0
+        self.live_image = LiveImage()  # `log_samples` overwrites this in place
+        if self.args.use_wandb:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+            wandb.watch(self.model)
+
+        pbar1 = tqdm(total=self.args.epochs*len(self.trainloader), position=0)
+        pbar2 = tqdm(total=len(self.trainloader), position=1, leave=False)
+        for e in range(self.args.epochs):
+            for (img, _) in self.trainloader:
+                
+                img = self.trainset.transform(img.to(device))
+                loss = self.training_step(img)
+
+                pbar1.set_postfix({'epoch': e, 'loss': loss.item()})
+                pbar2.set_postfix({'epoch': e, 'loss': loss.item()})
+                pbar1.update()
+                pbar2.update()
+
+        pbar1.close()
+        pbar2.close()
+
+        if self.args.use_wandb:
+            wandb.finish()
+
+        return self.model
+
+
+args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=False)
+trainer = VAETrainer(args)
+vae = trainer.train()
+
+# %%
+grid_latent = create_grid_of_latents(vae, interpolation_range=(-1, 1))
+output = vae.decoder(grid_latent)
+utils.visualise_output(output, grid_latent, title="VAE latent space visualization")
+
+# %%
+small_dataset = Subset(trainset_mnist, indices=range(0, 5000))
+imgs = trainset_mnist.transform(t.stack([img for img, label in small_dataset]).to(device))
+labels = t.tensor([label for img, label in small_dataset]).to(device).int()
+
+# We're getting the mean vector, which is the [0]-indexed output of the encoder
+latent_vectors = vae.encoder(imgs)[0, :, :2]
+holdout_latent_vectors = vae.encoder(HOLDOUT_DATA)[0, :, :2]
+
+utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)
+
+# %%

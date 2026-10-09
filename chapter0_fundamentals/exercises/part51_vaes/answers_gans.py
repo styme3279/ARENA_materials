@@ -1,5 +1,4 @@
 # %%
-
 import os
 import sys
 from dataclasses import dataclass, field
@@ -41,18 +40,15 @@ NUM_WORKERS = 2 if "google.colab" in sys.modules else min(8, os.cpu_count())
 t.set_num_threads(min(4, t.get_num_threads()))
 
 # %%
-
 trainset_celeb = get_dataset("CELEB")
 x = next(iter(DataLoader(trainset_celeb, batch_size=25)))[0]
 display_data(trainset_celeb.transform(x), nrows=5, title="CelebA data")
 
-
 # %%
-
 class Tanh(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
-        x = t.clamp(x,-80,80)
-        return ((t.exp(x)) - t.exp(-x)) / (t.exp(x)+t.exp(-x))
+        x = t.clamp(x, -80, 80)
+        return (t.exp(x) - t.exp(-x)) / (t.exp(x) + t.exp(-x)) 
 
 class LeakyReLU(nn.Module):
     def __init__(self, negative_slope: float = 0.01) -> None:
@@ -60,7 +56,7 @@ class LeakyReLU(nn.Module):
         self.negative_slope = negative_slope
 
     def forward(self, x: Tensor) -> Tensor:
-        return t.where(x>0,x,self.negative_slope*x)
+        return t.maximum(x, t.tensor(0)) + t.minimum(self.negative_slope*x, t.tensor(0))
 
     def extra_repr(self) -> str:
         return f"negative_slope={self.negative_slope}"
@@ -69,13 +65,4 @@ class LeakyReLU(nn.Module):
 tests.test_Tanh(Tanh)
 tests.test_LeakyReLU(LeakyReLU)
 
-# %%
-img_size = 64
-img_channels = 3
-hidden_channels = [128, 256, 512]
-# %%
-img_size = 64
-img_channels = 3
-hidden_channels = [128, 256, 512]
-latent_dim_size = 100
 # %%

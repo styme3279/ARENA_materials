@@ -213,3 +213,27 @@ trainer = AutoencoderTrainer(args)
 autoencoder = trainer.train()
 
 # %%
+
+def create_grid_of_latents(
+    model: nn.Module,
+    interpolation_range: tuple[float, float] = (-1, 1),
+    n_points: int = 11,
+    dims: tuple[int, int] = (0, 1),
+) -> Float[Tensor, "rows_x_cols latent_dims"]:
+    """Create a tensor of zeros which varies along the 2 specified dimensions of the latent space."""
+    grid_latent = t.zeros(n_points, n_points, model.latent_dim_size, device=device)
+    x = t.linspace(*interpolation_range, n_points)
+    grid_latent[..., dims[0]] = x.unsqueeze(-1)  # rows vary over dim=0
+    grid_latent[..., dims[1]] = x  # cols vary over dim=1
+    return grid_latent.flatten(0, 1)  # flatten over (rows, cols) into a single batch dimension
+
+
+grid_latent = create_grid_of_latents(autoencoder, interpolation_range=(-3, 3))
+
+# Map grid latent through the decoder
+output = autoencoder.decoder(grid_latent)
+
+# Visualize the output
+utils.visualise_output(output, grid_latent, title="Autoencoder latent space visualization")
+
+# %%

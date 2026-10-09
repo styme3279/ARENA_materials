@@ -181,14 +181,14 @@ class Discriminator(nn.Module):
         
         
         self.hidden_layers = nn.Sequential(
-            nn.Conv2d(in_channels=self.img_channels,out_channels=self.hidden_channels[0],kernel_size=4,stride=2,padding=1),
-            BatchNorm2d(self.hidden_channels[0]),
+            nn.Conv2d(in_channels=self.img_channels,out_channels=self.hidden_channels[0],kernel_size=4,stride=2,padding=1,bias=False),
+            #BatchNorm2d(self.hidden_channels[0]),
             nn.LeakyReLU(),
             *(
                 layer
                 for i in range(len(self.hidden_channels)-1)
                 for layer in [
-                nn.Conv2d(in_channels=self.hidden_channels[i],out_channels=self.hidden_channels[i+1],kernel_size=4,stride=2,padding=1),
+                nn.Conv2d(in_channels=self.hidden_channels[i],out_channels=self.hidden_channels[i+1],kernel_size=4,stride=2,padding=1,bias=False),
                 BatchNorm2d(self.hidden_channels[i+1]),
                 nn.LeakyReLU(0.2)
             ]
@@ -232,4 +232,15 @@ from part52_gans import solutions
 
 #print_param_count(Generator(), solutions.DCGAN().netG)
 print_param_count(Discriminator(), solutions.DCGAN().netD)
+
 # %%
+
+def initialize_weights(model: nn.Module) -> None:
+    """
+    Initializes weights according to the DCGAN paper (details at the end of page 3 of the DCGAN
+    paper), by modifying the weights of the model in place.
+    """
+    raise NotImplementedError()
+
+
+tests.test_initialize_weights(initialize_weights, nn.ConvTranspose2d, Conv2d, Linear, nn.BatchNorm2d)

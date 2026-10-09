@@ -276,6 +276,7 @@ class DCGANArgs:
     betas: tuple[float, float] = (0.5, 0.999)
     clip_grad_norm: float | None = 1.0
 
+
     # performance
     compile: bool = False  # optional ~2x speed-up, off by default
 
@@ -334,7 +335,9 @@ class DCGANTrainer:
         pred_real_img = self.model.netD(img_real)
         pred_fake_img = self.model.netD(img_fake)
         loss = -(t.log(pred_real_img) + t.log(1-pred_fake_img))
-
+        loss.backward()
+        self.optD.step()
+        return loss
 
     def training_step_generator(
         self, img_fake: Float[Tensor, "batch channels height width"]
@@ -343,12 +346,14 @@ class DCGANTrainer:
         Performs a gradient step on the generator to minimize -log(D(G(z))). Logs to wandb if enabled.
         """
         self.optG.zero_grad()
-        noise = t.normal((img_fake.size[0], self.args.latent_dim_size), device=device)
+        # oise = t.normal((img_fake.size[0], self.args.latent_dim_size), device=device)
+        noise = t.randn(self.args.batch_size, self.args.latent_dim_size)
         G = self.model.netG(noise)
         D = self.model.netD(G).detach()
         loss = -t.log(D)
         loss.backward()
         self.optG.step()
+        return loss
 
     @t.inference_mode()
     def log_samples(self) -> None:
@@ -384,9 +389,30 @@ class DCGANTrainer:
         for epoch in range(self.args.epochs):
             for img_real, label in self.trainloader:
                 # YOUR CODE HERE - fill in the training step for generator & discriminator
+                noise = t.randn(self.args.batch_size, self.args.latent_dim_size).to(device)
+                img_fake = self.model.netG(noise).to(device)
+                loss_disc = self.training_step_discriminator(img_real, img_fake)
+                loss_gene = self.training_step_discriminator(img_real)
 
         progress_bar.close()
         if self.args.use_wandb:
             wandb.finish()
 
         return self.model
+
+
+# Arguments for CelebA
+args = DCGANArgs(
+    dataset="CELEB",
+    hidden_channels=[128, 256, 512],
+    batch_size=64,  # if you get OOM errors, reduce this!
+    epochs=5,
+    lr_D=8e-4,  # separate LRs for generator and discriminator
+    lr_G=2e-4,
+    use_wandb=False,
+    compile=False, # toggle me once you have the bugs ironed out
+)
+trainer = DCGANTrainer(args)
+dcgan_celeb = trainer.train()
+
+# %%

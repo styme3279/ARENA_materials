@@ -116,13 +116,13 @@ class Generator(nn.Module):
             nn.BatchNorm2d(hidden_channels[0]),
             nn.ReLU()
         )
-        self.hidden_layers_list = []
+        hidden_layers_list = []
         for i in range(n_layers-1):
-            self.hidden_layers_list.append(nn.ConvTranspose2d(in_channels=hidden_channels[i], out_channels=hidden_channels[i+1], kernel_size=4, stride=2, padding=1))
-            self.hidden_layers_list.append(nn.BatchNorm2d(hidden_channels[i+1]))
-            self.hidden_layers_list.append(nn.ReLU)
+            hidden_layers_list.append(nn.ConvTranspose2d(in_channels=hidden_channels[i], out_channels=hidden_channels[i+1], kernel_size=4, stride=2, padding=1))
+            hidden_layers_list.append(nn.BatchNorm2d(hidden_channels[i+1]))
+            hidden_layers_list.append(nn.ReLU)
 
-        self.hidden_layers = 
+        self.hidden_layers = nn.Sequential(*hidden_layers_list)
 
     def forward(
         self, x: Float[Tensor, "batch latent"]
@@ -161,8 +161,16 @@ class Discriminator(nn.Module):
         self.img_size = img_size
         self.img_channels = img_channels
         self.hidden_channels = hidden_channels
-        self.hidden_layers = ...
-        self.classifier = ...
+        hidden_layers_list = []
+        for i in range(n_layers):
+            hidden_layers_list.append(nn.Conv2d(hidden_channels[i], hidden_channels[i+1], kernel_size=4, strid=2, padding=1))
+            hidden_layers_list.append(nn.BatchNorm2d(hidden_channels[i+1]))
+            hidden_layers_list.append(LeakyReLU())
+        self.hidden_layers = nn.Sequential(*hidden_layers_list)
+        self.classifier = nn.Sequential(
+            Rearrange('b c h w -> b (c h w)'),
+            nn.Linear(64/2**3)
+        )
 
     def forward(
         self, x: Float[Tensor, "batch channels height width"]

@@ -210,23 +210,23 @@ class Discriminator(nn.Module):
         self.img_size = img_size
         self.img_channels = img_channels
         self.hidden_channels = hidden_channels
-        first_size = img_channels * (img_size**2)
         self.hidden_layers = Sequential(
             *[
                 Sequential(
                     Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1),
-                    BatchNorm2d(num_features=first_size/(2**i)) if i != 0 else nn.Identity(),
+                    BatchNorm2d(num_features=num_features) if i != 0 else nn.Identity(),
                     LeakyReLU()
                 ) 
-                    for i, (in_channels, out_channels) in enumerate(zip(
+                    for i, (in_channels, num_features, out_channels) in enumerate(zip(
                         [self.img_channels] + self.hidden_channels[:-1],
+                        [64*64*3, 32*32*128, 16*16*256],
                         self.hidden_channels,
                 ))
             ]
         )
         self.classifier = Sequential(
             nn.Flatten(),
-            Linear()
+            Linear(in_features=512*8*8, out_features=1)
         )
 
     def forward(
@@ -255,3 +255,22 @@ class DCGAN(nn.Module):
         self.hidden_channels = hidden_channels
         self.netD = Discriminator(img_size, img_channels, hidden_channels)
         self.netG = Generator(latent_dim_size, img_size, img_channels, hidden_channels)
+
+# %%
+def initialize_weights(model: nn.Module) -> None:
+    """
+    Initializes weights according to the DCGAN paper (details at the end of page 3 of the DCGAN
+    paper), by modifying the weights of the model in place.
+    """
+    print("helllllooo")
+
+    for param in model.parameters():
+        print("HELLLLLOOO")
+        print(param)
+        # param -= param
+        print(param)
+        param = t.randn_like(param) * (0.02)**2 + 1 if model.isinstance(nn.BatchNorm2d) else 0
+
+
+tests.test_initialize_weights(initialize_weights, nn.ConvTranspose2d, Conv2d, Linear, nn.BatchNorm2d)
+# %%

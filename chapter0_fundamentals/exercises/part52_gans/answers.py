@@ -375,7 +375,8 @@ class DCGANTrainer:
         Generates a real and fake image, and performs a gradient step on the discriminator to
         minimize -(log(D(x)) + log(1-D(G(z)))). Logs to wandb if enabled.
         """
-        self.model.netD.zero_grad()
+        self.optD.zero_grad()
+
         img_fake = img_fake.detach()
         
         pred_fake = self.model.netD(img_fake)
@@ -384,7 +385,13 @@ class DCGANTrainer:
         pred_real = self.model.netD(img_real)
         loss_real = t.log(pred_real, dim=0)
 
-        return -(loss_fake + loss_real)
+        loss = (-(loss_fake + loss_real))
+
+        loss.backward()
+
+        self.optD.step()
+
+        return loss
 
     def training_step_generator(
         self, img_fake: Float[Tensor, "batch channels height width"]
@@ -392,9 +399,14 @@ class DCGANTrainer:
         """
         Performs a gradient step on the generator to minimize -log(D(G(z))). Logs to wandb if enabled.
         """
-        self.model.netG.zero_grad()
+        self.optG.zero_grad()
 
         pred_fake = self.model.netD(img_fake)
+        
+        loss = (-t.log(pred_fake))
+        loss.backward()
+
+        self.optG.step()
 
         return -t.log(pred_fake)
 
@@ -429,15 +441,24 @@ class DCGANTrainer:
         # One progress bar for the whole run (rather than a new one each epoch)
         progress_bar = tqdm(total=self.args.epochs * len(self.trainloader), ascii=True)
 
-        for epoch in range(self.args.epochs):
-            for img_real, label in self.trainloader:
+        for _ in range(self.args.epochs):
+            for img_real, _ in self.trainloader:
+                img_real = self.trainset.transform(img_real.to(device))
+
                 init_noise = t.randn(10, args.latent_dim_size, device=device)
                 img_fake = self.model.netG(init_noise)
 
-                self.training_step_discriminator(img_real, img_fake)
-                self.training_step_generator(img_fake)
+                self.step += 1
+                dloss = self.training_step_discriminator(img_real, img_fake)
+                gloss = self.training_step_generator(img_fake)
+
+
+                if self.args.use_wandb:
+                    wandb.log({"dloss": dloss.item()}, step=self.step)
+                    wandb.log({"gloss": gloss.item()}, step=self.step)
                 
-                # YOUR CODE HERE - fill in the training step for generator & discriminator
+                if self.step % self.args.log_every_n_steps == 1:
+                    self.log_samples()
 
         progress_bar.close()
         if self.args.use_wandb:

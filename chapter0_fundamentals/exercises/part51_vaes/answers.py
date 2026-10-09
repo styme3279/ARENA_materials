@@ -385,7 +385,7 @@ class VAETrainer:
     def training_step(
         self, img: Float[Tensor, "batch 1 height width"]
     ) -> Float[Tensor, ""]:
-        """
+        """ 
         Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
         if enabled.
         """

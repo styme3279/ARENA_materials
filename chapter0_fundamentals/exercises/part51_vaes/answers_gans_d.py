@@ -130,7 +130,15 @@ class Generator(nn.Module):
             Rearrange('b (c h w) -> b c h w',c=512,h=8,w=8)
         )
         self.hidden_layers = nn.Sequential(
-            BatchNorm2d
+            BatchNorm2d(512),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=512,out_channels=256,kernel_size=4,stride=2,padding=1),
+            BatchNorm2d(256),
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(in_channels=256,out_channels=128,kernel_size=4,stride=2,padding=1),
+            BatchNorm2d(128),
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(in_channels=128,out_channels=3,kernel_size=4,stride=2,padding=1)
         )
 
     def forward(
@@ -170,7 +178,10 @@ class Discriminator(nn.Module):
         self.img_size = img_size
         self.img_channels = img_channels
         self.hidden_channels = hidden_channels
-        self.hidden_layers = ...
+        self.hidden_layers = nn.Sequential(
+            nn.Conv2d(in_channels=self.img_channels,out_channels=self.hidden_channels[0],kernel_size=4,stride=2,padding=1),
+            *(nn.Conv2d(in_channels=hidden_channels[i],out_channels=hidden_channels[i+1],kernel_size=4,))
+        )
         self.classifier = ...
 
     def forward(

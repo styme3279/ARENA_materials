@@ -51,7 +51,7 @@ if MAIN:
         labels=dict(x="stored feature", y="read-out for feature"),
     )
 
-    def tms_forward(x: Tensor) -> Tensor:
+    def tms_forward(x: Tensor, W_tms: Tensor, b_tms: Tensor) -> Tensor:
         return F.relu(W_tms.T @ (W_tms @ x) + b_tms)
 
     examples = {
@@ -60,7 +60,7 @@ if MAIN:
         "ALL five at once (never in training)": t.tensor([1.0, 1.0, 1.0, 1.0, 1.0]),
     }
     for name, x in examples.items():
-        out = tms_forward(x)
+        out = tms_forward(x, W_tms, b_tms)
         print(f"{name}   in:  {[round(v, 2) for v in x.tolist()]}")
         print(f"{'':40s}out: {[round(v, 2) for v in out.tolist()]}\n")
 
@@ -81,15 +81,17 @@ def svd_ablation_curve(
         b: the TMS output bias.
 
     Returns:
-        changes: changes[i, j] = ||output_original - output_ablated||_2 for SVD term i
-            on one-hot input e_j. ~0 would mean "term i is ablatable when only feature
-            j is active"; outputs have norm ~1, so 0.3+ means badly corrupted.
+        changes: changes[i, j] = ||out - out_ablated||_2 / ||out||_2 for SVD term i on
+            one-hot input e_j. 0 = output unchanged ("term i is ablatable when only
+            feature j is active"); ~1 = the output moved by about its own entire
+            magnitude; 0.3+ = badly corrupted.
     """
     U, S, Vt = t.linalg.svd(W, full_matrices=False)
     rank = S.shape[0]
     n_features = W.shape[1]
 
     def tms_out(W_: Tensor, x: Tensor) -> Tensor:
+        # same computation as the demo's tms_forward
         return F.relu(W_.T @ (W_ @ x) + b)
 
     changes = t.zeros(rank, n_features)
@@ -98,7 +100,9 @@ def svd_ablation_curve(
         for j in range(n_features):
             x = t.zeros(n_features)
             x[j] = 1.0
-            changes[i, j] = (tms_out(W, x) - tms_out(W_ablated, x)).norm()
+            out = tms_out(W, x)
+            out_ablated = tms_out(W_ablated, x)
+            changes[i, j] = (out - out_ablated).norm() / (out.norm() + 1e-8)
     return changes
 
 if MAIN:
@@ -108,7 +112,7 @@ if MAIN:
     changes = svd_ablation_curve(W_tms, b_tms)
     imshow(
         changes,
-        title="Output change when ablating SVD term i on one-hot input j (nothing is ablatable!)",
+        title="Relative output change when ablating SVD term i on one-hot input j (nothing is ablatable!)",
         labels=dict(x="Active feature j", y="SVD term i"),
     )
 

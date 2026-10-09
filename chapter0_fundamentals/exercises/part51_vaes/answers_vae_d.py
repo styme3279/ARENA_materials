@@ -323,3 +323,82 @@ class VAE(nn.Module):
 tests.test_vae(VAE)
 
 # %%
+
+@dataclass
+class VAEArgs(AutoencoderArgs):
+    wandb_project: str | None = "day5-vae-mnist"
+    beta_kl: float = 0.1
+
+
+class VAETrainer:
+    def __init__(self, args: VAEArgs):
+        self.args = args
+        self.trainset = get_dataset(args.dataset)
+        self.trainloader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
+        self.model = VAE(
+            latent_dim_size=args.latent_dim_size,
+            hidden_dim_size=args.hidden_dim_size,
+        ).to(device)
+        self.optimizer = t.optim.Adam(self.model.parameters(), lr=args.lr, betas=args.betas)
+        self.mse = nn.MSELoss()
+        self.kl = nn.KLDivLoss()
+        self.beta = args.beta_kl
+
+    def training_step(
+        self, img: Float[Tensor, "batch 1 height width"]
+    ) -> Float[Tensor, ""]:
+        """
+        Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
+        if enabled.
+        """
+        self.optimizer.zero_grad()
+        out, mu, log_sigma = self.model(img)
+
+        loss = self.mse(out,img) + self.beta*self.kl()
+        loss.backward()
+        self.optimizer.step()
+
+        return loss
+    @t.inference_mode()
+    def log_samples(self) -> None:
+        """
+        Evaluates model on holdout data, either logging to wandb or displaying output inline.
+        """
+        assert self.step > 0, "First call should come after a training step. Remember to increment `self.step`."
+        output = self.model(HOLDOUT_DATA)[0]
+        if self.args.use_wandb:
+            output = (output - output.min()) / (output.max() - output.min())  # Normalize to [0, 1]
+            output = (output * 255).to(dtype=t.uint8)  # Convert to uint8 for logging
+            wandb.log({"images": [wandb.Image(arr) for arr in output.cpu().numpy()]}, step=self.step)
+        else:
+            self.live_image.update(t.concat([HOLDOUT_DATA, output]), nrows=2)  # top: input, bottom: reconstruction
+
+    def train(self) -> VAE:
+        """Performs a full training run."""
+        self.step = 0
+        self.live_image = LiveImage()  # `log_samples` overwrites this in place
+        if self.args.use_wandb:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+            wandb.watch(self.model)
+
+        # YOUR CODE HERE - iterate over epochs, and train your model
+        for epoch in range(self.args.epochs):
+
+            for i, (img,label) in tqdm(enumerate(self.trainloader)):
+                img = img.to(device)
+                img = mnist_trainset.transform(img)
+                loss = self.training_step(img)
+                self.step += 1
+
+                if self.step == self.args.log_every_n_steps:
+                    self.log_samples()
+
+        if self.args.use_wandb:
+            wandb.finish()
+
+        return self.model
+
+
+args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=False)
+trainer = VAETrainer(args)
+vae = trainer.train()

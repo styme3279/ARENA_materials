@@ -211,3 +211,44 @@ output = autoencoder.decoder(grid_latent)
 
 # Visualize the output
 utils.visualise_output(output, grid_latent, title="Autoencoder latent space visualization")
+
+# %%
+
+class VAE(nn.Module):
+    encoder: nn.Module
+    decoder: nn.Module
+
+    def __init__(self, latent_dim_size: int, hidden_dim_size: int):
+        super().__init__()
+        self.encoder = ...
+        self.decoder = ...
+
+    def sample_latent_vector(
+        self, x: Float[Tensor, "batch 1 height width"]
+    ) -> tuple[
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+    ]:
+        """
+        Passes `x` through the encoder, returns tuple of (sampled latent vector, mean, log std dev).
+        This function can be used in `forward`, but also used on its own to generate samples for
+        evaluation.
+        """
+        raise NotImplementedError()
+
+    def forward(
+        self, x: Float[Tensor, "batch 1 height width"]
+    ) -> tuple[
+        Float[Tensor, "batch 1 height width"],
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+    ]:
+        """
+        Passes `x` through the encoder and decoder. Returns the reconstructed input, as well as mu
+        and logsigma.
+        """
+        raise NotImplementedError()
+
+
+tests.test_vae(VAE)

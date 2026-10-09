@@ -140,4 +140,103 @@ class Autoencoder(nn.Module):
 
 
 tests.test_autoencoder(Autoencoder)
+
 # %%
+@dataclass
+class AutoencoderArgs:
+    # architecture
+    latent_dim_size: int = 5
+    hidden_dim_size: int = 128
+
+    # data / training
+    dataset: Literal["MNIST", "CELEB"] = "MNIST"
+    batch_size: int = 512
+    epochs: int = 10
+    lr: float = 1e-3
+    betas: tuple[float, float] = (0.5, 0.999)
+
+    # logging
+    use_wandb: bool = True
+    wandb_project: str | None = "day5-autoencoder"
+    wandb_name: str | None = None
+    log_every_n_steps: int = 250
+
+
+class AutoencoderTrainer:
+    def __init__(self, args: AutoencoderArgs):
+        self.args = args
+        self.trainset = get_dataset(args.dataset)
+        self.trainloader = DataLoader(
+            self.trainset, batch_size=args.batch_size, shuffle=True
+        )
+        self.model = Autoencoder(
+            latent_dim_size=args.latent_dim_size,
+            hidden_dim_size=args.hidden_dim_size,
+        ).to(device)
+        self.optimizer = t.optim.Adam(
+            self.model.parameters(), lr=args.lr, betas=args.betas
+        )
+
+    def training_step(
+        self, img: Float[Tensor, "batch 1 height width"]
+    ) -> Float[Tensor, ""]:
+        """
+        Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
+        if enabled.
+        """
+
+        img = self.trainset.transform(img.to(device))
+        created_pic = self.model(img)
+
+        loss = self.mse.forward(input=created_pic, target=img)
+        loss.backward()
+
+        self.step += 1
+        if self.args.use_wandb:
+            wandb.log({"loss": loss.item()}, step=self.step)
+
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        return loss
+
+    @t.inference_mode()
+    def log_samples(self) -> None:
+        """
+        Evaluates model on holdout data, either logging to weights & biases or displaying output.
+        """
+        assert self.step > 0, "First call should come after a training step. Remember to increment `self.step`."
+        output = self.model(HOLDOUT_DATA)
+        if self.args.use_wandb:
+            output = (output - output.min()) / (output.max() - output.min())  # Normalize to [0, 1]
+            output = (output * 255).to(dtype=t.uint8)  # Convert to uint8 for logging
+            wandb.log({"images": [wandb.Image(arr) for arr in output.cpu().numpy()]}, step=self.step)
+        else:
+            self.live_image.update(t.concat([HOLDOUT_DATA, output]), nrows=2)  # top: input, bottom: reconstruction
+
+    def train(self) -> Autoencoder:
+        """Performs a full training run."""
+        self.step = 0
+        self.live_image = LiveImage()  # `log_samples` overwrites this in place
+        if self.args.use_wandb:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+            wandb.watch(self.model)
+
+        # YOUR CODE HERE - iterate over epochs, and train your model
+
+        for epoch in self.args.epochs:
+            self.model.train()
+            pbar = tqdm(self.trainloader)
+            for imgs, labels in pbar:
+                loss = self.training_step()
+                pbar.set_postfix(loss=f"{loss:.3f}", ex_seen=f"{self.examples_seen=:06}", refresh=False)
+
+        if self.args.use_wandb:
+            wandb.finish()
+
+        return self.model
+
+
+args = AutoencoderArgs(use_wandb=False)
+trainer = AutoencoderTrainer(args)
+autoencoder = trainer.train()

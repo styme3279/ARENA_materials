@@ -176,6 +176,7 @@ class AutoencoderTrainer:
         self.optimizer = t.optim.Adam(
             self.model.parameters(), lr=args.lr, betas=args.betas
         )
+        self.mse = nn.MSELoss()
 
     def training_step(
         self, img: Float[Tensor, "batch 1 height width"]
@@ -224,12 +225,15 @@ class AutoencoderTrainer:
 
         # YOUR CODE HERE - iterate over epochs, and train your model
 
-        for epoch in self.args.epochs:
+        for epoch in range(self.args.epochs):
             self.model.train()
             pbar = tqdm(self.trainloader)
-            for imgs, labels in pbar:
-                loss = self.training_step()
-                pbar.set_postfix(loss=f"{loss:.3f}", ex_seen=f"{self.examples_seen=:06}", refresh=False)
+            for img, _ in pbar:
+                loss = self.training_step(img)
+                pbar.set_postfix(loss=f"{loss:.3f}", step=f"{self.step=:06}", refresh=False)
+
+                if self.step % args.log_every_n_steps == 1:
+                    self.log_samples()
 
         if self.args.use_wandb:
             wandb.finish()
@@ -237,6 +241,114 @@ class AutoencoderTrainer:
         return self.model
 
 
-args = AutoencoderArgs(use_wandb=False)
+args = AutoencoderArgs(use_wandb=True, wandb_project="day5-autoencoder", wandb_name="autoencoder")
 trainer = AutoencoderTrainer(args)
 autoencoder = trainer.train()
+
+# %%
+
+def create_grid_of_latents(
+    model: nn.Module,
+    interpolation_range: tuple[float, float] = (-1, 1),
+    n_points: int = 11,
+    dims: tuple[int, int] = (0, 1),
+) -> Float[Tensor, "rows_x_cols latent_dims"]:
+    """Create a tensor of zeros which varies along the 2 specified dimensions of the latent space."""
+    grid_latent = t.zeros(n_points, n_points, model.latent_dim_size, device=device)
+    x = t.linspace(*interpolation_range, n_points)
+    grid_latent[..., dims[0]] = x.unsqueeze(-1)  # rows vary over dim=0
+    grid_latent[..., dims[1]] = x  # cols vary over dim=1
+    return grid_latent.flatten(0, 1)  # flatten over (rows, cols) into a single batch dimension
+
+
+grid_latent = create_grid_of_latents(autoencoder, interpolation_range=(-3, 3))
+
+# Map grid latent through the decoder
+output = autoencoder.decoder(grid_latent)
+
+# Visualize the output
+utils.visualise_output(output, grid_latent, title="Autoencoder latent space visualization")
+
+ # %%
+# Get a small dataset with 5000 points
+small_dataset = Subset(trainset_mnist, indices=range(0, 5000))
+imgs = trainset_mnist.transform(t.stack([img for img, label in small_dataset]).to(device))
+labels = t.tensor([label for img, label in small_dataset]).to(device).int()
+
+# Get the latent vectors for this data along first 2 dims, plus for the holdout data
+latent_vectors = autoencoder.encoder(imgs)[:, :2]
+holdout_latent_vectors = autoencoder.encoder(HOLDOUT_DATA)[:, :2]
+
+# Plot the results
+utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)
+
+
+ # %%
+class VAE(nn.Module):
+    encoder: nn.Module
+    decoder: nn.Module
+
+    def __init__(self, latent_dim_size: int, hidden_dim_size: int):
+        super().__init__()
+        self.hidden_dim_size = hidden_dim_size
+        self.latent_dim_size = latent_dim_size
+        self.encoder = Sequential(
+            Conv2d(in_channels=1, out_channels=16, kernel_size=4, stride=2, padding=1),
+            ReLU(),
+            Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2, padding=1),
+            ReLU(),
+            nn.Flatten(),
+            Linear(in_features=32*7*7, out_features=hidden_dim_size),
+            ReLU(),
+            Linear(in_features=hidden_dim_size, out_features=2*latent_dim_size)
+        )
+        self.decoder = Sequential(
+            Linear(in_features=latent_dim_size, out_features=hidden_dim_size),
+            ReLU(),
+            Linear(in_features=hidden_dim_size, out_features=32*7*7),
+            Rearrange("b (c h w) -> b c h w", c=32, h = 7, w = 7),
+            ReLU(),
+            nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=4, stride=2, padding=1, bias=False),
+            ReLU(),
+            nn.ConvTranspose2d(in_channels=16, out_channels=1, kernel_size=4, stride=2, padding=1, bias=False)
+        )
+
+
+    def sample_latent_vector(
+        self, x: Float[Tensor, "batch 1 height width"]
+    ) -> tuple[
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+    ]:
+        """
+        Passes `x` through the encoder, returns tuple of (sampled latent vector, mean, log std dev).
+        This function can be used in `forward`, but also used on its own to generate samples for
+        evaluation.
+        """
+        latent = self.encoder(x)
+        
+
+    def forward(
+        self, x: Float[Tensor, "batch 1 height width"]
+    ) -> tuple[
+        Float[Tensor, "batch 1 height width"],
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+    ]:
+        """
+        Passes `x` through the encoder and decoder. Returns the reconstructed input, as well as mu
+        and logsigma.
+        """
+        sampled, mu, sigma = self.sample_latent_vector(x)
+        out = self.decoder(sampled)
+
+        return out, mu, sigma
+
+
+tests.test_vae(VAE)
+
+
+# %%
+
+

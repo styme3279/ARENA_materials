@@ -240,7 +240,217 @@ def initialize_weights(model: nn.Module) -> None:
     Initializes weights according to the DCGAN paper (details at the end of page 3 of the DCGAN
     paper), by modifying the weights of the model in place.
     """
-    raise NotImplementedError()
-
+    for module in model.modules():
+        is_conv_transpose = isinstance(module, nn.ConvTranspose2d) or type(module).__name__ == "ConvTranspose2d"
+        if is_conv_transpose or isinstance(module, (Conv2d, Linear)):
+            nn.init.normal_(module.weight.data, 0.0, 0.02)
+        elif isinstance(module, nn.BatchNorm2d):
+            nn.init.normal_(module.weight.data, 1.0, 0.02)
+            nn.init.constant_(module.bias.data, 0.0)
 
 tests.test_initialize_weights(initialize_weights, nn.ConvTranspose2d, Conv2d, Linear, nn.BatchNorm2d)
+# %%
+class DCGAN(nn.Module):
+    netD: Discriminator
+    netG: Generator
+
+    def __init__(
+        self,
+        latent_dim_size: int = 100,
+        img_size: int = 64,
+        img_channels: int = 3,
+        hidden_channels: list[int] = [128, 256, 512],
+    ):
+        super().__init__()
+        self.latent_dim_size = latent_dim_size
+        self.img_size = img_size
+        self.img_channels = img_channels
+        self.hidden_channels = hidden_channels
+        self.netD = Discriminator(img_size, img_channels, hidden_channels)
+        self.netG = Generator(latent_dim_size, img_size, img_channels, hidden_channels)
+        initialize_weights(self.netD)
+        initialize_weights(self.netG)
+
+model = DCGAN().to(device)
+x = t.randn(3, 100).to(device)
+print(torchinfo.summary(model.netG, input_data=x), end="\n\n")
+print(torchinfo.summary(model.netD, input_data=model.netG(x)))
+
+# %%
+
+@dataclass
+class DCGANArgs:
+    """
+    Class for the arguments to the DCGAN (training and architecture).
+    Note, we use field(default_factory=...) when our default value is a mutable object.
+    """
+
+    # architecture
+    latent_dim_size: int = 100
+    hidden_channels: list[int] = field(default_factory=lambda: [128, 256, 512])
+
+    # data & training
+    dataset: Literal["MNIST", "CELEB"] = "CELEB"
+    batch_size: int = 64
+    epochs: int = 3
+    lr: float = 0.0002
+    lr_G: float | None = None  # generator LR (TTUR); falls back to `lr` if None
+    lr_D: float | None = None  # discriminator LR (TTUR); falls back to `lr` if None
+    betas: tuple[float, float] = (0.5, 0.999)
+    clip_grad_norm: float | None = 1.0
+
+    # performance
+    compile: bool = False  # optional ~2x speed-up, off by default
+
+    # logging
+    use_wandb: bool = False
+    wandb_project: str | None = "day5-gan"
+    wandb_name: str | None = None
+    log_every_n_steps: int = 250
+
+    def __post_init__(self):
+        # Two Time-Scale Update Rule (TTUR): allow separate generator/discriminator learning
+        # rates. Both default to the shared `lr` unless explicitly overridden.
+        if self.lr_G is None:
+            self.lr_G = self.lr
+        if self.lr_D is None:
+            self.lr_D = self.lr
+
+
+class DCGANTrainer:
+    def __init__(self, args: DCGANArgs):
+        self.args = args
+
+        self.trainset = get_dataset(self.args.dataset, transform=TANH_RANGE_TRANSFORM)
+        # `drop_last=True` keeps every batch the same shape, which matters when we compile below
+        self.trainloader = DataLoader(
+            self.trainset, batch_size=args.batch_size, shuffle=True, num_workers=NUM_WORKERS, drop_last=True
+        )
+
+        img_batch = self.trainset.transform(next(iter(self.trainloader))[0])
+        batch, img_channels, img_height, img_width = img_batch.shape
+        assert img_height == img_width
+
+        self.model = DCGAN(args.latent_dim_size, img_height, img_channels, args.hidden_channels).to(device).train()
+
+        if args.compile and device.type == "cuda":
+            self.model.netG = t.compile(self.model.netG)
+            self.model.netD = t.compile(self.model.netD)
+
+        self.optG = t.optim.Adam(self.model.netG.parameters(), lr=args.lr_G, betas=args.betas)
+        self.optD = t.optim.Adam(self.model.netD.parameters(), lr=args.lr_D, betas=args.betas)
+
+        # The *same* noise every time we log samples, so successive plots show a single set of faces
+        # improving rather than a fresh random set each time.
+        self.fixed_noise = t.randn(10, args.latent_dim_size, device=device)
+
+    def training_step_discriminator(
+        self,
+        img_real: Float[Tensor, "batch channels height width"],
+        img_fake: Float[Tensor, "batch channels height width"],
+    ) -> Float[Tensor, ""]:
+        """
+        Generates a real and fake image, and performs a gradient step on the discriminator to
+        minimize -(log(D(x)) + log(1-D(G(z)))). Logs to wandb if enabled.
+        """
+        raise NotImplementedError()
+
+    def training_step_generator(
+        self, img_fake: Float[Tensor, "batch channels height width"]
+    ) -> Float[Tensor, ""]:
+        """
+        Performs a gradient step on the generator to minimize -log(D(G(z))). Logs to wandb if enabled.
+        """
+        raise NotImplementedError()
+
+    @t.inference_mode()
+    def log_samples(self) -> None:
+        """
+        Performs evaluation by passing the 10 fixed noise vectors in `self.fixed_noise` through the
+        generator, then optionally logging the results to Weights & Biases.
+        """
+        assert self.step > 0, "First call should come after a training step. Remember to increment `self.step`."
+        self.model.netG.eval()
+
+        output = self.model.netG(self.fixed_noise)
+        # Clip values to make the visualization clearer
+        output = output.clamp(output.quantile(0.01), output.quantile(0.99))
+        # Log to weights and biases
+        if self.args.use_wandb:
+            output = einops.rearrange(output, "b c h w -> b h w c").cpu().numpy()
+            wandb.log({"images": [wandb.Image(arr) for arr in output]}, step=self.step)
+        else:
+            self.live_image.update(output)
+
+        self.model.netG.train()
+
+    def train(self) -> DCGAN:
+        """Performs a full training run."""
+        self.step = 0
+        self.live_image = LiveImage()  # `log_samples` overwrites this in place
+        if self.args.use_wandb:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+
+        # One progress bar for the whole run (rather than a new one each epoch)
+        progress_bar = tqdm(total=self.args.epochs * len(self.trainloader), ascii=True)
+
+        for epoch in range(self.args.epochs):
+            for img_real, label in self.trainloader:
+                # YOUR CODE HERE - fill in the training step for generator & discriminator
+                img_real = img_real.to(device)
+                #label = label.to(device).detach()
+
+                output = self.training_step_generator(img_real)
+                self.training_step_discriminator(img_real.detach(),output)
+
+
+        progress_bar.close()
+        if self.args.use_wandb:
+            wandb.finish()
+
+        return self.model
+
+# %%
+
+def training_step(
+    self, img: Float[Tensor, "batch 1 height width"]
+) -> Float[Tensor, ""]:
+    """
+    Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
+    if enabled.
+    """
+    self.optimizer.zero_grad()
+    out = self.model(img)
+
+    loss = self.loss(out,img)
+    loss.backward()
+    self.optimizer.step()
+
+    return loss
+
+
+def train(self) -> Autoencoder:
+    """Performs a full training run."""
+    self.step = 0
+    self.live_image = LiveImage()  # `log_samples` overwrites this in place
+    if self.args.use_wandb:
+        wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+        wandb.watch(self.model)
+
+    # YOUR CODE HERE - iterate over epochs, and train your model
+
+    for epoch in range(self.args.epochs):
+
+        for i, (img,label) in tqdm(enumerate(self.trainloader)):
+            img = img.to(device)
+            img = mnist_trainset.transform(img)
+            loss = self.training_step(img)
+            self.step += 1
+
+            if self.step == self.args.log_every_n_steps:
+                self.log_samples()
+
+    if self.args.use_wandb:
+        wandb.finish()
+
+    return self.model

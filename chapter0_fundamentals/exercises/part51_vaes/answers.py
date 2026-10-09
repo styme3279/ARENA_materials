@@ -81,7 +81,7 @@ class Autoencoder(nn.Module):
             nn.ReLU(),
             nn.Linear(
                 in_features=hidden_dim_size,
-                out_features=7*7*3),
+                out_features=7*7*32),
             Rearrange("b (c h w) -> b c h w", c=32, h=7),
             nn.ReLU(),
             nn.ConvTranspose2d(

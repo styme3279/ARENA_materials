@@ -389,7 +389,7 @@ class DCGANTrainer:
 
         loss.backward()
 
-        nn.utils.clip_grad_norm_(self.model.netD.parameters(), max_norm=self.args.clip_grad_norm)
+        # nn.utils.clip_grad_norm_(self.model.netD.parameters(), max_norm=self.args.clip_grad_norm)
 
         self.optD.step()
 
@@ -408,7 +408,7 @@ class DCGANTrainer:
         loss = (-F.logsigmoid(pred_fake)).sum()
         loss.backward()
 
-        nn.utils.clip_grad_norm_(self.model.netG.parameters(), max_norm=self.args.clip_grad_norm)
+        # nn.utils.clip_grad_norm_(self.model.netG.parameters(), max_norm=self.args.clip_grad_norm)
 
         self.optG.step()
 

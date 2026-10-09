@@ -82,4 +82,32 @@ from plotly_utils import imshow
 device = t.device("mps" if t.backends.mps.is_available() else "cuda" if t.cuda.is_available() else "cpu")
 NUM_WORKERS = 2 if "google.colab" in sys.modules else min(8, os.cpu_count())
 t.set_num_threads(min(4, t.get_num_threads()))
+
+# %%
+trainset_celeb = get_dataset("CELEB")
+x = next(iter(DataLoader(trainset_celeb, batch_size=25)))[0]
+display_data(trainset_celeb.transform(x), nrows=5, title="CelebA data")
+
+# %%
+class Tanh(nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        x = t.clamp(x, -80, 80)
+        return (x.exp() - (-x).exp()) / (x.exp() + (-x).exp())
+
+
+class LeakyReLU(nn.Module):
+    def __init__(self, negative_slope: float = 0.01) -> None:
+        super().__init__()
+        self.negative_slope = negative_slope
+
+    def forward(self, x: Tensor) -> Tensor:
+        return t.max(x * self.negative_slope, x)
+
+    def extra_repr(self) -> str:
+        return f"negative_slope={self.negative_slope}"
+
+
+tests.test_Tanh(Tanh)
+tests.test_LeakyReLU(LeakyReLU)
+
 # %%

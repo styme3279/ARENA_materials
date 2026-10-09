@@ -483,7 +483,7 @@ args = DCGANArgs(
     epochs=5,
     lr_D=8e-4,  # separate LRs for generator and discriminator
     lr_G=2e-4,
-    use_wandb=True,
+    use_wandb=False,
     compile=True, # toggle me once you have the bugs ironed out
 )
 trainer = DCGANTrainer(args)

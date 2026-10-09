@@ -353,7 +353,8 @@ class DCGANTrainer:
         Generates a real and fake image, and performs a gradient step on the discriminator to
         minimize -(log(D(x)) + log(1-D(G(z)))). Logs to wandb if enabled.
         """
-        raise NotImplementedError()
+        self.optD.zero_grad()
+        logits = self.model.netD(img_fake)
 
     def training_step_generator(
         self, img_fake: Float[Tensor, "batch channels height width"]
@@ -362,11 +363,14 @@ class DCGANTrainer:
         Performs a gradient step on the generator to minimize -log(D(G(z))). Logs to wandb if enabled.
         """
         self.optG.zero_grad()
-        out = self.model.netG(img_fake)
+        out = self.model.netD(img_fake)
+        loss = -F.logsigmoid(out)
+        if self.args.clip_grad_norm is not None:
+            nn.utils.clip_grad_norm_(self.model.netG.parameters(), self.args.clip_grad_norm)
+        loss.backward()
+        self.optG.step()
 
-        loss = self.loss(out,img)
-
-        return out, loss
+        return loss
 
     @t.inference_mode()
     def log_samples(self) -> None:
@@ -403,11 +407,11 @@ class DCGANTrainer:
             for img_real, label in tqdm(self.trainloader):
                 # YOUR CODE HERE - fill in the training step for generator & discriminator
                 img_real = self.trainset.transform(img_real.to(device))
-                img_fake =  t.randn(self.args.batch_size, latent_dim_size).to(device)
-                img_fake = self.trainset.transform(img_fake)
-
-                img_fake, loss = self.training_step_generator(img_fake)
-                loss = self.training_step_discriminator(img_real.detach(),img_fake.detach())
+                noise =  t.randn(self.args.batch_size, latent_dim_size).to(device)
+                noise = self.trainset.transform(noise)
+                img_fake = self.model.netG(noise)
+                loss_g = self.training_step_generator(img_fake)
+                loss_d = self.training_step_discriminator(img_real,img_fake.detach())
 
                 self.step += 1
 

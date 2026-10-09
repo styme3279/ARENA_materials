@@ -121,19 +121,19 @@ class Generator(nn.Module):
         first_height = img_size // (2**n_layers)
         first_size = hidden_channels[0] * (first_height**2)
         self.project_and_reshape = nn.Sequential(
-            nn.Linear(self.latent_dim_size, 512*8*8),
+            nn.Linear(self.latent_dim_size, 512*8*8, bias=False),
             Rearrange("b (c w h) -> b c w h", c=512, w=8, h=8),
+            nn.BatchNorm2d(512),
+            nn.ReLU(.2),
         )
         self.hidden_layers = nn.Sequential(
-            nn.BatchNorm2d(512),
-            nn.ReLU(),
-            nn.ConvTranspose2d(512,256, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(512,256, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(256),
-            LeakyReLU(),
-            nn.ConvTranspose2d(256,128, kernel_size=4, stride=2, padding=1),
+            LeakyReLU(.2),
+            nn.ConvTranspose2d(256,128, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(128),
-            LeakyReLU(),
-            nn.ConvTranspose2d(128,3, kernel_size=4, stride=2, padding=1),
+            LeakyReLU(.2),
+            nn.ConvTranspose2d(128,3, kernel_size=4, stride=2, padding=1, bias=False),
         )
 
     def forward(
@@ -174,17 +174,16 @@ class Discriminator(nn.Module):
         self.img_channels = img_channels
         self.hidden_channels = hidden_channels
         self.hidden_layers = nn.Sequential(
-            nn.Conv2d(img_size, 128, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(self.hidden_channels[i+1]), 
-            LeakyReLU(),
+            nn.Conv2d(img_channels, 128, kernel_size=4, stride=2, padding=1, bias=False),
+            LeakyReLU(.2),
             *[layer for i in range(img_channels-1) for layer in [
-                nn.Conv2d(self.hidden_channels[i], self.hidden_channels[i], kernel_size=4, stride=2, padding=1), 
+                nn.Conv2d(self.hidden_channels[i], self.hidden_channels[i+1], kernel_size=4, stride=2, padding=1, bias=False), 
                 nn.BatchNorm2d(self.hidden_channels[i+1]), 
-                LeakyReLU()]],
+                LeakyReLU(.2)]],
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(512*8*8, 1),
+            nn.Linear(512*8*8, 1, bias=False),
         )
 
     def forward(
@@ -235,3 +234,207 @@ import time
 for i in tqdm(range(5), position=0):
     for j in tqdm(range(4), position=1, leave=False):
         time.sleep(1)
+# %%
+def initialize_weights(model: nn.Module) -> None:
+    """
+    Initializes weights according to the DCGAN paper (details at the end of page 3 of the DCGAN
+    paper), by modifying the weights of the model in place.
+    """
+    for module in model.modules():
+        # Match torch's `nn.ConvTranspose2d` (used by default in the GAN code) AND any class
+        # named `ConvTranspose2d` (so the VAEs section's bonus implementation is also picked up
+        # if a student swaps it in).
+        is_conv_transpose = isinstance(module, nn.ConvTranspose2d) or type(module).__name__ == "ConvTranspose2d"
+        if is_conv_transpose or isinstance(module, (Conv2d, Linear)):
+            nn.init.normal_(module.weight.data, 0.0, 0.02)
+        elif isinstance(module, nn.BatchNorm2d):
+            nn.init.normal_(module.weight.data, 1.0, 0.02)
+            nn.init.constant_(module.bias.data, 0.0)
+
+tests.test_initialize_weights(initialize_weights, nn.ConvTranspose2d, Conv2d, Linear, nn.BatchNorm2d)
+
+# %%
+class DCGAN(nn.Module):
+    netD: Discriminator
+    netG: Generator
+
+    def __init__(
+        self,
+        latent_dim_size: int = 100,
+        img_size: int = 64,
+        img_channels: int = 3,
+        hidden_channels: list[int] = [128, 256, 512],
+    ):
+        super().__init__()
+        self.latent_dim_size = latent_dim_size
+        self.img_size = img_size
+        self.img_channels = img_channels
+        self.hidden_channels = hidden_channels
+        self.netD = Discriminator(img_size, img_channels, hidden_channels)
+        self.netG = Generator(latent_dim_size, img_size, img_channels, hidden_channels)
+        initialize_weights(self.netD)
+        initialize_weights(self.netG)
+
+model = DCGAN().to(device)
+x = t.randn(3, 100).to(device)
+print(torchinfo.summary(model.netG, input_data=x), end="\n\n")
+print(torchinfo.summary(model.netD, input_data=model.netG(x)))
+
+# %%
+
+@dataclass
+class DCGANArgs:
+    """
+    Class for the arguments to the DCGAN (training and architecture).
+    Note, we use field(default_factory=...) when our default value is a mutable object.
+    """
+
+    # architecture
+    latent_dim_size: int = 100
+    hidden_channels: list[int] = field(default_factory=lambda: [128, 256, 512])
+
+    # data & training
+    dataset: Literal["MNIST", "CELEB"] = "CELEB"
+    batch_size: int = 64
+    epochs: int = 3
+    lr: float = 0.0002
+    lr_G: float | None = None  # generator LR (TTUR); falls back to `lr` if None
+    lr_D: float | None = None  # discriminator LR (TTUR); falls back to `lr` if None
+    betas: tuple[float, float] = (0.5, 0.999)
+    clip_grad_norm: float | None = 1.0
+
+    # performance
+    compile: bool = False  # optional ~2x speed-up, off by default
+
+    # logging
+    use_wandb: bool = False
+    wandb_project: str | None = "day5-gan"
+    wandb_name: str | None = None
+    log_every_n_steps: int = 250
+
+    def __post_init__(self):
+        # Two Time-Scale Update Rule (TTUR): allow separate generator/discriminator learning
+        # rates. Both default to the shared `lr` unless explicitly overridden.
+        if self.lr_G is None:
+            self.lr_G = self.lr
+        if self.lr_D is None:
+            self.lr_D = self.lr
+
+
+class DCGANTrainer:
+    def __init__(self, args: DCGANArgs):
+        self.args = args
+
+        self.trainset = get_dataset(self.args.dataset, transform=TANH_RANGE_TRANSFORM)
+        # `drop_last=True` keeps every batch the same shape, which matters when we compile below
+        self.trainloader = DataLoader(
+            self.trainset, batch_size=args.batch_size, shuffle=True, num_workers=NUM_WORKERS, drop_last=True
+        )
+
+        img_batch = self.trainset.transform(next(iter(self.trainloader))[0])
+        batch, img_channels, img_height, img_width = img_batch.shape
+        assert img_height == img_width
+
+        self.model = DCGAN(args.latent_dim_size, img_height, img_channels, args.hidden_channels).to(device).train()
+
+        if args.compile and device.type == "cuda":
+            self.model.netG = t.compile(self.model.netG)
+            self.model.netD = t.compile(self.model.netD)
+
+        self.optG = t.optim.Adam(self.model.netG.parameters(), lr=args.lr_G, betas=args.betas)
+        self.optD = t.optim.Adam(self.model.netD.parameters(), lr=args.lr_D, betas=args.betas)
+
+        # The *same* noise every time we log samples, so successive plots show a single set of faces
+        # improving rather than a fresh random set each time.
+        self.fixed_noise = t.randn(10, args.latent_dim_size, device=device)
+
+    def training_step_discriminator(
+        self,
+        img_real: Float[Tensor, "batch channels height width"],
+        img_fake: Float[Tensor, "batch channels height width"],
+    ) -> Float[Tensor, ""]:
+        """
+        Generates a real and fake image, and performs a gradient step on the discriminator to
+        minimize -(log(D(x)) + log(1-D(G(z)))). Logs to wandb if enabled.
+        """
+        self.optD.zero_grad()
+        pred_r = self.model.netD(img_real)
+        pred_f = self.model.netD(self.model.netG(img_fake))
+        loss = -t.logsigmoid(pred_r) + t.logsigmoid(-pred_f)
+        if self.args.clip_grad_norm is not None:
+            nn.utils.clip_grad_norm_(self.model.netG.parameters(), self.args.clip_grad_norm)
+        loss.backward()
+        self.optD.step()
+        self.step += 1
+        if self.args.use_wandb:
+            wandb.log({'step':self.step, 'loss':loss})
+        if self.step % self.args.log_every_n_steps == 0:
+            self.log_samples()
+        return loss
+
+    def training_step_generator(
+        self, img_fake: Float[Tensor, "batch channels height width"]
+    ) -> Float[Tensor, ""]:
+        """
+        Performs a gradient step on the generator to minimize -log(D(G(z))). Logs to wandb if enabled.
+        """
+        self.optG.zero_grad()
+        pred_f = self.model.netD(self.model.netG(img_fake))
+        loss = -t.logsigmoid(pred_f)
+        loss.backward()
+        self.optG.step()
+        self.step += 1
+        if self.args.use_wandb:
+            wandb.log({'step':self.step, 'loss':loss})
+        if self.step % self.args.log_every_n_steps == 0:
+            self.log_samples()
+        return loss
+
+    @t.inference_mode()
+    def log_samples(self) -> None:
+        """
+        Performs evaluation by passing the 10 fixed noise vectors in `self.fixed_noise` through the
+        generator, then optionally logging the results to Weights & Biases.
+        """
+        assert self.step > 0, "First call should come after a training step. Remember to increment `self.step`."
+        self.model.netG.eval()
+
+        output = self.model.netG(self.fixed_noise)
+        # Clip values to make the visualization clearer
+        output = output.clamp(output.quantile(0.01), output.quantile(0.99))
+        # Log to weights and biases
+        if self.args.use_wandb:
+            output = einops.rearrange(output, "b c h w -> b h w c").cpu().numpy()
+            wandb.log({"images": [wandb.Image(arr) for arr in output]}, step=self.step)
+        else:
+            self.live_image.update(output)
+
+        self.model.netG.train()
+
+    def train(self) -> DCGAN:
+        """Performs a full training run."""
+        self.step = 0
+        self.live_image = LiveImage()  # `log_samples` overwrites this in place
+        if self.args.use_wandb:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+
+        # One progress bar for the whole run (rather than a new one each epoch)
+        progress_bar = tqdm(total=self.args.epochs * len(self.trainloader), ascii=True)
+
+        for epoch in range(self.args.epochs):
+            for img_real, label in tqdm(self.trainloader, position=1):
+
+                noise = t.randn_like(img_real).to(device)
+                noise = self.trainset.transform(noise.to(device))
+                img_real = self.trainset.transform(img_real.to(device))
+
+                img_fake = self.training_step_generator(noise)
+                loss = self.training_step_discriminator(img_real.detach(), img_fake.detach())
+
+        progress_bar.close()
+        if self.args.use_wandb:
+            wandb.finish()
+
+        return self.model
+
+# %%

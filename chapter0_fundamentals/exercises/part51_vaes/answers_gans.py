@@ -133,10 +133,7 @@ class Generator(nn.Module):
             nn.ConvTranspose2d(256,128, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm2d(128),
             LeakyReLU(),
-            nn.ConvTranspose2d(128,64, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(64),
-            LeakyReLU(),
-            nn.ConvTranspose2d(64,3, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(128,3, kernel_size=4, stride=2, padding=1),
         )
 
     def forward(
@@ -184,10 +181,11 @@ class Discriminator(nn.Module):
                 nn.Conv2d(self.hidden_channels[i], self.hidden_channels[i], kernel_size=4, stride=2, padding=1), 
                 nn.BatchNorm2d(self.hidden_channels[i+1]), 
                 LeakyReLU()]],
-        nn.Flatten(),
-        nn.Linear(),
         )
-        self.classifier = ...
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(512*8*8, 1),
+        )
 
     def forward(
         self, x: Float[Tensor, "batch channels height width"]

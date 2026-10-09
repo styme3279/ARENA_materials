@@ -190,8 +190,12 @@ class Discriminator(nn.Module):
                 BatchNorm2d(self.hidden_channels[i+1]),
                 nn.LeakyReLU()
             ]
+            )
         )
-        self.classifier = ...
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(512*8*8,1)
+        )
 
     def forward(
         self, x: Float[Tensor, "batch channels height width"]
@@ -219,3 +223,11 @@ class DCGAN(nn.Module):
         self.hidden_channels = hidden_channels
         self.netD = Discriminator(img_size, img_channels, hidden_channels)
         self.netG = Generator(latent_dim_size, img_size, img_channels, hidden_channels)
+
+# %%
+from part2_cnns.utils import print_param_count
+from part52_gans import solutions
+
+print_param_count(Generator(), solutions.DCGAN().netG)
+print_param_count(Discriminator(), solutions.DCGAN().netD)
+# %%

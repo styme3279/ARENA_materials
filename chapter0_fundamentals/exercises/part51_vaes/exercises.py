@@ -305,7 +305,7 @@ class VAETrainer:
         recon_img, mu, logstd = self.model(img)
         mse = nn.MSELoss()
         mse_loss = mse(img, recon_img)
-        kl_loss = ((logstd.exp()**2 + mu**2 - 1) / 2 - logstd).mean()
+        kl_loss = self.args.beta_kl * ((logstd.exp()**2 + mu**2 - 1) / 2 - logstd).mean()
         output = mse_loss + kl_loss
         output.backward()
         self.optimizer.step()
@@ -351,7 +351,7 @@ class VAETrainer:
 
         return self.model
 
-args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=False)
+args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=True)
 trainer = VAETrainer(args)
 vae = trainer.train()
 
@@ -361,6 +361,7 @@ output = vae.decoder(grid_latent)
 utils.visualise_output(output, grid_latent, title="VAE latent space visualization")
 
 # %%
+trainset_mnist = get_dataset("MNIST")
 small_dataset = Subset(trainset_mnist, indices=range(0, 5000))
 imgs = trainset_mnist.transform(t.stack([img for img, label in small_dataset]).to(device))
 labels = t.tensor([label for img, label in small_dataset]).to(device).int()
@@ -370,3 +371,5 @@ latent_vectors = vae.encoder(imgs)[0, :, :2]
 holdout_latent_vectors = vae.encoder(HOLDOUT_DATA)[0, :, :2]
 
 utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)
+
+# %%

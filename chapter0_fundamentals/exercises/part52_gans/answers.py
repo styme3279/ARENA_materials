@@ -160,9 +160,17 @@ class Generator(nn.Module):
         )
         self.hidden_layers = Sequential(
             *[
-                Sequential(nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1), BatchNorm2d(num_features=first_size/(2**i)), activation_fn()) for i, (in_channels, out_channels, activation_fn) in enumerate(zip(self.hidden_channels, self.hidden_channels[1:] + [self.img_channels], [ReLU, ReLU, Tanh]))
+                Sequential(
+                    nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1),
+                    BatchNorm2d(num_features=first_size/(2**(2-i))),
+                    activation_fn()
+                ) 
+                    for i, (in_channels, out_channels, activation_fn) in enumerate(zip(
+                        self.hidden_channels,
+                        self.hidden_channels[1:] + [self.img_channels],
+                        [ReLU, ReLU, Tanh]
+                    ))
             ]
-
         )
 
     def forward(
@@ -202,8 +210,24 @@ class Discriminator(nn.Module):
         self.img_size = img_size
         self.img_channels = img_channels
         self.hidden_channels = hidden_channels
-        self.hidden_layers = ...
-        self.classifier = ...
+        first_size = img_channels * (img_size**2)
+        self.hidden_layers = Sequential(
+            *[
+                Sequential(
+                    Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1),
+                    BatchNorm2d(num_features=first_size/(2**i)) if i != 0 else nn.Identity(),
+                    LeakyReLU()
+                ) 
+                    for i, (in_channels, out_channels) in enumerate(zip(
+                        [self.img_channels] + self.hidden_channels[:-1],
+                        self.hidden_channels,
+                ))
+            ]
+        )
+        self.classifier = Sequential(
+            nn.Flatten(),
+            Linear()
+        )
 
     def forward(
         self, x: Float[Tensor, "batch channels height width"]

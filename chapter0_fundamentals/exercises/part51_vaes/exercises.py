@@ -184,7 +184,7 @@ class AutoencoderTrainer:
 
         return self.model
 
-
+# %%
 args = AutoencoderArgs(use_wandb=True)
 trainer = AutoencoderTrainer(args)
 autoencoder = trainer.train()
@@ -255,9 +255,8 @@ class VAE(nn.Module):
         evaluation.
         """
         encoded = self.encoder(x)
-        epsilon = t.normal(mean=0.0, std=1.0, size=encoded[0].shape)
+        epsilon = t.normal(mean=0.0, std=1.0, size=encoded[0].shape).to(x.device)
         return encoded[0] + epsilon * encoded[1].exp(), encoded[0], encoded[1]
-
 
     def forward(
         self, x: Float[Tensor, "batch 1 height width"]
@@ -341,7 +340,7 @@ class VAETrainer:
                 img = self.trainset.transform(img.to(device))
                 loss = self.training_step(img)
                 self.step += 1
-                if self.step % self.args.log_every_n_steps == 0:
+                if self.step % self.args.log_every_n_steps == 0 and self.args.use_wandb:
                     wandb.log({"loss": loss}, step = self.step)
                     self.log_samples()
                 pbar.set_postfix(epoch=f"{epoch + 1}/{self.args.epochs}", loss=f"{loss:.3f}", refresh=False)  
@@ -355,3 +354,19 @@ class VAETrainer:
 args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=False)
 trainer = VAETrainer(args)
 vae = trainer.train()
+
+# %%
+grid_latent = create_grid_of_latents(vae, interpolation_range=(-1, 1))
+output = vae.decoder(grid_latent)
+utils.visualise_output(output, grid_latent, title="VAE latent space visualization")
+
+# %%
+small_dataset = Subset(trainset_mnist, indices=range(0, 5000))
+imgs = trainset_mnist.transform(t.stack([img for img, label in small_dataset]).to(device))
+labels = t.tensor([label for img, label in small_dataset]).to(device).int()
+
+# We're getting the mean vector, which is the [0]-indexed output of the encoder
+latent_vectors = vae.encoder(imgs)[0, :, :2]
+holdout_latent_vectors = vae.encoder(HOLDOUT_DATA)[0, :, :2]
+
+utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)

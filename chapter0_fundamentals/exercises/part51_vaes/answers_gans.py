@@ -121,19 +121,19 @@ class Generator(nn.Module):
         first_height = img_size // (2**n_layers)
         first_size = hidden_channels[0] * (first_height**2)
         self.project_and_reshape = nn.Sequential(
-            nn.Linear(self.latent_dim_size, 512*8*8, bias=False),
-            Rearrange("b (c w h) -> b c w h", c=512, w=8, h=8),
-            nn.BatchNorm2d(512),
+            nn.Linear(self.latent_dim_size, hidden_channels[2]*8*8, bias=False),
+            Rearrange("b (c w h) -> b c w h", c=hidden_channels[2], w=8, h=8),
+            nn.BatchNorm2d(hidden_channels[2]),
             nn.ReLU(.2),
         )
         self.hidden_layers = nn.Sequential(
-            nn.ConvTranspose2d(512,256, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(256),
+            nn.ConvTranspose2d(hidden_channels[2],hidden_channels[1], kernel_size=4, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(hidden_channels[1]),
             LeakyReLU(.2),
-            nn.ConvTranspose2d(256,128, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(128),
+            nn.ConvTranspose2d(hidden_channels[1],hidden_channels[0], kernel_size=4, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(hidden_channels[0]),
             LeakyReLU(.2),
-            nn.ConvTranspose2d(128,3, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.ConvTranspose2d(hidden_channels[0],3, kernel_size=4, stride=2, padding=1, bias=False),
         )
 
     def forward(
@@ -181,9 +181,11 @@ class Discriminator(nn.Module):
                 nn.BatchNorm2d(self.hidden_channels[i+1]), 
                 LeakyReLU(.2)]],
         )
+        final_height = img_size // (2**n_layers)
+        final_size = hidden_channels[-1] * (final_height**2)
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(512*8*8, 1, bias=False),
+            nn.Linear(final_size, 1, bias=False),
         )
 
     def forward(
@@ -229,11 +231,7 @@ x = t.randn(3, 100).to(device)
 print(torchinfo.summary(model.netG, input_data=x), end="\n\n")
 print(torchinfo.summary(model.netD, input_data=model.netG(x)))
 
-# %%
-import time
-for i in tqdm(range(5), position=0):
-    for j in tqdm(range(4), position=1, leave=False):
-        time.sleep(1)
+
 # %%
 def initialize_weights(model: nn.Module) -> None:
     """

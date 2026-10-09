@@ -132,13 +132,23 @@ class Generator(nn.Module):
             nn.ReLU()
         )
         self.hidden_layers = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=512,out_channels=256,kernel_size=4,stride=2,padding=1,bias=False),
-            BatchNorm2d(256),
-            nn.LeakyReLU(),
-            nn.ConvTranspose2d(in_channels=256,out_channels=128,kernel_size=4,stride=2,padding=1,bias=False),
-            BatchNorm2d(128),
-            nn.LeakyReLU(),
-            nn.ConvTranspose2d(in_channels=128,out_channels=3,kernel_size=4,stride=2,padding=1,bias=False)
+            *(
+                layer
+                for i in range(len(hidden_channels) - 1)
+                for layer in [
+                    nn.ConvTranspose2d(
+                        hidden_channels[i], hidden_channels[i+1],
+                        kernel_size=4, stride=2, padding=1, bias=False
+                    ),
+                    BatchNorm2d(hidden_channels[i+1]),
+                    nn.ReLU(),
+                ]
+            ),
+            nn.ConvTranspose2d(
+                hidden_channels[-1], img_channels,
+                kernel_size=4, stride=2, padding=1, bias=False
+            ),
+            nn.Tanh()
         )
 
     def forward(

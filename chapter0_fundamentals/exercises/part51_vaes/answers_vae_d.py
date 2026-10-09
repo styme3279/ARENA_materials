@@ -250,3 +250,76 @@ holdout_latent_vectors = autoencoder.encoder(HOLDOUT_DATA)[:, :2]
 utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)
 
 # %%
+
+class VAE(nn.Module):
+    encoder: nn.Module
+    decoder: nn.Module
+
+    def __init__(self, latent_dim_size: int, hidden_dim_size: int):
+        super().__init__()
+        self.hidden_dim_size = hidden_dim_size
+        self.latent_dim_size = latent_dim_size
+        self.encoder = nn.Sequential(
+            nn.Conv2d(in_channels=1,out_channels=16,kernel_size=4,stride=2,padding=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=16,out_channels=32,kernel_size=4,stride=2,padding=1),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(in_features=32*7*7,out_features=self.hidden_dim_size),
+            nn.ReLU(),
+            nn.Linear(in_features=self.hidden_dim_size,out_features=2*self.latent_dim_size),
+            Rearrange('b (c l) -> c b l',c=2,l=self.latent_dim_size)
+        
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(in_features=self.latent_dim_size,out_features=self.hidden_dim_size),
+            nn.ReLU(),
+            nn.Linear(in_features=self.hidden_dim_size,out_features=32*7*7),
+            Rearrange("b (c h w) -> b c h w",c=32,h=7,w=7),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=32,out_channels=16,kernel_size=4,stride=2,padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=16,out_channels=1,kernel_size=4,stride=2,padding=1)
+        )
+
+    def sample_latent_vector(
+        self, x: Float[Tensor, "batch 1 height width"]
+    ) -> tuple[
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+    ]:
+        """
+        Passes `x` through the encoder, returns tuple of (sampled latent vector, mean, log std dev).
+        This function can be used in `forward`, but also used on its own to generate samples for
+        evaluation.
+        """
+        out = self.encoder(x) # 2 b latent_dim_size -> b latent_dim_size
+        mean = out[0]
+        sd = out[-1]
+        eps = t.randn(sd.shape)
+
+        out = mean + eps*sd
+
+        return (out, mean, t.log(sd))
+
+
+    def forward(
+        self, x: Float[Tensor, "batch 1 height width"]
+    ) -> tuple[
+        Float[Tensor, "batch 1 height width"],
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+    ]:
+        """
+        Passes `x` through the encoder and decoder. Returns the reconstructed input, as well as mu
+        and logsigma.
+        """
+        out, mu, sigma = self.sample_latent_vector(x)
+        out = self.decoder(out)
+        return (out,mu,sigma)
+
+
+tests.test_vae(VAE)
+
+# %%

@@ -164,7 +164,7 @@ class Generator(nn.Module):
                     nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1, bias = False),
                     BatchNorm2d(num_features=out_channels) if i != len(self.hidden_channels) - 1 else nn.Identity(),
                     activation_fn()
-                ) 
+                )
                     for i, (in_channels, out_channels, activation_fn) in enumerate(zip(
                         self.hidden_channels,
                         self.hidden_channels[1:] + [self.img_channels],
@@ -216,7 +216,7 @@ class Discriminator(nn.Module):
                     Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1),
                     BatchNorm2d(num_features=out_channels) if i != 0 else nn.Identity(),
                     LeakyReLU()
-                ) 
+                )
                     for i, (in_channels, out_channels) in enumerate(zip(
                         [self.img_channels] + self.hidden_channels[:-1],
                         self.hidden_channels,
@@ -342,7 +342,7 @@ class DCGANArgs:
 class DCGANTrainer:
     def __init__(self, args: DCGANArgs):
         self.args = args
-        
+
         self.trainset = get_dataset(self.args.dataset, transform=TANH_RANGE_TRANSFORM)
         # `drop_last=True` keeps every batch the same shape, which matters when we compile below
         self.trainloader = DataLoader(
@@ -378,16 +378,18 @@ class DCGANTrainer:
         self.optD.zero_grad()
 
         img_fake = img_fake.detach()
-        
+
         pred_fake = self.model.netD(img_fake)
-        loss_fake = t.log(1 - pred_fake, dim=0)
+        loss_fake = F.logsigmoid(1 - pred_fake)
 
         pred_real = self.model.netD(img_real)
-        loss_real = t.log(pred_real, dim=0)
+        loss_real = F.logsigmoid(pred_real)
 
-        loss = (-(loss_fake + loss_real))
+        loss = (-(loss_fake + loss_real)).sum()
 
         loss.backward()
+
+        nn.utils.clip_grad_norm_(self.model.netD.parameters(), max_norm=self.args.clip_grad_norm)
 
         self.optD.step()
 
@@ -402,13 +404,15 @@ class DCGANTrainer:
         self.optG.zero_grad()
 
         pred_fake = self.model.netD(img_fake)
-        
-        loss = (-t.log(pred_fake))
+
+        loss = (-F.logsigmoid(pred_fake)).sum()
         loss.backward()
+
+        nn.utils.clip_grad_norm_(self.model.netG.parameters(), max_norm=self.args.clip_grad_norm)
 
         self.optG.step()
 
-        return -t.log(pred_fake)
+        return loss
 
     @t.inference_mode()
     def log_samples(self) -> None:
@@ -441,31 +445,36 @@ class DCGANTrainer:
         # One progress bar for the whole run (rather than a new one each epoch)
         progress_bar = tqdm(total=self.args.epochs * len(self.trainloader), ascii=True)
 
-        for _ in range(self.args.epochs):
-            for img_real, _ in self.trainloader:
-                img_real = self.trainset.transform(img_real.to(device))
+        try:
+            for epoch in range(self.args.epochs):
+                for img_real, _ in self.trainloader:
+                    img_real = self.trainset.transform(img_real.to(device))
 
-                init_noise = t.randn(10, args.latent_dim_size, device=device)
-                img_fake = self.model.netG(init_noise)
+                    init_noise = t.randn(img_real.shape[0], args.latent_dim_size, device=device)
+                    img_fake = self.model.netG(init_noise)
 
-                self.step += 1
-                dloss = self.training_step_discriminator(img_real, img_fake)
-                gloss = self.training_step_generator(img_fake)
+                    self.step += 1
+                    dloss = self.training_step_discriminator(img_real, img_fake)
+                    gloss = self.training_step_generator(img_fake)
+                    progress_bar.set_description(
+                        f"{epoch=:02d}, {dloss=:.4f}, {gloss=:.4f}, batches={self.step:05d}", refresh=False
+                    )
+                    progress_bar.update()
 
+                    if self.args.use_wandb:
+                        wandb.log({"dloss": dloss.item()}, step=self.step)
+                        wandb.log({"gloss": gloss.item()}, step=self.step)
 
-                if self.args.use_wandb:
-                    wandb.log({"dloss": dloss.item()}, step=self.step)
-                    wandb.log({"gloss": gloss.item()}, step=self.step)
-                
-                if self.step % self.args.log_every_n_steps == 1:
-                    self.log_samples()
+                    if self.step % self.args.log_every_n_steps == 1:
+                        self.log_samples()
 
-        progress_bar.close()
-        if self.args.use_wandb:
+            progress_bar.close()
+        finally:
             wandb.finish()
 
         return self.model
 
+# %%
 # Arguments for CelebA
 args = DCGANArgs(
     dataset="CELEB",
@@ -474,12 +483,13 @@ args = DCGANArgs(
     epochs=5,
     lr_D=8e-4,  # separate LRs for generator and discriminator
     lr_G=2e-4,
-    use_wandb=False,
-    compile=False, # toggle me once you have the bugs ironed out
+    use_wandb=True,
+    compile=True, # toggle me once you have the bugs ironed out
 )
 trainer = DCGANTrainer(args)
 dcgan_celeb = trainer.train()
 
+# %%
 # Arguments for MNIST
 args = DCGANArgs(
     dataset="MNIST",
@@ -491,3 +501,5 @@ args = DCGANArgs(
 )
 trainer = DCGANTrainer(args)
 dcgan_mnist = trainer.train()
+
+# %%

@@ -168,13 +168,15 @@ class AutoencoderTrainer:
 
         # YOUR CODE HERE - iterate over epochs, and train your model
         for epoch in range(self.args.epochs):
-            for img, label in self.trainloader:
+            pbar = tqdm(self.trainloader)
+            for img, label in pbar:
                 img = self.trainset.transform(img.to(device))
                 loss = self.training_step(img)
                 self.step += 1
                 if self.step % self.args.log_every_n_steps == 0:
-                    wandb.log({"loss": loss})
+                    wandb.log({"loss": loss}, step = self.step)
                     self.log_samples()
+                pbar.set_postfix(epoch=f"{epoch + 1}/{self.args.epochs}", loss=f"{loss:.3f}", refresh=False)  
             print("Loss:", loss.item())
 
         if self.args.use_wandb:

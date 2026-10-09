@@ -296,12 +296,12 @@ class VAE(nn.Module):
         """
         out = self.encoder(x) # 2 b latent_dim_size -> b latent_dim_size
         mean = out[0]
-        sd = out[-1]
-        eps = t.randn(sd.shape)
+        log_sd = out[-1]
+        eps = t.randn_like(log_sd)
 
-        out = mean + eps*sd
+        out = mean + eps*t.exp(log_sd)
 
-        return (out, mean, t.log(sd))
+        return (out, mean, log_sd)
 
 
     def forward(

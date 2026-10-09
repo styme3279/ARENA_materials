@@ -301,6 +301,7 @@ class VAE(nn.Module):
             Linear(in_features=32*7*7, out_features=hidden_dim_size),
             ReLU(),
             Linear(in_features=hidden_dim_size, out_features=2*latent_dim_size)
+            Rearrange("b (l1 l2) -> l2 b l1", l1 = 5, l2 = 2)
         )
         self.decoder = Sequential(
             Linear(in_features=latent_dim_size, out_features=hidden_dim_size),
@@ -327,8 +328,8 @@ class VAE(nn.Module):
         evaluation.
         """
         latent = self.encoder(x)
-        mu = latent[..., :self.latent_dim_size]
-        logsigma = latent[..., self.latent_dim_size:]
+        mu = latent[0]
+        logsigma = latent[1]
 
         sampled_vector = t.randn_like(logsigma)
 
@@ -337,7 +338,10 @@ class VAE(nn.Module):
         variance = einops.einsum(sigma, sampled_vector, '... i j , ... i j -> ... i j')
         out = mu + variance
 
-        
+        self.mu_logsigma
+
+
+
 
         return out, mu, sigma
 

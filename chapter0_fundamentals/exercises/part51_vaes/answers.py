@@ -300,7 +300,7 @@ class VAE(nn.Module):
             nn.Flatten(),
             Linear(in_features=32*7*7, out_features=hidden_dim_size),
             ReLU(),
-            Linear(in_features=hidden_dim_size, out_features=2*latent_dim_size)
+            Linear(in_features=hidden_dim_size, out_features=2*latent_dim_size),
             Rearrange("b (l1 l2) -> l2 b l1", l1 = 5, l2 = 2)
         )
         self.decoder = Sequential(
@@ -337,13 +337,9 @@ class VAE(nn.Module):
         sigma = t.exp(logsigma)
         variance = einops.einsum(sigma, sampled_vector, '... i j , ... i j -> ... i j')
         out = mu + variance
+        
 
-        self.mu_logsigma
-
-
-
-
-        return out, mu, sigma
+        return out, mu, logsigma
 
         
 
@@ -358,13 +354,115 @@ class VAE(nn.Module):
         Passes `x` through the encoder and decoder. Returns the reconstructed input, as well as mu
         and logsigma.
         """
-        sampled, mu, sigma = self.sample_latent_vector(x)
+        sampled, mu, logsigma = self.sample_latent_vector(x)
         out = self.decoder(sampled)
 
-        return out, mu, sigma
-
+        return out, mu, logsigma
 
 tests.test_vae(VAE)
+
+
+# %%
+@dataclass
+class VAEArgs(AutoencoderArgs):
+    wandb_project: str | None = "day5-vae-mnist"
+    beta_kl: float = 0.1
+
+
+class VAETrainer:
+    def __init__(self, args: VAEArgs):
+        self.args = args
+        self.trainset = get_dataset(args.dataset)
+        self.trainloader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
+        self.model = VAE(
+            latent_dim_size=args.latent_dim_size,
+            hidden_dim_size=args.hidden_dim_size,
+        ).to(device)
+        self.optimizer = t.optim.Adam(self.model.parameters(), lr=args.lr, betas=args.betas)
+
+    def training_step(
+        self, img: Float[Tensor, "batch 1 height width"]
+    ) -> Float[Tensor, ""]:
+        """
+        Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
+        if enabled.
+        """
+
+        img = self.trainset.transform(img.to(device))
+        created_pic, mu, logsigma = self.model(img)
+
+        loss_mse = self.mse.forward(input=created_pic, target=img)
+
+        sigma = t.exp(logsigma)
+
+        loss_kl_vec = (sigma**2 + mu**2 - 1) / 2 - logsigma
+        print(f"loss_kl shape: {loss_kl.shape}")
+
+
+        loss.backward()
+
+        self.step += 1
+        if self.args.use_wandb:
+            wandb.log({"loss": loss.item()}, step=self.step)
+
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        return loss
+
+    @t.inference_mode()
+    def log_samples(self) -> None:
+        """
+        Evaluates model on holdout data, either logging to wandb or displaying output inline.
+        """
+        assert self.step > 0, "First call should come after a training step. Remember to increment `self.step`."
+        output = self.model(HOLDOUT_DATA)[0]
+        if self.args.use_wandb:
+            output = (output - output.min()) / (output.max() - output.min())  # Normalize to [0, 1]
+            output = (output * 255).to(dtype=t.uint8)  # Convert to uint8 for logging
+            wandb.log({"images": [wandb.Image(arr) for arr in output.cpu().numpy()]}, step=self.step)
+        else:
+            self.live_image.update(t.concat([HOLDOUT_DATA, output]), nrows=2)  # top: input, bottom: reconstruction
+
+    def train(self) -> Autoencoder:
+        """Performs a full training run."""
+        self.step = 0
+        self.live_image = LiveImage()  # `log_samples` overwrites this in place
+        if self.args.use_wandb:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+            wandb.watch(self.model)
+
+        for epoch in range(self.args.epochs):
+            self.model.train()
+            pbar = tqdm(self.trainloader)
+            for img, _ in pbar:
+                loss = self.training_step(img)
+                pbar.set_postfix(loss=f"{loss:.3f}", step=f"{self.step=:06}", refresh=False)
+
+                if self.step % args.log_every_n_steps == 1:
+                    self.log_samples()
+
+        if self.args.use_wandb:
+            wandb.finish()
+
+        return self.model
+
+sweep_config = dict(
+    method="random",
+    metric=dict(name="accuracy", goal="maximize"),
+    parameters=dict(
+        learning_rate=dict(min=1e-4, max=1e-1, distribution="log_uniform_values"),
+        batch_size=dict(values=[32, 64, 128, 256]),
+        weight_decay=dict(min=1e-4, max=1e-2, distribution="log_uniform_values"),
+        weight_decay_bool=dict(values=[True, False]),
+    ),
+)
+
+
+args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=False)
+trainer = VAETrainer(args)
+vae = trainer.train()
+
 
 
 # %%

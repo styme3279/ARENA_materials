@@ -241,9 +241,9 @@ class AutoencoderTrainer:
         return self.model
 
 
-args = AutoencoderArgs(use_wandb=True, wandb_project="day5-autoencoder", wandb_name="autoencoder")
-trainer = AutoencoderTrainer(args)
-autoencoder = trainer.train()
+# args = AutoencoderArgs(use_wandb=True, wandb_project="day5-autoencoder", wandb_name="autoencoder")
+# trainer = AutoencoderTrainer(args)
+# autoencoder = trainer.train()
 
 # %%
 
@@ -261,26 +261,26 @@ def create_grid_of_latents(
     return grid_latent.flatten(0, 1)  # flatten over (rows, cols) into a single batch dimension
 
 
-grid_latent = create_grid_of_latents(autoencoder, interpolation_range=(-3, 3))
+# grid_latent = create_grid_of_latents(autoencoder, interpolation_range=(-3, 3))
 
-# Map grid latent through the decoder
-output = autoencoder.decoder(grid_latent)
+# # Map grid latent through the decoder
+# output = autoencoder.decoder(grid_latent)
 
-# Visualize the output
-utils.visualise_output(output, grid_latent, title="Autoencoder latent space visualization")
+# # Visualize the output
+# utils.visualise_output(output, grid_latent, title="Autoencoder latent space visualization")
 
- # %%
-# Get a small dataset with 5000 points
-small_dataset = Subset(trainset_mnist, indices=range(0, 5000))
-imgs = trainset_mnist.transform(t.stack([img for img, label in small_dataset]).to(device))
-labels = t.tensor([label for img, label in small_dataset]).to(device).int()
+#  # %%
+# # Get a small dataset with 5000 points
+# small_dataset = Subset(trainset_mnist, indices=range(0, 5000))
+# imgs = trainset_mnist.transform(t.stack([img for img, label in small_dataset]).to(device))
+# labels = t.tensor([label for img, label in small_dataset]).to(device).int()
 
-# Get the latent vectors for this data along first 2 dims, plus for the holdout data
-latent_vectors = autoencoder.encoder(imgs)[:, :2]
-holdout_latent_vectors = autoencoder.encoder(HOLDOUT_DATA)[:, :2]
+# # Get the latent vectors for this data along first 2 dims, plus for the holdout data
+# latent_vectors = autoencoder.encoder(imgs)[:, :2]
+# holdout_latent_vectors = autoencoder.encoder(HOLDOUT_DATA)[:, :2]
 
-# Plot the results
-utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)
+# # Plot the results
+# utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)
 
 
  # %%
@@ -379,6 +379,8 @@ class VAETrainer:
             hidden_dim_size=args.hidden_dim_size,
         ).to(device)
         self.optimizer = t.optim.Adam(self.model.parameters(), lr=args.lr, betas=args.betas)
+        
+        self.mse = nn.MSELoss()
 
     def training_step(
         self, img: Float[Tensor, "batch 1 height width"]
@@ -396,13 +398,17 @@ class VAETrainer:
         sigma = t.exp(logsigma)
 
         loss_kl_vec = (sigma**2 + mu**2 - 1) / 2 - logsigma
-        print(f"loss_kl shape: {loss_kl.shape}")
+        # print(f"loss_kl shape: {loss_kl_vec.shape}")
+        loss_kl_scalar = loss_kl_vec.sum()
 
+        loss = loss_mse + self.args.beta_kl * loss_kl_scalar
 
         loss.backward()
 
         self.step += 1
         if self.args.use_wandb:
+            wandb.log({"loss_mse": loss_mse.item()}, step=self.step)
+            wandb.log({"loss_kl_scalar": loss_kl_scalar.item()}, step=self.step)
             wandb.log({"loss": loss.item()}, step=self.step)
 
         self.optimizer.step()
@@ -423,6 +429,7 @@ class VAETrainer:
             wandb.log({"images": [wandb.Image(arr) for arr in output.cpu().numpy()]}, step=self.step)
         else:
             self.live_image.update(t.concat([HOLDOUT_DATA, output]), nrows=2)  # top: input, bottom: reconstruction
+
 
     def train(self) -> Autoencoder:
         """Performs a full training run."""
@@ -459,7 +466,7 @@ sweep_config = dict(
 )
 
 
-args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=False)
+args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=True)
 trainer = VAETrainer(args)
 vae = trainer.train()
 

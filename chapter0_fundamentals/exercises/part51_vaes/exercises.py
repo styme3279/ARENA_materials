@@ -79,6 +79,21 @@ class Autoencoder(nn.Module):
 tests.test_autoencoder(Autoencoder)
 
 # %%
+testset = get_dataset("MNIST", train=False)
+HOLDOUT_DATA = dict()
+for data, target in DataLoader(testset, batch_size=1):
+    if target.item() not in HOLDOUT_DATA:
+        HOLDOUT_DATA[target.item()] = data.squeeze()
+        if len(HOLDOUT_DATA) == 10:
+            break
+HOLDOUT_DATA = testset.transform(
+    t.stack([HOLDOUT_DATA[i] for i in range(10)]).to(device).unsqueeze(1)
+)
+
+display_data(HOLDOUT_DATA, nrows=1, title="MNIST holdout data")
+
+
+# %%
 @dataclass
 class AutoencoderArgs:
     # architecture
@@ -127,8 +142,6 @@ class AutoencoderTrainer:
         output = loss(img, recon_img)
         output.backward()
         self.optimizer.step()
-        self.step += 1
-        if self.steps 
         return output
 
     @t.inference_mode()
@@ -158,6 +171,10 @@ class AutoencoderTrainer:
             for img, label in self.trainloader:
                 img = self.trainset.transform(img.to(device))
                 loss = self.training_step(img)
+                self.step += 1
+                if self.step % self.args.log_every_n_steps == 0:
+                    wandb.log({"loss": loss})
+                    self.log_samples()
             print("Loss:", loss.item())
 
         if self.args.use_wandb:
@@ -166,7 +183,7 @@ class AutoencoderTrainer:
         return self.model
 
 
-args = AutoencoderArgs(use_wandb=False)
+args = AutoencoderArgs(use_wandb=True)
 trainer = AutoencoderTrainer(args)
 autoencoder = trainer.train()
 

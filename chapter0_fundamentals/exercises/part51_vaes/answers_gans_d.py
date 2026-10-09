@@ -126,19 +126,19 @@ class Generator(nn.Module):
         
         
         self.project_and_reshape = nn.Sequential(
-            nn.Linear(self.latent_dim_size,8*8*512),
-            Rearrange('b (c h w) -> b c h w',c=512,h=8,w=8)
+            nn.Linear(self.latent_dim_size,8*8*512, bias=False),
+            Rearrange('b (c h w) -> b c h w',c=512,h=8,w=8),
+            BatchNorm2d(512),
+            nn.ReLU()
         )
         self.hidden_layers = nn.Sequential(
-            BatchNorm2d(512),
-            nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=512,out_channels=256,kernel_size=4,stride=2,padding=1),
+            nn.ConvTranspose2d(in_channels=512,out_channels=256,kernel_size=4,stride=2,padding=1,bias=False),
             BatchNorm2d(256),
             nn.LeakyReLU(),
-            nn.ConvTranspose2d(in_channels=256,out_channels=128,kernel_size=4,stride=2,padding=1),
+            nn.ConvTranspose2d(in_channels=256,out_channels=128,kernel_size=4,stride=2,padding=1,bias=False),
             BatchNorm2d(128),
             nn.LeakyReLU(),
-            nn.ConvTranspose2d(in_channels=128,out_channels=3,kernel_size=4,stride=2,padding=1)
+            nn.ConvTranspose2d(in_channels=128,out_channels=3,kernel_size=4,stride=2,padding=1,bias=False)
         )
 
     def forward(
@@ -178,6 +178,8 @@ class Discriminator(nn.Module):
         self.img_size = img_size
         self.img_channels = img_channels
         self.hidden_channels = hidden_channels
+        
+        
         self.hidden_layers = nn.Sequential(
             nn.Conv2d(in_channels=self.img_channels,out_channels=self.hidden_channels[0],kernel_size=4,stride=2,padding=1),
             BatchNorm2d(self.hidden_channels[0]),
@@ -188,13 +190,13 @@ class Discriminator(nn.Module):
                 for layer in [
                 nn.Conv2d(in_channels=self.hidden_channels[i],out_channels=self.hidden_channels[i+1],kernel_size=4,stride=2,padding=1),
                 BatchNorm2d(self.hidden_channels[i+1]),
-                nn.LeakyReLU()
+                nn.LeakyReLU(0.2)
             ]
             )
         )
         self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(512*8*8,1)
+            Rearrange("b c h w -> b (c h w)"),
+            nn.Linear(512*8*8,1, bias=False)
         )
 
     def forward(
@@ -228,6 +230,6 @@ class DCGAN(nn.Module):
 from part2_cnns.utils import print_param_count
 from part52_gans import solutions
 
-print_param_count(Generator(), solutions.DCGAN().netG)
+#print_param_count(Generator(), solutions.DCGAN().netG)
 print_param_count(Discriminator(), solutions.DCGAN().netD)
 # %%

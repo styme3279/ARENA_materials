@@ -153,16 +153,16 @@ class Generator(nn.Module):
         first_height = img_size // (2**n_layers)
         first_size = hidden_channels[0] * (first_height**2)
         self.project_and_reshape = Sequential(
-            Linear(in_features=self.latent_dim_size, out_features=first_size),
+            Linear(in_features=self.latent_dim_size, out_features=first_size, bias=False),
             Rearrange("b (c h w) -> b c h w", c = hidden_channels[0], h = first_height, w = first_height),
-            BatchNorm2d(num_features=first_size),
+            BatchNorm2d(num_features=hidden_channels[0]),
             ReLU(),
         )
         self.hidden_layers = Sequential(
             *[
                 Sequential(
-                    nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1),
-                    BatchNorm2d(num_features=first_size/(2**(2-i))),
+                    nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1, bias = False),
+                    BatchNorm2d(num_features=out_channels) if i != len(self.hidden_channels) - 1 else nn.Identity(),
                     activation_fn()
                 ) 
                     for i, (in_channels, out_channels, activation_fn) in enumerate(zip(
@@ -214,19 +214,18 @@ class Discriminator(nn.Module):
             *[
                 Sequential(
                     Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1),
-                    BatchNorm2d(num_features=num_features) if i != 0 else nn.Identity(),
+                    BatchNorm2d(num_features=out_channels) if i != 0 else nn.Identity(),
                     LeakyReLU()
                 ) 
-                    for i, (in_channels, num_features, out_channels) in enumerate(zip(
+                    for i, (in_channels, out_channels) in enumerate(zip(
                         [self.img_channels] + self.hidden_channels[:-1],
-                        [64*64*3, 32*32*128, 16*16*256],
                         self.hidden_channels,
                 ))
             ]
         )
         self.classifier = Sequential(
             nn.Flatten(),
-            Linear(in_features=512*8*8, out_features=1)
+            Linear(in_features=512*8*8, out_features=1, bias=False)
         )
 
     def forward(
@@ -272,4 +271,31 @@ def initialize_weights(model: nn.Module) -> None:
 
 
 tests.test_initialize_weights(initialize_weights, nn.ConvTranspose2d, Conv2d, Linear, nn.BatchNorm2d)
+
+# %%
+class DCGAN(nn.Module):
+    netD: Discriminator
+    netG: Generator
+
+    def __init__(
+        self,
+        latent_dim_size: int = 100,
+        img_size: int = 64,
+        img_channels: int = 3,
+        hidden_channels: list[int] = [128, 256, 512],
+    ):
+        super().__init__()
+        self.latent_dim_size = latent_dim_size
+        self.img_size = img_size
+        self.img_channels = img_channels
+        self.hidden_channels = hidden_channels
+        self.netD = Discriminator(img_size, img_channels, hidden_channels)
+        self.netG = Generator(latent_dim_size, img_size, img_channels, hidden_channels)
+        initialize_weights(self.netD)
+        initialize_weights(self.netG)
+
+model = DCGAN().to(device)
+x = t.randn(3, 100).to(device)
+print(torchinfo.summary(model.netG, input_data=x), end="\n\n")
+print(torchinfo.summary(model.netD, input_data=model.netG(x)))
 # %%

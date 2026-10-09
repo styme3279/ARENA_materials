@@ -194,7 +194,7 @@ One of the oldest ways to decompose parameters in a model, is to do singular val
 Given the ($n \times n$) matrix of weights $W$ in a model layer, one can summarise the matrix as the sum of $n$ independent compontents, written as:
 
 \[
-$W$ = U S V^T = \sum_i s_i ( u_i v_i^T) 
+$W$ = U S V^T = \sum_i \sigma_i ( u_i \cdot v_i^T) 
 ]\
 
 </details>

@@ -147,6 +147,7 @@ class AutoencoderTrainer:
         self.optimizer = t.optim.Adam(
             self.model.parameters(), lr=args.lr, betas=args.betas
         )
+        self.loss = nn.MSELoss()
 
     def training_step(
         self, img: Float[Tensor, "batch 1 height width"]
@@ -158,9 +159,11 @@ class AutoencoderTrainer:
         self.optimizer.zero_grad()
         out = self.model(img)
 
-        loss = nn.MSELoss(out,img)
+        loss = self.loss(out,img)
         loss.backward()
         self.optimizer.step()
+
+        return loss
 
 
 
@@ -188,10 +191,16 @@ class AutoencoderTrainer:
 
         # YOUR CODE HERE - iterate over epochs, and train your model
 
-        for epoch in self.args.epochs:
+        for epoch in range(self.args.epochs):
 
-            for i, (x,y) in enumerate(self.trainloader):
-                
+            for i, (img,label) in tqdm(enumerate(self.trainloader)):
+                img = img.to(device)
+                img = mnist_trainset.transform(img)
+                loss = self.training_step(img)
+                self.step += 1
+
+                if self.step == self.args.log_every_n_steps:
+                    self.log_samples()
 
         if self.args.use_wandb:
             wandb.finish()
@@ -202,3 +211,5 @@ class AutoencoderTrainer:
 args = AutoencoderArgs(use_wandb=False)
 trainer = AutoencoderTrainer(args)
 autoencoder = trainer.train()
+
+# %%

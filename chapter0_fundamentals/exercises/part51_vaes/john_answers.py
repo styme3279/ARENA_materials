@@ -142,4 +142,308 @@ class Autoencoder(nn.Module):
 
 
 tests.test_autoencoder(Autoencoder)
+
+# %%
+@dataclass
+class AutoencoderArgs:
+    # architecture
+    latent_dim_size: int = 5
+    hidden_dim_size: int = 128
+
+    # data / training
+    dataset: Literal["MNIST", "CELEB"] = "MNIST"
+    batch_size: int = 512
+    epochs: int = 10
+    lr: float = 1e-3
+    betas: tuple[float, float] = (0.5, 0.999)
+
+    # logging
+    use_wandb: bool = True
+    wandb_project: str | None = "day5-autoencoder"
+    wandb_name: str | None = None
+    log_every_n_steps: int = 250
+
+
+class AutoencoderTrainer:
+    def __init__(self, args: AutoencoderArgs):
+        self.args = args
+        self.trainset = get_dataset(args.dataset)
+        self.trainloader = DataLoader(
+            self.trainset, batch_size=args.batch_size, shuffle=True
+        )
+        self.model = Autoencoder(
+            latent_dim_size=args.latent_dim_size,
+            hidden_dim_size=args.hidden_dim_size,
+        ).to(device)
+        self.optimizer = t.optim.Adam(
+            self.model.parameters(), lr=args.lr, betas=args.betas
+        )
+
+    def training_step(
+        self, img: Float[Tensor, "batch 1 height width"]
+    ) -> Float[Tensor, ""]:
+        """
+        Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
+        if enabled.
+        """
+        self.step += 1
+        
+        # Send images to GPU
+        img = self.trainset.transform(img.to(device))
+
+        reconstructed_images = self.model(img)
+        loss_function = nn.MSELoss()
+        loss = loss_function(img, reconstructed_images)
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        if self.args.use_wandb:
+            if self.step % self.args.log_every_n_steps == 0:
+                self.log_samples()
+        return loss
+
+    @t.inference_mode()
+    def log_samples(self) -> None:
+        """
+        Evaluates model on holdout data, either logging to weights & biases or displaying output.
+        """
+        assert self.step > 0, "First call should come after a training step. Remember to increment `self.step`."
+        output = self.model(HOLDOUT_DATA)
+        if self.args.use_wandb:
+            output = (output - output.min()) / (output.max() - output.min())  # Normalize to [0, 1]
+            output = (output * 255).to(dtype=t.uint8)  # Convert to uint8 for logging
+            wandb.log({"images": [wandb.Image(arr) for arr in output.cpu().numpy()]}, step=self.step)
+        else:
+            self.live_image.update(t.concat([HOLDOUT_DATA, output]), nrows=2)  # top: input, bottom: reconstruction
+
+    def train(self) -> Autoencoder:
+        """Performs a full training run."""
+        self.step = 0
+        self.live_image = LiveImage()  # `log_samples` overwrites this in place
+        if self.args.use_wandb:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+            wandb.watch(self.model)
+
+        # YOUR CODE HERE - iterate over epochs, and train your model
+        for epoch in range(self.args.epochs):
+            self.model.train()
+
+            pbar = tqdm(self.trainloader, desc="Training")
+            for img, labels in pbar:
+                loss = self.training_step(img)
+                pbar.set_postfix(loss=f"{loss:.3f}", step=f"{self.step=:06}")
+        if self.args.use_wandb:
+            wandb.finish()
+
+        return self.model
+
+
+args = AutoencoderArgs(use_wandb=True)
+trainer = AutoencoderTrainer(args)
+autoencoder = trainer.train()
+
+# %%
+def create_grid_of_latents(
+    model: nn.Module,
+    interpolation_range: tuple[float, float] = (-1, 1),
+    n_points: int = 11,
+    dims: tuple[int, int] = (0, 1),
+) -> Float[Tensor, "rows_x_cols latent_dims"]:
+    """Create a tensor of zeros which varies along the 2 specified dimensions of the latent space."""
+    grid_latent = t.zeros(n_points, n_points, model.latent_dim_size, device=device)
+    x = t.linspace(*interpolation_range, n_points)
+    grid_latent[..., dims[0]] = x.unsqueeze(-1)  # rows vary over dim=0
+    grid_latent[..., dims[1]] = x  # cols vary over dim=1
+    return grid_latent.flatten(0, 1)  # flatten over (rows, cols) into a single batch dimension
+
+
+grid_latent = create_grid_of_latents(autoencoder, interpolation_range=(-3, 3))
+
+# Map grid latent through the decoder
+output = autoencoder.decoder(grid_latent)
+
+# Visualize the output
+utils.visualise_output(output, grid_latent, title="Autoencoder latent space visualization")
+
+# %%
+# Get a small dataset with 5000 points
+small_dataset = Subset(trainset_mnist, indices=range(0, 5000))
+imgs = trainset_mnist.transform(t.stack([img for img, label in small_dataset]).to(device))
+labels = t.tensor([label for img, label in small_dataset]).to(device).int()
+
+# Get the latent vectors for this data along first 2 dims, plus for the holdout data
+latent_vectors = autoencoder.encoder(imgs)[:, :2]
+holdout_latent_vectors = autoencoder.encoder(HOLDOUT_DATA)[:, :2]
+
+# Plot the results
+utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)
+
+# %%
+class VAE(nn.Module):
+    encoder: nn.Module
+    decoder: nn.Module
+
+    def __init__(self, latent_dim_size: int, hidden_dim_size: int):
+        super().__init__()
+        self.hidden_dim_size = hidden_dim_size
+        self.latent_dim_size = latent_dim_size
+
+        self.encoder = nn.Sequential(
+            nn.Conv2d(in_channels=1, out_channels=16, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2, padding=1), 
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(in_features=32*7*7, out_features=self.hidden_dim_size),
+            nn.ReLU(),
+            nn.Linear(in_features=self.hidden_dim_size, out_features=2*self.latent_dim_size),
+            Rearrange("b (n latent_dim) -> n b latent_dim", n=2)
+        )
+
+        self.decoder = nn.Sequential(
+            nn.Linear(in_features=self.latent_dim_size, out_features=self.hidden_dim_size), 
+            nn.ReLU(),
+            nn.Linear(in_features=self.hidden_dim_size, out_features=32*7*7),
+            Rearrange("b (c h w) -> b c h w", c=32, h=7, w=7), 
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=16, out_channels=1, kernel_size=4, stride=2, padding=1),
+
+        )
+
+    def sample_latent_vector(
+        self, x: Float[Tensor, "batch 1 height width"]
+    ) -> tuple[
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+    ]:
+        """
+        Passes `x` through the encoder, returns tuple of (sampled latent vector, mean, log std dev).
+        This function can be used in `forward`, but also used on its own to generate samples for
+        evaluation.
+        """
+        mu, logsigma = self.encoder(x)
+        sigma = t.exp(logsigma)
+        z = mu + sigma * t.randn_like(sigma)
+        return z, mu, logsigma
+
+    def forward(
+        self, x: Float[Tensor, "batch 1 height width"]
+    ) -> tuple[
+        Float[Tensor, "batch 1 height width"],
+        Float[Tensor, "batch latent"],
+        Float[Tensor, "batch latent"],
+    ]:
+        """
+        Passes `x` through the encoder and decoder. Returns the reconstructed input, as well as mu
+        and logsigma.
+        """
+        z, mu, logsigma = self.sample_latent_vector(x)
+        x_prime = self.decoder(z)
+        return x_prime, mu, logsigma
+
+tests.test_vae(VAE)
+
+# %%
+@dataclass
+class VAEArgs(AutoencoderArgs):
+    wandb_project: str | None = "day5-vae-mnist"
+    beta_kl: float = 0.1
+
+class VAETrainer:
+    def __init__(self, args: VAEArgs):
+        self.args = args
+        self.trainset = get_dataset(args.dataset)
+        self.trainloader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
+        self.model = VAE(
+            latent_dim_size=args.latent_dim_size,
+            hidden_dim_size=args.hidden_dim_size,
+        ).to(device)
+        self.optimizer = t.optim.Adam(self.model.parameters(), lr=args.lr, betas=args.betas)
+
+    def training_step(
+        self, img: Float[Tensor, "batch 1 height width"]
+    ) -> Float[Tensor, ""]:
+        """
+        Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
+        if enabled.
+        """
+        self.step += 1
+                
+        # Send images to GPU
+        img = self.trainset.transform(img.to(device))
+
+        # Do inference
+        x_prime, mu, logsigma = self.model(img)
+
+        # Calculate the losses
+        mse_loss = nn.MSELoss()(img, x_prime)
+        kl_loss = ((logsigma.exp()**2 + mu**2 - 1) / 2) - logsigma
+        loss = mse_loss + self.args.beta_kl * kl_loss.mean()
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        if self.args.use_wandb:
+            if self.step % self.args.log_every_n_steps == 0:
+                self.log_samples()
+        return loss, mse_loss, kl_loss
+
+    @t.inference_mode()
+    def log_samples(self) -> None:
+        """
+        Evaluates model on holdout data, either logging to wandb or displaying output inline.
+        """
+        assert self.step > 0, "First call should come after a training step. Remember to increment `self.step`."
+        output = self.model(HOLDOUT_DATA)[0]
+        if self.args.use_wandb:
+            output = (output - output.min()) / (output.max() - output.min())  # Normalize to [0, 1]
+            output = (output * 255).to(dtype=t.uint8)  # Convert to uint8 for logging
+            wandb.log({"images": [wandb.Image(arr) for arr in output.cpu().numpy()]}, step=self.step)
+        else:
+            self.live_image.update(t.concat([HOLDOUT_DATA, output]), nrows=2)  # top: input, bottom: reconstruction
+
+    def train(self) -> VAE:
+        """Performs a full training run."""
+        self.step = 0
+        self.live_image = LiveImage()  # `log_samples` overwrites this in place
+        if self.args.use_wandb:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+            wandb.watch(self.model)
+
+        # YOUR CODE HERE - iterate over epochs, and train your model
+        for epoch in range(self.args.epochs):
+            self.model.train()
+
+            pbar = tqdm(self.trainloader, desc="Training")
+            for img, labels in pbar:
+                loss, mse_loss, kl_loss = self.training_step(img)
+                #pbar.set_postfix(loss=f"{loss:.3f}", mse_loss=f"{mse_loss:.3f}", kl_loss=f"{kl_loss.mean:.3f}", step=f"{self.step=:06}")
+                pbar.set_postfix(loss=f"{loss:.3f}", step=f"{self.step=:06}")
+
+        if self.args.use_wandb:
+            wandb.finish()
+
+        return self.model
+# %%
+args = VAEArgs(latent_dim_size=5, hidden_dim_size=100, use_wandb=False)
+trainer = VAETrainer(args)
+vae = trainer.train()
+# %%
+grid_latent = create_grid_of_latents(vae, interpolation_range=(-1, 1))
+output = vae.decoder(grid_latent)
+utils.visualise_output(output, grid_latent, title="VAE latent space visualization")
+# %%
+small_dataset = Subset(trainset_mnist, indices=range(0, 5000))
+imgs = trainset_mnist.transform(t.stack([img for img, label in small_dataset]).to(device))
+labels = t.tensor([label for img, label in small_dataset]).to(device).int()
+
+# We're getting the mean vector, which is the [0]-indexed output of the encoder
+latent_vectors = vae.encoder(imgs)[0, :, :2]
+holdout_latent_vectors = vae.encoder(HOLDOUT_DATA)[0, :, :2]
+
+utils.visualise_input(latent_vectors, labels, holdout_latent_vectors, HOLDOUT_DATA)
 # %%

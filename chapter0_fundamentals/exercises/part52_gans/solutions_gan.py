@@ -216,10 +216,7 @@ def initialize_weights(model: nn.Module) -> None:
     Initializes weights according to the DCGAN paper (details at the end of page 3 of the DCGAN
     paper), by modifying the weights of the model in place.
     """
-    for name, param in model.named_parameters():
-        print("#########")
-        print(name)
-        print(param)
+    print(model.parameters)
 
 
 tests.test_initialize_weights(initialize_weights, nn.ConvTranspose2d, Conv2d, Linear, nn.BatchNorm2d)

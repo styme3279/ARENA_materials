@@ -298,4 +298,165 @@ model = DCGAN().to(device)
 x = t.randn(3, 100).to(device)
 print(torchinfo.summary(model.netG, input_data=x), end="\n\n")
 print(torchinfo.summary(model.netD, input_data=model.netG(x)))
+
 # %%
+@dataclass
+class DCGANArgs:
+    """
+    Class for the arguments to the DCGAN (training and architecture).
+    Note, we use field(default_factory=...) when our default value is a mutable object.
+    """
+
+    # architecture
+    latent_dim_size: int = 100
+    hidden_channels: list[int] = field(default_factory=lambda: [128, 256, 512])
+
+    # data & training
+    dataset: Literal["MNIST", "CELEB"] = "CELEB"
+    batch_size: int = 64
+    epochs: int = 3
+    lr: float = 0.0002
+    lr_G: float | None = None  # generator LR (TTUR); falls back to `lr` if None
+    lr_D: float | None = None  # discriminator LR (TTUR); falls back to `lr` if None
+    betas: tuple[float, float] = (0.5, 0.999)
+    clip_grad_norm: float | None = 1.0
+
+    # performance
+    compile: bool = False  # optional ~2x speed-up, off by default
+
+    # logging
+    use_wandb: bool = False
+    wandb_project: str | None = "day5-gan"
+    wandb_name: str | None = None
+    log_every_n_steps: int = 250
+
+    def __post_init__(self):
+        # Two Time-Scale Update Rule (TTUR): allow separate generator/discriminator learning
+        # rates. Both default to the shared `lr` unless explicitly overridden.
+        if self.lr_G is None:
+            self.lr_G = self.lr
+        if self.lr_D is None:
+            self.lr_D = self.lr
+
+
+class DCGANTrainer:
+    def __init__(self, args: DCGANArgs):
+        self.args = args
+        
+        self.trainset = get_dataset(self.args.dataset, transform=TANH_RANGE_TRANSFORM)
+        # `drop_last=True` keeps every batch the same shape, which matters when we compile below
+        self.trainloader = DataLoader(
+            self.trainset, batch_size=args.batch_size, shuffle=True, num_workers=NUM_WORKERS, drop_last=True
+        )
+
+        img_batch = self.trainset.transform(next(iter(self.trainloader))[0])
+        batch, img_channels, img_height, img_width = img_batch.shape
+        assert img_height == img_width
+
+        self.model = DCGAN(args.latent_dim_size, img_height, img_channels, args.hidden_channels).to(device).train()
+
+        if args.compile and device.type == "cuda":
+            self.model.netG = t.compile(self.model.netG)
+            self.model.netD = t.compile(self.model.netD)
+
+        self.optG = t.optim.Adam(self.model.netG.parameters(), lr=args.lr_G, betas=args.betas)
+        self.optD = t.optim.Adam(self.model.netD.parameters(), lr=args.lr_D, betas=args.betas)
+
+        # The *same* noise every time we log samples, so successive plots show a single set of faces
+        # improving rather than a fresh random set each time.
+        self.fixed_noise = t.randn(10, args.latent_dim_size, device=device)
+
+    def training_step_discriminator(
+        self,
+        img_real: Float[Tensor, "batch channels height width"],
+        img_fake: Float[Tensor, "batch channels height width"],
+    ) -> Float[Tensor, ""]:
+        """
+        Generates a real and fake image, and performs a gradient step on the discriminator to
+        minimize -(log(D(x)) + log(1-D(G(z)))). Logs to wandb if enabled.
+        """
+        self.model.netD.zero_grad()
+        img_fake = img_fake.detach()
+        
+        for 
+
+        
+
+    def training_step_generator(
+        self, img_fake: Float[Tensor, "batch channels height width"]
+    ) -> Float[Tensor, ""]:
+        """
+        Performs a gradient step on the generator to minimize -log(D(G(z))). Logs to wandb if enabled.
+        """
+        raise NotImplementedError()
+
+    @t.inference_mode()
+    def log_samples(self) -> None:
+        """
+        Performs evaluation by passing the 10 fixed noise vectors in `self.fixed_noise` through the
+        generator, then optionally logging the results to Weights & Biases.
+        """
+        assert self.step > 0, "First call should come after a training step. Remember to increment `self.step`."
+        self.model.netG.eval()
+
+        output = self.model.netG(self.fixed_noise)
+        # Clip values to make the visualization clearer
+        output = output.clamp(output.quantile(0.01), output.quantile(0.99))
+        # Log to weights and biases
+        if self.args.use_wandb:
+            output = einops.rearrange(output, "b c h w -> b h w c").cpu().numpy()
+            wandb.log({"images": [wandb.Image(arr) for arr in output]}, step=self.step)
+        else:
+            self.live_image.update(output)
+
+        self.model.netG.train()
+
+    def train(self) -> DCGAN:
+        """Performs a full training run."""
+        self.step = 0
+        self.live_image = LiveImage()  # `log_samples` overwrites this in place
+        if self.args.use_wandb:
+            wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
+
+        # One progress bar for the whole run (rather than a new one each epoch)
+        progress_bar = tqdm(total=self.args.epochs * len(self.trainloader), ascii=True)
+
+        for epoch in range(self.args.epochs):
+            for img_real, label in self.trainloader:
+
+                init_noise = t.randn(10, args.latent_dim_size, device=device)
+                # generate imgs
+                
+                # YOUR CODE HERE - fill in the training step for generator & discriminator
+
+        progress_bar.close()
+        if self.args.use_wandb:
+            wandb.finish()
+
+        return self.model
+
+# Arguments for CelebA
+args = DCGANArgs(
+    dataset="CELEB",
+    hidden_channels=[128, 256, 512],
+    batch_size=64,  # if you get OOM errors, reduce this!
+    epochs=5,
+    lr_D=8e-4,  # separate LRs for generator and discriminator
+    lr_G=2e-4,
+    use_wandb=False,
+    compile=False, # toggle me once you have the bugs ironed out
+)
+trainer = DCGANTrainer(args)
+dcgan_celeb = trainer.train()
+
+# Arguments for MNIST
+args = DCGANArgs(
+    dataset="MNIST",
+    hidden_channels=[12, 24],
+    epochs=20,
+    batch_size=128,
+    use_wandb=False,
+    compile=False, # toggle me once you have the bugs ironed out
+)
+trainer = DCGANTrainer(args)
+dcgan_mnist = trainer.train()

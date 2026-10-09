@@ -153,9 +153,17 @@ class Generator(nn.Module):
         first_height = img_size // (2**n_layers)
         first_size = hidden_channels[0] * (first_height**2)
         self.project_and_reshape = Sequential(
-            
+            Linear(in_features=self.latent_dim_size, out_features=first_size),
+            Rearrange("b (c h w) -> b c h w", c = hidden_channels[0], h = first_height, w = first_height),
+            BatchNorm2d(num_features=first_size),
+            ReLU(),
         )
-        # self.hidden_layers = ...
+        self.hidden_layers = Sequential(
+            *[
+                Sequential(nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1), BatchNorm2d(num_features=first_size/(2**i)), activation_fn()) for i, (in_channels, out_channels, activation_fn) in enumerate(zip(self.hidden_channels, self.hidden_channels[1:] + [self.img_channels], [ReLU, ReLU, Tanh]))
+            ]
+
+        )
 
     def forward(
         self, x: Float[Tensor, "batch latent"]

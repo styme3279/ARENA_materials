@@ -120,8 +120,24 @@ class Generator(nn.Module):
         # Define the first layer, i.e. latent dim -> (512, 8, 8) and reshape
         first_height = img_size // (2**n_layers)
         first_size = hidden_channels[0] * (first_height**2)
-        # self.project_and_reshape = ...
-        # self.hidden_layers = ...
+        self.project_and_reshape = nn.Sequential(
+            nn.Linear(self.latent_dim_size, 512*8*8),
+            Rearrange("b (c w h) -> b c w h", c=512, w=8, h=8),
+        )
+        self.hidden_layers = nn.Sequential(
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.ConvTranspose2d(512,256, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(256),
+            LeakyReLU(),
+            nn.ConvTranspose2d(256,128, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(128),
+            LeakyReLU(),
+            nn.ConvTranspose2d(128,64, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            LeakyReLU(),
+            nn.ConvTranspose2d(64,3, kernel_size=4, stride=2, padding=1),
+        )
 
     def forward(
         self, x: Float[Tensor, "batch latent"]
@@ -160,7 +176,17 @@ class Discriminator(nn.Module):
         self.img_size = img_size
         self.img_channels = img_channels
         self.hidden_channels = hidden_channels
-        self.hidden_layers = ...
+        self.hidden_layers = nn.Sequential(
+            nn.Conv2d(img_size, 128, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(self.hidden_channels[i+1]), 
+            LeakyReLU(),
+            *[layer for i in range(img_channels-1) for layer in [
+                nn.Conv2d(self.hidden_channels[i], self.hidden_channels[i], kernel_size=4, stride=2, padding=1), 
+                nn.BatchNorm2d(self.hidden_channels[i+1]), 
+                LeakyReLU()]],
+        nn.Flatten(),
+        nn.Linear(),
+        )
         self.classifier = ...
 
     def forward(
@@ -205,3 +231,9 @@ model = DCGAN().to(device)
 x = t.randn(3, 100).to(device)
 print(torchinfo.summary(model.netG, input_data=x), end="\n\n")
 print(torchinfo.summary(model.netD, input_data=model.netG(x)))
+
+# %%
+import time
+for i in tqdm(range(5), position=0):
+    for j in tqdm(range(4), position=1, leave=False):
+        time.sleep(1)

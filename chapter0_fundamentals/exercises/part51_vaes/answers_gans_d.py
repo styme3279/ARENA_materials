@@ -180,7 +180,16 @@ class Discriminator(nn.Module):
         self.hidden_channels = hidden_channels
         self.hidden_layers = nn.Sequential(
             nn.Conv2d(in_channels=self.img_channels,out_channels=self.hidden_channels[0],kernel_size=4,stride=2,padding=1),
-            *(nn.Conv2d(in_channels=hidden_channels[i],out_channels=hidden_channels[i+1],kernel_size=4,))
+            BatchNorm2d(self.hidden_channels[0]),
+            nn.LeakyReLU(),
+            *(
+                layer
+                for i in range(len(self.hidden_channels)-1)
+                for layer in [
+                nn.Conv2d(in_channels=self.hidden_channels[i],out_channels=self.hidden_channels[i+1],kernel_size=4,stride=2,padding=1),
+                BatchNorm2d(self.hidden_channels[i+1]),
+                nn.LeakyReLU()
+            ]
         )
         self.classifier = ...
 

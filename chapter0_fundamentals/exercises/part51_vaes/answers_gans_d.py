@@ -361,7 +361,12 @@ class DCGANTrainer:
         """
         Performs a gradient step on the generator to minimize -log(D(G(z))). Logs to wandb if enabled.
         """
-        raise NotImplementedError()
+        self.optG.zero_grad()
+        out = self.model.netG(img_fake)
+
+        loss = self.loss(out,img)
+
+        return out, loss
 
     @t.inference_mode()
     def log_samples(self) -> None:
@@ -395,13 +400,20 @@ class DCGANTrainer:
         progress_bar = tqdm(total=self.args.epochs * len(self.trainloader), ascii=True)
 
         for epoch in range(self.args.epochs):
-            for img_real, label in self.trainloader:
+            for img_real, label in tqdm(self.trainloader):
                 # YOUR CODE HERE - fill in the training step for generator & discriminator
-                img_real = img_real.to(device)
-                #label = label.to(device).detach()
+                img_real = self.trainset.transform(img_real.to(device))
+                img_fake =  t.randn(self.args.batch_size, latent_dim_size).to(device)
+                img_fake = self.trainset.transform(img_fake)
 
-                output = self.training_step_generator(img_real)
-                self.training_step_discriminator(img_real.detach(),output)
+                img_fake, loss = self.training_step_generator(img_fake)
+                loss = self.training_step_discriminator(img_real.detach(),img_fake.detach())
+
+                self.step += 1
+
+                if self.step == self.args.log_every_n_steps:
+                    self.log_samples()
+
 
 
         progress_bar.close()
@@ -427,30 +439,3 @@ def training_step(
     self.optimizer.step()
 
     return loss
-
-
-def train(self) -> Autoencoder:
-    """Performs a full training run."""
-    self.step = 0
-    self.live_image = LiveImage()  # `log_samples` overwrites this in place
-    if self.args.use_wandb:
-        wandb.init(project=self.args.wandb_project, name=self.args.wandb_name)
-        wandb.watch(self.model)
-
-    # YOUR CODE HERE - iterate over epochs, and train your model
-
-    for epoch in range(self.args.epochs):
-
-        for i, (img,label) in tqdm(enumerate(self.trainloader)):
-            img = img.to(device)
-            img = mnist_trainset.transform(img)
-            loss = self.training_step(img)
-            self.step += 1
-
-            if self.step == self.args.log_every_n_steps:
-                self.log_samples()
-
-    if self.args.use_wandb:
-        wandb.finish()
-
-    return self.model

@@ -48,7 +48,9 @@ class Autoencoder(nn.Module):
     def __init__(self, latent_dim_size: int, hidden_dim_size: int):
         """Creates the encoder & decoder modules."""
         super().__init__()
-        self.encoder = nn.Sequential([
+        self.latent_dim_size = latent_dim_size
+        self.hidden_dim_size = hidden_dim_size
+        self.encoder = nn.Sequential(
             nn.Conv2d(
                 in_channels=1,
                 out_channels=16,
@@ -71,8 +73,8 @@ class Autoencoder(nn.Module):
             nn.Linear(
                 in_features=hidden_dim_size,
                 out_features=latent_dim_size),
-        ])
-        self.decoder = nn.Sequential([
+        )
+        self.decoder = nn.Sequential(
             nn.Linear(
                 in_features=latent_dim_size,
                 out_features=hidden_dim_size),
@@ -80,15 +82,33 @@ class Autoencoder(nn.Module):
             nn.Linear(
                 in_features=hidden_dim_size,
                 out_features=7*7*3),
-            Rearrange("b (c h w) -> b (c h w)"),
-            nn.ReLU()
-            ])
+            Rearrange("b (c h w) -> b c h w", c=32, h=7),
+            nn.ReLU(),
+            nn.ConvTranspose2d(
+                in_channels=32,
+                out_channels=16,
+                kernel_size=4,
+                stride=2,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.ConvTranspose2d(
+                in_channels=16,
+                out_channels=1,
+                kernel_size=4,
+                stride=2,
+                padding=1
+            ))
     def forward(
         self, x: Float[Tensor, "batch 1 height width"]
     ) -> Float[Tensor, "batch 1 height width"]:
         """Returns the reconstruction of the input, after mapping through encoder & decoder."""
-        raise NotImplementedError()
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
 
 
 tests.test_autoencoder(Autoencoder)
 
+
+# %%

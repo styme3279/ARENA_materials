@@ -118,7 +118,9 @@ class Generator(nn.Module):
         )
         self.hidden_layers_list = []
         for i in range(n_layers-1):
-            self.hidden_layers_list.append(nn.ConvTranspose2d(in_channels=hidden_channels[i], out_channels=hidden_channels[i+1]))
+            self.hidden_layers_list.append(nn.ConvTranspose2d(in_channels=hidden_channels[i], out_channels=hidden_channels[i+1], kernel_size=4, stride=2, padding=1))
+            self.hidden_layers_list.append(nn.BatchNorm2d(hidden_channels[i+1]))
+            self.hidden_layers_list.append(nn.ReLU)
 
         self.hidden_layers = 
 

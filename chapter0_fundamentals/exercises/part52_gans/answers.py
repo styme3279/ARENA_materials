@@ -378,9 +378,13 @@ class DCGANTrainer:
         self.model.netD.zero_grad()
         img_fake = img_fake.detach()
         
-        for 
+        pred_fake = self.model.netD(img_fake)
+        loss_fake = t.log(1 - pred_fake, dim=0)
 
-        
+        pred_real = self.model.netD(img_real)
+        loss_real = t.log(pred_real, dim=0)
+
+        return -(loss_fake + loss_real)
 
     def training_step_generator(
         self, img_fake: Float[Tensor, "batch channels height width"]
@@ -388,7 +392,11 @@ class DCGANTrainer:
         """
         Performs a gradient step on the generator to minimize -log(D(G(z))). Logs to wandb if enabled.
         """
-        raise NotImplementedError()
+        self.model.netG.zero_grad()
+
+        pred_fake = self.model.netD(img_fake)
+
+        return -t.log(pred_fake)
 
     @t.inference_mode()
     def log_samples(self) -> None:
@@ -423,9 +431,11 @@ class DCGANTrainer:
 
         for epoch in range(self.args.epochs):
             for img_real, label in self.trainloader:
-
                 init_noise = t.randn(10, args.latent_dim_size, device=device)
-                # generate imgs
+                img_fake = self.model.netG(init_noise)
+
+                self.training_step_discriminator(img_real, img_fake)
+                self.training_step_generator(img_fake)
                 
                 # YOUR CODE HERE - fill in the training step for generator & discriminator
 

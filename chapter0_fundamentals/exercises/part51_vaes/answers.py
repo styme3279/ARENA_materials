@@ -326,7 +326,25 @@ class VAE(nn.Module):
         This function can be used in `forward`, but also used on its own to generate samples for
         evaluation.
         """
+        print(f'latent size: {self.latent_dim_size}')
+
         latent = self.encoder(x)
+        print(f"latent shape: {latent.shape}")
+        mu = latent[..., :self.latent_dim_size]
+        logsigma = latent[..., self.latent_dim_size:]
+        print(f"mu shape: {mu.shape}")
+        print(f"sigma shape: {logsigma.shape}")
+
+        sampled_vector = t.randn_like(logsigma)
+
+        # out = mu + sigma * sampled_vector
+        sigma = t.exp(logsigma)
+        print(f"sigma: {sigma[0]}")
+        print(f"sampled_vector: {sampled_vector[0]}")
+        variance = einops.einsum(sigma, sampled_vector, '... i j , ... i j -> ... i j')
+        print(f"variance: {variance[0]}")
+        out 
+
         
 
     def forward(

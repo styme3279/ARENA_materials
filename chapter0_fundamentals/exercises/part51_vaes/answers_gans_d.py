@@ -354,7 +354,15 @@ class DCGANTrainer:
         minimize -(log(D(x)) + log(1-D(G(z)))). Logs to wandb if enabled.
         """
         self.optD.zero_grad()
-        logits = self.model.netD(img_fake)
+        logits_fake = self.model.netD(img_fake)
+        logits_real = self.model.netD(img_real)
+        loss = - (F.logsigmoid(logits_real) + F.logsigmoid(-logits_fake))
+        if self.args.clip_grad_norm is not None:
+            nn.utils.clip_grad_norm_(self.model.netD.parameters(), self.args.clip_grad_norm)
+        loss.backward()
+        self.optD.step()
+
+        return loss
 
     def training_step_generator(
         self, img_fake: Float[Tensor, "batch channels height width"]
@@ -407,9 +415,9 @@ class DCGANTrainer:
             for img_real, label in tqdm(self.trainloader):
                 # YOUR CODE HERE - fill in the training step for generator & discriminator
                 img_real = self.trainset.transform(img_real.to(device))
-                noise =  t.randn(self.args.batch_size, latent_dim_size).to(device)
-                noise = self.trainset.transform(noise)
+                noise =  t.randn(img_real.shape[0], self.args.latent_dim_size).to(device)
                 img_fake = self.model.netG(noise)
+                #noise = self.trainset.transform(img_fake)
                 loss_g = self.training_step_generator(img_fake)
                 loss_d = self.training_step_discriminator(img_real,img_fake.detach())
 
@@ -427,19 +435,15 @@ class DCGANTrainer:
         return self.model
 
 # %%
-
-def training_step(
-    self, img: Float[Tensor, "batch 1 height width"]
-) -> Float[Tensor, ""]:
-    """
-    Performs a training step on the batch of images in `img`. Returns the loss. Logs to wandb
-    if enabled.
-    """
-    self.optimizer.zero_grad()
-    out = self.model(img)
-
-    loss = self.loss(out,img)
-    loss.backward()
-    self.optimizer.step()
-
-    return loss
+# Arguments for MNIST
+args = DCGANArgs(
+    dataset="MNIST",
+    hidden_channels=[12, 24],
+    epochs=20,
+    batch_size=128,
+    use_wandb=False,
+    compile=False, # toggle me once you have the bugs ironed out
+)
+trainer = DCGANTrainer(args)
+dcgan_mnist = trainer.train()
+# %%

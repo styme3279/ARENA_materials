@@ -362,7 +362,7 @@ class DCGANTrainer:
         pred_f = self.model.netD(self.model.netG(img_fake))
         loss = -t.logsigmoid(pred_r) + t.logsigmoid(-pred_f)
         if self.args.clip_grad_norm is not None:
-            nn.utils.clip_grad_norm_(self.model.netG.parameters(), self.args.clip_grad_norm)
+            nn.utils.clip_grad_norm_(self.model.netD.parameters(), self.args.clip_grad_norm)
         loss.backward()
         self.optD.step()
         self.step += 1
@@ -381,6 +381,8 @@ class DCGANTrainer:
         self.optG.zero_grad()
         pred_f = self.model.netD(self.model.netG(img_fake))
         loss = -t.logsigmoid(pred_f)
+        if self.args.clip_grad_norm is not None:
+            nn.utils.clip_grad_norm_(self.model.netG.parameters(), self.args.clip_grad_norm)
         loss.backward()
         self.optG.step()
         self.step += 1
@@ -424,7 +426,7 @@ class DCGANTrainer:
         for epoch in range(self.args.epochs):
             for img_real, label in tqdm(self.trainloader, position=1):
 
-                noise = t.randn_like(img_real).to(device)
+                noise = t.randn_like(img_real)
                 noise = self.trainset.transform(noise.to(device))
                 img_real = self.trainset.transform(img_real.to(device))
 
@@ -436,5 +438,20 @@ class DCGANTrainer:
             wandb.finish()
 
         return self.model
+
+# %%
+# Arguments for CelebA
+args = DCGANArgs(
+    dataset="CELEB",
+    hidden_channels=[128, 256, 512],
+    batch_size=64,  # if you get OOM errors, reduce this!
+    epochs=5,
+    lr_D=8e-4,  # separate LRs for generator and discriminator
+    lr_G=2e-4,
+    use_wandb=False,
+    compile=False, # toggle me once you have the bugs ironed out
+)
+trainer = DCGANTrainer(args)
+dcgan_celeb = trainer.train()
 
 # %%

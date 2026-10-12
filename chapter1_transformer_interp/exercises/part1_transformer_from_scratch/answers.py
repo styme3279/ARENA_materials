@@ -230,4 +230,30 @@ class PosEmbed(nn.Module):
 tests.test_pos_embed(PosEmbed)
 tests.rand_int_test(PosEmbed, [2, 4])
 tests.load_gpt2_test(PosEmbed, reference_gpt2.pos_embed, tokens)
+
+# %%
+class Attention(nn.Module):
+    IGNORE: Float[Tensor, ""]
+
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
+
+    def apply_causal_mask(
+        self,
+        attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"],
+    ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
+        """
+        Applies a causal mask to attention scores, and returns masked scores.
+        """
+        upper_right = t.triu(attn_scores, diagonal=1)
+        # print(upper_right)
+        mask = t.where(upper_right.abs() > 0, self.IGNORE)
+        masked = upper_right.masked_fill_(mask=mask, self.IGNORE)
+        print(masked)
+        print(attn_scores.shape)
+
+
+tests.test_causal_mask(Attention.apply_causal_mask)
 # %%

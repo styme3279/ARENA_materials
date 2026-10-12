@@ -268,14 +268,16 @@ class Attention(nn.Module):
         k = einops.einsum(normalized_resid_pre, self.W_K, "b pos dmodel, nheads dmodel dhead -> b pos nheads dhead") + self.b_K
         v = einops.einsum(normalized_resid_pre, self.W_V, "b pos dmodel, nheads dmodel dhead -> b pos nheads dhead") + self.b_V
 
-        print(q, q.shape)
+        # print(q, q.shape)
 
         # qk = q @ k.T
         qk = einops.einsum(
-            q, k, "b posQ nheads dhead, b posK nheads dhead -> b nheads posQ posK") / 
+            q, k, "b posQ nheads dhead, b posK nheads dhead -> b nheads posQ posK") / self.cfg.d_head ** 0.5
         masked_qk = self.apply_causal_mask(qk)
-        probs_qk = masked_qk.softmax(dim=-2)
-        z = einops.einsum(probs_qk, v, "b nheads posQ posK, b pos nheads dhead ->")
+        probs_qk = masked_qk.softmax(dim=-1)
+        # z = einops.einsum(probs_qk, v, "b nheads posQ posK, b posV nheads dhead -> b nheads dhead")
+        z = einops.einsum(probs_qk, v, "b nheads posQ posK, b posV nheads dhead -> b posQ nheads dhead")
+        out = einops.einsum(z, self.W_O, "b pos nh dh, nh dh dm -> b pos dm") + self.b_O
         # out = einops.einsum(qk, self.W_O, "b nheads dhead, nheads dhead dmodel -> ")
         return out
 

@@ -189,23 +189,15 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        print("helko")
+        
         # get keys, queries, values
-        print(1)
-        print(self.W_K.shape)
-        print(normalized_resid_pre.shape)
-
         project = lambda x, y: einops.einsum(x, y, "n e h, b s e -> b s n h")
         K = project(self.W_K, normalized_resid_pre) + self.b_K
         Q = project(self.W_Q, normalized_resid_pre) + self.b_Q
         V = project(self.W_V, normalized_resid_pre) + self.b_V
 
-        print(2)
-
         # attn scores from dot product of K and Q
         attn_scores = einops.einsum(Q, K, "b s_q n h, b s_k n h -> b n s_q s_k")
-        print(attn_scores.shape)
-        print(3)
 
         # scale and mask attn scores
         attn_scores = attn_scores/np.sqrt(self.cfg.d_head)
@@ -213,29 +205,17 @@ class Attention(nn.Module):
 
         # softmax along key_pos dim
         attn_scores = t.softmax(attn_scores, dim=-1)
-        print(4)
-        # print(attn_scores)
 
         # get weighted average of value vectors
         z = einops.einsum(attn_scores, V, "b n s_q s_k, b s_k n h -> b s_q n h")
-        print(z.shape)
-        print(5)
 
         # map to output space
         res = einops.einsum(self.W_O, z, "n h e, b s_q n h -> b s_q n e")
-        print(res.shape)
-        print(6)
 
         # sum over heads and add b_O
         res = einops.reduce(res, "b s_q n e -> b s_q e", "sum") + self.b_O
-        print(res.shape)
-        print(7)
 
         return res
-
-
-
-        
 
     def apply_causal_mask(
         self,
@@ -254,3 +234,43 @@ tests.rand_float_test(Attention, [2, 4, 768])
 tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
 
 # %%
+
+class MLP(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_in = nn.Parameter(t.empty((cfg.d_model, cfg.d_mlp)))
+        self.W_out = nn.Parameter(t.empty((cfg.d_mlp, cfg.d_model)))
+        self.b_in = nn.Parameter(t.zeros((cfg.d_mlp)))
+        self.b_out = nn.Parameter(t.zeros((cfg.d_model)))
+        nn.init.normal_(self.W_in, std=self.cfg.init_range)
+        nn.init.normal_(self.W_out, std=self.cfg.init_range)
+
+    def forward(self, normalized_resid_mid: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        x = einops.einsum(self.W_in, normalized_resid_mid, "e d_mlp, b s e -> b s d_mlp") + self.b_in
+        x = gelu_new(x)
+        x = einops.einsum(self.W_out, x, "d_mlp e, b s d_mlp -> b s e") + self.b_out
+        return x
+
+
+tests.rand_float_test(MLP, [2, 4, 768])
+tests.load_gpt2_test(MLP, reference_gpt2.blocks[0].mlp, cache["normalized", 0, "ln2"])
+
+
+# %%
+
+class TransformerBlock(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.ln1 = LayerNorm(cfg)
+        self.attn = Attention(cfg)
+        self.ln2 = LayerNorm(cfg)
+        self.mlp = MLP(cfg)
+
+    def forward(self, resid_pre: Float[Tensor, "batch position d_model"]) -> Float[Tensor, "batch position d_model"]:
+        raise NotImplementedError()
+
+
+tests.rand_float_test(TransformerBlock, [2, 4, 768])
+tests.load_gpt2_test(TransformerBlock, reference_gpt2.blocks[0], cache["resid_pre", 0])

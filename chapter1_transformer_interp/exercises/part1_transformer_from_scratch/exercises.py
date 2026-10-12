@@ -264,12 +264,17 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        q = einops.einsum(normalized_resid_pre, "")
-        k = normalized_resid_pre * self.W_K + self.b_K
-        v = normalized_resid_pre * self.W_V + self.b_V
+        q = einops.einsum(normalized_resid_pre, self.W_Q, "b pos dmodel, nheads dmodel dhead -> b pos nheads dhead") + self.b_Q
+        k = einops.einsum(normalized_resid_pre, self.W_K, "b pos dmodel, nheads dmodel dhead -> b pos nheads dhead") + self.b_K
+        v = einops.einsum(normalized_resid_pre, self.W_V, "b pos dmodel, nheads dmodel dhead -> b pos nheads dhead") + self.b_V
 
-        qk = q @ k.T
+        print(q, q.shape)
+
+        # qk = q @ k.T
+        qk = einops.einsum(
+            q, k, "b posQ nheads dhead, b posK nheads dhead -> b nheads dhead posQ posK")
         print(qk, qk.shape)
+        return qk
 
     def apply_causal_mask(self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"],) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
         """

@@ -23,7 +23,7 @@ from tqdm.auto import tqdm
 from transformer_lens import HookedTransformer
 from transformer_lens.utils import gelu_new, tokenize_and_concatenate
 from transformers import GPT2TokenizerFast
-from time import time
+import time
 
 device = t.device("mps" if t.backends.mps.is_available() else "cuda" if t.cuda.is_available() else "cpu")
 
@@ -182,32 +182,6 @@ class Attention(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
         self.cfg = cfg
-        self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
-
-    def apply_causal_mask(
-        self,
-        attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"],
-    ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
-        """
-        Applies a causal mask to attention scores, and returns masked scores.
-        """
-        ones = t.ones_like(attn_scores)
-        mask_to_remove = t.triu(ones, diagonal=1).bool()
-        masked_attn_scores = attn_scores.masked_fill_(mask_to_remove, value=self.IGNORE)
-        return masked_attn_scores
-
-
-
-tests.test_causal_mask(Attention.apply_causal_mask)
-
-
-# %%
-class Attention(nn.Module):
-    IGNORE: Float[Tensor, ""]
-
-    def __init__(self, cfg: Config):
-        super().__init__()
-        self.cfg = cfg
         self.W_Q = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
         self.W_K = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
         self.W_V = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
@@ -222,7 +196,7 @@ class Attention(nn.Module):
         nn.init.normal_(self.W_O, std=self.cfg.init_range)
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
-    def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+    def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"], kv_cache: KeyValueCache | None = None) -> Float[Tensor, "batch posn d_model"]:
         q = einops.einsum(self.W_Q, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_Q
         k = einops.einsum(self.W_K, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_K
         v = einops.einsum(self.W_V, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_V
@@ -237,7 +211,7 @@ class Attention(nn.Module):
         o = einops.einsum(self.W_O, z, "n_heads d_head d_model, batch n_heads posn d_head -> batch posn n_heads d_model")
         o_summed = einops.reduce(o, "batch posn n_heads d_model -> batch posn d_model", reduction="sum")
         result = o_summed + self.b_O
-        return result
+        return result, kv_cache
 
 
     def apply_causal_mask(
@@ -288,16 +262,16 @@ class TransformerBlock(nn.Module):
         self.ln2 = LayerNorm(cfg)
         self.mlp = MLP(cfg)
 
-    def forward(self, resid_pre: Float[Tensor, "batch position d_model"]) -> Float[Tensor, "batch position d_model"]:
+    def forward(self, resid_pre: Float[Tensor, "batch position d_model"], kv_cache: KeyValueCache | None = None) -> Float[Tensor, "batch position d_model"]:
         resid = resid_pre
         normed1 = self.ln1(resid_pre)
-        resid_post_attn = self.attn(normed1)
+        resid_post_attn, kv_cache = self.attn(normed1, kv_cache)
         resid = resid + resid_post_attn
 
         normed2 = self.ln2(resid) 
         resid_post_mlp = self.mlp(normed2)
         resid = resid + resid_post_mlp
-        return resid
+        return resid, kv_cache
 
 
 
@@ -330,16 +304,16 @@ class DemoTransformer(nn.Module):
         self.ln_final = LayerNorm(cfg)
         self.unembed = Unembed(cfg)
 
-    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_vocab"]:
+    def forward(self, tokens: Int[Tensor, "batch position"], kv_cache: KeyValueCache | None = None) -> Float[Tensor, "batch position d_vocab"]:
         embed = self.embed(tokens) + self.pos_embed(tokens)
 
         resid = embed
         for block in self.blocks:
-            resid = block(resid)
+            resid, kv_cache = block(resid, kv_cache)
 
         normed_post_block = self.ln_final(resid)
         logits = self.unembed(normed_post_block)
-        return logits
+        return logits, kv_cache
 
 # %%
 class TransformerSampler:
@@ -456,7 +430,17 @@ class TransformerSampler:
         """
         Samples from the most likely tokens which make up at least p cumulative probability.
         """
-        raise NotImplementedError()
+        # Sort logits, and get cumulative probabilities
+        logits_sorted, indices = logits.sort(descending=True, stable=True)
+        cumul_probs = logits_sorted.softmax(-1).cumsum(-1)
+        # Choose which tokens to keep, in the set we sample from
+        n_keep = t.searchsorted(cumul_probs, top_p, side="left").item() + 1
+        n_keep = max(n_keep, min_tokens_to_keep)
+        keep_idx = indices[:n_keep]
+        keep_logits = logits[keep_idx]
+        # Perform the sampling
+        sample = t.distributions.categorical.Categorical(logits=keep_logits).sample()
+        return keep_idx[sample].item()
 
     @t.inference_mode()
     def beam_search(
@@ -551,3 +535,5 @@ rprint(f"Model output:\n\n[bold dark_orange]{text_with_cache}[/]")
 # # Check they are the same
 assert text == text_with_cache, "Your outputs are different, meaning you've probably made a mistake in your cache implementation (or failed to use random seeds)."
 print("Tests passed!")
+
+# %%

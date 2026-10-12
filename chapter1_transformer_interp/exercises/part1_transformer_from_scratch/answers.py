@@ -203,10 +203,13 @@ class Attention(nn.Module):
         print(2)
 
         # attn scores from dot product of K and Q
-
-        
+        attn_scores = einops.einsum(Q, K, "b s_q n h, b s_k n h -> b n s_q s_k")
+        print(attn_scores.shape)
+        print(3)
 
         # scale and mask attn scores
+        attn_scores attn_scores/t.sqrt(self.cfg.)
+
         # softmax along key_pos dim
         # get values
         # get weighted average of value vectors

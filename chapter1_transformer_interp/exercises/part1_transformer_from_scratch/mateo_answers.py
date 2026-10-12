@@ -586,7 +586,14 @@ class TransformerSampler:
         """
         Samples from the most likely tokens which make up at least p cumulative probability.
         """
-        raise NotImplementedError()
+        sorted_logits, indices = logits.sort(descending=True, stable=True)
+        cumulative = sorted_logits.softmax(-1).cumsum(-1)
+        n_keep = t.searchsorted(cumulative, top_p, side="left").item() + 1
+        n_keep = max(n_keep, min_tokens_to_keep)
+        keep_logits = logits[indices[:n_keep]]
+        sampler = t.distributions.categorical.Categorical(logits=keep_logits)
+        sampled_idx = sampler.sample()
+        return indices[sampled_idx].item()
 
     @t.inference_mode()
     def beam_search(
@@ -738,5 +745,33 @@ your_prompt = "In a shocking finding, scientist discovered a herd of unicorns li
 output = sampler.sample(your_prompt, temperature=0.7, top_k=40, max_tokens_generated=64)
 
 rprint(f"Your model said:\n\n[bold dark_orange]{output}")
+
+# %%
+tests.test_sample_top_p(TransformerSampler.sample_top_p)
+
+prompt = "John and Mary went to the"
+input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+logits = model(input_ids)[0, -1]
+
+expected_top_10pct = {
+    " church": 0.0466,
+    " hospital": 0.0223,
+    " store": 0.0181,
+    " house": 0.0181,  # These are the four most likely tokens: the smallest set that adds up to >10%
+}
+top_10pct_sum = sum(expected_top_10pct.values())
+
+observed_freqs = defaultdict(int)
+
+N = 10_000
+for _ in tqdm(range(N)):
+    token = TransformerSampler.sample_next_token(input_ids.squeeze(), logits, top_p=0.1)
+    observed_freqs[tokenizer.decode(token)] += 1
+
+for word in expected_top_10pct:
+    expected_freq = expected_top_10pct[word] / top_10pct_sum
+    observed_freq = observed_freqs[word] / N
+    print(f"Word: {word!r:<9}. Expected freq {expected_freq:.4f}, observed freq {observed_freq:.4f}")
+    assert abs(observed_freq - expected_freq) < 0.01, "Try increasing N if this fails by a small amount."
 
 # %%

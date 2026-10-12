@@ -619,8 +619,11 @@ class TransformerTrainer:
 
         Remember that `batch` is a dictionary with the single key 'tokens'.
         """
-        input_idx = batch["tokens"]
+        
+        """
+        input_idx = batch["tokens"].to(device)
         logits = self.model(batch["tokens"])
+        
         b, s = batch["tokens"].shape
         labels = t.zeros((b, s, self.model.cfg.d_vocab), dtype=t.float32).to(device="cuda")
 
@@ -638,11 +641,23 @@ class TransformerTrainer:
         self.optimizer.zero_grad()
         
         return loss
+        """
+        tokens = batch["tokens"].to(device)
+        logits = self.model(tokens)
+        loss = -get_log_probs(logits, tokens).mean()
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        self.step += 1
+        wandb.log({"train_loss": loss}, step=self.step)
+        return loss
 
     @t.inference_mode()
     def evaluate(self) -> float:
         """
         Evaluate the model on the test set and return the accuracy.
+        """
+
         """
         self.model.eval()
         accuracy_list = []
@@ -651,6 +666,7 @@ class TransformerTrainer:
         for i, batch in enumerate(self.test_loader):
 
             logits = self.model(batch["tokens"])
+            einops.repeat()
             true_labels = t.diagonal(batch["tokens"], offset=1, dim1=-2, dim2=-1)
             predictions = logits.argmax(dim=-1)
 
@@ -659,7 +675,22 @@ class TransformerTrainer:
 
         self.model.train()
         return accuracy
+        """
+        self.model.eval()
+        total_correct, total_samples = 0, 0
 
+        for batch in tqdm(self.test_loader, desc="Evaluating"):
+            tokens = batch["tokens"].to(device)
+            logits: Tensor = self.model(tokens)[:, :-1]
+            predicted_tokens = logits.argmax(dim=-1)
+            total_correct += (predicted_tokens == tokens[:, 1:]).sum().item()
+            total_samples += tokens.size(0) * (tokens.size(1) - 1)
+
+        accuracy = total_correct / total_samples
+        wandb.log({"accuracy": accuracy}, step=self.step)
+        self.model.train()
+        return accuracy
+    
     def train(self):
         """
         Trains the model, for `self.args.epochs` epochs. Also handles wandb initialisation, and early stopping

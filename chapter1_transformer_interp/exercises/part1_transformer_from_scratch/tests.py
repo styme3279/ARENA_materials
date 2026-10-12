@@ -451,7 +451,9 @@ def test_sample_top_p(sample_top_p):
         counts[tok] += 1
 
     observed = (counts / N)[:3]
+    print(observed)
     expected = (probs[:3] / probs[:3].sum())  # renormalised over the kept tokens
+    print(expected)
     t.testing.assert_close(
         observed,
         expected,

@@ -721,7 +721,7 @@ class TransformerTrainer:
 model = DemoTransformer(model_cfg).to(device)
 args = TransformerTrainingArgs()
 trainer = TransformerTrainer(args, model)
-trainer.train()
+#trainer.train()
 
 #### Sampling #############################################
 
@@ -840,17 +840,17 @@ class TransformerSampler:
         Samples from the most likely tokens which make up at least p cumulative probability.
         """
         probs = logits.softmax(-1)
-        print(probs)
+        #print(probs)
         sorted_probs = probs.sort(descending=True)
-        print(sorted_probs.values)
-        print(sorted_probs.indices)
+        #print(sorted_probs.values)
+        #print(sorted_probs.indices)
         cum_probs = t.cumsum(sorted_probs.values, dim=-1)
-        print(cum_probs)
+        #print(cum_probs)
         cutoff_idx = (cum_probs > top_p).int().argmax(-1)
-        print(cutoff_idx)
-        print(sorted_probs.values[:cutoff_idx+1].softmax(-1))
-        sampled_index = t.distributions.categorical.Categorical(sorted_probs.values[:cutoff_idx+1].softmax(-1)).sample().item()
-        print(sampled_index)
+        #print(cutoff_idx)
+        #print(sorted_probs.values[:cutoff_idx+1].softmax(-1))
+        sampled_index = t.distributions.categorical.Categorical(sorted_probs.values[:cutoff_idx+1]/sorted_probs.values[:cutoff_idx+1].sum()).sample().item()
+        #print(sampled_index)
         return sorted_probs.indices[sampled_index].item()
 
     @t.inference_mode()

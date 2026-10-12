@@ -561,19 +561,22 @@ class TransformerSampler:
             t.manual_seed(seed)
             np.random.seed(seed)
         tokens_generated = 0
-        tokenized_prompt = self.tokenizer.encode(prompt,return_tensors="pt")
-        tokenized_prompt = t.tensor(tokenized_prompt['input_ids']).unsqueeze(dim=0).to(device)
+        tokenized_prompt = self.tokenizer.encode(prompt, return_tensors="pt").to(device)[0]
         while tokens_generated < max_tokens_generated:
-            logits = self.model(tokenized_prompt)
+            print(tokens_generated)
+            logits = self.model(tokenized_prompt[None,-self.cfg.n_ctx:])
             logits = logits[0,-1]
 
             next_token = t.tensor([TransformerSampler.sample_next_token(tokenized_prompt, logits, **kwargs)], device=device)
             tokenized_prompt = t.cat([tokenized_prompt, next_token], dim=-1)
+            tokens_generated += 1
 
             if verbose:
-                print(self.tokenizer.decode(input_ids, skip_special_tokens=True), end="\r")
+                print(self.tokenizer.decode(tokenized_prompt, skip_special_tokens=True), end="\r")
+            if next_token == getattr(self.tokenizer, "eos_token_id", None):
+                break
 
-            tokens_generated += 1
+        return self.tokenizer.decode(tokenized_prompt, skip_special_tokens=True)
 
     @staticmethod
     def sample_next_token(

@@ -156,12 +156,17 @@ class LayerNorm(nn.Module):
         self.b = nn.Parameter(t.zeros(cfg.d_model))
 
     def forward(self, residual: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        mean = residual.mean(dim=2)
+        mean = residual.mean(dim=2) # (batch, posn)
         var = residual.var(dim=2)
-        out1 = (residual - mean) / t.sqrt(var + self.cfg["layer_norm_eps"])
-        out2 = out1 * self.w
+        out1 = residual - mean
+        out2 = out1 / t.sqrt(var + self.cfg["layer_norm_eps"]) # (batch, postn, d_model)
+        out3 = out2 * self.w  + self.b
+        return out3
+
 
 
 tests.rand_float_test(LayerNorm, [2, 4, 768])
 tests.test_layer_norm_epsilon(LayerNorm, cache["resid_post", 11])
 tests.load_gpt2_test(LayerNorm, reference_gpt2.ln_final, cache["resid_post", 11])
+
+# %%

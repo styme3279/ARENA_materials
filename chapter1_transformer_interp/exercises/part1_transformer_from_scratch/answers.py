@@ -41,3 +41,23 @@ import part1_transformer_from_scratch.tests as tests
 MAIN = __name__ == "__main__"
 
 # %%
+
+class LayerNorm(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.w = nn.Parameter(t.ones(cfg.d_model))
+        self.b = nn.Parameter(t.zeros(cfg.d_model))
+
+    def forward(self, residual: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        mean = t.mean(residual, axis=-1)
+        var  = t.var(residual, axis=-1, correction=0)
+        result = (residual - mean)/t.sqrt(var)
+
+
+tests.rand_float_test(LayerNorm, [2, 4, 768])
+tests.test_layer_norm_epsilon(LayerNorm, cache["resid_post", 11])
+tests.load_gpt2_test(LayerNorm, reference_gpt2.ln_final, cache["resid_post", 11])
+
+
+# %%

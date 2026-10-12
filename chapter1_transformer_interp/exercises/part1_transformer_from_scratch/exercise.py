@@ -537,6 +537,8 @@ class TransformerTrainer:
 
         self.optimizer.zero_grad()
 
+        self.step += 1
+        wandb.log({"loss": loss}, step=self.step)
         return loss
 
     @t.inference_mode()
@@ -579,7 +581,6 @@ class TransformerTrainer:
         for epoch in range(self.args.epochs):
             for i, batch in enumerate(self.train_loader):
                 loss = self.training_step(batch)
-                wandb.log({"loss": loss}, step=self.step)
                 progress_bar.update()
                 progress_bar.set_description(f"Epoch {epoch + 1}, loss: {loss:.3f}, accuracy: {accuracy:.3f}")
                 if i >= self.args.max_steps_per_epoch:

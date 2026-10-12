@@ -500,9 +500,6 @@ class TransformerTrainingArgs:
     wandb_name: str | None = None
     eval_prompt: str = "Once upon a time"
 
-
-args = TransformerTrainingArgs()
-
 # %%
 dataset = datasets.load_dataset("roneneldan/TinyStories", split="train")
 # Keep the first 200k of the 2.1M stories, as we only need a subset for training.
@@ -542,11 +539,12 @@ first_batch = train_loader.dataset[: args.batch_size]
 
 print(first_batch.keys())
 print(first_batch["tokens"].shape)
+
 # %%
 class TransformerTrainer:
     def __init__(self, args: TransformerTrainingArgs, model: DemoTransformer):
         super().__init__()
-        self.model = model
+        self.model = model.to(device)
         self.args = args
         self.sampler = solutions.TransformerSampler(self.model, reference_gpt2.tokenizer)
         self.optimizer = t.optim.AdamW(self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -575,7 +573,11 @@ class TransformerTrainer:
         """
         tokens = batch["tokens"]
         logits = self.model(tokens)
-        loss = 
+        loss = -get_log_probs(logits, tokens).sum()
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        self.step += 1
         return loss
 
     @t.inference_mode()
@@ -584,11 +586,18 @@ class TransformerTrainer:
         Evaluate the model on the test set and return the accuracy.
         """
         self.model.eval()
-        #
-        # YOUR CODE HERE - fill in the `evaluate` method
-        #
+
+        num_samples = num_correct = 0
+        for batch in self.test_loader:
+            tokens = batch["tokens"]
+            logits = self.model(tokens)
+            pred_tokens = t.argmax(logits, dim=-1)
+
+            num_samples += tokens.shape[0]
+            num_correct += (pred_tokens == tokens).sum()
+
         self.model.train()
-        return accuracy
+        return num_correct / num_samples
 
     def train(self):
         """
@@ -603,6 +612,8 @@ class TransformerTrainer:
         print(self.sampler.sample(self.args.eval_prompt, max_tokens_generated=50))
         for epoch in range(self.args.epochs):
             for i, batch in enumerate(self.train_loader):
+                batch["tokens"] = batch["tokens"].to(device)
+
                 loss = self.training_step(batch)
                 progress_bar.update()
                 progress_bar.set_description(f"Epoch {epoch + 1}, loss: {loss:.3f}, accuracy: {accuracy:.3f}")
@@ -614,9 +625,11 @@ class TransformerTrainer:
 
         wandb.finish()
 
+args = TransformerTrainingArgs()
 
 # See the full run here: https://api.wandb.ai/links/dquarel/nrxuwnv7
 model = DemoTransformer(model_cfg).to(device)
 args = TransformerTrainingArgs()
 trainer = TransformerTrainer(args, model)
 trainer.train()
+# %%

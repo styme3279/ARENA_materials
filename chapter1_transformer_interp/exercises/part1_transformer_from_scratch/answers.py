@@ -668,15 +668,13 @@ class TransformerSampler:
         logits = self.model(t.unsqueeze(prompt_token_list, 0))[0]
 
         generated_tokens = t.tensor([self.sample_next_token(prompt_token_list, logits[-1], **kwargs)]).to(device)
-        print(generated_tokens.shape)
-        print(prompt_token_list.shape)
 
         while generated_tokens.shape[0] < max_tokens_generated and generated_tokens[-1] != self.tokenizer.eos_token_id:
             full_text = t.cat((prompt_token_list, generated_tokens)).to(device)
             logits = self.model(t.unsqueeze(full_text, 0))[0][-1].to(device)
-            generated_tokens = t.cat((generated_tokens.to(device), t.tensor([self.sample_next_token(full_text, logits, **kwargs).to(device)])))
+            generated_tokens = t.cat((generated_tokens.to(device), t.tensor([self.sample_next_token(full_text, logits, **kwargs)]).to(device)))
 
-        return self.tokenizer.decode(generated_tokens, verbose=verbose)
+        return prompt + self.tokenizer.decode(generated_tokens, verbose=verbose)
         
 
     @staticmethod
@@ -730,7 +728,10 @@ class TransformerSampler:
         """
         Applies a frequency penalty to the logits.
         """
-        raise NotImplementedError()
+        counts = t.bincount(input_ids, minlength=logits.shape[0])
+        print(counts)
+        print(logits.shape)
+        return logits - freq_penalty * counts
 
     @staticmethod
     def sample_basic(logits: Float[Tensor, "d_vocab"]) -> int:
@@ -751,7 +752,15 @@ class TransformerSampler:
         """
         Samples from the most likely tokens which make up at least p cumulative probability.
         """
-        raise NotImplementedError()
+        sorted_logits = sorted(enumerate(logits.softmax(dim=0)), key=lambda x: x[1], reverse=True)
+        
+        valid_logit_idx = 1
+        total_prob = sorted_logits
+
+        for token, prob in sorted_logits:
+            total_prob 
+
+        valid_logit_idx = max(valid_logit_idx, min_tokens_to_keep)
 
     @t.inference_mode()
     def beam_search(
@@ -775,14 +784,83 @@ model.load_state_dict(reference_gpt2.state_dict(), strict=False)
 tokenizer = reference_gpt2.tokenizer
 sampler = TransformerSampler(model, tokenizer)
 
-prompt = "Jingle bells, jingle bells, jingle all the way"
-print(f"Testing greedy decoding\nPrompt:   {prompt!r}")
+# prompt = "Jingle bells, jingle bells, jingle all the way"
+# print(f"Testing greedy decoding\nPrompt:   {prompt!r}")
 
-expected = "Jingle bells, jingle bells, jingle all the way down to the top of the mountain."
-output = sampler.sample(prompt, max_tokens_generated=8, temperature=0.0)
+# expected = "Jingle bells, jingle bells, jingle all the way down to the top of the mountain."
+# output = sampler.sample(prompt, max_tokens_generated=8, temperature=0.0)
 
-print(f"Expected: {expected!r}\nActual:   {output!r}\n")
-assert output == expected
+# print(f"Expected: {expected!r}\nActual:   {output!r}\n")
+# assert output == expected
+
+# print("Tests passed!")
+
+tests.test_sample_top_p(TransformerSampler.sample_top_p)
+
+prompt = "John and Mary went to the"
+input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+logits = model(input_ids)[0, -1]
+
+expected_top_10pct = {
+    " church": 0.0466,
+    " hospital": 0.0223,
+    " store": 0.0181,
+    " house": 0.0181,  # These are the four most likely tokens: the smallest set that adds up to >10%
+}
+top_10pct_sum = sum(expected_top_10pct.values())
+
+observed_freqs = defaultdict(int)
+
+N = 10_000
+for _ in tqdm(range(N)):
+    token = TransformerSampler.sample_next_token(input_ids.squeeze(), logits, top_p=0.1)
+    observed_freqs[tokenizer.decode(token)] += 1
+
+for word in expected_top_10pct:
+    expected_freq = expected_top_10pct[word] / top_10pct_sum
+    observed_freq = observed_freqs[word] / N
+    print(f"Word: {word!r:<9}. Expected freq {expected_freq:.4f}, observed freq {observed_freq:.4f}")
+    assert abs(observed_freq - expected_freq) < 0.01, "Try increasing N if this fails by a small amount."
+
+# %%
+tests.test_apply_frequency_penalty(TransformerSampler.apply_frequency_penalty)
+
+bieber_prompt = "And I was like Baby, baby, baby, oh Like, Baby, baby, baby, no Like, Baby, baby, baby, oh I thought you'd always be mine, mine"
+input_ids = tokenizer.encode(bieber_prompt, return_tensors="pt")
+logits = t.ones(tokenizer.vocab_size)
+penalized_logits = TransformerSampler.apply_frequency_penalty(input_ids.squeeze(), logits, 2.0)
+
+assert penalized_logits[5156].item() == -11, "Expected 6 occurrences of ' baby' with leading space, 1-2*6=-11"
+assert penalized_logits[14801].item() == -5, "Expected 3 occurrences of ' Baby' with leading space, 1-2*3=-5"
 
 print("Tests passed!")
+
+# %%
+tests.test_sample_top_p(TransformerSampler.sample_top_p)
+
+prompt = "John and Mary went to the"
+input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+logits = model(input_ids)[0, -1]
+
+expected_top_10pct = {
+    " church": 0.0466,
+    " hospital": 0.0223,
+    " store": 0.0181,
+    " house": 0.0181,  # These are the four most likely tokens: the smallest set that adds up to >10%
+}
+top_10pct_sum = sum(expected_top_10pct.values())
+
+observed_freqs = defaultdict(int)
+
+N = 10_000
+for _ in tqdm(range(N)):
+    token = TransformerSampler.sample_next_token(input_ids.squeeze(), logits, top_p=0.1)
+    observed_freqs[tokenizer.decode(token)] += 1
+
+for word in expected_top_10pct:
+    expected_freq = expected_top_10pct[word] / top_10pct_sum
+    observed_freq = observed_freqs[word] / N
+    print(f"Word: {word!r:<9}. Expected freq {expected_freq:.4f}, observed freq {observed_freq:.4f}")
+    assert abs(observed_freq - expected_freq) < 0.01, "Try increasing N if this fails by a small amount."
+
 # %%

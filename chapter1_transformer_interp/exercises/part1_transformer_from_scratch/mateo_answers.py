@@ -153,8 +153,56 @@ class Attention(nn.Module):
         """
         Applies a causal mask to attention scores, and returns masked scores.
         """
-        mask = t.triu(t.ones_like(attn_scores))
-        print(mask)
+        batch, n_heads, query_pos, key_pos = attn_scores.shape
+        all_ones = t.ones(query_pos, key_pos, device=attn_scores.device)
+        mask = t.triu(all_ones, diagonal=1).bool()
+        attn_scores.masked_fill_(mask, self.IGNORE)
+        return attn_scores
 
 tests.test_causal_mask(Attention.apply_causal_mask)
+
 # %%
+class Attention(nn.Module):
+    IGNORE: Float[Tensor, ""]
+
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_Q = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_K = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_V = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_O = nn.Parameter(t.empty((cfg.n_heads, cfg.d_head, cfg.d_model)))
+        self.b_Q = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_K = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_V = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_O = nn.Parameter(t.zeros((cfg.d_model)))
+        nn.init.normal_(self.W_Q, std=self.cfg.init_range)
+        nn.init.normal_(self.W_K, std=self.cfg.init_range)
+        nn.init.normal_(self.W_V, std=self.cfg.init_range)
+        nn.init.normal_(self.W_O, std=self.cfg.init_range)
+        self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
+
+    def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        q = einops.einsum(normalized_resid_pre, self.W_Q, 'batch pos d_model, n_heads d_model d_head -> batch pos n_heads d_head')
+        k = einops.einsum(normalized_resid_pre, self.W_K, 'batch pos d_model, n_heads d_model d_head -> batch pos n_heads d_head')
+        v = einops.einsum(normalized_resid_pre, self.W_V, 'batch pos d_model, n_heads d_model d_head -> batch pos n_heads d_head')
+
+        attn_scores = einops.einsum(q, k, )
+
+    def apply_causal_mask(
+        self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"]
+    ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
+        """
+        Applies a causal mask to attention scores, and returns masked scores.
+        """
+        # You should copy your solution from earlier
+        batch, n_heads, query_pos, key_pos = attn_scores.shape
+        all_ones = t.ones(query_pos, key_pos, device=attn_scores.device)
+        mask = t.triu(all_ones, diagonal=1).bool()
+        attn_scores.masked_fill_(mask, self.IGNORE)
+        return attn_scores
+
+
+tests.test_causal_mask(Attention.apply_causal_mask)
+tests.rand_float_test(Attention, [2, 4, 768])
+tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])

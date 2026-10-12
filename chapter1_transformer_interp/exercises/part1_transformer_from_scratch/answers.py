@@ -269,8 +269,49 @@ class TransformerBlock(nn.Module):
         self.mlp = MLP(cfg)
 
     def forward(self, resid_pre: Float[Tensor, "batch position d_model"]) -> Float[Tensor, "batch position d_model"]:
-        raise NotImplementedError()
-
+        resid_mid = self.attn(self.ln1(resid_pre)) + resid_pre
+        resid_post = self.mlp(self.ln2(resid_mid)) + resid_mid
+        return resid_post
 
 tests.rand_float_test(TransformerBlock, [2, 4, 768])
 tests.load_gpt2_test(TransformerBlock, reference_gpt2.blocks[0], cache["resid_pre", 0])
+
+# %%
+
+class Unembed(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        self.W_U = nn.Parameter(t.empty((cfg.d_model, cfg.d_vocab)))
+        nn.init.normal_(self.W_U, std=self.cfg.init_range)
+        self.b_U = nn.Parameter(t.zeros((cfg.d_vocab)), requires_grad=False)
+
+    def forward(
+        self, normalized_resid_final: Float[Tensor, "batch position d_model"]
+    ) -> Float[Tensor, "batch position d_vocab"]:
+
+        return einops.einsum(self.W_U, normalized_resid_final, "e v, b s e -> b s v") + self.b_U
+
+
+tests.test_unembed(Unembed)
+tests.rand_float_test(Unembed, [2, 4, 768])
+tests.load_gpt2_test(Unembed, reference_gpt2.unembed, cache["ln_final.hook_normalized"])
+
+# %%
+class DemoTransformer(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.embed = Embed(cfg)
+        self.pos_embed = PosEmbed(cfg)
+        self.blocks = nn.ModuleList([TransformerBlock(cfg) for _ in range(cfg.nc_layers)])
+        self.ln_final = LayerNorm(cfg)
+        self.unembed = Unembed(cfg)
+
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_vocab"]:
+        x = self.embed(tokens) + self.pos_embed(tokens)
+        for i in ranm
+
+
+tests.rand_int_test(DemoTransformer, [2, 4])
+tests.load_gpt2_test(DemoTransformer, reference_gpt2, tokens)

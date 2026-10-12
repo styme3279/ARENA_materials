@@ -489,12 +489,18 @@ class TransformerTrainer:
         Evaluate the model on the test set and return the accuracy.
         """
         self.model.eval()
-        #
+        total_correct, total_samples = 0, 0
         for i, batch in enumerate(self.test_loader):
-            print(i)
+            tokens = batch['tokens'].to(device)
+            logits = self.model(tokens)[:,:-1]
+            predicted_tokens = logits.argmax(dim=-1)
+            total_correct += (predicted_tokens == tokens[:, 1:]).sum().item()
+            total_samples += tokens.size(0) * (tokens.size(1) - 1)
+        
+        accuracy = total_correct / total_samples
         #
         self.model.train()
-        #return accuracy
+        return accuracy
 
     def train(self):
         """

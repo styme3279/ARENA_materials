@@ -222,10 +222,8 @@ class PosEmbed(nn.Module):
         nn.init.normal_(self.W_pos, std=self.cfg.init_range)
 
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
-        print(tokens.shape)
-
         return self.W_pos[
-            einops.repeat(t.arange(start=0, end=tokens.shape[1]), "... -> ... d_model", d_model = self.cfg.d_model)
+            einops.repeat(t.arange(start=0, end=tokens.shape[1]), "position -> batch position", batch = tokens.shape[0])
         ]
 
 

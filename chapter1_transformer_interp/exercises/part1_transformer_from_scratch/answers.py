@@ -141,14 +141,71 @@ tests.test_pos_embed(PosEmbed)
 tests.rand_int_test(PosEmbed, [2, 4])
 tests.load_gpt2_test(PosEmbed, reference_gpt2.pos_embed, tokens)
 
+# # %%
+# class Attention(nn.Module):
+#     IGNORE: Float[Tensor, ""]
+
+#     def __init__(self, cfg: Config):
+#         super().__init__()
+#         self.cfg = cfg
+#         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
+
+#     def apply_causal_mask(
+#         self,
+#         attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"],
+#     ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
+#         """
+#         Applies a causal mask to attention scores, and returns masked scores.
+#         """
+#         neg_inf_mat = t.full(attn_scores.shape, self.IGNORE).to(device)
+#         neg_inf_mat = neg_inf_mat.triu(diagonal=1)
+#         return t.where(neg_inf_mat.to(t.bool), neg_inf_mat, attn_scores)
+
+
+
+
+# tests.test_causal_mask(Attention.apply_causal_mask)
+
 # %%
+
 class Attention(nn.Module):
     IGNORE: Float[Tensor, ""]
 
     def __init__(self, cfg: Config):
         super().__init__()
         self.cfg = cfg
+        self.W_Q = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_K = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_V = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_O = nn.Parameter(t.empty((cfg.n_heads, cfg.d_head, cfg.d_model)))
+        self.b_Q = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_K = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_V = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_O = nn.Parameter(t.zeros((cfg.d_model)))
+        nn.init.normal_(self.W_Q, std=self.cfg.init_range)
+        nn.init.normal_(self.W_K, std=self.cfg.init_range)
+        nn.init.normal_(self.W_V, std=self.cfg.init_range)
+        nn.init.normal_(self.W_O, std=self.cfg.init_range)
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
+
+    def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        print("helko")
+        # get keys, queries
+        print(normalized_resid_pre.shape)
+        # K = self.W_K 
+        # Q = self.W_Q
+        print(K.shape)
+        print(Q.shape)
+
+        # attn scores from dot product of K and Q
+        # scale and mask attn scores
+        # softmax along key_pos dim
+        # get values
+        # get weighted average of value vectors
+        # map to output space
+
+
+        
 
     def apply_causal_mask(
         self,
@@ -159,11 +216,11 @@ class Attention(nn.Module):
         """
         neg_inf_mat = t.full(attn_scores.shape, self.IGNORE).to(device)
         neg_inf_mat = neg_inf_mat.triu(diagonal=1)
-        print(attn_scores)
-        print(t.where(neg_inf_mat.to(t.bool), neg_inf_mat, attn_scores))
-
+        return t.where(neg_inf_mat.to(t.bool), neg_inf_mat, attn_scores)
 
 
 tests.test_causal_mask(Attention.apply_causal_mask)
+tests.rand_float_test(Attention, [2, 4, 768])
+tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
 
 # %%

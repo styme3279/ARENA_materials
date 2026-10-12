@@ -619,8 +619,16 @@ class TransformerTrainer:
 
         Remember that `batch` is a dictionary with the single key 'tokens'.
         """
+        input_idx = batch["tokens"][:, 1:]
         logits = self.model(batch["tokens"])
+        b, s = batch["tokens"].shape
+        labels = t.zeros((b, s, self.model.cfg.d_vocab), dtype=t.float32)
+        #labels[input_idx] = 1
+
+        #print(labels)        
         nn.CrossEntropyLoss()(logits)
+        
+        
         return loss
 
     @t.inference_mode()
@@ -665,3 +673,4 @@ model = DemoTransformer(model_cfg).to(device)
 args = TransformerTrainingArgs()
 trainer = TransformerTrainer(args, model)
 trainer.train()
+# %%

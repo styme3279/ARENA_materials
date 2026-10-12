@@ -267,18 +267,41 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        raise NotImplementedError()
+        # 1 produce attention pattern
+        print(f"normalized_resid_pre.shape: {normalized_resid_pre.shape}")
+        print(f"W_K.shape: {self.W_K.shape}")
+        print(f"b_K.shape: {self.b_K.shape}")
+        keys = einops.einsum(self.W_K, normalized_resid_pre, "num_h d_model d_head, batch seq_l d_model -> batch seq_l num_h d_head") + self.b_K
+        values = einops.einsum(self.W_V, normalized_resid_pre, "num_h d_model d_head, batch seq_l d_model -> batch seq_l num_h d_head") + self.b_V
+        queries = einops.einsum(self.W_Q, normalized_resid_pre, "num_h d_model d_head, batch seq_l d_model -> batch seq_l num_h d_head") + self.b_Q
+
+        attn_scores = einops.einsum(keys, values, "num_h d_model d_head, batch seq_l d_model -> batch num_h seq_l seq_l")
+
+
+        print(f"keys.shape: {keys.shape}")
+
+
+        # 2 move (linear map) from source tokens to destination token
+        
+
+
+        
+        return out
+
+
 
     def apply_causal_mask(
-        self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"]
+        self,
+        attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"],
     ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
         """
         Applies a causal mask to attention scores, and returns masked scores.
         """
-        # You should copy your solution from earlier
-        raise NotImplementedError()
+        return attn_scores + t.triu(t.empty(attn_scores.shape).to(device).fill_(self.IGNORE), diagonal=1)
 
 
 tests.test_causal_mask(Attention.apply_causal_mask)
 tests.rand_float_test(Attention, [2, 4, 768])
 tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
+
+# %%

@@ -513,9 +513,9 @@ class TransformerTrainer:
         model = self.model.to(device)
         tokens = batch['tokens'].to(device)
         self.optimizer.zero_grad()
-        print()
-        loss = get_log_probs(model(tokens), tokens).sum()
-        print(loss)
+        # print()
+        loss = - get_log_probs(model(tokens), tokens).mean()
+        # print(loss)
         loss.backward()
         self.optimizer.step()
         self.step += 1
@@ -529,17 +529,17 @@ class TransformerTrainer:
         """
         self.model.eval()
 
-        for i, batch in enumerate(self.test_loader):
-            self.model()
-            print(batch)
-            tokens = batch['tokens']
+        total_correct, total_samples = 0, 0
 
-            pred = model(tokens)
-            #target = 
-            #log_probs = get_log_probs(model(tokens), tokens).sum()
+        for batch in tqdm(self.test_loader, desc="Evaluating"):
+            tokens = batch["tokens"].to(device)
+            logits: Tensor = self.model(tokens)[:, :-1]
+            predicted_tokens = logits.argmax(dim=-1)
+            total_correct += (predicted_tokens == tokens[:, 1:]).sum().item()
+            total_samples += tokens.size(0) * (tokens.size(1) - 1)
 
-        # print(log_probs)
-        accuracy = log_probs.argmax(dim=-1) 
+        accuracy = total_correct / total_samples
+        wandb.log({"accuracy": accuracy}, step=self.step)
 
         self.model.train()
         return accuracy

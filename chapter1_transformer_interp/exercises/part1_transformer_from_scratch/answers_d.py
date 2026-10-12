@@ -224,6 +224,7 @@ class Attention(nn.Module):
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
         print('self.W_k - ', self.W_K.shape)
         print('normliased - ', normalized_resid_pre.shape)
+        keys = einops.einsum('n e h, b s e -> b ')
         keys = t.matmul(self.W_K,normalized_resid_pre) + self.b_K
         queries = self.W_Q(normalized_resid_pre) + self.b_Q
         values = self.W_V(normalized_resid_pre) + self.b_V

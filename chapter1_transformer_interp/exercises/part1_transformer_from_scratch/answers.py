@@ -442,8 +442,21 @@ class TransformerTrainer:
 
         Remember that `batch` is a dictionary with the single key 'tokens'.
         """
-        raise NotImplementedError()
-        return loss
+        # zero out gradients
+        # self.optimizer.zero_grad()
+        
+        # # calculate loss
+        predicted_logits = self.model(batch[])
+        # print(batch)
+        loss = -pred_log_probs(predicted_logits, batch)
+        
+        # # backpropagate
+        
+
+        # # update parameters
+        # self.optimizer.step()
+
+        # return loss
 
     @t.inference_mode()
     def evaluate(self) -> float:
@@ -487,3 +500,4 @@ model = DemoTransformer(model_cfg).to(device)
 args = TransformerTrainingArgs()
 trainer = TransformerTrainer(args, model)
 trainer.train()
+# %%

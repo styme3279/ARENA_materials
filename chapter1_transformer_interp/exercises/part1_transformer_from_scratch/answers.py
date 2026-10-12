@@ -702,12 +702,12 @@ class TransformerSampler:
             t.manual_seed(seed)
             np.random.seed(seed)
 
-        print(f"prompt: {prompt}")
+        # print(f"prompt: {prompt}")
         input_ids = self.tokenizer.encode(prompt, return_tensors="pt").to(device)[0]  #['input_ids']
-        print(f"input_ids_tensor: {input_ids}")
+        # print(f"input_ids_tensor: {input_ids}")
         
-        temp = kwargs.pop('temperature', 1.0)
-        print(f'temp: {temp}')
+        # temp = kwargs.pop('temperature', 1.0)
+        # print(f'temp: {temp}')
 
         for i in range(max_tokens_generated):
             # Get new logits (make sure we don't pass in more tokens than the model's context length)
@@ -729,11 +729,6 @@ class TransformerSampler:
 
         output = self.tokenizer.decode(input_ids, skip_special_tokens=True)
         return output
-
-
-
-
-
 
 
     @staticmethod
@@ -773,7 +768,6 @@ class TransformerSampler:
         """
         print(f"greedy search input logits: {logits.shape}")
         greedy_output =t.argmax(logits)
-        print(f"greedy_output: {greedy_output.shape}")
         return greedy_output
 
     @staticmethod

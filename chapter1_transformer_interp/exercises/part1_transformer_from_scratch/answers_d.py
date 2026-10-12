@@ -647,12 +647,9 @@ class TransformerSampler:
         Samples from the top k most likely tokens.
         """
         topk_logits, topk_token_ids = t.topk(logits,k=k)
-        print('topk_logits - ', topk_logits)
-        print('token ids - ', topk_token_ids)
+
         sampled_token_idx = t.distributions.categorical.Categorical(logits=topk_logits).sample()
-        print('sampled - ', sampled_token_idx)
         output = topk_token_ids[sampled_token_idx].item()
-        print('output - ', output)
         return output
 
     @staticmethod
@@ -660,7 +657,15 @@ class TransformerSampler:
         """
         Samples from the most likely tokens which make up at least p cumulative probability.
         """
-        raise NotImplementedError()
+        cum_p = 0
+        k = 1
+        probs = logits.softmax(dim=-1)
+        sorted_probs, indices = t.sort(probs,descending=True)
+        cum_sum = t.cumsum(sorted_probs,dim=0)
+        k = (cum_sum < top_p)
+            
+
+
 
     @t.inference_mode()
     def beam_search(

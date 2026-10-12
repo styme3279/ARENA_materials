@@ -222,20 +222,15 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        print('self.W_k - ', self.W_K.shape)
-        print('normliased - ', normalized_resid_pre.shape)
         keys = einops.einsum(self.W_K, normalized_resid_pre, 'n e h, b s e -> b s n h') + self.b_K
         queries = einops.einsum(self.W_Q, normalized_resid_pre, 'n e h, b s e -> b s n h') + self.b_Q
         values = einops.einsum(self.W_V, normalized_resid_pre, 'n e h, b s e -> b s n h') + self.b_V
-        print('keys - ', keys.shape)
-        print('values - ', values.shape)
-        print('queries - ', queries.shape)
-        attn_scores = t.tensordot(keys,queries,dims=0)
+        attn_scores = einops.einsum(queries, keys, "b sq n h, b sk n h -> b n sq sk")
         scaled_attn_scores = attn_scores / t.sqrt(t.tensor(self.cfg.d_head))
         masked_attn_scores = self.apply_causal_mask(scaled_attn_scores)
         attn_probs = t.softmax(masked_attn_scores,dim=-1)
         z = einops.einsum(attn_probs,values, 'b n sq sk, b sk n h -> b sq n h')
-        result = self.W_O(z)
+        result = einops.einsum(self.W_O,z, 'n h e, b sq n h -> b sq n e')
         out = t.sum(result,dim=2) + self.b_O
         return out
 

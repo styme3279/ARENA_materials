@@ -531,7 +531,7 @@ class TransformerTrainer:
 model = DemoTransformer(model_cfg).to(device)
 args = TransformerTrainingArgs()
 trainer = TransformerTrainer(args, model)
-trainer.train()
+#trainer.train()
 
 # %%
 d_vocab = model.cfg.d_vocab
@@ -561,8 +561,19 @@ class TransformerSampler:
             t.manual_seed(seed)
             np.random.seed(seed)
         tokens_generated = 0
+        tokenized_prompt = self.tokenizer.encode(prompt,return_tensors="pt")
+        tokenized_prompt = t.tensor(tokenized_prompt['input_ids']).unsqueeze(dim=0).to(device)
+        while tokens_generated < max_tokens_generated:
+            logits = self.model(tokenized_prompt)
+            logits = logits[0,-1]
 
-        while tokens
+            next_token = t.tensor([TransformerSampler.sample_next_token(tokenized_prompt, logits, **kwargs)], device=device)
+            tokenized_prompt = t.cat([tokenized_prompt, next_token], dim=-1)
+
+            if verbose:
+                print(self.tokenizer.decode(input_ids, skip_special_tokens=True), end="\r")
+
+            tokens_generated += 1
 
     @staticmethod
     def sample_next_token(
@@ -670,3 +681,5 @@ print(f"Expected: {expected!r}\nActual:   {output!r}\n")
 assert output == expected
 
 print("Tests passed!")
+
+# %%

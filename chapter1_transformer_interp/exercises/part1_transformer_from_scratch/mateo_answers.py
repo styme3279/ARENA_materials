@@ -187,11 +187,11 @@ class Attention(nn.Module):
         k = einops.einsum(normalized_resid_pre, self.W_K, 'batch pos d_model, n_heads d_model d_head -> batch pos n_heads d_head') + self.b_K
         v = einops.einsum(normalized_resid_pre, self.W_V, 'batch pos d_model, n_heads d_model d_head -> batch pos n_heads d_head') + self.b_V
 
-        attn_scores = einops.einsum(q, k, 'batch q_pos n_heads d_head, batch k_pos n_heads d_head -> batch n_heads q_pos k_pos') / np.sqrt(self.cfg.n_heads)
+        attn_scores = einops.einsum(q, k, 'batch q_pos n_heads d_head, batch k_pos n_heads d_head -> batch n_heads q_pos k_pos') / np.sqrt(self.cfg.d_head)
         masked_scores = self.apply_causal_mask(attn_scores)
         attn_probs = masked_scores.softmax(dim=-1)
         
-        z = einops.einsum(attn_probs, v, "batch n_heads q_pos k_pos, batch pos n_heads d_head -> batch q_pos n_heads d_head")
+        z = einops.einsum(attn_probs, v, "batch n_heads q_pos k_pos, batch k_pos n_heads d_head -> batch q_pos n_heads d_head")
         out = einops.einsum(z, self.W_O, "batch q_pos n_heads d_head, n_heads d_head d_model -> batch q_pos d_model") + self.b_O
         return out
 
@@ -215,3 +215,20 @@ tests.rand_float_test(Attention, [2, 4, 768])
 tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
 
 # %%
+class MLP(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_in = nn.Parameter(t.empty((cfg.d_model, cfg.d_mlp)))
+        self.W_out = nn.Parameter(t.empty((cfg.d_mlp, cfg.d_model)))
+        self.b_in = nn.Parameter(t.zeros((cfg.d_mlp)))
+        self.b_out = nn.Parameter(t.zeros((cfg.d_model)))
+        nn.init.normal_(self.W_in, std=self.cfg.init_range)
+        nn.init.normal_(self.W_out, std=self.cfg.init_range)
+
+    def forward(self, normalized_resid_mid: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        raise NotImplementedError()
+
+
+tests.rand_float_test(MLP, [2, 4, 768])
+tests.load_gpt2_test(MLP, reference_gpt2.blocks[0].mlp, cache["normalized", 0, "ln2"])

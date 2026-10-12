@@ -258,9 +258,16 @@ class Attention(nn.Module):
         v = einops.einsum(self.W_V, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_V
 
         attn_scores = einops.einsum(q, k, "batch posn_q n_heads d_head, batch posn_k n_heads d_head -> batch n_heads posn_q posn_k")
-        scaled_attn_scores = attn_scores / t.sqrt(cfg.d_head) 
-        masked_attn_scores = self.apply_causal_mask(scaled_attn_scores)
-        attn_probs = masked_attn_scores.softmax(dim)
+        scaled_attn_scores = attn_scores / t.sqrt(t.tensor([cfg.d_head], device=device)) 
+        masked_attn_scores = self.apply_causal_mask(scaled_attn_scores) # (batch, n_heads, posn_q, posn_k)
+        attn_probs = masked_attn_scores.softmax(dim=3)
+
+        z = einops.einsum(attn_probs, v, "batch n_heads posn_q posn_k, batch posn_k n_heads d_head -> batch n_heads posn_q d_head") 
+
+        o = einops.einsum(self.W_O, z, "n_heads d_head d_model, batch n_heads posn d_head -> batch posn n_heads d_model")
+        o_summed = einops.reduce(o, "batch posn n_heads d_model -> batch posn d_model", reduction="sum")
+        result = o_summed + self.b_O
+        return result
 
 
     def apply_causal_mask(
@@ -280,3 +287,5 @@ tests.test_causal_mask(Attention.apply_causal_mask)
 tests.rand_float_test(Attention, [2, 4, 768])
 tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
 
+
+# %%

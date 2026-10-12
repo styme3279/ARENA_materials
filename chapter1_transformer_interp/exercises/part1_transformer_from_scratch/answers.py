@@ -664,16 +664,17 @@ class TransformerSampler:
             t.manual_seed(seed)
             np.random.seed(seed)
 
-        prompt_token_list = self.tokenizer.encode(prompt, return_tensors="pt").to(device)[0]
-        print(prompt_token_list.shape)
-        logits = self.model(prompt_token_list)
+        prompt_token_list = self.tokenizer.encode(prompt, return_tensors="pt")[0].to(device)
+        logits = self.model(t.unsqueeze(prompt_token_list, 0))[0]
 
-        generated_tokens = t.tensor([self.sample_next_token(prompt_token_list, logits)]).to(device)
+        generated_tokens = t.tensor([self.sample_next_token(prompt_token_list, logits[-1], **kwargs)]).to(device)
         print(generated_tokens.shape)
+        print(prompt_token_list.shape)
 
         while generated_tokens.shape[0] < max_tokens_generated and generated_tokens[-1] != self.tokenizer.eos_token_id:
-            logits = self.model(t.cat(prompt_token_list, generated_tokens))
-            generated_tokens.append(self.sample_next_token(t.cat(prompt_token_list, generated_tokens), logits, **kwargs))
+            full_text = t.cat((prompt_token_list, generated_tokens)).to(device)
+            logits = self.model(t.unsqueeze(full_text, 0))[0][-1].to(device)
+            generated_tokens = t.cat((generated_tokens.to(device), t.tensor([self.sample_next_token(full_text, logits, **kwargs).to(device)])))
 
         return self.tokenizer.decode(generated_tokens, verbose=verbose)
         
@@ -713,7 +714,7 @@ class TransformerSampler:
         """
         Returns the most likely token (as an int).
         """
-        
+        return logits.argmax()
 
     @staticmethod
     def apply_temperature(logits: Float[Tensor, "d_vocab"], temperature: float) -> Float[Tensor, "d_vocab"]:

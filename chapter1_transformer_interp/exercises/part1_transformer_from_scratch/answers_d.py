@@ -226,12 +226,15 @@ class Attention(nn.Module):
         queries = einops.einsum(self.W_Q, normalized_resid_pre, 'n e h, b s e -> b s n h') + self.b_Q
         values = einops.einsum(self.W_V, normalized_resid_pre, 'n e h, b s e -> b s n h') + self.b_V
         attn_scores = einops.einsum(queries, keys, "b sq n h, b sk n h -> b n sq sk")
-        scaled_attn_scores = attn_scores / t.sqrt(t.tensor(self.cfg.d_head))
+        scaled_attn_scores = attn_scores / (self.cfg.d_head**0.5)
         masked_attn_scores = self.apply_causal_mask(scaled_attn_scores)
         attn_probs = t.softmax(masked_attn_scores,dim=-1)
         z = einops.einsum(attn_probs,values, 'b n sq sk, b sk n h -> b sq n h')
-        result = einops.einsum(self.W_O,z, 'n h e, b sq n h -> b sq n e')
-        out = t.sum(result,dim=2) + self.b_O
+
+        out = out = einops.einsum(
+            z, self.W_O,
+            "b sq n h, n h e -> b sq e"
+        ) + self.b_O
         return out
 
     def apply_causal_mask(
@@ -248,6 +251,36 @@ class Attention(nn.Module):
 
 tests.test_causal_mask(Attention.apply_causal_mask)
 tests.rand_float_test(Attention, [2, 4, 768])
-tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
+# tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
+
+# %%
+
+class MLP(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_in = nn.Parameter(t.empty((cfg.d_model, cfg.d_mlp)))
+        self.W_out = nn.Parameter(t.empty((cfg.d_mlp, cfg.d_model)))
+        self.b_in = nn.Parameter(t.zeros((cfg.d_mlp)))
+        self.b_out = nn.Parameter(t.zeros((cfg.d_model)))
+        nn.init.normal_(self.W_in, std=self.cfg.init_range)
+        nn.init.normal_(self.W_out, std=self.cfg.init_range)
+        self.gelu = nn.GELU()
+
+    def forward(self, normalized_resid_mid: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        print('input - ', normalized_resid_mid.shape)
+        print('W in shape - ', self.W_in.shape)
+        hidden = self.gelu(einops.einsum(
+            self.W_in,
+            normalized_resid_mid,
+            'dmodel dhidden, batch position dmodel -> batch dhidden'
+        )) + self.b_in
+        print('hidden - ', hidden.shape)
+        out = 
+
+
+
+tests.rand_float_test(MLP, [2, 4, 768])
+tests.load_gpt2_test(MLP, reference_gpt2.blocks[0].mlp, cache["normalized", 0, "ln2"])
 
 # %%

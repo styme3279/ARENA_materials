@@ -224,15 +224,17 @@ class Attention(nn.Module):
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
         print('self.W_k - ', self.W_K.shape)
         print('normliased - ', normalized_resid_pre.shape)
-        keys = einops.einsum('n e h, b s e -> b ')
-        keys = t.matmul(self.W_K,normalized_resid_pre) + self.b_K
-        queries = self.W_Q(normalized_resid_pre) + self.b_Q
-        values = self.W_V(normalized_resid_pre) + self.b_V
-        attn_scores = t.tensordot(keys,t.transpose(queries),dims=2)
-        scaled_attn_scores = attn_scores / t.sqrt(self.cfg.d_head)
+        keys = einops.einsum(self.W_K, normalized_resid_pre, 'n e h, b s e -> b s n h') + self.b_K
+        queries = einops.einsum(self.W_Q, normalized_resid_pre, 'n e h, b s e -> b s n h') + self.b_Q
+        values = einops.einsum(self.W_V, normalized_resid_pre, 'n e h, b s e -> b s n h') + self.b_V
+        print('keys - ', keys.shape)
+        print('values - ', values.shape)
+        print('queries - ', queries.shape)
+        attn_scores = t.tensordot(keys,queries,dims=0)
+        scaled_attn_scores = attn_scores / t.sqrt(t.tensor(self.cfg.d_head))
         masked_attn_scores = self.apply_causal_mask(scaled_attn_scores)
         attn_probs = t.softmax(masked_attn_scores,dim=-1)
-        z = t.eisnum('b n s_q s_k, b s_k n h -> b s_q n h',attn_probs,values)
+        z = einops.einsum(attn_probs,values, 'b n sq sk, b sk n h -> b sq n h')
         result = self.W_O(z)
         out = t.sum(result,dim=2) + self.b_O
         return out

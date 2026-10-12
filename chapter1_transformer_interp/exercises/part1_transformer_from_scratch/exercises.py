@@ -264,18 +264,24 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        raise NotImplementedError()
+        q = normalized_resid_pre * self.W_Q + self.b_Q
+        k = normalized_resid_pre * self.W_K + self.b_K
+        v = normalized_resid_pre * self.W_V + self.b_V
 
-    def apply_causal_mask(
-        self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"]
-    ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
+        qk = q @ k.T
+        print(qk, qk.shape)
+
+    def apply_causal_mask(self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"],) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
         """
         Applies a causal mask to attention scores, and returns masked scores.
         """
-        # You should copy your solution from earlier
-        raise NotImplementedError()
+        q_s, k_s = attn_scores.shape[-2:]
+        mask = ~t.ones(q_s, k_s, device=attn_scores.device).triu(diagonal=1).bool()
+        x = attn_scores.where(mask, -t.inf)
+        return x
 
 
 tests.test_causal_mask(Attention.apply_causal_mask)
 tests.rand_float_test(Attention, [2, 4, 768])
 tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
+# %%

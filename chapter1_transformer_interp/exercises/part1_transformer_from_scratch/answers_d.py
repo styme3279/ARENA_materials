@@ -475,11 +475,13 @@ class TransformerTrainer:
         Remember that `batch` is a dictionary with the single key 'tokens'.
         """
         self.optimizer.zero_grad()
-        tokens = batch['tokens']
-        preds = self.model(tokens)
-        loss = nn.CrossEntropyLoss()(preds,tokens)
-        
-        #return loss
+        tokens = batch['tokens'].to(device)
+        logits = self.model(tokens)
+        loss = -get_log_probs(logits,tokens).mean()
+        loss.backward()
+        self.optimizer.step()
+        self.step += 1
+        return loss
 
     @t.inference_mode()
     def evaluate(self) -> float:
@@ -488,7 +490,8 @@ class TransformerTrainer:
         """
         self.model.eval()
         #
-        # YOUR CODE HERE - fill in the `evaluate` method
+        for i, batch in enumerate(self.test_loader):
+            print(i)
         #
         self.model.train()
         #return accuracy

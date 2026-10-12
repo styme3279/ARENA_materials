@@ -299,12 +299,11 @@ class Attention(nn.Module):
         V_proj = einops.einsum(normalized_resid_pre, self.W_V, "batch posn d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_V
 
         attn_scores = einops.einsum(Q_proj, K_proj, "batch posn_q n_heads d_head, batch posn_k n_heads d_head -> batch n_heads posn_q posn_k")
-        scaled_attn_scores = attn_scores / (self.cfg.d_head**0.5)
-        masked_attn_scores = self.apply_causal_mask(scaled_attn_scores)
-        attn_probs = t.softmax(masked_attn_scores, dim=-1)
+        masked_attn_scores = self.apply_causal_mask(attn_scores / (self.cfg.d_head**0.5))
+        attn_probs = masked_attn_scores.softmax(-1)
 
-        z = einops.einsum(attn_probs, V_proj, "batch n_heads posn_q posn_k, batch posn_v d_head n_heads -> batch posn_q d_head n_heads")
-        result = einops.einsum(z, self.W_O, "batch posn d_head n_heads, n_heads d_head d_model -> batch posn n_heads d_model").sum(dim=-2) + self.b_O
+        z = einops.einsum(V_proj, attn_probs, "batch posn_v n_heads d_head, batch n_heads posn_q posn_k -> batch posn_q n_heads d_head")
+        result = einops.einsum(z, self.W_O, "batch posn n_heads d_head, n_heads d_head d_model -> batch posn d_model") + self.b_O
         return result
 
     def apply_causal_mask(
@@ -317,8 +316,114 @@ class Attention(nn.Module):
         return t.where(t.triu(attn_scores, diagonal=1) == 0.0, attn_scores, self.IGNORE)
 
 
+class TheirAttention(nn.Module):
+    IGNORE: Float[Tensor, ""]
+
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_Q = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_K = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_V = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_O = nn.Parameter(t.empty((cfg.n_heads, cfg.d_head, cfg.d_model)))
+        self.b_Q = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_K = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_V = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_O = nn.Parameter(t.zeros((cfg.d_model)))
+        nn.init.normal_(self.W_Q, std=self.cfg.init_range)
+        nn.init.normal_(self.W_K, std=self.cfg.init_range)
+        nn.init.normal_(self.W_V, std=self.cfg.init_range)
+        nn.init.normal_(self.W_O, std=self.cfg.init_range)
+        self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
+
+    def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        # Calculate query, key and value vectors
+        q = (
+            einops.einsum(
+                normalized_resid_pre,
+                self.W_Q,
+                "batch posn d_model, nheads d_model d_head -> batch posn nheads d_head",
+            )
+            + self.b_Q
+        )
+        k = (
+            einops.einsum(
+                normalized_resid_pre,
+                self.W_K,
+                "batch posn d_model, nheads d_model d_head -> batch posn nheads d_head",
+            )
+            + self.b_K
+        )
+        v = (
+            einops.einsum(
+                normalized_resid_pre,
+                self.W_V,
+                "batch posn d_model, nheads d_model d_head -> batch posn nheads d_head",
+            )
+            + self.b_V
+        )
+
+        # Calculate attention scores, then scale and mask, and apply softmax to get probabilities
+        attn_scores = einops.einsum(
+            q,
+            k,
+            "batch posn_Q nheads d_head, batch posn_K nheads d_head -> batch nheads posn_Q posn_K",
+        )
+        attn_scores_masked = self.apply_causal_mask(attn_scores / self.cfg.d_head**0.5)
+        attn_pattern = attn_scores_masked.softmax(-1)
+
+        # Take weighted sum of value vectors, according to attention probabilities
+        z = einops.einsum(
+            v,
+            attn_pattern,
+            "batch posn_K nheads d_head, batch nheads posn_Q posn_K -> batch posn_Q nheads d_head",
+        )
+
+        # Calculate output (by applying matrix W_O and summing over heads, then adding bias b_O)
+        attn_out = (
+            einops.einsum(
+                z,
+                self.W_O,
+                "batch posn_Q nheads d_head, nheads d_head d_model -> batch posn_Q d_model",
+            )
+            + self.b_O
+        )
+
+        return attn_out
+
+    def apply_causal_mask(
+        self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"]
+    ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
+        """
+        Applies a causal mask to attention scores, and returns masked scores.
+        """
+        # Define a mask that is True for all positions we want to set probabilities to zero for
+        all_ones = t.ones(attn_scores.size(-2), attn_scores.size(-1), device=attn_scores.device)
+        mask = t.triu(all_ones, diagonal=1).bool()
+        # Apply the mask to attention scores, then return the masked scores
+        attn_scores.masked_fill_(mask, self.IGNORE)
+        return attn_scores
+
+
 tests.test_causal_mask(Attention.apply_causal_mask)
 tests.rand_float_test(Attention, [2, 4, 768])
 tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
 
 # %%
+class MLP(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_in = nn.Parameter(t.empty((cfg.d_model, cfg.d_mlp)))
+        self.W_out = nn.Parameter(t.empty((cfg.d_mlp, cfg.d_model)))
+        self.b_in = nn.Parameter(t.zeros((cfg.d_mlp)))
+        self.b_out = nn.Parameter(t.zeros((cfg.d_model)))
+        nn.init.normal_(self.W_in, std=self.cfg.init_range)
+        nn.init.normal_(self.W_out, std=self.cfg.init_range)
+
+    def forward(self, normalized_resid_mid: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        
+
+
+tests.rand_float_test(MLP, [2, 4, 768])
+tests.load_gpt2_test(MLP, reference_gpt2.blocks[0].mlp, cache["normalized", 0, "ln2"])

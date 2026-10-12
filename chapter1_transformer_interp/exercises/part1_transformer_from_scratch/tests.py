@@ -56,6 +56,8 @@ def load_gpt2_test(cls, gpt2_layer, input):
         reference_output = gpt2_layer(input, input, input)
     print("Reference output shape:", reference_output.shape, "\n")
     assert output.shape == reference_output.shape, f"Expected shape: {reference_output.shape} Actual shape: {output.shape}"
+    print(output)
+    print(reference_output)
     comparison = t.isclose(output, reference_output, atol=1e-4, rtol=1e-3)
     print(f"{comparison.sum() / comparison.numel():.2%} of the values are correct\n")
     assert 1 - (comparison.sum() / comparison.numel()) <= 1e-4, "More than 0.01% of the values are incorrect"

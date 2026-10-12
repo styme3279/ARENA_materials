@@ -299,7 +299,7 @@ class Attention(nn.Module):
         V_proj = einops.einsum(normalized_resid_pre, self.W_V, "batch posn d_model, n_heads d_model d_head -> batch posn d_head n_heads") + self.b_V.T
 
         attn_scores = einops.einsum(Q_proj, K_proj, "batch posn_q d_head n_heads, batch posn_k d_head n_heads -> batch n_heads posn_q posn_k")
-        scaled_attn_scores = attn_scores / t.sqrt(t.tensor(self.cfg.d_model))
+        scaled_attn_scores = attn_scores / (self.cfg.d_head**0.5)
         masked_attn_scores = self.apply_causal_mask(scaled_attn_scores)
         attn_probs = t.softmax(masked_attn_scores, dim=-1)
 

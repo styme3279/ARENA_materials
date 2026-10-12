@@ -316,20 +316,10 @@ class MLP(nn.Module):
         x = einops.einsum(self.W_in, normalized_resid_mid, "d_model d_mlp, batch seq_l d_model -> batch seq_l d_mlp" ) + self.b_in
         x = gelu_new(x)
         x = einops.einsum(self.W_out, x, "d_mlp d_model, batch seq_l d_mlp -> batch seq_l d_model" ) + self.b_out
-        # x = nn.Linear(x, self.W_out, bias=False) + self.b_out
-        return x
-
-
-        
-
-
-
+|        return x
 
 tests.rand_float_test(MLP, [2, 4, 768])
 tests.load_gpt2_test(MLP, reference_gpt2.blocks[0].mlp, cache["normalized", 0, "ln2"])
-
-
-
 
 # %%
 class TransformerBlock(nn.Module):
@@ -348,5 +338,5 @@ class TransformerBlock(nn.Module):
 tests.rand_float_test(TransformerBlock, [2, 4, 768])
 tests.load_gpt2_test(TransformerBlock, reference_gpt2.blocks[0], cache["resid_pre", 0])
 
-
 # %%
+

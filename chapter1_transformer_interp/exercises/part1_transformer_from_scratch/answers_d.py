@@ -222,14 +222,14 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        keys = self.W_K(normalized_resid_pre)
-        queries = self.W_Q(normalized_resid_pre)
-        values = self.W_V(normalized_resid_pre)
+        keys = self.W_K(normalized_resid_pre) + self.b_K
+        queries = self.W_Q(normalized_resid_pre) + self.b_Q
+        values = self.W_V(normalized_resid_pre) + self.b_V
         attn_scores = t.tensordot(keys,t.transpose(queries),dims=2)
-        scaled_attn_scores = ...
-        masked_attn_scores = ...
-        attn_probs = t.softmax(masked_attn_scores,dim=...)
-        z = ...
+        scaled_attn_scores = attn_scores / t.sqrt(self.cfg.d_head)
+        masked_attn_scores = self.apply_causal_mask(scaled_attn_scores)
+        attn_probs = t.softmax(masked_attn_scores,dim=-1)
+        z = t.eisnum('b n s_q s_k, b s_k n h -> b s_q n h',attn_probs,values)
         result = self.W_O(z)
         out = t.sum(result,dim=2) + self.b_O
         return out
@@ -249,3 +249,5 @@ class Attention(nn.Module):
 tests.test_causal_mask(Attention.apply_causal_mask)
 tests.rand_float_test(Attention, [2, 4, 768])
 tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
+
+# %%

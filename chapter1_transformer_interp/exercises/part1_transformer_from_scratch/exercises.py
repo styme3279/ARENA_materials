@@ -210,7 +210,7 @@ class PosEmbed(nn.Module):
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
         batch, seq_len = tokens.shape
         x =  einops.repeat(self.W_pos[:seq_len], "seq d_model -> batch seq d_model", batch=batch)
-        print(x, x.shape)
+        # print(x, x.shape)
         return x
         # return self.W_pos[tokens]
 
@@ -219,4 +219,27 @@ tests.test_pos_embed(PosEmbed)
 tests.rand_int_test(PosEmbed, [2, 4])
 tests.load_gpt2_test(PosEmbed, reference_gpt2.pos_embed, tokens)# %%
 
+# %%
+class Attention(nn.Module):
+    IGNORE: Float[Tensor, ""]
+
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
+
+    def apply_causal_mask(
+        self,
+        attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"],
+    ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
+        """
+        Applies a causal mask to attention scores, and returns masked scores.
+        """
+        q_s, k_s = attn_scores.shape[-2:]
+        mask = ~t.ones(q_s, k_s).triu(diagonal=1).bool()
+        x = attn_scores.where(mask, -t.inf)
+        return x
+
+
+tests.test_causal_mask(Attention.apply_causal_mask)
 # %%

@@ -294,15 +294,18 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        Q_proj = einops.einsum(normalized_resid_pre, self.W_Q, "batch posn d_model, n_heads d_model d_head -> batch posn d_head n_heads")
-        K_proj = einops.einsum(normalized_resid_pre, self.W_K, "batch posn d_model, n_heads d_model d_head -> batch posn d_head n_heads")
-        V_proj = einops.einsum(normalized_resid_pre, self.W_V, "batch posn d_model, n_heads d_model d_head -> batch posn d_head n_heads")
+        Q_proj = einops.einsum(normalized_resid_pre, self.W_Q, "batch posn d_model, n_heads d_model d_head -> batch posn d_head n_heads") + self.b_Q.T
+        K_proj = einops.einsum(normalized_resid_pre, self.W_K, "batch posn d_model, n_heads d_model d_head -> batch posn d_head n_heads") + self.b_K.T
+        V_proj = einops.einsum(normalized_resid_pre, self.W_V, "batch posn d_model, n_heads d_model d_head -> batch posn d_head n_heads") + self.b_V.T
 
         attn_scores = einops.einsum(Q_proj, K_proj, "batch posn_q d_head n_heads, batch posn_k d_head n_heads -> batch n_heads posn_q posn_k")
-        scaled_attn_scores = attn_scores / t.sqrt(self.cfg.d_model)
+        scaled_attn_scores = attn_scores / t.sqrt(t.tensor(self.cfg.d_model))
         masked_attn_scores = self.apply_causal_mask(scaled_attn_scores)
         attn_probs = t.softmax(masked_attn_scores, dim=-1)
-        print(attn_probs)
+
+        z = einops.einsum(attn_probs, V_proj, "batch n_heads posn_q posn_k, batch posn_v d_head n_heads -> batch posn_q d_head n_heads")
+        result = einops.einsum(z, self.W_O, "batch posn d_head n_heads, n_heads d_head d_model -> batch posn n_heads d_model").sum(dim=-2) + self.b_O
+        return result
 
     def apply_causal_mask(
         self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"]

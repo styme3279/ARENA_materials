@@ -274,11 +274,27 @@ class Attention(nn.Module):
         keys = einops.einsum(self.W_K, normalized_resid_pre, "num_h d_model d_head, batch seq_l d_model -> batch seq_l num_h d_head") + self.b_K
         values = einops.einsum(self.W_V, normalized_resid_pre, "num_h d_model d_head, batch seq_l d_model -> batch seq_l num_h d_head") + self.b_V
         queries = einops.einsum(self.W_Q, normalized_resid_pre, "num_h d_model d_head, batch seq_l d_model -> batch seq_l num_h d_head") + self.b_Q
+        print(f"values.shape: {keys.shape}")
 
-        attn_scores = einops.einsum(keys, values, "num_h d_model d_head, batch seq_l d_model -> batch num_h seq_l seq_l")
+        attn_scores = einops.einsum(keys, queries, "batch seq_l_k num_h d_head, batch seq_l_q num_h d_head -> batch num_h seq_l_k seq_l_q")
+        print(f"attn_scores.shape: {attn_scores.shape}")
+
+        scale_attn_scores = attn_scores / (t.sqrt(t.tensor(self.cfg.d_head, device=device)))
+        causal_attn = self.apply_causal_mask(scale_attn_scores)
+        attn_probabilities = t.softmax(causal_attn, dim=-1)
+        print(f"attn_probabilities: {attn_probabilities.shape}")
+
+        # print(f"attn_probabilities: {attn_probabilities[0, 0]}")
+        print(f"values.shape: {values.shape}")
+
+        z = einops.einsum(attn_probabilities, values, "batch num_h seq_l_k seq_l_q")
 
 
-        print(f"keys.shape: {keys.shape}")
+
+
+
+
+
 
 
         # 2 move (linear map) from source tokens to destination token

@@ -498,8 +498,10 @@ class TransformerSampler:
             t.manual_seed(seed)
             np.random.seed(seed)
         tokens_generated = 0
-        while generated_token != self.tokenizer.eos_token_id or tokens_generated <= 100:
-            
+        while tokens[-1] != self.tokenizer.eos_token_id or tokens_generated <= max_tokens_generated:
+            tokens = self.tokenizer(prompt)['input_ids']
+            tokens_generated += 1
+        return tokenizer.convert_tokens_to_ids(tokens)
 
     @staticmethod
     def sample_next_token(

@@ -264,7 +264,7 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        q = normalized_resid_pre * self.W_Q + self.b_Q
+        q = einops.einsum(normalized_resid_pre, "")
         k = normalized_resid_pre * self.W_K + self.b_K
         v = normalized_resid_pre * self.W_V + self.b_V
 

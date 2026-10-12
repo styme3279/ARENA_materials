@@ -703,14 +703,27 @@ class TransformerSampler:
             np.random.seed(seed)
 
         print(f"prompt: {prompt}")
-        cur_prompt = self.tokenizer(prompt)['input_ids'].to_device()
-        print(f"tokens_prompt: {cur_prompt}")
+        tokens_prompt = t.tensor(self.tokenizer(prompt)['input_ids'], device=device)
+        print(f"tokens_prompt: {tokens_prompt}")
         
         for i in range(max_tokens_generated):
+            input_ids = t.arange(i)
+            # print(f"input_ids: {input_ids}")
+            logits = self.model(tokens_prompt.unsqueeze(dim=0))
+            # print(f"logits shape: {logits.shape}")
 
-            logits = self.model(tokens_prompt)
+            new_token = self.sample_next_token(input_ids, logits[0,-1])
+            # print(f"pre tokens prompt: {tokens_prompt.shape}")
+            tokens_prompt = t.concat([tokens_prompt, new_token])
 
-            self.sample_next_token()
+            # print(f"post tokens prompt: {tokens_prompt.shape}")
+
+        
+        
+
+
+
+
 
 
 
@@ -774,7 +787,9 @@ class TransformerSampler:
         """
         Samples from the distribution defined by the logits.
         """
-        raise NotImplementedError()
+        probs = t.softmax(logits, dim=-1)
+        return  t.multinomial(probs, num_samples=1)
+        
 
     @staticmethod
     def sample_top_k(logits: Float[Tensor, "d_vocab"], k: int) -> int:

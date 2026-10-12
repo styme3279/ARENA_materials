@@ -749,16 +749,21 @@ class TransformerSampler:
         tokens_generated = 0
         next_token = None
 
-        def shouldContinue(next_token):
-            return (tokens_generated == max_tokens_generated) or next_token == self.model.tokenizer.vocab[-1]
-        
-        while (shouldContinue()):
-            input_ids = self.model.to_tokens(prompt)
+        def should_continue(next_token):
+            return (tokens_generated != max_tokens_generated) #or next_token == self.tokenizer.vocab[-1]
+
+        while (should_continue(next_token)):
+            input_ids = self.tokenizer.encode(prompt, return_tensors="pt")
+            #print(input_ids.shape)
             logits = self.model(input_ids)
-            next_input_id = self.sample_next_token(input_ids, logits)
-            next_token = self.model.tokenizer.decode(next_input_id)
+            #print(logits.shape)
+            next_input_id = self.sample_next_token(input_ids[0], logits[0,-1,:])
+            next_token = self.tokenizer.decode(next_input_id)
             tokens_generated += 1
+            print(next_input_id, next_token)
             prompt = prompt + next_token
+
+        return prompt
 
     @staticmethod
     def sample_next_token(
@@ -818,7 +823,8 @@ class TransformerSampler:
         """
         Samples from the distribution defined by the logits.
         """
-        raise NotImplementedError()
+        #return logits.argmax(-1).item()
+        return t.distributions.categorical.Categorical(logits.softmax(-1)).sample().item()
 
     @staticmethod
     def sample_top_k(logits: Float[Tensor, "d_vocab"], k: int) -> int:
@@ -864,6 +870,35 @@ output = sampler.sample(prompt, max_tokens_generated=8, temperature=0.0)
 
 print(f"Expected: {expected!r}\nActual:   {output!r}\n")
 assert output == expected
+
+print("Tests passed!")
+
+# %%
+tests.test_sample_basic(TransformerSampler.sample_basic)
+
+prompt = "John and Mary went to the"
+input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+logits = model(input_ids)[0, -1]
+
+expected_top_5 = {
+    " church": 0.0466,
+    " hospital": 0.0223,
+    " store": 0.0181,
+    " house": 0.0181,
+    " doctor": 0.0124,
+}
+frequency_of_top_5 = defaultdict(int)
+
+N = 10_000
+for _ in tqdm(range(N)):
+    token = TransformerSampler.sample_next_token(input_ids.squeeze(), logits)
+    frequency_of_top_5[tokenizer.decode(token)] += 1
+
+for word in expected_top_5:
+    expected_freq = expected_top_5[word]
+    observed_freq = frequency_of_top_5[word] / N
+    print(f"Word: {word!r:<9}. Expected freq {expected_freq:.4f}, observed freq {observed_freq:.4f}")
+    assert abs(observed_freq - expected_freq) < 0.01, "Try increasing N if this fails by a small amount."
 
 print("Tests passed!")
 

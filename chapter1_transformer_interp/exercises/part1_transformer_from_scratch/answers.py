@@ -304,8 +304,6 @@ class Attention(nn.Module):
         masked_attention = self.apply_causal_mask(attention)
         attention_pattern = t.nn.Softmax(dim=-1)(masked_attention)
 
-        print(attention_pattern)
-
         weighted_values = einops.einsum(value, attention_pattern, "batch posn_k n_heads d_head, batch n_heads posn_q posn_k -> batch posn_q n_heads d_head")
 
         all_heads_result = einops.einsum(weighted_values, self.W_O, "batch posn n_heads d_head, n_heads d_head d_model -> batch posn n_heads d_model")
@@ -327,3 +325,42 @@ tests.test_causal_mask(Attention.apply_causal_mask)
 tests.rand_float_test(Attention, [2, 4, 768])
 tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
 # %%
+import circuitsvis as cv
+from IPython.display import display
+
+display(
+    cv.attention.attention_patterns(
+        tokens=reference_gpt2.to_str_tokens(reference_text), attention=cache["pattern", 0][0]
+    )
+)
+
+# %%
+class MLP(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_in = nn.Parameter(t.empty((cfg.d_model, cfg.d_mlp)))
+        self.W_out = nn.Parameter(t.empty((cfg.d_mlp, cfg.d_model)))
+        self.b_in = nn.Parameter(t.zeros((cfg.d_mlp)))
+        self.b_out = nn.Parameter(t.zeros((cfg.d_model)))
+        nn.init.normal_(self.W_in, std=self.cfg.init_range)
+        nn.init.normal_(self.W_out, std=self.cfg.init_range)
+
+    def forward(self, normalized_resid_mid: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        preresid = einops.einsum(
+            normalized_resid_mid,
+            self.W_in,
+            "batch posn d_model, d_model d_mlp -> batch posn d_mlp"
+        ) + self.b_in
+
+        activation = gelu_new(preresid)
+
+        postresid = einops.einsum(
+            activation,
+            
+
+        )
+
+
+tests.rand_float_test(MLP, [2, 4, 768])
+tests.load_gpt2_test(MLP, reference_gpt2.blocks[0].mlp, cache["normalized", 0, "ln2"])

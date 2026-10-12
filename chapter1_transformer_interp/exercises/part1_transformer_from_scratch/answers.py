@@ -647,7 +647,7 @@ class TransformerSampler:
     def __init__(self, model: DemoTransformer, tokenizer: GPT2TokenizerFast):
         self.model = model
         self.cfg = model.cfg
-        self.tokenizer: GPT2TokenizerFast = tokenizer
+        self.tokenizer = tokenizer
 
     @t.inference_mode()
     def sample(self, prompt: str, max_tokens_generated=100, verbose=False, **kwargs) -> str:
@@ -664,10 +664,18 @@ class TransformerSampler:
             t.manual_seed(seed)
             np.random.seed(seed)
 
-        promt_token_list = self.tokenizer.encode(prompt)
-        generated_tokens = []
+        prompt_token_list = self.tokenizer.encode(prompt, return_tensors="pt").to(device)[0]
+        print(prompt_token_list.shape)
+        logits = self.model(prompt_token_list)
 
-        while prompt < 
+        generated_tokens = t.tensor([self.sample_next_token(prompt_token_list, logits)]).to(device)
+        print(generated_tokens.shape)
+
+        while generated_tokens.shape[0] < max_tokens_generated and generated_tokens[-1] != self.tokenizer.eos_token_id:
+            logits = self.model(t.cat(prompt_token_list, generated_tokens))
+            generated_tokens.append(self.sample_next_token(t.cat(prompt_token_list, generated_tokens), logits, **kwargs))
+
+        return self.tokenizer.decode(generated_tokens, verbose=verbose)
         
 
     @staticmethod
@@ -776,3 +784,4 @@ print(f"Expected: {expected!r}\nActual:   {output!r}\n")
 assert output == expected
 
 print("Tests passed!")
+# %%

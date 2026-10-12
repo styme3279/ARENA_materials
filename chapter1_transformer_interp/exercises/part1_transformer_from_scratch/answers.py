@@ -589,7 +589,7 @@ class TransformerTrainer:
 
         num_samples = num_correct = 0
         for batch in self.test_loader:
-            tokens = batch["tokens"]
+            tokens = batch["tokens"].to(device)
             logits = self.model(tokens)
             pred_tokens = t.argmax(logits, dim=-1)
 

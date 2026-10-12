@@ -498,10 +498,14 @@ class TransformerSampler:
             t.manual_seed(seed)
             np.random.seed(seed)
         tokens_generated = 0
+        tokens = self.tokenizer(prompt)['input_ids']
         while tokens[-1] != self.tokenizer.eos_token_id or tokens_generated <= max_tokens_generated:
-            tokens = self.tokenizer(prompt)['input_ids']
+            tokens_tensor = t.tensor(tokens, device=device)
+            logits = self.model(tokens_tensor)
+            next_token = self.sample_next_token(tokens, logits)
+            tokens.append(next_token)
             tokens_generated += 1
-        return tokenizer.convert_tokens_to_ids(tokens)
+        return tokenizer.decode(tokens)
 
     @staticmethod
     def sample_next_token(
@@ -609,3 +613,5 @@ print(f"Expected: {expected!r}\nActual:   {output!r}\n")
 assert output == expected
 
 print("Tests passed!")
+
+# %%

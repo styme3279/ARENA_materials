@@ -443,20 +443,20 @@ class TransformerTrainer:
         Remember that `batch` is a dictionary with the single key 'tokens'.
         """
         # zero out gradients
-        # self.optimizer.zero_grad()
+        self.optimizer.zero_grad()
+
+        data = batch["tokens"].to(device)
         
         # # calculate loss
-        predicted_logits = self.model(batch[])
-        # print(batch)
-        loss = -pred_log_probs(predicted_logits, batch)
+        predicted_logits = self.model(data)
+        loss = -get_log_probs(predicted_logits, data).mean()
         
         # # backpropagate
-        
+        loss.backward()
 
         # # update parameters
-        # self.optimizer.step()
-
-        # return loss
+        self.optimizer.step()
+        return loss
 
     @t.inference_mode()
     def evaluate(self) -> float:
@@ -467,6 +467,15 @@ class TransformerTrainer:
         #
         # YOUR CODE HERE - fill in the `evaluate` method
         #
+        for i, batch in enumerate(self.test_loader):
+            data = batch["tokens"].to(device)
+            predicted_logits = self.model(data)
+            print("shapee")
+            print(predicted_logits.shape)
+            predicted_tokens = t.argmax(predicted_logits.exp(), dim=-1)
+            print(predicted_tokens.shape)
+            predicted_tokens[]
+
         self.model.train()
         return accuracy
 
@@ -483,9 +492,9 @@ class TransformerTrainer:
         print(self.sampler.sample(self.args.eval_prompt, max_tokens_generated=50))
         for epoch in range(self.args.epochs):
             for i, batch in enumerate(self.train_loader):
-                loss = self.training_step(batch)
+                # loss = self.training_step(batch)
                 progress_bar.update()
-                progress_bar.set_description(f"Epoch {epoch + 1}, loss: {loss:.3f}, accuracy: {accuracy:.3f}")
+                # progress_bar.set_description(f"Epoch {epoch + 1}, loss: {loss:.3f}, accuracy: {accuracy:.3f}")
                 if i >= self.args.max_steps_per_epoch:
                     break
 

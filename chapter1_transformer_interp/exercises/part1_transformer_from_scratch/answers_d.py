@@ -222,7 +222,9 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        keys = self.W_K(normalized_resid_pre) + self.b_K
+        print('self.W_k - ', self.W_K.shape)
+        print('normliased - ', normalized_resid_pre.shape)
+        keys = t.matmul(self.W_K,normalized_resid_pre) + self.b_K
         queries = self.W_Q(normalized_resid_pre) + self.b_Q
         values = self.W_V(normalized_resid_pre) + self.b_V
         attn_scores = t.tensordot(keys,t.transpose(queries),dims=2)

@@ -302,6 +302,28 @@ tests.rand_int_test(DemoTransformer, [2, 4])
 tests.load_gpt2_test(DemoTransformer, reference_gpt2, tokens)
 
 # %%
+demo_gpt2 = DemoTransformer(Config(debug=False)).to(device)
+demo_gpt2.load_state_dict(reference_gpt2.state_dict(), strict=False)
+
+demo_logits = demo_gpt2(tokens)
+
+# %%
+def get_log_probs(
+    logits: Float[Tensor, "batch posn d_vocab"], tokens: Int[Tensor, "batch posn"]
+) -> Float[Tensor, "batch posn-1"]:
+    log_probs = logits.log_softmax(dim=-1)
+    # Get logprobs for the first seq_len-1 predictions (so we can compare them with the actual next tokens)
+    log_probs_for_tokens = log_probs[:, :-1].gather(dim=-1, index=tokens[:, 1:].unsqueeze(-1)).squeeze(-1)
+
+    return log_probs_for_tokens
+
+
+pred_log_probs = get_log_probs(demo_logits, tokens)
+print(f"Avg cross entropy loss: {-pred_log_probs.mean():.4f}")
+print(f"Avg cross entropy loss for uniform distribution: {math.log(demo_gpt2.cfg.d_vocab):4f}")
+print(f"Avg probability assigned to correct token: {pred_log_probs.exp().mean():4f}")
+
+# %%
 model_cfg = Config(
     debug=False,
     d_model=32,
@@ -363,10 +385,6 @@ test_loader = DataLoader(
     #pin_memory=False
 )
 
-tokens = train_loader.dataset[7]["tokens"]
-text = reference_gpt2.tokenizer.decode(tokens)
-print(text)
-
 # %%
 class TransformerTrainer:
     def __init__(self, args: TransformerTrainingArgs, model: DemoTransformer):
@@ -398,7 +416,14 @@ class TransformerTrainer:
 
         Remember that `batch` is a dictionary with the single key 'tokens'.
         """
-        raise NotImplementedError()
+        tokens = batch['tokens'].to(device)
+        logits = self.model(tokens)
+        loss = -get_log_probs(logits, tokens).mean()
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        self.step += 1
+        wandb.log({"train_loss": loss}, step=self.step)
         return loss
 
     @t.inference_mode()
@@ -407,9 +432,11 @@ class TransformerTrainer:
         Evaluate the model on the test set and return the accuracy.
         """
         self.model.eval()
-        #
-        # YOUR CODE HERE - fill in the `evaluate` method
-        #
+        for i, batch in enumerate(self.test_loader):
+            tokens = batch['tokens'].to(device)
+            # [batch, pos, d_vocab]
+            logits = self.model(tokens)
+            
         self.model.train()
         return accuracy
 

@@ -198,3 +198,21 @@ class Embed(nn.Module):
 tests.test_embed(Embed)
 tests.rand_int_test(Embed, [2, 4])
 tests.load_gpt2_test(Embed, reference_gpt2.embed, tokens)
+
+# %%
+class PosEmbed(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_pos = nn.Parameter(t.empty((cfg.n_ctx, cfg.d_model)))
+        nn.init.normal_(self.W_pos, std=self.cfg.init_range)
+
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
+        return self.W_pos[einops.repeat(t.arange(tokens.shape[1]), "n -> b n", b = tokens.shape[0])]
+
+
+tests.test_pos_embed(PosEmbed)
+tests.rand_int_test(PosEmbed, [2, 4])
+tests.load_gpt2_test(PosEmbed, reference_gpt2.pos_embed, tokens)
+
+# %%

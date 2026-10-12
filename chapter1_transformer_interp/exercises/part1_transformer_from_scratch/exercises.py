@@ -272,9 +272,12 @@ class Attention(nn.Module):
 
         # qk = q @ k.T
         qk = einops.einsum(
-            q, k, "b posQ nheads dhead, b posK nheads dhead -> b nheads dhead posQ posK")
-        print(qk, qk.shape)
-        return qk
+            q, k, "b posQ nheads dhead, b posK nheads dhead -> b nheads posQ posK") / 
+        masked_qk = self.apply_causal_mask(qk)
+        probs_qk = masked_qk.softmax(dim=-2)
+        z = einops.einsum(probs_qk, v, "b nheads posQ posK, b pos nheads dhead ->")
+        # out = einops.einsum(qk, self.W_O, "b nheads dhead, nheads dhead dmodel -> ")
+        return out
 
     def apply_causal_mask(self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"],) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
         """

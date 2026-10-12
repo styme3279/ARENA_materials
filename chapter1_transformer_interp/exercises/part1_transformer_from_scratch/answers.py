@@ -293,15 +293,15 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        print(normalized_resid_pre.shape)
-        print(self.W_K.shape)
-        key = normalized_resid_pre @ self.W_K + self.B_K
-        value = normalized_resid_pre @ self.W_V + self.B_V
-        query = normalized_resid_pre @ self.W_Q + self.B_Q
+        normalized_resid_pre = einops.repeat(normalized_resid_pre, "batch posn d_model -> batch posn n_heads d_model", n_heads = self.cfg.n_heads)
 
-        key.shape == [batch posn n_heads d_head]
+        key = einops.einsum(normalized_resid_pre, self.W_K, "batch posn n_heads d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_K
+        value = einops.einsum(normalized_resid_pre, self.W_V, "batch posn n_heads d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_V
+        query = einops.einsum(normalized_resid_pre, self.W_Q, "batch posn n_heads d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_Q
 
-        print(key, value, query)
+        attention = einops.einsum(key, query, "batch posn_k n_heads d_model, batch posn_q n_heads d_model -> batch n_heads posn_q posn_k")
+
+        print(attention)
 
     def apply_causal_mask(
         self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"]

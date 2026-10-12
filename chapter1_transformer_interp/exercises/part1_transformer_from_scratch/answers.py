@@ -157,7 +157,13 @@ class Attention(nn.Module):
         """
         Applies a causal mask to attention scores, and returns masked scores.
         """
-        raise NotImplementedError()
+        neg_inf_mat = t.full(attn_scores.shape, self.IGNORE).to(device)
+        neg_inf_mat = neg_inf_mat.triu(diagonal=1)
+        print(attn_scores)
+        print(t.where(neg_inf_mat.to(t.bool), neg_inf_mat, attn_scores))
+
 
 
 tests.test_causal_mask(Attention.apply_causal_mask)
+
+# %%

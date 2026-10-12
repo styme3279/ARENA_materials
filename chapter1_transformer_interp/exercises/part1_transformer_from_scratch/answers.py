@@ -247,13 +247,74 @@ class Attention(nn.Module):
         """
         Applies a causal mask to attention scores, and returns masked scores.
         """
-        upper_right = t.triu(attn_scores, diagonal=1)
-        # print(upper_right)
-        mask = t.where(upper_right.abs() > 0, self.IGNORE)
-        masked = upper_right.masked_fill_(mask=mask, self.IGNORE)
-        print(masked)
-        print(attn_scores.shape)
+        lower_left = t.tril(attn_scores)
+        mask = t.where(lower_left == 0, self.IGNORE, lower_left)
+        return mask
 
 
 tests.test_causal_mask(Attention.apply_causal_mask)
+
+# %%
+import circuitsvis as cv
+from IPython.display import display
+
+display(
+    cv.attention.attention_patterns(
+        tokens=reference_gpt2.to_str_tokens(reference_text), attention=cache["pattern", 0][0]
+    )
+)
+
+# %%
+display(
+    cv.attention.attention_heads(
+        tokens=reference_gpt2.to_str_tokens(reference_text), attention=cache["pattern", 0][0]
+    )
+)
+
+# %%
+class Attention(nn.Module):
+    IGNORE: Float[Tensor, ""]
+
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_Q = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_K = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_V = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)))
+        self.W_O = nn.Parameter(t.empty((cfg.n_heads, cfg.d_head, cfg.d_model)))
+        self.b_Q = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_K = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_V = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)))
+        self.b_O = nn.Parameter(t.zeros((cfg.d_model)))
+        nn.init.normal_(self.W_Q, std=self.cfg.init_range)
+        nn.init.normal_(self.W_K, std=self.cfg.init_range)
+        nn.init.normal_(self.W_V, std=self.cfg.init_range)
+        nn.init.normal_(self.W_O, std=self.cfg.init_range)
+        self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
+
+    def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        print(normalized_resid_pre.shape)
+        print(self.W_K.shape)
+        key = normalized_resid_pre @ self.W_K + self.B_K
+        value = normalized_resid_pre @ self.W_V + self.B_V
+        query = normalized_resid_pre @ self.W_Q + self.B_Q
+
+        key.shape == [batch posn n_heads d_head]
+
+        print(key, value, query)
+
+    def apply_causal_mask(
+        self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"]
+    ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
+        """
+        Applies a causal mask to attention scores, and returns masked scores.
+        """
+        lower_left = t.tril(attn_scores)
+        mask = t.where(lower_left == 0, self.IGNORE, lower_left)
+        return mask
+
+
+tests.test_causal_mask(Attention.apply_causal_mask)
+tests.rand_float_test(Attention, [2, 4, 768])
+tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
 # %%

@@ -467,14 +467,21 @@ class TransformerTrainer:
         #
         # YOUR CODE HERE - fill in the `evaluate` method
         #
+        accuracy = 0.0
+        total = 0
         for i, batch in enumerate(self.test_loader):
             data = batch["tokens"].to(device)
             predicted_logits = self.model(data)
-            print("shapee")
-            print(predicted_logits.shape)
+            # print("shapee")
+            # print(predicted_logits.shape)
             predicted_tokens = t.argmax(predicted_logits.exp(), dim=-1)
-            print(predicted_tokens.shape)
-            predicted_tokens[]
+            # print(predicted_tokens.shape)
+            predictions = predicted_tokens[:, :-1]
+            correct = data[:, 1:]
+            # print(predictions.shape, correct.shape)
+            accuracy = accuracy + (predictions == correct).sum()
+            total += data.shape[0] * (data.shape[1]-1)
+        accuracy = accuracy/total
 
         self.model.train()
         return accuracy
@@ -492,13 +499,14 @@ class TransformerTrainer:
         print(self.sampler.sample(self.args.eval_prompt, max_tokens_generated=50))
         for epoch in range(self.args.epochs):
             for i, batch in enumerate(self.train_loader):
-                # loss = self.training_step(batch)
+                loss = self.training_step(batch)
                 progress_bar.update()
-                # progress_bar.set_description(f"Epoch {epoch + 1}, loss: {loss:.3f}, accuracy: {accuracy:.3f}")
+                progress_bar.set_description(f"Epoch {epoch + 1}, loss: {loss:.3f}, accuracy: {accuracy:.3f}")
                 if i >= self.args.max_steps_per_epoch:
                     break
 
             accuracy = self.evaluate()
+            print("Accuracy: ", accuracy)
             print(self.sampler.sample(self.args.eval_prompt, max_tokens_generated=50))
 
         wandb.finish()

@@ -853,9 +853,13 @@ class Beams:
         Optional argument `no_repeat_ngram_size` means your model won't generate any sequences with a repeating n-gram
         of this length.
         """
-        print(self.tokens)
-        print(k)
-        print(no_repeat_ngram_size)
+        new_beams = []
+
+        logits = self.model(token)
+        logprobs = logits[:,-1,:].log_softmax(-1)
+        new_tokens = TransformerSampler.sample_top_k(logits,k=k)
+
+
 
     def filter(self, k: int) -> tuple["Beams", "Beams"]:
         """

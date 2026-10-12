@@ -114,3 +114,54 @@ for i in range(10):
 # %%
 next_token.shape
 # %%
+for activation_name, activation in cache.items():
+    # Only print for first layer
+    if ".0." in activation_name or "blocks" not in activation_name:
+        print(f"{activation_name:30} {tuple(activation.shape)}")
+
+# %%
+for name, param in reference_gpt2.named_parameters():
+    # Only print for first layer
+    if ".0." in name or "blocks" not in name:
+        print(f"{name:18} {tuple(param.shape)}")
+
+# %%
+# As a reference - note there's a lot of stuff we don't care about in here, to do with library internals or other architectures
+print(reference_gpt2.cfg)
+
+# %%
+@dataclass
+class Config:
+    d_model: int = 768
+    debug: bool = True
+    layer_norm_eps: float = 1e-5
+    d_vocab: int = 50257
+    init_range: float = 0.02
+    n_ctx: int = 1024
+    d_head: int = 64
+    d_mlp: int = 3072
+    n_heads: int = 12
+    n_layers: int = 12
+
+
+cfg = Config()
+print(cfg)
+
+# %%
+class LayerNorm(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.w = nn.Parameter(t.ones(cfg.d_model))
+        self.b = nn.Parameter(t.zeros(cfg.d_model))
+
+    def forward(self, residual: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+        mean = residual.mean(dim=2)
+        var = residual.var(dim=2)
+        out1 = (residual - mean) / t.sqrt(var + self.cfg["layer_norm_eps"])
+        out2 = out1 * self.w
+
+
+tests.rand_float_test(LayerNorm, [2, 4, 768])
+tests.test_layer_norm_epsilon(LayerNorm, cache["resid_post", 11])
+tests.load_gpt2_test(LayerNorm, reference_gpt2.ln_final, cache["resid_post", 11])

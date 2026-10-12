@@ -576,3 +576,108 @@ trainer = TransformerTrainer(args, model)
 trainer.train()
 
 # %%
+d_vocab = model.cfg.d_vocab
+
+print(f"d_vocab = {d_vocab}")
+print(f"Cross entropy loss on uniform distribution = {math.log(d_vocab):.3f}")
+
+
+# %%
+test_string = """Once upon a time there was a Teddy bear named"""
+for i in tqdm(range(100)):
+    test_tokens = reference_gpt2.to_tokens(test_string).to(device)
+    demo_logits = model(test_tokens)
+    
+    test_string += reference_gpt2.tokenizer.decode(demo_logits[-1, -1].argmax())
+
+print(test_string)
+# %%
+
+def sampling_fn(model: DemoTransformer, prompt: str) -> str:
+    sampler = solutions.TransformerSampler(model, reference_gpt2.tokenizer)
+    output = sampler.sample(prompt, temperature=0.7, top_p=0.95, max_tokens_generated=16)
+    return output
+
+
+model = DemoTransformer(model_cfg).to(device)
+
+# Should be entirely random, because it uses a newly initialized model
+print(sampling_fn(model, prompt="John and Mary went to the"))
+
+
+@dataclass
+class TransformerTrainingArgsLogText(TransformerTrainingArgs):
+    text_sample_freq: int = 20
+    table_log_freq: int = 200
+
+    def __post_init__(self):
+        assert self.table_log_freq >= self.text_sample_freq, (
+            "You should log the table less frequently than you add text to it."
+        )
+
+
+def train_log_text(self: TransformerTrainer, sampling_fn: Callable, prompt_list: list[str]):
+    """
+    Trains the model, for `self.args.epochs` epochs. Also handles wandb initialisation, and early stopping
+    for each epoch at `self.args.max_steps_per_epoch` steps.
+
+    This also takes 2 extra arguments:
+        sampling_fn: function which takes model & a single prompt (i.e. text string) and returns text string output
+        prompt_list: list of prompts we'll log output on
+    """
+    wandb.init(project=self.args.wandb_project, name=self.args.wandb_name, config=self.args)
+    accuracy = np.nan
+    progress_bar = tqdm(total=self.args.max_steps_per_epoch * self.args.epochs)
+
+    # Create a list for storing data
+    completions_list = []
+
+    for epoch in range(self.args.epochs):
+        for i, batch in enumerate(self.train_loader):
+            loss = self.training_step(batch)
+            progress_bar.update()
+            progress_bar.set_description(f"Epoch {epoch + 1}, loss: {loss:.3f}, accuracy: {accuracy:.3f}")
+
+            # Control the adding of text to the table, and the logging of text
+            if self.step % self.args.text_sample_freq == 0:
+                text_completions = [sampling_fn(self.model, prompt) for prompt in prompt_list]
+                completions_list.append([epoch, self.step, *text_completions])
+            if self.step % self.args.table_log_freq == 0:
+                wandb.log(
+                    {
+                        "completions_table": wandb.Table(
+                            data=completions_list,
+                            columns=[
+                                "epoch",
+                                "step",
+                                *[f"prompt_{i}" for i in range(len(prompt_list))],
+                            ],
+                        )
+                    }
+                )
+
+            if i >= self.args.max_steps_per_epoch:
+                break
+
+        accuracy = self.evaluate()
+
+    wandb.finish()
+
+
+TransformerTrainer.train = train_log_text
+
+
+prompt_list = [
+    "Eliezer Shlomo Yudkowsky (born September 11, 1979) is an American decision and artificial intelligence (AI) theorist and writer, best known for",
+    "In a shocking finding, scientist discovered a herd of unicorns living in a remote, previously unexplored valley, in the Andes Mountains. Even more surprising to the researchers was the fact that the unicorns spoke perfect English.",
+    "John and Mary went to the",
+]
+
+model = DemoTransformer(model_cfg).to(device)
+args = TransformerTrainingArgsLogText()
+trainer = TransformerTrainer(args, model)
+trainer.train(sampling_fn, prompt_list)
+# Read full report here - https://api.wandb.ai/links/callum-mcdougall/5ex16e5w
+
+
+# %%

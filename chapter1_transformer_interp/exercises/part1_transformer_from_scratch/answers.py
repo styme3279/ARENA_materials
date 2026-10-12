@@ -293,15 +293,24 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        normalized_resid_pre = einops.repeat(normalized_resid_pre, "batch posn d_model -> batch posn n_heads d_model", n_heads = self.cfg.n_heads)
+        repeated_normalized_resid_pre = einops.repeat(normalized_resid_pre, "batch posn d_model -> batch posn n_heads d_model", n_heads = self.cfg.n_heads)
 
-        key = einops.einsum(normalized_resid_pre, self.W_K, "batch posn n_heads d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_K
-        value = einops.einsum(normalized_resid_pre, self.W_V, "batch posn n_heads d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_V
-        query = einops.einsum(normalized_resid_pre, self.W_Q, "batch posn n_heads d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_Q
+        key = einops.einsum(repeated_normalized_resid_pre, self.W_K, "batch posn n_heads d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_K
+        value = einops.einsum(repeated_normalized_resid_pre, self.W_V, "batch posn n_heads d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_V
+        query = einops.einsum(repeated_normalized_resid_pre, self.W_Q, "batch posn n_heads d_model, n_heads d_model d_head -> batch posn n_heads d_head") + self.b_Q
 
-        attention = einops.einsum(key, query, "batch posn_k n_heads d_model, batch posn_q n_heads d_model -> batch n_heads posn_q posn_k")
+        attention = einops.einsum(key, query, "batch posn_k n_heads d_model, batch posn_q n_heads d_model -> batch n_heads posn_q posn_k") / (self.cfg.d_head)**(.5)
 
-        print(attention)
+        masked_attention = self.apply_causal_mask(attention)
+        attention_pattern = t.nn.Softmax(dim=-1)(masked_attention)
+
+        print(attention_pattern)
+
+        weighted_values = einops.einsum(value, attention_pattern, "batch posn_k n_heads d_head, batch n_heads posn_q posn_k -> batch posn_q n_heads d_head")
+
+        all_heads_result = einops.einsum(weighted_values, self.W_O, "batch posn n_heads d_head, n_heads d_head d_model -> batch posn n_heads d_model")
+
+        return all_heads_result.sum(dim=-2) + self.b_O
 
     def apply_causal_mask(
         self, attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"]

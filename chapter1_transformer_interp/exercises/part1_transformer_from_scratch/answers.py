@@ -645,8 +645,17 @@ class TransformerTrainer:
         Evaluate the model on the test set and return the accuracy.
         """
         self.model.eval()
+        accuracy_list = []
         
-        
+
+        for i, batch in enumerate(self.test_loader):
+
+            logits = self.model(batch["tokens"])
+            true_labels = t.diagonal(batch["tokens"], offset=1, dim1=-2, dim2=-1)
+            predictions = logits.argmax(dim=-1)
+
+            print(f"True Labels Shape: {true_labels.shape}")
+            print(f"Predictions Shape: {predictions.shape}")
 
         self.model.train()
         return accuracy
@@ -663,6 +672,7 @@ class TransformerTrainer:
 
         print(self.sampler.sample(self.args.eval_prompt, max_tokens_generated=50))
         for epoch in range(self.args.epochs):
+            accuracy = self.evaluate()
             for i, batch in enumerate(self.train_loader):
                 loss = self.training_step(batch)
                 progress_bar.update()

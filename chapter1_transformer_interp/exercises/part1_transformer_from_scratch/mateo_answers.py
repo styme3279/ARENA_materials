@@ -549,7 +549,7 @@ class TransformerSampler:
         """
         Applies temperature scaling to the logits.
         """
-        raise NotImplementedError()
+        return logits / temperature
 
     @staticmethod
     def apply_frequency_penalty(
@@ -558,14 +558,16 @@ class TransformerSampler:
         """
         Applies a frequency penalty to the logits.
         """
-        raise NotImplementedError()
+        frequencies = t.bincount
 
     @staticmethod
     def sample_basic(logits: Float[Tensor, "d_vocab"]) -> int:
         """
         Samples from the distribution defined by the logits.
         """
-        return t.distributions.categorical.Categorical(logits=logits)
+        sampler = t.distributions.categorical.Categorical(logits=logits)
+        token = sampler.sample()
+        return token.item()
 
     @staticmethod
     def sample_top_k(logits: Float[Tensor, "d_vocab"], k: int) -> int:
@@ -597,7 +599,7 @@ class TransformerSampler:
         """
         raise NotImplementedError()
 
-
+# %%
 model = DemoTransformer(Config()).to(device)
 model.load_state_dict(reference_gpt2.state_dict(), strict=False)
 tokenizer = reference_gpt2.tokenizer
@@ -614,6 +616,7 @@ assert output == expected
 
 print("Tests passed!")
 
+# %%
 tests.test_sample_basic(TransformerSampler.sample_basic)
 
 prompt = "John and Mary went to the"
@@ -643,3 +646,29 @@ for word in expected_top_5:
 print("Tests passed!")
 
 # %%
+tests.test_apply_temperature(TransformerSampler.apply_temperature)
+
+logits = t.tensor([1, 2]).log()
+
+cold_logits = TransformerSampler.apply_temperature(logits, temperature=0.001)
+print('A low temperature "sharpens" or "peaks" the distribution: ', cold_logits)
+t.testing.assert_close(cold_logits, 1000.0 * logits)
+
+hot_logits = TransformerSampler.apply_temperature(logits, temperature=1000.0)
+print("A high temperature flattens the distribution: ", hot_logits)
+t.testing.assert_close(hot_logits, 0.001 * logits)
+
+print("Tests passed!")
+
+# %%
+tests.test_apply_frequency_penalty(TransformerSampler.apply_frequency_penalty)
+
+bieber_prompt = "And I was like Baby, baby, baby, oh Like, Baby, baby, baby, no Like, Baby, baby, baby, oh I thought you'd always be mine, mine"
+input_ids = tokenizer.encode(bieber_prompt, return_tensors="pt")
+logits = t.ones(tokenizer.vocab_size)
+penalized_logits = TransformerSampler.apply_frequency_penalty(input_ids.squeeze(), logits, 2.0)
+
+assert penalized_logits[5156].item() == -11, "Expected 6 occurrences of ' baby' with leading space, 1-2*6=-11"
+assert penalized_logits[14801].item() == -5, "Expected 3 occurrences of ' Baby' with leading space, 1-2*3=-5"
+
+print("Tests passed!")

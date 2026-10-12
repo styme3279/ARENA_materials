@@ -178,6 +178,7 @@ class LayerNorm(nn.Module):
         x = x * self.w + self.b
         # print(x, x.shape)
         return x
+# %%
 
 
 tests.rand_float_test(LayerNorm, [2, 4, 768])
@@ -192,6 +193,7 @@ class Embed(nn.Module):
 
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
         return self.W_E[tokens]
+# %%
 
 
 tests.test_embed(Embed)
@@ -207,7 +209,9 @@ class PosEmbed(nn.Module):
 
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
         batch, seq_len = tokens.shape
-        return einops.repeat(self.W_pos[:seq_len], "seq d_model -> batch seq d_model", batch=batch)
+        x =  einops.repeat(self.W_pos[:seq_len], "seq d_model -> batch seq d_model", batch=batch)
+        print(x, x.shape)
+        return x
         # return self.W_pos[tokens]
 
 

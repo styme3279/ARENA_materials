@@ -500,6 +500,8 @@ class TransformerTrainingArgs:
     wandb_name: str | None = None
     eval_prompt: str = "Once upon a time"
 
+args = TransformerTrainingArgs()
+
 # %%
 dataset = datasets.load_dataset("roneneldan/TinyStories", split="train")
 # Keep the first 200k of the 2.1M stories, as we only need a subset for training.
@@ -573,11 +575,12 @@ class TransformerTrainer:
         """
         tokens = batch["tokens"]
         logits = self.model(tokens)
-        loss = -get_log_probs(logits, tokens).sum()
+        loss = -get_log_probs(logits, tokens).mean()
         loss.backward()
         self.optimizer.step()
         self.optimizer.zero_grad()
         self.step += 1
+        wandb.log({"train_loss": loss}, step=self.step)
         return loss
 
     @t.inference_mode()
@@ -588,16 +591,22 @@ class TransformerTrainer:
         self.model.eval()
 
         num_samples = num_correct = 0
-        for batch in self.test_loader:
+        for batch in tqdm(self.test_loader, desc="Evaluating"):
             tokens = batch["tokens"].to(device)
+            print("tokens",tokens.shape)
             logits = self.model(tokens)
-            pred_tokens = t.argmax(logits, dim=-1)
+            print("logits", logits.shape)
+            print("logits -1", logits[:, :-1].shape)
+            pred_tokens = logits[:, :-1].argmax(dim=-1)
 
-            num_samples += tokens.shape[0]
-            num_correct += (pred_tokens == tokens).sum()
+            num_samples += tokens.shape[0] * (tokens.shape[1] - 1)
+            num_correct += (pred_tokens == tokens[:, :-1]).sum().item()
 
+        accuracy = num_correct / num_samples
+
+        wandb.log({"accuracy": accuracy}, step=self.step)
         self.model.train()
-        return num_correct / num_samples
+        return accuracy
 
     def train(self):
         """
@@ -629,7 +638,7 @@ args = TransformerTrainingArgs()
 
 # See the full run here: https://api.wandb.ai/links/dquarel/nrxuwnv7
 model = DemoTransformer(model_cfg).to(device)
-args = TransformerTrainingArgs()
+args = TransformerTrainingArgs(wandb_name="joesposito8-arena-education-org")
 trainer = TransformerTrainer(args, model)
 trainer.train()
 # %%

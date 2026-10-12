@@ -703,31 +703,31 @@ class TransformerSampler:
             np.random.seed(seed)
 
         print(f"prompt: {prompt}")
-        tokenizer = self.tokenizer(prompt)['input_ids']
-        tokens_prompt = t.tensor(tokenizer, device=device)
-        print(f"tokens_prompt: {tokens_prompt}")
+        input_ids = self.tokenizer.encode(prompt, return_tensors="pt").to(device)[0]  #['input_ids']
+        print(f"input_ids_tensor: {input_ids}")
         
         temp = kwargs.pop('temperature', 1.0)
         print(f'temp: {temp}')
 
         for i in range(max_tokens_generated):
-            input_ids = t.arange(i+1)
-            print(f"input_ids: {input_ids}")
-            logits = self.model(tokens_prompt.unsqueeze(dim=0))
-            print(f"logits shape: {logits.shape}")
-
-            new_token = self.sample_next_token(input_ids, logits[0,-1], temperature=temp)
-            print(f"pre tokens prompt: {tokens_prompt.shape}")
-            print(f"new_token prompt: {new_token.shape}")
-            tokens_prompt = t.concat([tokens_prompt, new_token])
-
-            # stop if EOT
-            if new_token == self.tokenizer.eos_token_id:
+            # Get new logits (make sure we don't pass in more tokens than the model's context length)
+            logits = self.model(input_ids[None, -self.cfg.n_ctx :])
+            # We only take logits for the last token, because this is what we're sampling
+            logits = logits[0, -1]
+            # Get next token (as a tensor of size (1,) so we can concat it to input_ids)
+            next_token = t.tensor([TransformerSampler.sample_next_token(input_ids, logits, **kwargs)], device=device)
+            # Create new input ids string, with shape (old_seq_len + 1,)
+            input_ids = t.cat([input_ids, next_token], dim=-1)
+            # Print out results, if required
+            if verbose:
+                print(self.tokenizer.decode(input_ids, skip_special_tokens=True), end="\r")
+            # If our new token was the end-of-text token, stop
+            if next_token == getattr(self.tokenizer, "eos_token_id", None):
                 break
 
             # print(f"post tokens prompt: {tokens_prompt.shape}")
 
-        output = self.tokenizer.decode(tokens_prompt[1:])
+        output = self.tokenizer.decode(input_ids, skip_special_tokens=True)
         return output
 
 
@@ -772,7 +772,9 @@ class TransformerSampler:
         Returns the most likely token (as an int).
         """
         print(f"greedy search input logits: {logits.shape}")
-        return t.argmax(logits)
+        greedy_output =t.argmax(logits)
+        print(f"greedy_output: {greedy_output.shape}")
+        return greedy_output
 
     @staticmethod
     def apply_temperature(logits: Float[Tensor, "d_vocab"], temperature: float) -> Float[Tensor, "d_vocab"]:
@@ -796,7 +798,6 @@ class TransformerSampler:
         Samples from the distribution defined by the logits.
         """
         probs = t.softmax(logits, dim=-1)
-        print(f"basic sampling")
         return  t.multinomial(probs, num_samples=1)
         
 

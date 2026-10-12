@@ -190,16 +190,22 @@ class Attention(nn.Module):
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
         print("helko")
-        # get keys, queries
+        # get keys, queries, values
         print(1)
         print(self.W_K.shape)
         print(normalized_resid_pre.shape)
-        einops.einsum(self.W_K, normalized_resid_pre, "n e n, b s e -> b s n")
 
-        # einops.einsum(self.W_K, normalized_resid_pre, "b e n, b s e -> b s n")
+        project = lambda x, y: einops.einsum(x, y, "n e h, b s e -> b s n h")
+        K = project(self.W_K, normalized_resid_pre) + self.b_K
+        Q = project(self.W_Q, normalized_resid_pre) + self.b_Q
+        V = project(self.W_V, normalized_resid_pre) + self.b_V
+
         print(2)
 
         # attn scores from dot product of K and Q
+
+        
+
         # scale and mask attn scores
         # softmax along key_pos dim
         # get values

@@ -227,8 +227,74 @@ class MLP(nn.Module):
         nn.init.normal_(self.W_out, std=self.cfg.init_range)
 
     def forward(self, normalized_resid_mid: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        raise NotImplementedError()
+        out = einops.einsum(normalized_resid_mid, self.W_in, "batch pos d_model, d_model d_mlp -> batch pos d_mlp") + self.b_in
+        out = gelu_new(out)
+        out = einops.einsum(out, self.W_out, "batch pos d_mlp, d_mlp d_model -> batch pos d_model") + self.b_out
+        return out
 
 
 tests.rand_float_test(MLP, [2, 4, 768])
 tests.load_gpt2_test(MLP, reference_gpt2.blocks[0].mlp, cache["normalized", 0, "ln2"])
+
+# %%
+class TransformerBlock(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.ln1 = LayerNorm(cfg)
+        self.attn = Attention(cfg)
+        self.ln2 = LayerNorm(cfg)
+        self.mlp = MLP(cfg)
+
+    def forward(self, resid_pre: Float[Tensor, "batch position d_model"]) -> Float[Tensor, "batch position d_model"]:
+        resid_mid = self.ln1(resid_pre)
+        resid_mid = self.attn(resid_mid) + resid_pre
+        resid_post = self.ln2(resid_mid)
+        resid_post = self.mlp(resid_post) + resid_mid
+        return resid_post
+
+
+tests.rand_float_test(TransformerBlock, [2, 4, 768])
+tests.load_gpt2_test(TransformerBlock, reference_gpt2.blocks[0], cache["resid_pre", 0])
+
+# %%
+class Unembed(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        self.W_U = nn.Parameter(t.empty((cfg.d_model, cfg.d_vocab)))
+        nn.init.normal_(self.W_U, std=self.cfg.init_range)
+        self.b_U = nn.Parameter(t.zeros((cfg.d_vocab)), requires_grad=False)
+
+    def forward(
+        self, normalized_resid_final: Float[Tensor, "batch position d_model"]
+    ) -> Float[Tensor, "batch position d_vocab"]:
+        return einops.einsum(normalized_resid_final, self.W_U, "batch pos d_model, d_model d_vocab -> batch pos d_vocab") + self.b_U
+
+
+tests.test_unembed(Unembed)
+tests.rand_float_test(Unembed, [2, 4, 768])
+tests.load_gpt2_test(Unembed, reference_gpt2.unembed, cache["ln_final.hook_normalized"])
+
+# %%
+class DemoTransformer(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.embed = Embed(cfg)
+        self.pos_embed = PosEmbed(cfg)
+        self.blocks = nn.ModuleList([TransformerBlock(cfg) for _ in range(cfg.n_layers)])
+        self.ln_final = LayerNorm(cfg)
+        self.unembed = Unembed(cfg)
+
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_vocab"]:
+        embeddings = self.embed(tokens)
+        embeddings += self.pos_embed(tokens)
+        out = embeddings
+        for block in self.blocks:
+            out = block(out)
+        out = self.
+
+
+tests.rand_int_test(DemoTransformer, [2, 4])
+tests.load_gpt2_test(DemoTransformer, reference_gpt2, tokens)

@@ -197,21 +197,35 @@ class Attention(nn.Module):
         self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
 
     def forward(self, normalized_resid_pre: Float[Tensor, "batch posn d_model"], kv_cache: KeyValueCache | None = None) -> Float[Tensor, "batch posn d_model"]:
-        q = einops.einsum(self.W_Q, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_Q
-        k = einops.einsum(self.W_K, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_K
-        v = einops.einsum(self.W_V, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_V
+        if kv_cache is None:
+            q = einops.einsum(self.W_Q, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_Q
+            k = einops.einsum(self.W_K, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_K
+            v = einops.einsum(self.W_V, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head") + self.b_V
 
-        attn_scores = einops.einsum(q, k, "batch posn_q n_heads d_head, batch posn_k n_heads d_head -> batch n_heads posn_q posn_k")
-        scaled_attn_scores = attn_scores / t.sqrt(t.tensor([cfg.d_head], device=device)) 
-        masked_attn_scores = self.apply_causal_mask(scaled_attn_scores) # (batch, n_heads, posn_q, posn_k)
-        attn_probs = masked_attn_scores.softmax(dim=3)
+            attn_scores = einops.einsum(q, k, "batch posn_q n_heads d_head, batch posn_k n_heads d_head -> batch n_heads posn_q posn_k")
+            scaled_attn_scores = attn_scores / t.sqrt(t.tensor([cfg.d_head], device=device)) 
+            masked_attn_scores = self.apply_causal_mask(scaled_attn_scores) # (batch, n_heads, posn_q, posn_k)
+            attn_probs = masked_attn_scores.softmax(dim=3)
 
-        z = einops.einsum(attn_probs, v, "batch n_heads posn_q posn_k, batch posn_k n_heads d_head -> batch n_heads posn_q d_head") 
+            z = einops.einsum(attn_probs, v, "batch n_heads posn_q posn_k, batch posn_k n_heads d_head -> batch n_heads posn_q d_head") 
 
-        o = einops.einsum(self.W_O, z, "n_heads d_head d_model, batch n_heads posn d_head -> batch posn n_heads d_model")
-        o_summed = einops.reduce(o, "batch posn n_heads d_model -> batch posn d_model", reduction="sum")
-        result = o_summed + self.b_O
+            o = einops.einsum(self.W_O, z, "n_heads d_head d_model, batch n_heads posn d_head -> batch posn n_heads d_model")
+            o_summed = einops.reduce(o, "batch posn n_heads d_model -> batch posn d_model", reduction="sum")
+            result = o_summed + self.b_O
+            return result, kv_cache
+        else:
+            new_indexed_residual =  self.kv_cached_forward(normalized_resid_pre[:, -1:], kv_cache)
+
+    def kv_cached_forward(self, normalized_resid_pre: Float[Tensor, "batch posn=1 d_model"], kv_cache: KeyValueCache) -> Float[Tensor, "batch posn d_model"]:
+        new_k = einops.einsum(self.W_K, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head", posn=1) + self.b_K
+        new_v = einops.einsum(self.W_V, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head", posn=1) + self.b_V
+        new_q = einops.einsum(self.W_Q, normalized_resid_pre, "n_heads d_model d_head, batch posn d_model -> batch posn n_heads d_head", posn=1) + self.b_Q
+
+        old_k = kv_cache.q
+
+
         return result, kv_cache
+        
 
 
     def apply_causal_mask(

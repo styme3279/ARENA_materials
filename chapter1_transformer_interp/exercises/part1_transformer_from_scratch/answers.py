@@ -839,11 +839,19 @@ class TransformerSampler:
         """
         Samples from the most likely tokens which make up at least p cumulative probability.
         """
-        probs = logits.softmax(-1) 
+        probs = logits.softmax(-1)
+        print(probs)
         sorted_probs = probs.sort(descending=True)
-        cum_probs = t.cumsum(sorted_probs.values)
-        (cum_probs > top_p).all()
-        return top_k_logits.indices[sampled_index].item()
+        print(sorted_probs.values)
+        print(sorted_probs.indices)
+        cum_probs = t.cumsum(sorted_probs.values, dim=-1)
+        print(cum_probs)
+        cutoff_idx = (cum_probs > top_p).int().argmax(-1)
+        print(cutoff_idx)
+        print(sorted_probs.values[:cutoff_idx+1].softmax(-1))
+        sampled_index = t.distributions.categorical.Categorical(sorted_probs.values[:cutoff_idx+1].softmax(-1)).sample().item()
+        print(sampled_index)
+        return sorted_probs.indices[sampled_index].item()
 
     @t.inference_mode()
     def beam_search(
@@ -867,6 +875,7 @@ model.load_state_dict(reference_gpt2.state_dict(), strict=False)
 tokenizer = reference_gpt2.tokenizer
 sampler = TransformerSampler(model, tokenizer)
 
+# %%
 prompt = "Jingle bells, jingle bells, jingle all the way"
 print(f"Testing greedy decoding\nPrompt:   {prompt!r}")
 

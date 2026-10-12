@@ -703,23 +703,32 @@ class TransformerSampler:
             np.random.seed(seed)
 
         print(f"prompt: {prompt}")
-        tokens_prompt = t.tensor(self.tokenizer(prompt)['input_ids'], device=device)
+        tokenizer = self.tokenizer(prompt)['input_ids']
+        tokens_prompt = t.tensor(tokenizer, device=device)
         print(f"tokens_prompt: {tokens_prompt}")
         
-        for i in range(max_tokens_generated):
-            input_ids = t.arange(i)
-            # print(f"input_ids: {input_ids}")
-            logits = self.model(tokens_prompt.unsqueeze(dim=0))
-            # print(f"logits shape: {logits.shape}")
+        temp = kwargs.pop('temperature', 1.0)
+        print(f'temp: {temp}')
 
-            new_token = self.sample_next_token(input_ids, logits[0,-1])
-            # print(f"pre tokens prompt: {tokens_prompt.shape}")
+        for i in range(max_tokens_generated):
+            input_ids = t.arange(i+1)
+            print(f"input_ids: {input_ids}")
+            logits = self.model(tokens_prompt.unsqueeze(dim=0))
+            print(f"logits shape: {logits.shape}")
+
+            new_token = self.sample_next_token(input_ids, logits[0,-1], temperature=temp)
+            print(f"pre tokens prompt: {tokens_prompt.shape}")
+            print(f"new_token prompt: {new_token.shape}")
             tokens_prompt = t.concat([tokens_prompt, new_token])
+
+            # stop if EOT
+            if new_token == self.tokenizer.eos_token_id:
+                break
 
             # print(f"post tokens prompt: {tokens_prompt.shape}")
 
-        
-        
+        output = self.tokenizer.decode(tokens_prompt[1:])
+        return output
 
 
 
@@ -763,7 +772,6 @@ class TransformerSampler:
         Returns the most likely token (as an int).
         """
         print(f"greedy search input logits: {logits.shape}")
-        # print(f"greedy search input logits: {logits}")
         return t.argmax(logits)
 
     @staticmethod
@@ -788,6 +796,7 @@ class TransformerSampler:
         Samples from the distribution defined by the logits.
         """
         probs = t.softmax(logits, dim=-1)
+        print(f"basic sampling")
         return  t.multinomial(probs, num_samples=1)
         
 

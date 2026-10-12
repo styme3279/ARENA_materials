@@ -630,7 +630,8 @@ class TransformerSampler:
         """
         Applies a frequency penalty to the logits.
         """
-        print(input_ids)
+        counts = t.bincount(input_ids, minlength=len(logits))
+        return logits - freq_penalty * counts
 
     @staticmethod
     def sample_basic(logits: Float[Tensor, "d_vocab"]) -> int:
@@ -645,7 +646,14 @@ class TransformerSampler:
         """
         Samples from the top k most likely tokens.
         """
-        raise NotImplementedError()
+        topk_logits, topk_token_ids = t.topk(logits,k=k)
+        print('topk_logits - ', topk_logits)
+        print('token ids - ', topk_token_ids)
+        sampled_token_idx = t.distributions.categorical.Categorical(logits=topk_logits).sample()
+        print('sampled - ', sampled_token_idx)
+        output = topk_token_ids[sampled_token_idx].item()
+        print('output - ', output)
+        return output
 
     @staticmethod
     def sample_top_p(logits: Float[Tensor, "d_vocab"], top_p: float, min_tokens_to_keep: int = 1) -> int:
@@ -743,3 +751,34 @@ assert penalized_logits[5156].item() == -11, "Expected 6 occurrences of ' baby' 
 assert penalized_logits[14801].item() == -5, "Expected 3 occurrences of ' Baby' with leading space, 1-2*3=-5"
 
 print("Tests passed!")
+
+# %%
+tests.test_sample_top_k(TransformerSampler.sample_top_k)
+
+prompt = "John and Mary went to the"
+input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+logits = model(input_ids)[0, -1]
+
+expected_top_5 = {
+    " church": 0.0466,
+    " hospital": 0.0223,
+    " store": 0.0181,
+    " house": 0.0181,
+    " doctor": 0.0124,
+}
+topk_5_sum = sum(expected_top_5.values())
+
+observed_freqs = defaultdict(int)
+
+N = 10000
+for _ in tqdm(range(N)):
+    token = TransformerSampler.sample_next_token(input_ids.squeeze(), logits, top_k=5)
+    observed_freqs[tokenizer.decode(token)] += 1
+
+for word in expected_top_5:
+    expected_freq = expected_top_5[word] / topk_5_sum
+    observed_freq = observed_freqs[word] / N
+    print(f"Word: {word!r:<9}. Expected freq = {expected_freq:.4f}, observed freq = {observed_freq:.4f}")
+    assert abs(observed_freq - expected_freq) < 0.01
+
+# %%

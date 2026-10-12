@@ -1,5 +1,6 @@
 # %%
 import os
+import random
 import sys
 from pathlib import Path
 
@@ -752,15 +753,28 @@ class TransformerSampler:
         """
         Samples from the most likely tokens which make up at least p cumulative probability.
         """
-        sorted_logits = sorted(enumerate(logits.softmax(dim=0)), key=lambda x: x[1], reverse=True)
+        sorted_logits = [(token, prob.item()) for token, prob in sorted(enumerate(logits.softmax(dim=0)), key=lambda x: x[1], reverse=True)]
         
         valid_logit_idx = 1
-        total_prob = sorted_logits
+        total_prob = sorted_logits[0][1]
 
-        for token, prob in sorted_logits:
-            total_prob 
+        while total_prob < top_p and valid_logit_idx < len(sorted_logits):
+            total_prob += sorted_logits[valid_logit_idx][1]
+            valid_logit_idx += 1
 
         valid_logit_idx = max(valid_logit_idx, min_tokens_to_keep)
+
+        valid_logits = [(token, prob / total_prob) for token, prob in sorted_logits[:valid_logit_idx]]
+
+        random_number = np.random.random()
+        chosen_idx = 0
+        cumulative_prob = valid_logits[chosen_idx][1]
+
+        while random_number > cumulative_prob:
+            chosen_idx += 1
+            cumulative_prob += valid_logits[chosen_idx][1]
+
+        return valid_logits[chosen_idx][0]
 
     @t.inference_mode()
     def beam_search(
@@ -811,7 +825,7 @@ top_10pct_sum = sum(expected_top_10pct.values())
 
 observed_freqs = defaultdict(int)
 
-N = 10_000
+N = 100
 for _ in tqdm(range(N)):
     token = TransformerSampler.sample_next_token(input_ids.squeeze(), logits, top_p=0.1)
     observed_freqs[tokenizer.decode(token)] += 1

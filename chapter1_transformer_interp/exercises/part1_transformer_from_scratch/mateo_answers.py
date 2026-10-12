@@ -432,11 +432,16 @@ class TransformerTrainer:
         Evaluate the model on the test set and return the accuracy.
         """
         self.model.eval()
+        total_correct, total = 0, 0
         for i, batch in enumerate(self.test_loader):
             tokens = batch['tokens'].to(device)
             # [batch, pos, d_vocab]
-            logits = self.model(tokens)
-            
+            logits = self.model(tokens)[:, :-1]
+            preds = logits.argmax(dim=-1)
+            total_correct += (preds == tokens[:, 1:]).sum().item()
+            total += tokens.size(0) * (tokens.size(1) - 1)
+        accuracy = total_correct / total
+        wandb.log({"accuracy": accuracy}, step=self.step)
         self.model.train()
         return accuracy
 
@@ -470,3 +475,5 @@ model = DemoTransformer(model_cfg).to(device)
 args = TransformerTrainingArgs()
 trainer = TransformerTrainer(args, model)
 trainer.train()
+
+# %%

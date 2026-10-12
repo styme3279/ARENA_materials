@@ -52,7 +52,9 @@ class LayerNorm(nn.Module):
     def forward(self, residual: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
         mean = t.mean(residual, axis=-1)
         var  = t.var(residual, axis=-1, correction=0)
-        result = (residual - mean)/t.sqrt(var)
+        result = (residual - mean)/t.sqrt(var + epsilon)
+        result = result * self.w + self.b
+        return result
 
 
 tests.rand_float_test(LayerNorm, [2, 4, 768])

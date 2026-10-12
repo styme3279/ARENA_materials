@@ -551,7 +551,7 @@ class TransformerTrainer:
         sum_total = 0
         for i, batch in enumerate(self.test_loader):
             tokens = batch["tokens"].to(device)
-            logits = self.model(tokens) # (batch, posn, vocab)
+            logits = self.model(tokens)[:, :-1] # (batch, posn, vocab)
             preds = logits.argmax(dim=-1)
 
             num_preds = tokens.shape[0] * (tokens.shape[1] - 1)  
@@ -579,6 +579,7 @@ class TransformerTrainer:
         for epoch in range(self.args.epochs):
             for i, batch in enumerate(self.train_loader):
                 loss = self.training_step(batch)
+                wandb.log({"loss": loss}, step=self.step)
                 progress_bar.update()
                 progress_bar.set_description(f"Epoch {epoch + 1}, loss: {loss:.3f}, accuracy: {accuracy:.3f}")
                 if i >= self.args.max_steps_per_epoch:

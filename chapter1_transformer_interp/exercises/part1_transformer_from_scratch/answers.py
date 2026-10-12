@@ -422,8 +422,103 @@ class MLP(nn.Module):
         nn.init.normal_(self.W_out, std=self.cfg.init_range)
 
     def forward(self, normalized_resid_mid: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        
+        y = einops.einsum(normalized_resid_mid, self.W_in, "batch posn d_model, d_model d_mlp -> batch posn d_mlp") + self.b_in
+        y = gelu_new(y)
+        return einops.einsum(y, self.W_out, "batch posn d_mlp, d_mlp d_model -> batch posn d_model") + self.b_out
 
 
 tests.rand_float_test(MLP, [2, 4, 768])
 tests.load_gpt2_test(MLP, reference_gpt2.blocks[0].mlp, cache["normalized", 0, "ln2"])
+
+# %%
+class TransformerBlock(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.ln1 = LayerNorm(cfg)
+        self.attn = TheirAttention(cfg)
+        self.ln2 = LayerNorm(cfg)
+        self.mlp = MLP(cfg)
+
+    def forward(self, resid_pre: Float[Tensor, "batch position d_model"]) -> Float[Tensor, "batch position d_model"]:
+        residual = resid_pre
+        residual = residual + self.attn(self.ln1(residual))
+        residual = residual + self.mlp(self.ln2(residual))
+        return residual
+
+
+tests.rand_float_test(TransformerBlock, [2, 4, 768])
+tests.load_gpt2_test(TransformerBlock, reference_gpt2.blocks[0], cache["resid_pre", 0])
+
+# %%
+class Unembed(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        self.W_U = nn.Parameter(t.empty((cfg.d_model, cfg.d_vocab)))
+        nn.init.normal_(self.W_U, std=self.cfg.init_range)
+        self.b_U = nn.Parameter(t.zeros((cfg.d_vocab)), requires_grad=False)
+
+    def forward(
+        self, normalized_resid_final: Float[Tensor, "batch position d_model"]
+    ) -> Float[Tensor, "batch position d_vocab"]:
+        return einops.einsum(normalized_resid_final, self.W_U, "batch position d_model, d_model d_vocab -> batch position d_vocab") + self.b_U
+
+
+tests.test_unembed(Unembed)
+tests.rand_float_test(Unembed, [2, 4, 768])
+tests.load_gpt2_test(Unembed, reference_gpt2.unembed, cache["ln_final.hook_normalized"])
+
+# %%
+class DemoTransformer(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.embed = Embed(cfg)
+        self.pos_embed = PosEmbed(cfg)
+        self.blocks = nn.ModuleList([TransformerBlock(cfg) for _ in range(cfg.n_layers)])
+        self.ln_final = LayerNorm(cfg)
+        self.unembed = Unembed(cfg)
+
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_vocab"]:
+        embed = self.embed(tokens)
+        pos_embed = self.pos_embed(tokens)
+        residual = embed + pos_embed
+        for block in self.blocks:
+            residual = block(residual)
+        return self.unembed(self.ln_final(residual))
+
+tests.rand_int_test(DemoTransformer, [2, 4])
+tests.load_gpt2_test(DemoTransformer, reference_gpt2, tokens)
+
+# %%
+demo_gpt2 = DemoTransformer(Config(debug=False)).to(device)
+demo_gpt2.load_state_dict(reference_gpt2.state_dict(), strict=False)
+
+demo_logits = demo_gpt2(tokens)
+# %%
+def get_log_probs(
+    logits: Float[Tensor, "batch posn d_vocab"], tokens: Int[Tensor, "batch posn"]
+) -> Float[Tensor, "batch posn-1"]:
+    log_probs = logits.log_softmax(dim=-1)
+    # Get logprobs for the first seq_len-1 predictions (so we can compare them with the actual next tokens)
+    log_probs_for_tokens = log_probs[:, :-1].gather(dim=-1, index=tokens[:, 1:].unsqueeze(-1)).squeeze(-1)
+
+    return log_probs_for_tokens
+
+
+pred_log_probs = get_log_probs(demo_logits, tokens)
+print(f"Avg cross entropy loss: {-pred_log_probs.mean():.4f}")
+print(f"Avg cross entropy loss for uniform distribution: {math.log(demo_gpt2.cfg.d_vocab):4f}")
+print(f"Avg probability assigned to correct token: {pred_log_probs.exp().mean():4f}")
+
+# %%
+test_string = """Mitigating the risk of extinction from AI should be a global priority alongside other societal-scale risks such as"""
+for i in tqdm(range(200)):
+    test_tokens = reference_gpt2.to_tokens(test_string).to(device)
+    demo_logits = demo_gpt2(test_tokens)
+    test_string += reference_gpt2.tokenizer.decode(demo_logits[-1, -1].argmax())
+
+print(test_string)
+
+# %%

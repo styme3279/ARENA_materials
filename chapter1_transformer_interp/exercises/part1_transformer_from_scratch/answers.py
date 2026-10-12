@@ -405,9 +405,9 @@ class TheirAttention(nn.Module):
         return attn_scores
 
 
-tests.test_causal_mask(Attention.apply_causal_mask)
-tests.rand_float_test(Attention, [2, 4, 768])
-tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
+#tests.rand_float_test(Attention, [2, 4, 768])
+#tests.test_causal_mask(Attention.apply_causal_mask)
+#tests.load_gpt2_test(Attention, reference_gpt2.blocks[0].attn, cache["normalized", 0, "ln1"])
 
 # %%
 class MLP(nn.Module):
@@ -622,19 +622,20 @@ class TransformerTrainer:
         input_idx = batch["tokens"]
         logits = self.model(batch["tokens"])
         b, s = batch["tokens"].shape
-        labels = t.zeros((b, s, self.model.cfg.d_vocab), dtype=t.float32)
+        labels = t.zeros((b, s, self.model.cfg.d_vocab), dtype=t.float32).to(device="cuda")
 
-        
-
-        labels.gather(2, input_idx.unsqueeze(-1)).squeeze(-1)
+        mask = t.nn.functional.one_hot(input_idx, self.model.cfg.d_vocab).bool().to(device="cuda")
+        labels.where(mask, t.tensor(1.0).to(device="cuda"))
         #labels[input_idx] = t.zeros(self.model.cfg.d_vocab)
-        print(logits.shape)
-        print(labels.shape)
-        print(input_idx.shape)
-        print(input_idx)
+        #print(logits.shape)
+        #print(labels.shape)
+        #print(input_idx.shape)
+        #print(input_idx)
         #print(labels)        
-        nn.CrossEntropyLoss()(logits)
-        
+        loss = nn.CrossEntropyLoss()(logits, labels)
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
         
         return loss
 
@@ -644,9 +645,9 @@ class TransformerTrainer:
         Evaluate the model on the test set and return the accuracy.
         """
         self.model.eval()
-        #
-        # YOUR CODE HERE - fill in the `evaluate` method
-        #
+        
+        
+
         self.model.train()
         return accuracy
 

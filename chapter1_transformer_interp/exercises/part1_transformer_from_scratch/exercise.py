@@ -554,7 +554,7 @@ class TransformerTrainer:
             logits = self.model(tokens) # (batch, posn, vocab)
             preds = logits.argmax(dim=-1)
 
-            num_preds = tokens.shape[0] * tokens.shape[1] - 1)  
+            num_preds = tokens.shape[0] * (tokens.shape[1] - 1)  
             correct = (preds == tokens[:, 1:]).sum().item()
             sum_correct += correct
             sum_total += num_preds

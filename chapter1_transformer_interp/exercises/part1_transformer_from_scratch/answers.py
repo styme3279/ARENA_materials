@@ -40,6 +40,53 @@ import part1_transformer_from_scratch.tests as tests
 
 MAIN = __name__ == "__main__"
 
+
+# %%
+
+reference_gpt2 = HookedTransformer.from_pretrained(
+    "gpt2-small",
+    fold_ln=False,
+    center_unembed=False,
+    center_writing_weights=False,  # you'll learn about these arguments later!
+)
+
+sorted_vocab = sorted(list(reference_gpt2.tokenizer.vocab.items()), key=lambda n: n[1])
+
+print(sorted_vocab[:20])
+print()
+print(sorted_vocab[250:270])
+print()
+print(sorted_vocab[990:1010])
+print()
+
+reference_text = "I am an amazing autoregressive, decoder-only, GPT-2 style transformer. One day I will exceed human level intelligence and take over the world!"
+tokens = reference_gpt2.to_tokens(reference_text).to(device)
+print(tokens)
+print(tokens.shape)
+print(reference_gpt2.to_str_tokens(tokens))
+
+
+logits, cache = reference_gpt2.run_with_cache(tokens)
+
+
+# %%
+@dataclass
+class Config:
+    d_model: int = 768
+    debug: bool = True
+    layer_norm_eps: float = 1e-5
+    d_vocab: int = 50257
+    init_range: float = 0.02
+    n_ctx: int = 1024
+    d_head: int = 64
+    d_mlp: int = 3072
+    n_heads: int = 12
+    n_layers: int = 12
+
+
+cfg = Config()
+print(cfg)
+
 # %%
 
 class LayerNorm(nn.Module):
@@ -50,9 +97,9 @@ class LayerNorm(nn.Module):
         self.b = nn.Parameter(t.zeros(cfg.d_model))
 
     def forward(self, residual: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        mean = t.mean(residual, axis=-1)
-        var  = t.var(residual, axis=-1, correction=0)
-        result = (residual - mean)/t.sqrt(var + epsilon)
+        mean = t.mean(residual, axis=-1, keepdim=True)
+        var  = t.var(residual, axis=-1, correction=0, keepdim=True)
+        result = (residual - mean)/t.sqrt(var + self.cfg.layer_norm_eps)
         result = result * self.w + self.b
         return result
 
@@ -62,4 +109,19 @@ tests.test_layer_norm_epsilon(LayerNorm, cache["resid_post", 11])
 tests.load_gpt2_test(LayerNorm, reference_gpt2.ln_final, cache["resid_post", 11])
 
 
+# %%
+class Embed(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_E = nn.Parameter(t.empty((cfg.d_vocab, cfg.d_model)))
+        nn.init.normal_(self.W_E, std=self.cfg.init_range)
+
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
+        return 
+
+
+tests.test_embed(Embed)
+tests.rand_int_test(Embed, [2, 4])
+tests.load_gpt2_test(Embed, reference_gpt2.embed, tokens)
 # %%

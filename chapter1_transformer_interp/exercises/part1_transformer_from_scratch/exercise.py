@@ -156,10 +156,10 @@ class LayerNorm(nn.Module):
         self.b = nn.Parameter(t.zeros(cfg.d_model))
 
     def forward(self, residual: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        mean = residual.mean(dim=2) # (batch, posn)
-        var = residual.var(dim=2)
+        mean = residual.mean(dim=2, keepdim=True) # (batch, posn)
+        var = residual.var(dim=2, keepdim=True, correction=0)
         out1 = residual - mean
-        out2 = out1 / t.sqrt(var + self.cfg["layer_norm_eps"]) # (batch, postn, d_model)
+        out2 = out1 / t.sqrt(var + self.cfg.layer_norm_eps) # (batch, postn, d_model)
         out3 = out2 * self.w  + self.b
         return out3
 
@@ -170,3 +170,59 @@ tests.test_layer_norm_epsilon(LayerNorm, cache["resid_post", 11])
 tests.load_gpt2_test(LayerNorm, reference_gpt2.ln_final, cache["resid_post", 11])
 
 # %%
+class Embed(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_E = nn.Parameter(t.empty((cfg.d_vocab, cfg.d_model)))
+        nn.init.normal_(self.W_E, std=self.cfg.init_range)
+
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
+        return self.W_E[tokens]
+
+
+tests.test_embed(Embed)
+tests.rand_int_test(Embed, [2, 4])
+tests.load_gpt2_test(Embed, reference_gpt2.embed, tokens)
+
+
+# %%
+class PosEmbed(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_pos = nn.Parameter(t.empty((cfg.n_ctx, cfg.d_model)))
+        nn.init.normal_(self.W_pos, std=self.cfg.init_range)
+
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
+        batch, seq_len = tokens.shape
+        indices = t.arange(0, seq_len)
+        indices = einops.repeat(indices, "position -> batch position", batch=batch)
+        return self.W_pos[indices]
+
+
+tests.test_pos_embed(PosEmbed)
+tests.rand_int_test(PosEmbed, [2, 4])
+tests.load_gpt2_test(PosEmbed, reference_gpt2.pos_embed, tokens)
+
+# %%
+class Attention(nn.Module):
+    IGNORE: Float[Tensor, ""]
+
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.register_buffer("IGNORE", t.tensor(float("-inf"), dtype=t.float32, device=device))
+
+    def apply_causal_mask(
+        self,
+        attn_scores: Float[Tensor, "batch n_heads query_pos key_pos"],
+    ) -> Float[Tensor, "batch n_heads query_pos key_pos"]:
+        """
+        Applies a causal mask to attention scores, and returns masked scores.
+        """
+        raise NotImplementedError()
+
+
+tests.test_causal_mask(Attention.apply_causal_mask)
+

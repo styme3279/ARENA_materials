@@ -208,12 +208,31 @@ class Attention(nn.Module):
         print(3)
 
         # scale and mask attn scores
-        attn_scores attn_scores/t.sqrt(self.cfg.)
+        attn_scores = attn_scores/np.sqrt(self.cfg.d_head)
+        attn_scores = self.apply_causal_mask(attn_scores)
 
         # softmax along key_pos dim
-        # get values
+        attn_scores = t.softmax(attn_scores, dim=-1)
+        print(4)
+        # print(attn_scores)
+
         # get weighted average of value vectors
+        z = einops.einsum(attn_scores, V, "b n s_q s_k, b s_k n h -> b s_q n h")
+        print(z.shape)
+        print(5)
+
         # map to output space
+        res = einops.einsum(self.W_O, z, "n h e, b s_q n h -> b s_q n e")
+        print(res.shape)
+        print(6)
+
+        # sum over heads and add b_O
+        res = einops.reduce(res, "b s_q n e -> b s_q e", "sum") + self.b_O
+        print(res.shape)
+        print(7)
+
+        return res
+
 
 
         

@@ -499,10 +499,10 @@ class TransformerSampler:
             np.random.seed(seed)
         tokens_generated = 0
         tokens = self.tokenizer(prompt)['input_ids']
-        while tokens[-1] != self.tokenizer.eos_token_id and tokens_generated <= max_tokens_generated:
+        while tokens[-1] != self.tokenizer.eos_token_id and tokens_generated < max_tokens_generated:
             tokens_tensor = t.tensor([tokens], device=device)
-            logits = self.model(tokens_tensor)
-            next_token = self.sample_next_token(tokens, logits)
+            logits = self.model(tokens_tensor)[0, -1]
+            next_token = self.sample_next_token(tokens_tensor[0], logits, **kwargs)
             tokens.append(next_token)
             tokens_generated += 1
         return tokenizer.decode(tokens)
@@ -558,7 +558,9 @@ class TransformerSampler:
         """
         Applies a frequency penalty to the logits.
         """
-        frequencies = t.bincount
+        frequencies = t.bincount(input_ids, minlength=len(logits))
+        freq_penalties = frequencies * freq_penalty
+        return logits - freq_penalties
 
     @staticmethod
     def sample_basic(logits: Float[Tensor, "d_vocab"]) -> int:
@@ -672,3 +674,28 @@ assert penalized_logits[5156].item() == -11, "Expected 6 occurrences of ' baby' 
 assert penalized_logits[14801].item() == -5, "Expected 3 occurrences of ' Baby' with leading space, 1-2*3=-5"
 
 print("Tests passed!")
+
+# %%
+sampler = TransformerSampler(model, tokenizer)
+
+N_RUNS = 1
+your_prompt = "Jingle bells, jingle bells, jingle all the way"
+cases = [
+    ("High freq penalty", dict(frequency_penalty=100.0)),
+    ("Negative freq penalty", dict(frequency_penalty=-3.0)),
+    ("Too hot!", dict(temperature=2.0)),
+    ("Pleasantly cool", dict(temperature=0.7)),
+    ("Pleasantly warm", dict(temperature=0.9)),
+    ("Too cold!", dict(temperature=0.01)),
+]
+
+table = Table("Name", "Kwargs", "Output", title="Sampling - Manual Testing")
+
+for name, kwargs in cases:
+    for i in range(N_RUNS):
+        output = sampler.sample(your_prompt, max_tokens_generated=24, **kwargs)
+        table.add_row(name, str(kwargs), repr(output) + "\n")
+
+rprint(table)
+
+# %%

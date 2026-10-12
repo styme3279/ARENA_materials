@@ -830,7 +830,8 @@ class TransformerSampler:
         """
         Samples from the top k most likely tokens.
         """
-        raise NotImplementedError()
+        top_k_logits = logits.topk(k=k).values
+        return t.distributions.categorical.Categorical(top_k_logits.softmax(-1)).sample().item()
 
     @staticmethod
     def sample_top_p(logits: Float[Tensor, "d_vocab"], top_p: float, min_tokens_to_keep: int = 1) -> int:
@@ -951,5 +952,34 @@ for name, kwargs in cases:
         table.add_row(name, str(kwargs), repr(output) + "\n")
 
 rprint(table)
+
+# %%
+tests.test_sample_top_k(TransformerSampler.sample_top_k)
+
+prompt = "John and Mary went to the"
+input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+logits = model(input_ids)[0, -1]
+
+expected_top_5 = {
+    " church": 0.0466,
+    " hospital": 0.0223,
+    " store": 0.0181,
+    " house": 0.0181,
+    " doctor": 0.0124,
+}
+topk_5_sum = sum(expected_top_5.values())
+
+observed_freqs = defaultdict(int)
+
+N = 10000
+for _ in tqdm(range(N)):
+    token = TransformerSampler.sample_next_token(input_ids.squeeze(), logits, top_k=5)
+    observed_freqs[tokenizer.decode(token)] += 1
+
+for word in expected_top_5:
+    expected_freq = expected_top_5[word] / topk_5_sum
+    observed_freq = observed_freqs[word] / N
+    print(f"Word: {word!r:<9}. Expected freq = {expected_freq:.4f}, observed freq = {observed_freq:.4f}")
+    assert abs(observed_freq - expected_freq) < 0.01
 
 # %%

@@ -731,6 +731,7 @@ def top_1_acc(full_OV_circuit: FactoredMatrix, batch_size: int = 1000) -> float:
     """
     Return the fraction of the time that the maximum value is on the circuit diagonal.
     """
+    total = 0
     for indices in t.split(t.arange(full_OV_circuit.shape[0], device=device), batch_size):
         AB_slice = full_OV_circuit[indices].AB
         total += (t.argmax(AB_slice, dim=1) == indices).float().sum().item()
@@ -741,3 +742,111 @@ def top_1_acc(full_OV_circuit: FactoredMatrix, batch_size: int = 1000) -> float:
 print(f"Fraction of time that the best logit is on diagonal: {top_1_acc(full_OV_circuit):.4f}")
 
 # %%
+
+W_E = model.W_E
+W_U = model.W_U
+W_V_14 = model.W_V[1,4]
+W_O_14 = model.W_O[1,4]
+
+W_V_110 = model.W_V[1,10]
+W_O_110 = model.W_O[1,10]
+
+OV_both = FactoredMatrix(t.concat((W_V_14, W_V_110), dim=1), t.concat((W_O_14, W_O_110), dim=0))
+
+full_OV_circuit = W_E @ OV_both @ W_U
+print(f"Fraction of time that the best logit is on diagonal: {top_1_acc(full_OV_circuit):.4f}")
+
+
+# %%
+layer = 0
+head_index = 7
+
+# Compute full QK matrix (for positional embeddings)
+W_pos = model.W_pos
+W_QK = model.W_Q[layer, head_index] @ model.W_K[layer, head_index].T
+pos_by_pos_scores = W_pos @ W_QK @ W_pos.T
+
+# Mask, scale and softmax the scores
+mask = t.tril(t.ones_like(pos_by_pos_scores)).bool()
+pos_by_pos_pattern = t.where(mask, pos_by_pos_scores / model.cfg.d_head**0.5, -1.0e6).softmax(-1)
+
+# Plot the results
+print(f"Avg lower-diagonal value: {pos_by_pos_pattern.diag(-1).mean():.4f}")
+imshow(
+    utils.to_numpy(pos_by_pos_pattern[:200, :200]),
+    labels={"x": "Key", "y": "Query"},
+    title="Attention patterns for prev-token QK circuit, first 100 indices",
+    width=700,
+    height=600,
+)
+
+# %%
+def decompose_qk_input(cache: ActivationCache) -> Float[Tensor, "n_heads+2 posn d_model"]:
+    """
+    Retrieves all the input tensors to the first attention layer, and concatenates them along the
+    0th dim.
+
+    The [i, :, :]th element is y_i (from notation above). The sum of these tensors along the 0th
+    dim should be the input to the first attention layer.
+    """
+    raise NotImplementedError()
+
+
+def decompose_q(
+    decomposed_qk_input: Float[Tensor, "n_heads+2 posn d_model"],
+    ind_head_index: int,
+    model: HookedTransformer,
+) -> Float[Tensor, "n_heads+2 posn d_head"]:
+    """
+    Computes the tensor of query vectors for each decomposed QK input.
+
+    The [i, :, :]th element is y_i @ W_Q (so the sum along axis 0 is just the q-values).
+    """
+    raise NotImplementedError()
+
+
+def decompose_k(
+    decomposed_qk_input: Float[Tensor, "n_heads+2 posn d_model"],
+    ind_head_index: int,
+    model: HookedTransformer,
+) -> Float[Tensor, "n_heads+2 posn d_head"]:
+    """
+    Computes the tensor of key vectors for each decomposed QK input.
+
+    The [i, :, :]th element is y_i @ W_K (so the sum along axis 0 is just the k-values)
+    """
+    raise NotImplementedError()
+
+
+# Recompute rep tokens/logits/cache, if we haven't already
+seq_len = 50
+batch_size = 1
+(rep_tokens, rep_logits, rep_cache) = run_and_cache_model_repeated_tokens(model, seq_len, batch_size)
+rep_cache.remove_batch_dim()
+
+ind_head_index = 4
+
+# First we get decomposed q and k input, and check they're what we expect
+decomposed_qk_input = decompose_qk_input(rep_cache)
+decomposed_q = decompose_q(decomposed_qk_input, ind_head_index, model)
+decomposed_k = decompose_k(decomposed_qk_input, ind_head_index, model)
+t.testing.assert_close(
+    decomposed_qk_input.sum(0),
+    rep_cache["resid_pre", 1] + rep_cache["pos_embed"],
+    rtol=0.01,
+    atol=1e-05,
+)
+t.testing.assert_close(decomposed_q.sum(0), rep_cache["q", 1][:, ind_head_index], rtol=0.01, atol=0.001)
+t.testing.assert_close(decomposed_k.sum(0), rep_cache["k", 1][:, ind_head_index], rtol=0.01, atol=0.01)
+
+# Second, we plot our results
+component_labels = ["Embed", "PosEmbed"] + [f"0.{h}" for h in range(model.cfg.n_heads)]
+for decomposed_input, name in [(decomposed_q, "query"), (decomposed_k, "key")]:
+    imshow(
+        utils.to_numpy(decomposed_input.pow(2).sum([-1])),
+        labels={"x": "Position", "y": "Component"},
+        title=f"Norms of components of {name}",
+        y=component_labels,
+        width=800,
+        height=400,
+    )

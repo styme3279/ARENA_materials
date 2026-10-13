@@ -253,9 +253,9 @@ display(
     )
 )
 
-attention_pattern = model["pattern", 1]
+attention_pattern = cache["pattern", 1]
 print(attention_pattern.shape)
-hooked_transformer_str_tokens = gpt2_small.to_str_tokens(gpt2_text)
+hooked_transformer_str_tokens = model.to_str_tokens(text)
 
 
 print("Layer 1 Head Attention Patterns:")

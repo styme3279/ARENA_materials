@@ -132,15 +132,17 @@ t.testing.assert_close(attn_patterns_from_shorthand, attn_patterns_from_full_nam
 # %%
 layer0_pattern_from_cache = gpt2_cache["pattern", 0]
 
-print(layer0_pattern_from_cache)
-print(layer0_pattern_from_cache.shape)
+multiplied_attention = einops.einsum(gpt2_cache["blocks.0.attn.hook_q"], gpt2_cache["blocks.0.attn.hook_k"], "seq_q n_heads d_head, seq_k n_heads d_head -> n_heads seq_q seq_k") / (gpt2_cache["blocks.0.attn.hook_q"].shape[-1])**(.5)
 
-print(gpt2_cache["blocks.0.attn.hook_q"])
-print(gpt2_cache["blocks.0.attn.hook_q"].shape)
-print(gpt2_cache["blocks.0.attn.hook_k"])
-print(gpt2_cache["blocks.0.attn.hook_k"].shape)
+tril_attention = t.tril(multiplied_attention)
+masked_attention = t.where(tril_attention == 0, float("-inf"), tril_attention)
 
-layer0_pattern_from_q_and_k = None
+print(masked_attention.shape)
+
+print(masked_attention.softmax(dim=1))
+print(masked_attention.softmax(dim=2))
+
+layer0_pattern_from_q_and_k = masked_attention.softmax(dim=2)
 
 t.testing.assert_close(layer0_pattern_from_cache, layer0_pattern_from_q_and_k)
 print("Tests passed!")

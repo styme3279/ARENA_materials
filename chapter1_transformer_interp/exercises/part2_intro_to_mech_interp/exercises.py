@@ -487,11 +487,19 @@ def logit_attribution(
     """
     W_U_correct_tokens = W_U[:, tokens[1:]] # (d_model, seq_len-1)
 
-    embed = [:-1, :]
+    embed_inputs = embed[:-1, :]
+    embed_contribution = einops.einsum(embed_inputs, W_U_correct_tokens, "new_seq d_model, d_model new_seq -> new_seq") # new_seq = seq - 1
+    embed_contribution = embed_contribution.unsqueeze(-1)
 
-    embed_contribution = einops.einsum(embed, W_U_correct_tokens, "seq d_model, d_model")
+    l1_inputs = l1_results[:-1, :, :]
+    l1_contribution = einops.einsum(l1_inputs, W_U_correct_tokens, "new_seq n_heads d_model, d_model new_seq -> new_seq n_heads")
 
-    raise NotImplementedError()
+    l2_inputs = l2_results[:-1, :, :]
+    l2_contribution = einops.einsum(l2_inputs, W_U_correct_tokens, "new_seq n_heads d_model, d_model new_seq -> new_seq n_heads")
+
+    result = t.concat([embed_contribution, l1_contribution, l2_contribution], dim=-1)
+
+    return result
 
 
 text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
@@ -510,4 +518,5 @@ with t.inference_mode():
     print("Tests passed!")
 
 
-Please scan the QR CODE
+
+# %%

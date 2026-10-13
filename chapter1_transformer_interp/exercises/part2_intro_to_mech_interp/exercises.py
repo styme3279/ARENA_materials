@@ -186,7 +186,7 @@ logits, cache = model.run_with_cache(text, remove_batch_dim=True)
 
 # %%
 # YOUR CODE HERE - visualize attention
-attention_pattern = cache["pattern", 0]
+attention_pattern = cache["pattern", 1]
 str_tokens = model.to_str_tokens(text)
 
 print("Layer 0 Head Attention Patterns:")
@@ -232,8 +232,10 @@ def prev_attn_detector(cache: ActivationCache) -> list[str]:
     """
 
     t.set_printoptions(precision=2, sci_mode=False)
-    thr_per_key = 0. 
-    num_diags = 3
+    thr_per_key = 0.6
+    thr_total = 0.6
+    num_diags = 5
+    res = []
     for layer in range(cfg.n_layers):
         attn_patterns = cache['pattern', layer]
         for head in range(cfg.n_heads):
@@ -241,14 +243,13 @@ def prev_attn_detector(cache: ActivationCache) -> list[str]:
 
             a = t.zeros(head_pattern.shape).to(device)
             for j in range(num_diags):
-            # zeros = t.zeros(head_pattern)
                 a += t.diag(t.diagonal(head_pattern, offset=-j), diagonal=-j)
 
-            a.sum(dim=-1) > 
-            if layer == 0 and head == 9:
-                print(head_pattern)
-                print(a)
+            detection = (a.sum(dim=-1) > thr_per_key).to(t.float32).mean() > thr_total
+            if detection:
+                res.append(f"{layer}.{head}")
 
+    return res
 
 
 
@@ -257,7 +258,22 @@ def first_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be first-token heads
     """
-    raise NotImplementedError()
+    thr_per_key = 0.6
+    thr_total = 0.6
+    res = []
+    for layer in range(cfg.n_layers):
+        attn_patterns = cache['pattern', layer]
+        for head in range(cfg.n_heads):
+            head_pattern = attn_patterns[head]
+
+            attn_to_first_key = head_pattern[:, 0]
+
+            detection = (attn_to_first_key > thr_per_key).to(t.float32).mean() > thr_total
+            if detection:
+                res.append(f"{layer}.{head}")
+
+    return res
+    
 
 
 print("Heads attending to current token  = ", ", ".join(current_attn_detector(cache)))

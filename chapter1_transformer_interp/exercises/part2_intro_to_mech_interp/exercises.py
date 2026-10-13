@@ -539,7 +539,8 @@ def head_zero_ablation_hook(
     hook: HookPoint,
     head_index_to_ablate: int,
 ) -> None:
-    raise NotImplementedError()
+    z[:, :, head_index_to_ablate, :] = 0
+    
 
 
 def get_ablation_scores(
@@ -562,14 +563,47 @@ def get_ablation_scores(
 
     for layer in tqdm(range(model.cfg.n_layers)):
         for head in range(model.cfg.n_heads):
-            model.run_with_hooks(
+            head_zero_ablation_hook_partial = functools.partial(head_zero_ablation_hook, head_index_to_ablate=head)
+            logits_with_abl = model.run_with_hooks(
                 tokens,
-                return_type='loss',  # For efficiency, we don't need to calculate the logits
-                fwd_hooks=[(pattern_hook_names_filter, visualize_pattern_hook)],
+                return_type="logits",  # For efficiency, we don't need to calculate the logits
+                fwd_hooks=[(utils.get_act_name("z", layer), head_zero_ablation_hook_partial)],
             )
+            loss_with_abl = -get_log_probs(logits_with_abl, tokens)[:, -(seq_len - 1) :].mean()
+            ablation_scores[layer, head] = loss_with_abl - loss_no_ablation
 
     return ablation_scores
 
 
 ablation_scores = get_ablation_scores(model, rep_tokens)
 tests.test_get_ablation_scores(ablation_scores, model, rep_tokens)
+
+# %%
+
+imshow(
+    ablation_scores,
+    labels={"x": "Head", "y": "Layer", "color": "Loss diff"},
+    title="Loss Difference After Ablating Heads",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+
+# %%
+
+print(type(cache))
+attention_pattern = cache["pattern", 0]
+print(attention_pattern.shape)
+str_tokens = model.to_str_tokens(text)
+
+print("Layer 0 Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=str_tokens,
+        attention=attention_pattern,
+        attention_head_names=[f"L0H{i}" for i in range(12)],
+    )
+)
+
+# %%
+# %%

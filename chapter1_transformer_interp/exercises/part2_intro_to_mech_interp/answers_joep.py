@@ -539,7 +539,7 @@ def logit_attribution(
     return t.concat([direct.unsqueeze(-1), l1_attributions, l2_attributions], dim=-1)
 
 
-text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this. 23@#8204$'/#84219IKmns8#8(3,>3i6H-) "
+text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
 
 logits, cache = model.run_with_cache(text, remove_batch_dim=True)
 str_tokens = model.to_str_tokens(text)
@@ -561,5 +561,70 @@ l2_results = cache["result", 1]
 logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, tokens.squeeze())
 
 plot_logit_attribution(model, logit_attr, tokens, title="Logit attribution (demo prompt)")
+
+# %%
+# YOUR CODE HERE - plot logit attribution for the induction sequence (i.e. using `rep_tokens` and
+# `rep_cache`), and interpret the results.
+
+seq_len = 50
+
+embed = rep_cache["embed"]
+l1_results = rep_cache["result", 0]
+l2_results = rep_cache["result", 1]
+
+logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, rep_tokens.squeeze())
+plot_logit_attribution(model, logit_attr, rep_tokens.squeeze(), title="Logit attribution (random induction prompt)")
+
+
+# %%
+def head_zero_ablation_hook(
+    z: Float[Tensor, "batch seq n_heads d_head"],
+    hook: HookPoint,
+    head_index_to_ablate: int,
+) -> None:
+
+    # layer = hook.layer()
+    z[:,:,head_index_to_ablate,:] = 0
+    
+    return
+
+
+def get_ablation_scores(
+    model: HookedTransformer,
+    tokens: Int[Tensor, "batch seq"],
+    ablation_function: Callable = head_zero_ablation_hook,
+) -> Float[Tensor, "n_layers n_heads"]:
+    """
+    Returns a tensor of shape (n_layers, n_heads) containing the increase in cross entropy loss
+    from ablating the output of each head.
+    """
+    # Initialize an object to store the ablation scores
+    ablation_scores = t.zeros((model.cfg.n_layers, model.cfg.n_heads), device=model.cfg.device)
+
+    # Calculating loss without any ablation, to act as a baseline
+    model.reset_hooks()
+    seq_len = (tokens.shape[1] - 1) // 2
+    logits = model(tokens, return_type="logits")
+    loss_no_ablation = -get_log_probs(logits, tokens)[:, -(seq_len - 1) :].mean()
+
+    for layer in tqdm(range(model.cfg.n_layers)):
+        for head in range(model.cfg.n_heads):
+            
+            gpt2_small.run_with_hooks(
+                rep_tokens_10,
+                return_type=None,  # For efficiency, we don't need to calculate the logits
+                fwd_hooks=fwd_hooks,
+            )
+            
+
+
+            head_zero_ablation_hook()
+            raise NotImplementedError()
+
+    return ablation_scores
+
+
+ablation_scores = get_ablation_scores(model, rep_tokens)
+tests.test_get_ablation_scores(ablation_scores, model, rep_tokens)
 
 # %%

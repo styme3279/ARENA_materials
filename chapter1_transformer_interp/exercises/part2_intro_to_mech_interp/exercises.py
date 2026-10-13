@@ -366,3 +366,55 @@ display(
 
 
 # %%
+def induction_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be induction heads
+
+    Remember - the tokens used to generate rep_cache are (bos_token, *rand_tokens, *rand_tokens)
+    """
+    res = []
+    thr_per_head = 0.1
+    thr_total = 0.1
+    for layer in range(cfg.n_layers):
+        attn_patterns = cache['pattern', layer]
+        for head in range(cfg.n_heads):
+            head_pattern = attn_patterns[head]
+            # print(head_pattern.shape)
+            # if layer == 0 and head == 9:
+                # print(head_pattern[10])
+                # print(head_pattern[20])
+                # print(head_pattern[30])
+            distr = (t.diagonal(head_pattern, offset=-seq_len+1) > thr_per_head).to(t.float32)
+            if layer==1 and head==4:
+                print(head_pattern)
+                print(t.diagonal(head_pattern, offset=-seq_len+2))
+            detection = distr.mean() > thr_total
+            if detection:
+                res.append(f"{layer}.{head}")
+
+    return res
+
+print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))
+
+
+
+# def first_attn_detector(cache: ActivationCache) -> list[str]:
+#     """
+#     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be first-token heads
+#     """
+#     thr_per_key = 0.6
+#     thr_total = 0.6
+#     res = []
+#     for layer in range(cfg.n_layers):
+#         attn_patterns = cache['pattern', layer]
+#         for head in range(cfg.n_heads):
+#             head_pattern = attn_patterns[head]
+
+#             attn_to_first_key = head_pattern[:, 0]
+
+#             detection = (attn_to_first_key > thr_per_key).to(t.float32).mean() > thr_total
+#             if detection:
+#                 res.append(f"{layer}.{head}")
+
+#     return res
+# %%

@@ -374,5 +374,13 @@ print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
 
 plot_loss_difference(log_probs, rep_str, seq_len)
 
+display(
+    cv.attention.attention_patterns(
+            tokens=rep_str,
+            attention=rep_cache["pattern", 1],
+            attention_head_names=[f"L1H{i}" for i in range(12)],
+        )
+)
+
 
 # %%

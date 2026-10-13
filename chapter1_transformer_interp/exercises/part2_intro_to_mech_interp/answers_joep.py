@@ -663,5 +663,33 @@ mean_ablation_scores = get_ablation_scores(model, rep_tokens_batch, ablation_fun
 
 # %%
 
+def FactoredMatrix(
+        A: Float[Tensor, "m n"],
+        B: Float[Tensor, "n m"]
+    ):
 
+    trace_factored = einops.einsum(A, B, "m n, n m -> ")
+
+    BA = B @ A
+    print(f"BA.shape: {BA.shape}")
+    eigenvalues = BA.eig()
+    print(f"eigenvalues: {eigenvalues}")
+
+    # A = 
+
+
+
+A = t.randn(5, 2)
+B = t.randn(2, 5)
+AB = A @ B
+AB_factor = FactoredMatrix(A, B)
+print("Norms:")
+print(AB.norm())
+print(AB_factor.norm())
+
+print(f"Right dim: {AB_factor.rdim}, Left dim: {AB_factor.ldim}, Hidden dim: {AB_factor.mdim}")
+
+
+
+# %%
 

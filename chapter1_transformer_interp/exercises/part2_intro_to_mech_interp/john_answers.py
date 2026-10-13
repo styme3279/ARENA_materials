@@ -107,3 +107,27 @@ For this demo notebook we'll look at GPT-2 Small, an 80M parameter model. To try
 loss = gpt2_small(model_description_text, return_type="loss")
 print("Model loss:", loss)
 
+# %%
+print(gpt2_small.to_str_tokens("gpt2"))
+print(gpt2_small.to_str_tokens(["gpt2", "gpt2"]))
+print(gpt2_small.to_tokens("gpt2"))
+print(gpt2_small.to_string([50256, 70, 457, 17]))
+
+# %%
+logits: Tensor = gpt2_small(model_description_text, return_type="logits")
+prediction = logits.argmax(dim=-1).squeeze()[:-1]
+#prediction = 
+
+
+# YOUR CODE HERE - get the model's prediction on the text
+print(logits)
+print(prediction)
+true_labels = gpt2_small.to_tokens(model_description_text).squeeze()[1:]
+#print(gpt2_small.to_tokens(model_description_text).squeeze())
+
+#print(f"Prediction Shape: {prediction.shape}")
+#print(f"Labels Shape: {true_labels.shape}")
+
+prediction == true_labels
+
+# %%

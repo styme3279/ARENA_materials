@@ -544,11 +544,12 @@ def get_ablation_scores(
     for layer in tqdm(range(model.cfg.n_layers)):
         for head in range(model.cfg.n_heads):
             tmp = functools.partial(head_zero_ablation_hook, head_index_to_ablate=head)
-            loss = model.run_with_hooks(
+            logits_ablation = model.run_with_hooks(
                 input=tokens,
-                return_type='loss',
+                return_type='logits',
                 fwd_hooks=[(utils.get_act_name("z", layer), tmp)]
             )
+            loss = -get_log_probs(logits_ablation, tokens)[:, -(seq_len - 1) :].mean()
             ablation_scores[layer][head] = loss - loss_no_ablation
 
     return ablation_scores
@@ -556,5 +557,72 @@ def get_ablation_scores(
 
 ablation_scores = get_ablation_scores(model, rep_tokens)
 tests.test_get_ablation_scores(ablation_scores, model, rep_tokens)
+
+# %%
+imshow(
+    ablation_scores,
+    labels={"x": "Head", "y": "Layer", "color": "Loss diff"},
+    title="Loss Difference After Ablating Heads",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+
+# %%
+def head_mean_ablation_hook(
+    z: Float[Tensor, "batch seq n_heads d_head"],
+    hook: HookPoint,
+    head_index_to_ablate: int,
+) -> None:
+    z[:, :, head_index_to_ablate] = z[:, :, head_index_to_ablate].mean()
+
+
+rep_tokens_batch = run_and_cache_model_repeated_tokens(model, seq_len=50, batch_size=10)[0]
+mean_ablation_scores = get_ablation_scores(model, rep_tokens_batch, ablation_function=head_mean_ablation_hook)
+
+imshow(
+    mean_ablation_scores,
+    labels={"x": "Head", "y": "Layer", "color": "Loss diff"},
+    title="Loss Difference After Ablating Heads",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+
+# %%
+A = t.randn(5, 2)
+B = t.randn(2, 5)
+AB = A @ B
+AB_factor = FactoredMatrix(A, B)
+print("Norms:")
+print(AB.norm())
+print(AB_factor.norm())
+
+print(f"Right dim: {AB_factor.rdim}, Left dim: {AB_factor.ldim}, Hidden dim: {AB_factor.mdim}")
+
+# %%
+print("Eigenvalues:")
+print(t.linalg.eig(AB).eigenvalues)
+print(AB_factor.eigenvalues)
+
+print("\nSingular Values:")
+print(t.linalg.svd(AB).S)
+print(AB_factor.S)
+
+print("\nFull SVD:")
+print(AB_factor.svd())
+
+# %%
+C = t.randn(5, 300)
+ABC = AB @ C
+ABC_factor = AB_factor @ C
+
+print(f"Unfactored: shape={ABC.shape}, norm={ABC.norm()}")
+print(f"Factored: shape={ABC_factor.shape}, norm={ABC_factor.norm()}")
+print(f"\nRight dim: {ABC_factor.rdim}, Left dim: {ABC_factor.ldim}, Hidden dim: {ABC_factor.mdim}")
+
+# %%
+AB_unfactored = AB_factor.AB
+t.testing.assert_close(AB_unfactored, AB)
 
 # %%

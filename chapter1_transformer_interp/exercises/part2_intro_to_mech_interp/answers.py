@@ -650,7 +650,41 @@ def top_1_acc(full_OV_circuit: FactoredMatrix, batch_size: int = 1000) -> float:
     """
     Return the fraction of the time that the maximum value is on the circuit diagonal.
     """
-    
+    total = 0
+
+    for indices in t.split(t.arange(full_OV_circuit.shape[0], device=device), batch_size):
+        AB_slice = full_OV_circuit[indices].AB
+        total += (t.argmax(AB_slice, dim=1) == indices).float().sum().item()
+
+    return total / full_OV_circuit.shape[0]
 
 
 print(f"Fraction of time that the best logit is on diagonal: {top_1_acc(full_OV_circuit):.4f}")
+
+# %%
+effective_OV_circuit = model.W_E @ (FactoredMatrix(model.W_V[1, 4, ...] + model.W_V[1, 10, ...], model.W_O[1, 4, ...] + model.W_O[1, 10, ...])) @ model.W_U
+
+print(f"Fraction of time that the best logit is on diagonal: {top_1_acc(effective_OV_circuit):.4f}")
+
+# %%
+layer = 0
+head_index = 7
+
+# Compute full QK matrix (for positional embeddings)
+W_pos = model.W_pos
+W_QK = model.W_Q[layer, head_index] @ model.W_K[layer, head_index].T
+pos_by_pos_scores = W_pos @ W_QK @ W_pos.T
+
+# Mask, scale and softmax the scores
+mask = t.tril(t.ones_like(pos_by_pos_scores)).bool()
+pos_by_pos_pattern = t.where(mask, pos_by_pos_scores / model.cfg.d_head**0.5, -1.0e6).softmax(-1)
+
+# Plot the results
+print(f"Avg lower-diagonal value: {pos_by_pos_pattern.diag(-1).mean():.4f}")
+imshow(
+    utils.to_numpy(pos_by_pos_pattern[:200, :200]),
+    labels={"x": "Key", "y": "Query"},
+    title="Attention patterns for prev-token QK circuit, first 100 indices",
+    width=700,
+    height=600,
+)

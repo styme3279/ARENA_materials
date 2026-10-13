@@ -519,7 +519,8 @@ def head_zero_ablation_hook(
     hook: HookPoint,
     head_index_to_ablate: int,
 ) -> None:
-    raise NotImplementedError()
+    z[:, :, head_index_to_ablate] = 0
+    return z
 
 
 def get_ablation_scores(
@@ -542,11 +543,18 @@ def get_ablation_scores(
 
     for layer in tqdm(range(model.cfg.n_layers)):
         for head in range(model.cfg.n_heads):
-            tmp = functools.partial(head, head_idx=head)
-            loss = model.run_with_hooks(fwd_hooks=[()])
+            tmp = functools.partial(head_zero_ablation_hook, head_index_to_ablate=head)
+            loss = model.run_with_hooks(
+                input=tokens,
+                return_type='loss',
+                fwd_hooks=[(utils.get_act_name("z", layer), tmp)]
+            )
+            ablation_scores[layer][head] = loss - loss_no_ablation
 
     return ablation_scores
 
 
 ablation_scores = get_ablation_scores(model, rep_tokens)
 tests.test_get_ablation_scores(ablation_scores, model, rep_tokens)
+
+# %%

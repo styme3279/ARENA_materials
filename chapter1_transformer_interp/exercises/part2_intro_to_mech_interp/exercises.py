@@ -135,24 +135,29 @@ layer0_pattern_from_cache = gpt2_cache["pattern", 0]
 
 layer0_q_from_cache, layer0_k_from_cache = gpt2_cache["q", 0], gpt2_cache["k", 0]
 
-print(f"{layer0_q_from_cache.shape=} {layer0_k_from_cache.shape=}")
-
-attn_scores = layer0_q_from_cache.transpose(0, 1) @ layer0_k_from_cache.transpose(0, 1).transpose(-1, -2)  # (12, 33, 33)
+# attn_scores = layer0_q_from_cache.transpose(0, 1) @ layer0_k_from_cache.transpose(0, 1).transpose(-1, -2)  # (12, 33, 33)
 """
 q # (33, 12, 64)
-q # (33, 12, 64)
+k # (33, 12, 64)
+
+q # (12, 33, 64)
+k # (12, 33, 64)
+
+
+q # (12, 33, 64)
+k # (12, 64, 33)
+
+q @ k --> (12, 33, 33)
+
 
 
 """
-print(attn_scores.shape)
 
-print
-
-# attn_scores = t.einsum(layer0_q_from_cache, layer0_k_from_cache, "seqQ head_idx d_head, seqK head_idx d_head -> head_idx seqQ seqK") # dot product
+attn_scores = einops.einsum(layer0_q_from_cache, layer0_k_from_cache, "seqQ head_idx d_head, seqK head_idx d_head -> head_idx seqQ seqK") # dot product
 attn_scores *= 1 / gpt2_small.cfg.d_head ** 0.5 # scale
-attn_scores = t.masked_fill(t.tril(attn_scores) == 0, t.tensor(float("-inf"), dtype=t.float32, device=device))
+attn_scores = attn_scores.masked_fill(t.tril(attn_scores) == 0, t.tensor(float("-inf"), dtype=t.float32, device=device))
 
-layer0_pattern_from_q_and_k = t.softmax(attn_scores, dim=0)
+layer0_pattern_from_q_and_k = t.softmax(attn_scores, dim=1)
 
 # YOUR CODE HERE - define `layer0_pattern_from_q_and_k` manually, by manually performing the
 # steps of the attention calculation (dot product, masking, scaling, softmax)

@@ -464,11 +464,12 @@ def logit_attribution(
     # print(W_U_correct_tokens.shape)
     direct = einops.einsum(embed[:-1], W_U_correct_tokens, "seq dm, dm seq -> seq")
     # print(direct.shape)
+    direct = direct.unsqueeze(-1)
 
-    l1_logits = einops.einsum(l1_logits[:-1], W_U_correct_tokens, "seq nh dm, dm seq -> seq nh")
-    l_logits = einops.einsum(l1_logits[:-1], W_U_correct_tokens, "seq nh dm, dm seq -> seq nh")
+    l1_logits = einops.einsum(l1_results[:-1], W_U_correct_tokens, "seq nh dm, dm seq -> seq nh")
+    l2_logits = einops.einsum(l2_results[:-1], W_U_correct_tokens, "seq nh dm, dm seq -> seq nh")
 
-    return t.cat((direct, ))
+    return t.cat((direct, l1_logits, l2_logits), dim=-1)
 
 
 text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
@@ -485,4 +486,11 @@ with t.inference_mode():
     correct_token_logits = logits[0, t.arange(len(tokens[0]) - 1), tokens[0, 1:]]
     t.testing.assert_close(logit_attr.sum(1), correct_token_logits, atol=1e-3, rtol=0)
     print("Tests passed!")
+# %%
+embed = cache["embed"]
+l1_results = cache["result", 0]
+l2_results = cache["result", 1]
+logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, tokens.squeeze())
+
+plot_logit_attribution(model, logit_attr, tokens, title="Logit attribution (demo prompt)")
 # %%

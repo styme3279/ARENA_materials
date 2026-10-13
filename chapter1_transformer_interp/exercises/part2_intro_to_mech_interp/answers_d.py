@@ -476,11 +476,11 @@ def logit_attribution(
     )
     layer1_contribution = einops.einsum(
         W_U_correct_tokens, l1_results[:-1], 
-        'dmodel seqlen, seqlen nheads dmodel -> seqlen', 
+        'dmodel seqlen, seqlen nheads dmodel -> seqlen nheads', 
     )
     layer2_contribution = einops.einsum(
         W_U_correct_tokens, l2_results[:-1],
-        'dmodel seqlen, seqlen nheads dmodel -> seqlen', 
+        'dmodel seqlen, seqlen nheads dmodel -> seqlen nheads', 
     )
 
     return t.concat([embed_contribution.unsqueeze(-1), layer1_contribution, layer2_contribution],dim=-1)
@@ -499,5 +499,24 @@ with t.inference_mode():
     correct_token_logits = logits[0, t.arange(len(tokens[0]) - 1), tokens[0, 1:]]
     t.testing.assert_close(logit_attr.sum(1), correct_token_logits, atol=1e-3, rtol=0)
     print("Tests passed!")
+
+# %%
+
+embed = cache["embed"]
+l1_results = cache["result", 0]
+l2_results = cache["result", 1]
+logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, tokens.squeeze())
+
+plot_logit_attribution(model, logit_attr, tokens, title="Logit attribution (demo prompt)")
+# %%
+
+seq_len = 50
+
+embed = rep_cache["embed"]
+l1_results = rep_cache["result", 0]
+l2_results = rep_cache["result", 1]
+
+logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, rep_tokens.squeeze())
+plot_logit_attribution(model, logit_attr, rep_tokens.squeeze(), title="Logit attribution (random induction prompt)")
 
 # %%

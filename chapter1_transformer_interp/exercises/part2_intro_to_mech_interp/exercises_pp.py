@@ -461,8 +461,14 @@ def logit_attribution(
         so n_components = 1 + 2*n_heads
     """
     W_U_correct_tokens = W_U[:, tokens[1:]]
+    # print(W_U_correct_tokens.shape)
+    direct = einops.einsum(embed[:-1], W_U_correct_tokens, "seq dm, dm seq -> seq")
+    # print(direct.shape)
 
-    raise NotImplementedError()
+    l1_logits = einops.einsum(l1_logits[:-1], W_U_correct_tokens, "seq nh dm, dm seq -> seq nh")
+    l_logits = einops.einsum(l1_logits[:-1], W_U_correct_tokens, "seq nh dm, dm seq -> seq nh")
+
+    return t.cat((direct, ))
 
 
 text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
@@ -479,3 +485,4 @@ with t.inference_mode():
     correct_token_logits = logits[0, t.arange(len(tokens[0]) - 1), tokens[0, 1:]]
     t.testing.assert_close(logit_attr.sum(1), correct_token_logits, atol=1e-3, rtol=0)
     print("Tests passed!")
+# %%

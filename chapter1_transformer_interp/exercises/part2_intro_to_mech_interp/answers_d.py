@@ -463,21 +463,27 @@ def logit_attribution(
         so n_components = 1 + 2*n_heads
     """
     W_U_correct_tokens = W_U[:, tokens[1:]]
+    print(W_U.shape)
     print(W_U_correct_tokens.shape)
     print(embed.shape)
     print(l1_results.shape)
     print(l2_results.shape)
     print(tokens.shape)
 
-    embed_contribution = embed @ W_U
-    layer1_contribution = l1_results @ W_U
-    layer2_contribution = l2_results @ W_U
+    embed_contribution = einops.einsum(
+        W_U_correct_tokens, embed[:-1],
+        'dmodel seqlen, seqlen dmodel -> seqlen', 
+    )
+    layer1_contribution = einops.einsum(
+        W_U_correct_tokens, l1_results[:-1], 
+        'dmodel seqlen, seqlen nheads dmodel -> seqlen', 
+    )
+    layer2_contribution = einops.einsum(
+        W_U_correct_tokens, l2_results[:-1],
+        'dmodel seqlen, seqlen nheads dmodel -> seqlen', 
+    )
 
-    print(embed_contribution.shape)
-    print(layer1_contribution.shape)
-    print(layer2_contribution.shape)
-    return t.concat([embed_contribution, layer1_contribution, layer2_contribution],dim=-1)
-
+    return t.concat([embed_contribution.unsqueeze(-1), layer1_contribution, layer2_contribution],dim=-1)
 
 text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
 logits, cache = model.run_with_cache(text, remove_batch_dim=True)

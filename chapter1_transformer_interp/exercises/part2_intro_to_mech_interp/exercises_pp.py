@@ -361,15 +361,31 @@ rep_tokens_10 = generate_repeated_tokens(model, seq_len, batch_size)
 induction_score_store = t.zeros((model.cfg.n_layers, model.cfg.n_heads), device=model.cfg.device)
 
 
-c = 0
+layer_c = 0
 def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos source_pos"], hook: HookPoint):
     """
     Calculates the induction score, and stores it in the [layer, head] position of the
     `induction_score_store` tensor.
     """
-    print(c, pattern)
-    global c
-    c += 1
+    global layer_c
+    global induction_score_store
+    # print(c, pattern, c, pattern.shape)
+
+    stripe = pattern.diagonal(offset=1 - seq_len, dim1=-2, dim2=-1)
+    einops.reduce(stripe, "b h d -> h", "mean")
+    print(stripe, stripe.shape)    
+    # for bi in range(pattern.shape[0]):
+    #     m = 0
+    #     mc = 0
+    #     for hi, h in enumerate(pattern[bi]):
+    #         diamean = h.diagonal(offset=-(seq_len-1), dim1=-2, dim2=-1).mean()
+    #         m += diamean
+    #         mc += 1
+    #     m = float(m) / mc
+
+        # return li
+
+    layer_c += 1
     # raise NotImplementedError()
 
 

@@ -358,7 +358,11 @@ def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos sourc
     Calculates the induction score, and stores it in the [layer, head] position of the
     `induction_score_store` tensor.
     """
-    print(pattern.shape)
+    induction_stripe = pattern.diagonal(dim1=-2, dim2=-1, offset=1 - seq_len)
+    print(induction_stripe.shape)
+    induction_score = einops.reduce(induction_stripe, "batch head_index position -> head_index", "mean")
+    induction_score_store[hook.layer(), :] = induction_score
+
 
 
 # We make a boolean filter on activation names, that's true only on attention pattern names

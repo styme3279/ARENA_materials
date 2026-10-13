@@ -615,7 +615,7 @@ def get_ablation_scores(
             logits = model.run_with_hooks(
                 tokens,
                 return_type="logits",
-                fwd_hooks=hook_func,
+                fwd_hooks=[('blocks.1.attn.hook_pattern', hook_func)],
             )
             ablation_scores[layer, head] = logits.sum()
 

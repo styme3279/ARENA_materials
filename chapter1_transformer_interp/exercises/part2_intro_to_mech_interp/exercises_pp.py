@@ -194,3 +194,58 @@ model = HookedTransformer(cfg)
 pretrained_weights = t.load(weights_path, map_location=device, weights_only=True)
 model.load_state_dict(pretrained_weights)
 # %%
+text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
+
+logits, cache = model.run_with_cache(text, remove_batch_dim=True)
+# %%
+str_tokens = model.to_str_tokens(text)
+for layer in range(model.cfg.n_layers):
+    attention_pattern = cache["pattern", layer]
+    display(cv.attention.attention_patterns(tokens=str_tokens, attention=attention_pattern))
+# %%
+def current_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be current-token heads
+    """
+    li = []
+    for l in range(0, cfg.n_layers):
+        c = cache["pattern", l]
+        for hi, h in enumerate(c):
+            diamean = h.diagonal().mean()
+            if diamean >= 0.4:
+                li += [f'{l}.{hi}']
+    return li
+
+
+def prev_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be prev-token heads
+    """
+    li = []
+    for l in range(0, cfg.n_layers):
+        c = cache["pattern", l]
+        for hi, h in enumerate(c):
+            diamean = h.diagonal(offset=-1).mean()
+            if diamean >= 0.4:
+                li += [f'{l}.{hi}']
+    return li
+
+
+def first_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be first-token heads
+    """
+    li = []
+    for l in range(0, cfg.n_layers):
+        c = cache["pattern", l]
+        for hi, h in enumerate(c):
+            diamean = h[:, 0].mean()
+            if diamean >= 0.4:
+                li += [f'{l}.{hi}']
+    return li
+
+
+print("Heads attending to current token  = ", ", ".join(current_attn_detector(cache)))
+print("Heads attending to previous token = ", ", ".join(prev_attn_detector(cache)))
+print("Heads attending to first token    = ", ", ".join(first_attn_detector(cache)))
+# %%

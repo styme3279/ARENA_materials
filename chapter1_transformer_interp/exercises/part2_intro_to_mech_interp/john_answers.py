@@ -297,7 +297,9 @@ def generate_repeated_tokens(
     """
     t.manual_seed(0)  # for reproducibility
     prefix = (t.ones(batch_size, 1) * model.tokenizer.bos_token_id).long()
-    example_seq = t.rand((batch_size, seq_len))
+    rep_tokens_half = t.randint(0, model.cfg.d_vocab, (batch_size, seq_len), dtype=t.int64)
+    rep_tokens = t.cat([prefix, rep_tokens_half, rep_tokens_half], dim=-1).to(device)
+    return rep_tokens
 
 def run_and_cache_model_repeated_tokens(
     model: HookedTransformer, seq_len: int, batch_size: int = 1
@@ -312,9 +314,8 @@ def run_and_cache_model_repeated_tokens(
         rep_cache: The cache of the model run on rep_tokens
     """
     repeated_token_sequence = generate_repeated_tokens(model, seq_len, batch_size)
-    print(repeated_token_sequence)
-    #raise NotImplementedError()
-
+    logits, cache = model.run_with_cache(repeated_token_sequence)
+    return repeated_token_sequence, logits, cache
 
 def get_log_probs(
     logits: Float[Tensor, "batch posn d_vocab"], tokens: Int[Tensor, "batch posn"]

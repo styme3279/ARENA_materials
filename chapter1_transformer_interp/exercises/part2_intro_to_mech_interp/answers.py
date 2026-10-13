@@ -626,3 +626,9 @@ AB_unfactored = AB_factor.AB
 t.testing.assert_close(AB_unfactored, AB)
 
 # %%
+head_index = 4
+layer = 1
+
+# YOUR CODE HERE - complete the `full_OV_circuit` object
+
+tests.test_full_OV_circuit(full_OV_circuit, model, layer, head_index)

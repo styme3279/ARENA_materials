@@ -79,4 +79,35 @@ prediction = prediction.unsqueeze(0)
 assert input_tokens.shape == prediction.shape, f"input shape {input_tokens.shape}"
 accuracy = (input_tokens == prediction).to(t.float32).mean().item()
 print(f"{accuracy:.1%}")
+
+
+# %%
+gpt2_text = "Natural language processing tasks, such as question answering, machine translation, reading comprehension, and summarization, are typically approached with supervised learning on task-specific datasets."
+gpt2_tokens = gpt2_small.to_tokens(gpt2_text)
+gpt2_logits, gpt2_cache = gpt2_small.run_with_cache(gpt2_tokens, remove_batch_dim=True)
+
+print(type(gpt2_logits), type(gpt2_cache))
+
+
+# %%
+layer0_pattern_from_cache = gpt2_cache["pattern", 0]
+
+# YOUR CODE HERE - define `layer0_pattern_from_q_and_k` manually, by manually performing the
+# steps of the attention calculation (dot product, masking, scaling, softmax)
+
+hook_q = gpt2_cache["q", 0]
+hook_k = gpt2_cache["k", 0]
+
+layer0_pattern_from_q_and_k = einops.einsum(hook_q, hook_k, "s_q nhead dhead, s_k nhead dhead -> nhead s_q s_k")
+layer0_pattern_from_q_and_k /= np.sqrt(gpt2_small.cfg.d_head)
+
+layer0_pattern_from_q_and_k = t.full(layer0_pattern_from_q_and_k.shape, -t.inf).to(device)
+layer0_pattern_from_q_and_k = t.triu(a, diagonal=1)
+a = t.where(a.to(t.bool), a, layer0_pattern_from_q_and_k)
+a = t.softmax(a, dim=-1)
+# print(a)
+
+t.testing.assert_close(layer0_pattern_from_cache, layer0_pattern_from_q_and_k)
+print("Tests passed!")
+
 # %%

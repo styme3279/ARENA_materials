@@ -157,10 +157,45 @@ attn_scores = einops.einsum(layer0_q_from_cache, layer0_k_from_cache, "seqQ head
 attn_scores *= 1 / gpt2_small.cfg.d_head ** 0.5 # scale
 attn_scores = attn_scores.masked_fill(t.tril(attn_scores) == 0, t.tensor(float("-inf"), dtype=t.float32, device=device))
 
-layer0_pattern_from_q_and_k = t.softmax(attn_scores, dim=1)
+layer0_pattern_from_q_and_k = t.softmax(attn_scores, dim=-1)
 
 # YOUR CODE HERE - define `layer0_pattern_from_q_and_k` manually, by manually performing the
 # steps of the attention calculation (dot product, masking, scaling, softmax)
 t.testing.assert_close(layer0_pattern_from_cache, layer0_pattern_from_q_and_k)
 print("Tests passed!")
 # %%
+print(type(gpt2_cache))
+attention_pattern = gpt2_cache["pattern", 0]
+print(attention_pattern.shape)
+gpt2_str_tokens = gpt2_small.to_str_tokens(gpt2_text)
+
+print("Layer 0 Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=gpt2_str_tokens,
+        attention=attention_pattern,
+        attention_head_names=[f"L0H{i}" for i in range(12)],
+    )
+)
+# %%
+neuron_activations_for_all_layers = t.stack([
+    gpt2_cache["post", layer] for layer in range(gpt2_small.cfg.n_layers)
+], dim=1)
+# shape = (seq_pos, layers, neurons)
+
+cv.activations.text_neuron_activations(
+    tokens=gpt2_str_tokens,
+    activations=neuron_activations_for_all_layers
+)
+# %%
+neuron_activations_for_all_layers_rearranged = utils.to_numpy(einops.rearrange(neuron_activations_for_all_layers, "seq layers neurons -> 1 layers seq neurons"))
+
+cv.topk_tokens.topk_tokens(
+    # Some weird indexing required here ¯\_(ツ)_/¯
+    tokens=[gpt2_str_tokens],
+    activations=neuron_activations_for_all_layers_rearranged,
+    max_k=7,
+    first_dimension_name="Layer",
+    third_dimension_name="Neuron",
+    first_dimension_labels=list(range(12))
+)

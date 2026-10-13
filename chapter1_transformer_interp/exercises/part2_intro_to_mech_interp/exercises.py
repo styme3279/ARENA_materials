@@ -135,7 +135,11 @@ layer0_pattern_from_cache = gpt2_cache["pattern", 0]
 
 layer0_q_from_cache, layer0_k_from_cache = gpt2_cache["q", 0], gpt2_cache["k", 0]
 
-attn_scores = t.einsum(layer0_q_from_cache, layer0_k_from_cache, "seqQ d_head head_idx, seqK d_head head_idx -> head_idx s")
+attn_scores = t.einsum(layer0_q_from_cache, layer0_k_from_cache, "seqQ head_idx d_head, seqK head_idx d_head -> head_idx seqQ seqK") # dot product
+attn_scores *= (1 / t.sqrt(gpt2_small.cfg.d_head)) # scale
+attn_scores = t.masked_fill(t.tril(attn_scores) == 0, t.tensor(float("-inf"), dtype=t.float32, device=device))
+
+layer0_pattern_from_q_and_k = t.softmax(attn_scores, dim=0)
 
 # YOUR CODE HERE - define `layer0_pattern_from_q_and_k` manually, by manually performing the
 # steps of the attention calculation (dot product, masking, scaling, softmax)

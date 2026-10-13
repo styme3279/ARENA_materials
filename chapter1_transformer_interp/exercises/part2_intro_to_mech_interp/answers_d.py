@@ -67,3 +67,21 @@ logits, loss = gpt2_small(model_description_text, return_type="both")
 print("Model loss, logits:", loss, logits)
 
 # %%
+
+logits: Tensor = gpt2_small(model_description_text, return_type="logits")
+prediction = logits.argmax(dim=-1).squeeze()[:-1]
+print(prediction)
+# YOUR CODE HERE - get the model's prediction on the text
+print(logits.shape)
+# print(prediction.shape)
+print(prediction.shape)
+#prediction_string = gpt2_small.to_string(prediction)
+#prediction_string_list = gpt2_small.to_tokens(prediction_string)
+correct_text = gpt2_small.to_tokens(model_description_text)
+count = 0
+for i in range(1,len(prediction)):
+    if prediction[0][i-1] == correct_text[i]:
+        count += 1
+
+print(count)
+# %%

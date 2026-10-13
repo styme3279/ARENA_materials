@@ -104,8 +104,24 @@ print(gpt2_small.to_str_tokens("gpt2"))
 print(gpt2_small.to_str_tokens(["gpt2", "gpt2"]))
 print(gpt2_small.to_tokens("gpt2"))
 print(gpt2_small.to_string([50256, 70, 457, 17]))
+desc_tokens = gpt2_small.to_tokens(model_description_text)
+print(desc_tokens.shape)
 # %%
 logits: Tensor = gpt2_small(model_description_text, return_type="logits")
 prediction = logits.argmax(dim=-1).squeeze()[:-1]
 
-# YOUR CODE HERE - get the model's prediction on the text
+c_count = 0
+all_count = 0
+for i in range(1, logits.shape[1]):
+    correct = desc_tokens[0][i]
+    predicted = prediction[i-1]
+    print(correct, predicted)
+    print(gpt2_small.to_single_str_token(int(correct)),
+          gpt2_small.to_single_str_token(int(predicted)))
+    if correct == predicted:
+        c_count += 1
+    all_count += 1
+# logits.shape
+
+print(c_count, all_count, float(c_count) / all_count * 100)
+# %%

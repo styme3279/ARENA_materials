@@ -273,7 +273,16 @@ def current_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be current-token heads
     """
-    head_idx, cache["pattern", 0].size())
+    head_idx_len, seqQ_len, seqK_len = cache["pattern", 0].size()
+    print(head_idx_len)
+    id_matrix = t.eye(seqQ_len)
+    hook_pattern = cache["blocks.0.attn.hook_pattern"]
+    for i in range(1, 12):
+        pass
+    # print(hook_pattern.shape())
+    n_layers = cache.model.cfg.n_layers
+    patterns = t.stack([cache["pattern", layer] for layer in range(n_layers)])
+
     raise NotImplementedError()
 
 

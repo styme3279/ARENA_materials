@@ -282,3 +282,87 @@ print("Heads attending to first token    = ", ", ".join(first_attn_detector(cach
 
 
 # %%
+def generate_repeated_tokens(
+    model: HookedTransformer, seq_len: int, batch_size: int = 1
+) -> Int[Tensor, "batch_size full_seq_len"]:
+    """
+    Generates a sequence of repeated random tokens
+
+    Outputs are:
+        rep_tokens: [batch_size, 1+2*seq_len]
+    """
+    t.manual_seed(1)  # for reproducibility
+    prefix = (t.ones(batch_size, 1) * model.tokenizer.bos_token_id).long()
+
+    random_numbers = t.randint(low=0, high=cfg.d_vocab, size=(batch_size, seq_len))
+
+    return t.concat([prefix, random_numbers, random_numbers], dim=1)
+
+
+def run_and_cache_model_repeated_tokens(
+    model: HookedTransformer, seq_len: int, batch_size: int = 1
+) -> tuple[Tensor, Tensor, ActivationCache]:
+    """
+    Generates a sequence of repeated random tokens, and runs the model on it, returning (tokens,
+    logits, cache). This function should use the `generate_repeated_tokens` function above.
+
+    Outputs are:
+        rep_tokens: [batch_size, 1+2*seq_len]
+        rep_logits: [batch_size, 1+2*seq_len, d_vocab]
+        rep_cache: The cache of the model run on rep_tokens
+    """
+    rep_tokens = generate_repeated_tokens(model, seq_len, batch_size)
+
+    rep_logits, rep_cache = model.run_with_cache(rep_tokens)
+
+
+    print(rep_logits.shape)
+    print(rep_tokens.shape)
+    return rep_tokens, rep_logits, rep_cache
+
+
+
+def get_log_probs(
+    logits: Float[Tensor, "batch posn d_vocab"], tokens: Int[Tensor, "batch posn"]
+) -> Float[Tensor, "batch posn-1"]:
+    logprobs = logits.log_softmax(dim=-1)
+    # We want to get logprobs[b, s, tokens[b, s+1]], in eindex syntax this looks like:
+    correct_logprobs = eindex(logprobs, tokens, "b s [b s+1]")
+    return correct_logprobs
+
+
+seq_len = 50
+batch_size = 1
+(rep_tokens, rep_logits, rep_cache) = run_and_cache_model_repeated_tokens(model, seq_len, batch_size)
+rep_cache.remove_batch_dim()
+rep_str = model.to_str_tokens(rep_tokens)
+model.reset_hooks()
+log_probs = get_log_probs(rep_logits, rep_tokens).squeeze()
+
+print(f"Performance on the first half: {log_probs[:seq_len].mean():.3f}")
+print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
+
+plot_loss_difference(log_probs, rep_str, seq_len)
+
+
+# %%
+# YOUR CODE HERE - display the attention patterns stored in `rep_cache`, for each layer
+layer = 1
+attention_pattern = rep_cache["pattern", layer]
+# str_tokens = model.to_str_tokens(text)
+# print(str_tokens)
+str_tokens = [model.to_string(t) for t in rep_tokens[0]]
+print(str_tokens)
+
+print(f"Layer {layer} Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=str_tokens,
+        attention=attention_pattern,
+        attention_head_names=[f"L{layer}H{i}" for i in range(cfg.n_heads)],
+    )
+)
+
+
+
+# %%

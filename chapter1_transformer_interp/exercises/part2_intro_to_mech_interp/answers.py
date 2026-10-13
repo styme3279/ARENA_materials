@@ -504,3 +504,13 @@ logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, tokens.
 plot_logit_attribution(model, logit_attr, tokens, title="Logit attribution (demo prompt)")
 
 # %%
+seq_len = 50
+
+embed = rep_cache["embed"]
+l1_results = rep_cache["result", 0]
+l2_results = rep_cache["result", 1]
+
+logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, rep_tokens.squeeze())
+plot_logit_attribution(model, logit_attr, rep_tokens.squeeze(), title="Logit attribution (random induction prompt)")
+
+# %%

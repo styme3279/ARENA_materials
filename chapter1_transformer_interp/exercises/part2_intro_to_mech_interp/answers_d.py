@@ -386,3 +386,40 @@ imshow(
 )
 
 # %%
+
+def visualize_pattern_hook(
+    pattern: Float[Tensor, "batch head_index dest_pos source_pos"],
+    hook: HookPoint,
+):
+    print("Layer: ", hook.layer())
+    display(cv.attention.attention_patterns(tokens=gpt2_small.to_str_tokens(rep_tokens[0]), attention=pattern.mean(0)))
+
+
+# YOUR CODE HERE - find induction heads in gpt2_small
+
+seq_len = 50
+batch_size = 10
+rep_tokens_10 = generate_repeated_tokens(model, seq_len, batch_size)
+
+# We make a tensor to store the induction score for each head.
+# We put it on the model's device to avoid needing to move things between the GPU and CPU,
+# which can be slow.
+induction_score_store = t.zeros((model.cfg.n_layers, model.cfg.n_heads), device=model.cfg.device)
+
+pattern_hook_names_filter = lambda name: name.endswith("pattern")
+
+gpt2_small.run_with_hooks(
+    rep_tokens_10,
+    return_type=None,
+    fwd_hooks=[(pattern_hook_names_filter, induction_score_hook)]
+)
+
+imshow(
+    induction_score_store,
+    labels={"x": "Head", "y": "Layer"},
+    title="Induction Score by Head",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+# %%

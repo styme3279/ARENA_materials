@@ -361,19 +361,17 @@ rep_tokens_10 = generate_repeated_tokens(model, seq_len, batch_size)
 induction_score_store = t.zeros((model.cfg.n_layers, model.cfg.n_heads), device=model.cfg.device)
 
 
-layer_c = 0
 def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos source_pos"], hook: HookPoint):
     """
     Calculates the induction score, and stores it in the [layer, head] position of the
     `induction_score_store` tensor.
     """
-    global layer_c
     global induction_score_store
     # print(c, pattern, c, pattern.shape)
 
     stripe = pattern.diagonal(offset=1 - seq_len, dim1=-2, dim2=-1)
-    einops.reduce(stripe, "b h d -> h", "mean")
-    print(stripe, stripe.shape)    
+    # print(stripe, stripe.shape
+    induction_score_store[hook.layer()] = einops.reduce(stripe, "b h d -> h", "mean")
     # for bi in range(pattern.shape[0]):
     #     m = 0
     #     mc = 0
@@ -384,8 +382,6 @@ def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos sourc
     #     m = float(m) / mc
 
         # return li
-
-    layer_c += 1
     # raise NotImplementedError()
 
 
@@ -408,4 +404,27 @@ imshow(
     width=900,
     height=350,
 )
+# %%
+def visualize_pattern_hook(
+    pattern: Float[Tensor, "batch head_index dest_pos source_pos"],
+    hook: HookPoint,
+):
+    print(hook.name(), pattern)
+    stripe = pattern.diagonal(offset=1 - seq_len, dim1=-2, dim2=-1)
+    # print(stripe, stripe.shape
+    ind_scores = einops.reduce(stripe, "b h d -> h", "mean")
+    # print("Layer: ", hook.layer())
+    imshow(
+    ind_scores,
+    labels={"x": "Head", "y": "Layer"},
+    title=f"Induction Score by Head L#{hook.layer()}",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+    # display(cv.attention.attention_patterns(tokens=gpt2_small.to_str_tokens(rep_tokens[0]), attention=pattern.mean(0)))
+
+
+# YOUR CODE HERE - find induction heads in gpt2_small
+gpt2_small.run_with_hooks(rep_tokens_10, return_type=None, fwd_hooks=[(pattern_hook_names_filter, visualize_pattern_hook)])
 # %%

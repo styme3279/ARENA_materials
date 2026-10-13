@@ -278,7 +278,11 @@ def run_and_cache_model_repeated_tokens(
         rep_cache: The cache of the model run on rep_tokens
     """
     seq = generate_repeated_tokens(model, seq_len, batch_size)
-    logits, cache = model.run_with_cache(model.to_str_tokens(seq), remove_batch_dim=True)
+    print(seq)
+    print(seq.shape)
+    logits, cache = model.run_with_cache(seq, remove_batch_dim=True)
+    print(seq.shape)
+    print(logits)
     return seq, logits, cache
     
 
@@ -286,7 +290,7 @@ def run_and_cache_model_repeated_tokens(
 def get_log_probs(
     logits: Float[Tensor, "batch posn d_vocab"], tokens: Int[Tensor, "batch posn"]
 ) -> Float[Tensor, "batch posn-1"]:
-    logprobs = logits.log_softmax(dim=0)
+    logprobs = logits.log_softmax(dim=-1)
     # We want to get logprobs[b, s, tokens[b, s+1]], in eindex syntax this looks like:
     correct_logprobs = eindex(logprobs, tokens, "b s [b s+1]")
     # print(correct_logprobs, correct_logprobs.shape)
@@ -295,7 +299,7 @@ def get_log_probs(
 
 seq_len = 50
 batch_size = 1
-x = generate_repeated_tokens(model, 5, 2)
+# x = generate_repeated_tokens(model, 5, 2)
 # print("zzz", x)
 # print(x.shape)
 (rep_tokens, rep_logits, rep_cache) = run_and_cache_model_repeated_tokens(model, seq_len, batch_size)
@@ -309,3 +313,20 @@ print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
 
 plot_loss_difference(log_probs, rep_str, seq_len)
 # %%
+def induction_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be induction heads
+
+    Remember - the tokens used to generate rep_cache are (bos_token, *rand_tokens, *rand_tokens)
+    """
+    li = []
+    for l in range(0, cfg.n_layers):
+        c = cache["pattern", l]
+        for hi, h in enumerate(c):
+            diamean = h[:, 0].mean()
+            if diamean >= 0.4:
+                li += [f'{l}.{hi}']
+    return li
+
+
+print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))

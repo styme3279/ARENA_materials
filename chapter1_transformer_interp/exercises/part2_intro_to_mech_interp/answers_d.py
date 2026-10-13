@@ -253,7 +253,7 @@ def generate_repeated_tokens(
         rep_tokens: [batch_size, 1+2*seq_len]
     """
     t.manual_seed(0)  # for reproducibility
-    prefix = (t.ones(batch_size, seq_len) *  model.tokenizer.bos_token_id).long()
+    prefix = (t.ones(batch_size, seq_len) *  20).long()
     rep_tokens_half = t.randint(0, model.cfg.d_vocab, (batch_size, seq_len), dtype=t.int64)
     rep_tokens = t.cat([prefix,rep_tokens_half,rep_tokens_half],dim=-1).to(device)
     return rep_tokens
@@ -303,3 +303,24 @@ print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
 plot_loss_difference(log_probs, rep_str, seq_len)
 
 # %%
+
+def induction_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be induction heads
+
+    Remember - the tokens used to generate rep_cache are (bos_token, *rand_tokens, *rand_tokens)
+    """
+    attn_heads = []
+    n_heads = cfg.n_heads
+    for layer in range(model.cfg.n_layers):
+        for head in range(cfg.n_heads):
+            attention_pattern = cache["pattern",layer][head]
+            cum_score = 0
+            for i in range(len(attention_pattern[0])):
+                cum_score += attention_pattern[i][0]
+            avg_score = cum_score / len(attention_pattern[0])
+            if avg_score > 0.4:
+                attn_heads.append(f"{layer}.{head}")
+    return 
+
+print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))

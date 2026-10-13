@@ -610,16 +610,15 @@ def get_ablation_scores(
     for layer in tqdm(range(model.cfg.n_layers)):
         for head in range(model.cfg.n_heads):
             
-            gpt2_small.run_with_hooks(
-                rep_tokens_10,
-                return_type=None,  # For efficiency, we don't need to calculate the logits
-                fwd_hooks=fwd_hooks,
-            )
+            hook_func = functools.partial(head_zero_ablation_hook, head_index_to_ablate = head)
             
+            logits = model.run_with_hooks(
+                tokens,
+                return_type="logits",
+                fwd_hooks=hook_func,
+            )
+            ablation_scores[layer, head] = logits.sum()
 
-
-            head_zero_ablation_hook()
-            raise NotImplementedError()
 
     return ablation_scores
 

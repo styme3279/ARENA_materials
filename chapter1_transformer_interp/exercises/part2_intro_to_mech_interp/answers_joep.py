@@ -780,7 +780,10 @@ imshow(
     height=600,
 )
 
+
+
 # %%
+
 def decompose_qk_input(cache: ActivationCache) -> Float[Tensor, "n_heads+2 posn d_model"]:
     """
     Retrieves all the input tensors to the first attention layer, and concatenates them along the
@@ -789,7 +792,11 @@ def decompose_qk_input(cache: ActivationCache) -> Float[Tensor, "n_heads+2 posn 
     The [i, :, :]th element is y_i (from notation above). The sum of these tensors along the 0th
     dim should be the input to the first attention layer.
     """
-    raise NotImplementedError()
+    y0 = cache["embed"].unsqueeze(0)  # shape (1, seq, d_model)
+    y1 = cache["pos_embed"].unsqueeze(0)  # shape (1, seq, d_model)
+    y_rest = cache["result", 0].transpose(0, 1)  # shape (12, seq, d_model)
+
+    return t.concat([y0, y1, y_rest], dim=0)
 
 
 def decompose_q(
@@ -802,7 +809,9 @@ def decompose_q(
 
     The [i, :, :]th element is y_i @ W_Q (so the sum along axis 0 is just the q-values).
     """
-    raise NotImplementedError()
+    W_Q = model.W_Q[1, ind_head_index]
+
+    return einops.einsum(decomposed_qk_input, W_Q, "n seq d_model, d_model d_head -> n seq d_head")
 
 
 def decompose_k(
@@ -815,7 +824,9 @@ def decompose_k(
 
     The [i, :, :]th element is y_i @ W_K (so the sum along axis 0 is just the k-values)
     """
-    raise NotImplementedError()
+    W_K = model.W_K[1, ind_head_index]
+
+    return einops.einsum(decomposed_qk_input, W_K, "n seq d_model, d_model d_head -> n seq d_head")
 
 
 # Recompute rep tokens/logits/cache, if we haven't already
@@ -850,3 +861,5 @@ for decomposed_input, name in [(decomposed_q, "query"), (decomposed_k, "key")]:
         width=800,
         height=400,
     )
+
+# %%

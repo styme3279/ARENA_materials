@@ -299,7 +299,19 @@ if MAIN:
     print(torchinfo.summary(model.netD, input_data=model.netG(x)))
 
 # %%
+def normalize_from_zero_one(x):
+    try:
+        return (x*255).astype(np.int8)
+    except:
+        return (x*255).to(t.uint8)
 
+
+
+
+
+
+
+#%%
 @dataclass
 class DCGANArgs:
     """
@@ -428,7 +440,10 @@ class DCGANTrainer:
         # Log to weights and biases
         if self.args.use_wandb:
             output = einops.rearrange(output, "b c h w -> b h w c").cpu().numpy()
-            wandb.log({"images": [wandb.Image(arr) for arr in output]}, step=self.step)
+            wandb.log({"images": [wandb.Image(normalize_from_zero_one(arr)) for arr in output]}, step=self.step)
+            print(output[0].shape)
+            print(output[0].dtype)
+            
         else:
             self.live_image.update(output)
 
@@ -485,7 +500,7 @@ if MAIN:
         epochs=5,
         lr_D=8e-4,  # separate LRs for generator and discriminator
         lr_G=2e-4,
-        use_wandb=False,
+        use_wandb=True,
         compile=False, # toggle me once you have the bugs ironed out
     )
     trainer = DCGANTrainer(args)

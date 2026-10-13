@@ -522,11 +522,19 @@ def get_ablation_scores(
     for layer in tqdm(range(model.cfg.n_layers)):
         for head in range(model.cfg.n_heads):
             # raise NotImplementedError()
-            model.run_with_hooks()
+            hook_fn = functools.partial(ablation_function, head_index_to_ablate=head)
+            logits_abl = model.run_with_hooks(tokens, return_type="logits", fwd_hooks=[(utils.get_act_name("z", layer), hook_fn)])
+            loss_abl = -get_log_probs(logits_abl, tokens)[:, -(seq_len - 1) :].mean()
+            ablation_scores[layer][head] = loss_abl - loss_no_ablation
+            # gpt2_small.run_with_hooks(rep_tokens_10, return_type=None, fwd_hooks=[(pattern_hook_names_filter, visualize_pattern_hook)])
 
     return ablation_scores
 
 
 ablation_scores = get_ablation_scores(model, rep_tokens)
 tests.test_get_ablation_scores(ablation_scores, model, rep_tokens)
+# %%
+print(model.cfg.device)
+print(next(model.parameters()).device)
+print(t.cuda.is_available())
 # %%

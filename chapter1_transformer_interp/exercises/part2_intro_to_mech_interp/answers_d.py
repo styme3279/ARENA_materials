@@ -579,7 +579,7 @@ rep_tokens_batch = run_and_cache_model_repeated_tokens(model, seq_len=50, batch_
 mean_ablation_scores = get_ablation_scores(model, rep_tokens_batch, ablation_function=head_mean_ablation_hook)
 
 imshow(
-    mean_ablation_scores,
+    ablation_scores,
     labels={"x": "Head", "y": "Layer", "color": "Loss diff"},
     title="Loss Difference After Ablating Heads",
     text_auto=".2f",

@@ -261,7 +261,7 @@ def current_attn_detector(cache: ActivationCache) -> list[str]:
     """
     # print(f"cfg.n_layers: {cfg.n_layers}")
     cur_attn_list = []
-    threshold = 10
+    threshold = 25
     for layer in range(cfg.n_layers):
         attn_all_heads = cache["pattern", layer]
         # print(f"attn_all_heads: {attn_all_heads.shape}")
@@ -282,35 +282,107 @@ def prev_attn_detector(cache: ActivationCache) -> list[str]:
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be prev-token heads
     """
         # print(f"cfg.n_layers: {cfg.n_layers}")
-    cur_attn_list = []
-    threshold = 10
+    prev_attn_list = []
+    threshold = 25
     for layer in range(cfg.n_layers):
         attn_all_heads = cache["pattern", layer]
         # print(f"attn_all_heads: {attn_all_heads.shape}")
         full_mat = t.ones((attn_all_heads.shape[-1], attn_all_heads.shape[-1]))
-        diag_min_1 = t.tril()
+        diag_min_1 = t.tril(full_mat, diagonal=-1) - t.tril(full_mat, diagonal=-2)
+        # print(f"diag_min_1: {diag_min_1}")
 
-        asdf
-
-        attn_diag = t.eye(attn_all_heads.shape[-1], device=device) * attn_all_heads
+        attn_diag = diag_min_1.to(device) * attn_all_heads
         # print(f"attn_all_heads[0]: {attn_all_heads[0]}")
         # print(f"attn_diag[0]: {attn_diag[0]}")
         total_attn = attn_diag.sum(-1).sum(-1)
         # print(f"total attn: {total_attn}")
         for i, tot_attn_h in enumerate(total_attn):
             if tot_attn_h > threshold:
-                cur_attn_list.append(f"{layer}.{i}")
-
+                prev_attn_list.append(f"{layer}.{i}")
+    return prev_attn_list
 
 def first_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be first-token heads
     """
-    raise NotImplementedError()
+    first_attn_list = []
+    threshold = 30
+    for layer in range(cfg.n_layers):
+        attn_all_heads = cache["pattern", layer]
+        # print(f"attn_all_heads: {attn_all_heads.shape}")
+        full_mat = t.zeros((attn_all_heads.shape[-1], attn_all_heads.shape[-1]))
+        full_mat[:, 0] = 1.0
+
+        attn_diag = full_mat.to(device) * attn_all_heads
+        total_attn = attn_diag.sum(-1).sum(-1)
+        # print(f"total attn: {total_attn}")
+        for i, tot_attn_h in enumerate(total_attn):
+            if tot_attn_h > threshold:
+                first_attn_list.append(f"{layer}.{i}")
+
+    return first_attn_list
 
 
 print("Heads attending to current token  = ", ", ".join(current_attn_detector(cache)))
 print("Heads attending to previous token = ", ", ".join(prev_attn_detector(cache)))
 print("Heads attending to first token    = ", ", ".join(first_attn_detector(cache)))
+
+# %%
+def generate_repeated_tokens(
+    model: HookedTransformer, seq_len: int, batch_size: int = 1
+) -> Int[Tensor, "batch_size full_seq_len"]:
+    """
+    Generates a sequence of repeated random tokens
+
+    Outputs are:
+        rep_tokens: [batch_size, 1+2*seq_len]
+    """
+    t.manual_seed(0)  # for reproducibility
+    prefix = (t.ones(batch_size, 1) * model.tokenizer.bos_token_id).long()
+    rep_tokens_new = t.randint(0, model.cfg.d_vocab, (batch_size, 2*seq_len), dtype=t.int64)
+    rep_tokens = t.cat([prefix, rep_tokens_new], dim=-1).to(device)
+    print(f"rep_tokens: {rep_tokens}")
+    return rep_tokens
+
+
+def run_and_cache_model_repeated_tokens(
+    model: HookedTransformer, seq_len: int, batch_size: int = 1
+) -> tuple[Tensor, Tensor, ActivationCache]:
+    """
+    Generates a sequence of repeated random tokens, and runs the model on it, returning (tokens,
+    logits, cache). This function should use the `generate_repeated_tokens` function above.
+
+    Outputs are:
+        rep_tokens: [batch_size, 1+2*seq_len]
+        rep_logits: [batch_size, 1+2*seq_len, d_vocab]
+        rep_cache: The cache of the model run on rep_tokens
+    """
+    rep_tokens = generate_repeated_tokens(model, seq_len, batch_size)
+    rep_logits, rep_cache = model.run_with_cache(rep_tokens)
+    return rep_tokens, rep_logits, rep_cache
+
+
+
+def get_log_probs(
+    logits: Float[Tensor, "batch posn d_vocab"], tokens: Int[Tensor, "batch posn"]
+) -> Float[Tensor, "batch posn-1"]:
+    logprobs = logits.log_softmax(dim=-1)
+    # We want to get logprobs[b, s, tokens[b, s+1]], in eindex syntax this looks like:
+    correct_logprobs = eindex(logprobs, tokens, "b s [b s+1]")
+    return correct_logprobs
+
+
+seq_len = 50
+batch_size = 1
+(rep_tokens, rep_logits, rep_cache) = run_and_cache_model_repeated_tokens(model, seq_len, batch_size)
+rep_cache.remove_batch_dim()
+rep_str = model.to_str_tokens(rep_tokens)
+model.reset_hooks()
+log_probs = get_log_probs(rep_logits, rep_tokens).squeeze()
+
+print(f"Performance on the first half: {log_probs[:seq_len].mean():.3f}")
+print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
+
+plot_loss_difference(log_probs, rep_str, seq_len)
 
 # %%

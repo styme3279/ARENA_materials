@@ -281,9 +281,9 @@ def generate_repeated_tokens(
     t.manual_seed(0)  # for reproducibility
     prefix = (t.ones(batch_size, 1) * model.tokenizer.bos_token_id).long()
 
-    print(prefix.shape)
+    rand_tokens = t.randint(low=1, high=model.tokenizer.vocab_size, size=(batch_size, seq_len))
 
-    model.tokenizer.vocab_size
+    return t.cat((prefix, rand_tokens, rand_tokens), dim=1)
 
 
 def run_and_cache_model_repeated_tokens(
@@ -298,7 +298,11 @@ def run_and_cache_model_repeated_tokens(
         rep_logits: [batch_size, 1+2*seq_len, d_vocab]
         rep_cache: The cache of the model run on rep_tokens
     """
-    raise NotImplementedError()
+    text = generate_repeated_tokens(model, seq_len, batch_size)
+
+    logits, cache = model.run_with_cache(text)
+
+    return text, logits, cache 
 
 
 def get_log_probs(
@@ -322,5 +326,49 @@ print(f"Performance on the first half: {log_probs[:seq_len].mean():.3f}")
 print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
 
 plot_loss_difference(log_probs, rep_str, seq_len)
+
+# %%
+pattern_1 = rep_cache['pattern', 0]
+pattern_2 = rep_cache['pattern', 1]
+
+print("Layer 0 Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=rep_str,
+        attention=pattern_1,
+        attention_head_names=[f"L0H{i}" for i in range(12)],
+    )
+)
+
+print("Layer 1 Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=rep_str,
+        attention=pattern_2,
+        attention_head_names=[f"L1H{i}" for i in range(12)],
+    )
+)
+
+# %%
+def induction_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be induction heads
+
+    Remember - the tokens used to generate rep_cache are (bos_token, *rand_tokens, *rand_tokens)
+    """
+    output = []
+    for layer in range(2):
+        for head in range(12):
+            code = f"{layer}.{head}"
+            # [n_heads, pos, pos]
+            pattern = cache['pattern', layer][head]
+            offset = ((pattern.size(1) - 1) // 2) - 1
+            diag = t.diag(pattern, diagonal=-offset)
+            if diag.mean() > 0.05:
+                output.append(code)
+    return output
+
+
+print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))
 
 # %%

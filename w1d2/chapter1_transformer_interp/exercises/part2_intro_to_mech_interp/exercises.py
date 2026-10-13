@@ -1,0 +1,631 @@
+# %%
+
+import functools
+import sys
+from pathlib import Path
+from typing import Callable
+
+import circuitsvis as cv
+import einops
+import numpy as np
+import torch as t
+import torch.nn as nn
+from eindex import eindex
+from IPython.display import display
+from jaxtyping import Float, Int
+from torch import Tensor
+from tqdm.auto import tqdm
+from transformer_lens import (
+    ActivationCache,
+    FactoredMatrix,
+    HookedTransformer,
+    HookedTransformerConfig,
+    utils,
+)
+from transformer_lens.hook_points import HookPoint
+
+device = t.device("mps" if t.backends.mps.is_available() else "cuda" if t.cuda.is_available() else "cpu")
+
+# Make sure exercises are in the path
+chapter = "chapter1_transformer_interp"
+section = "part2_intro_to_mech_interp"
+root_dir = next(p for p in Path.cwd().parents if (p / chapter).exists())
+exercises_dir = root_dir / chapter / "exercises"
+section_dir = exercises_dir / section
+if str(exercises_dir) not in sys.path:
+    sys.path.append(str(exercises_dir))
+
+import part2_intro_to_mech_interp.tests as tests
+from plotly_utils import (
+    hist,
+    imshow,
+    plot_comp_scores,
+    plot_logit_attribution,
+    plot_loss_difference,
+)
+
+# Saves computation time, since we don't need it for the contents of this notebook
+t.set_grad_enabled(False)
+
+MAIN = __name__ == "__main__"
+
+
+# %%
+gpt2_small: HookedTransformer = HookedTransformer.from_pretrained("gpt2-small")
+
+# %%
+config = gpt2_small.cfg
+print(config)
+
+# %%
+model_description_text = """## Loading Models
+
+HookedTransformer comes loaded with >40 open source GPT-style models. You can load any of them in with `HookedTransformer.from_pretrained(MODEL_NAME)`. Each model is loaded into the consistent HookedTransformer architecture, designed to be clean, consistent and interpretability-friendly.
+
+For this demo notebook we'll look at GPT-2 Small, an 80M parameter model. To try the model out, let's find the loss on this paragraph!"""
+
+loss = gpt2_small(model_description_text, return_type="loss")
+print("Model loss:", loss)
+
+
+# %%
+logits: Tensor = gpt2_small(model_description_text, return_type="logits")
+prediction = logits.argmax(dim=-1).squeeze()[:-1]
+
+# YOUR CODE HERE - get the model's prediction on the text
+input_tokens_raw = gpt2_small.to_tokens(model_description_text)
+input_tokens = input_tokens_raw[:, 1:]
+prediction = prediction.unsqueeze(0)
+assert input_tokens.shape == prediction.shape, f"input shape {input_tokens.shape}"
+accuracy = (input_tokens == prediction).to(t.float32).mean().item()
+print(f"{accuracy:.1%}")
+
+
+# %%
+gpt2_text = "Natural language processing tasks, such as question answering, machine translation, reading comprehension, and summarization, are typically approached with supervised learning on task-specific datasets."
+gpt2_tokens = gpt2_small.to_tokens(gpt2_text)
+gpt2_logits, gpt2_cache = gpt2_small.run_with_cache(gpt2_tokens, remove_batch_dim=True)
+
+print(type(gpt2_logits), type(gpt2_cache))
+
+
+# %%
+layer0_pattern_from_cache = gpt2_cache["pattern", 0]
+
+# YOUR CODE HERE - define `layer0_pattern_from_q_and_k` manually, by manually performing the
+# steps of the attention calculation (dot product, masking, scaling, softmax)
+
+hook_q = gpt2_cache["q", 0]
+hook_k = gpt2_cache["k", 0]
+
+layer0_pattern_from_q_and_k = einops.einsum(hook_q, hook_k, "s_q nhead dhead, s_k nhead dhead -> nhead s_q s_k")
+layer0_pattern_from_q_and_k /= np.sqrt(gpt2_small.cfg.d_head)
+
+a = t.full(layer0_pattern_from_q_and_k.shape, -t.inf).to(device)
+a = t.triu(a, diagonal=1)
+layer0_pattern_from_q_and_k = t.where(a.to(t.bool), a, layer0_pattern_from_q_and_k)
+layer0_pattern_from_q_and_k = t.softmax(layer0_pattern_from_q_and_k, dim=-1)
+# print(a)
+
+t.testing.assert_close(layer0_pattern_from_cache, layer0_pattern_from_q_and_k)
+print("Tests passed!")
+
+# %%
+print(type(gpt2_cache))
+attention_pattern = gpt2_cache["pattern", 0]
+print(attention_pattern.shape)
+gpt2_str_tokens = gpt2_small.to_str_tokens(gpt2_text)
+
+print("Layer 0 Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=gpt2_str_tokens,
+        attention=attention_pattern,
+        attention_head_names=[f"L0H{i}" for i in range(12)],
+    )
+)
+
+# %%
+neuron_activations_for_all_layers = t.stack([
+    gpt2_cache["post", layer] for layer in range(gpt2_small.cfg.n_layers)
+], dim=1)
+# shape = (seq_pos, layers, neurons)
+
+cv.activations.text_neuron_activations(
+    tokens=gpt2_str_tokens,
+    activations=neuron_activations_for_all_layers
+)
+
+# %%
+neuron_activations_for_all_layers_rearranged = utils.to_numpy(einops.rearrange(neuron_activations_for_all_layers, "seq layers neurons -> 1 layers seq neurons"))
+
+cv.topk_tokens.topk_tokens(
+    # Some weird indexing required here ¯\_(ツ)_/¯
+    tokens=[gpt2_str_tokens],
+    activations=neuron_activations_for_all_layers_rearranged,
+    max_k=7,
+    first_dimension_name="Layer",
+    third_dimension_name="Neuron",
+    first_dimension_labels=list(range(12))
+)
+
+# %%
+cfg = HookedTransformerConfig(
+    d_model=768,
+    d_head=64,
+    n_heads=12,
+    n_layers=2,
+    n_ctx=2048,
+    d_vocab=50278,
+    attention_dir="causal",
+    attn_only=True,  # defaults to False
+    tokenizer_name="EleutherAI/gpt-neox-20b",
+    seed=398,
+    use_attn_result=True,
+    normalization_type=None,  # defaults to "LN", i.e. layernorm with weights & biases
+    positional_embedding_type="shortformer",
+)
+
+# %%
+from huggingface_hub import hf_hub_download
+
+REPO_ID = "callummcdougall/attn_only_2L_half"
+FILENAME = "attn_only_2L_half.pth"
+
+weights_path = hf_hub_download(repo_id=REPO_ID, filename=FILENAME)
+
+# %%
+model = HookedTransformer(cfg)
+pretrained_weights = t.load(weights_path, map_location=device, weights_only=True)
+model.load_state_dict(pretrained_weights)
+
+# %%
+text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
+
+logits, cache = model.run_with_cache(text, remove_batch_dim=True)
+
+# %%
+# YOUR CODE HERE - visualize attention
+attention_pattern = cache["pattern", 1]
+str_tokens = model.to_str_tokens(text)
+
+print("Layer 0 Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=str_tokens,
+        attention=attention_pattern,
+        attention_head_names=[f"L0H{i}" for i in range(cfg.n_heads)],
+    )
+)
+
+# %%
+def current_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be current-token heads
+    """
+    res = []
+    thr_per_head = 0.35
+    thr_total = 0.6
+    for layer in range(cfg.n_layers):
+        attn_patterns = cache['pattern', layer]
+        for head in range(cfg.n_heads):
+            head_pattern = attn_patterns[head]
+            # print(head_pattern.shape)
+            # if layer == 0 and head == 9:
+                # print(head_pattern[10])
+                # print(head_pattern[20])
+                # print(head_pattern[30])
+            distr = (t.diagonal(head_pattern) > thr_per_head).to(t.float32)
+            detection = distr.mean() > thr_total
+            if detection:
+                res.append(f"{layer}.{head}")
+
+    return res
+
+
+    # attention_pattern = gpt2_cache["pattern", 0]
+
+
+def prev_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be prev-token heads
+    """
+
+    t.set_printoptions(precision=2, sci_mode=False)
+    thr_per_key = 0.6
+    thr_total = 0.6
+    num_diags = 5
+    res = []
+    for layer in range(cfg.n_layers):
+        attn_patterns = cache['pattern', layer]
+        for head in range(cfg.n_heads):
+            head_pattern = attn_patterns[head]
+
+            a = t.zeros(head_pattern.shape).to(device)
+            for j in range(num_diags):
+                a += t.diag(t.diagonal(head_pattern, offset=-j), diagonal=-j)
+
+            detection = (a.sum(dim=-1) > thr_per_key).to(t.float32).mean() > thr_total
+            if detection:
+                res.append(f"{layer}.{head}")
+
+    return res
+
+
+
+
+def first_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be first-token heads
+    """
+    thr_per_key = 0.6
+    thr_total = 0.6
+    res = []
+    for layer in range(cfg.n_layers):
+        attn_patterns = cache['pattern', layer]
+        for head in range(cfg.n_heads):
+            head_pattern = attn_patterns[head]
+
+            attn_to_first_key = head_pattern[:, 0]
+
+            detection = (attn_to_first_key > thr_per_key).to(t.float32).mean() > thr_total
+            if detection:
+                res.append(f"{layer}.{head}")
+
+    return res
+    
+
+
+print("Heads attending to current token  = ", ", ".join(current_attn_detector(cache)))
+print("Heads attending to previous token = ", ", ".join(prev_attn_detector(cache)))
+print("Heads attending to first token    = ", ", ".join(first_attn_detector(cache)))
+
+
+# %%
+def generate_repeated_tokens(
+    model: HookedTransformer, seq_len: int, batch_size: int = 1
+) -> Int[Tensor, "batch_size full_seq_len"]:
+    """
+    Generates a sequence of repeated random tokens
+
+    Outputs are:
+        rep_tokens: [batch_size, 1+2*seq_len]
+    """
+    t.manual_seed(1)  # for reproducibility
+    prefix = (t.ones(batch_size, 1) * model.tokenizer.bos_token_id).long()
+
+    random_numbers = t.randint(low=0, high=cfg.d_vocab, size=(batch_size, seq_len))
+
+    return t.concat([prefix, random_numbers, random_numbers], dim=1)
+
+
+def run_and_cache_model_repeated_tokens(
+    model: HookedTransformer, seq_len: int, batch_size: int = 1
+) -> tuple[Tensor, Tensor, ActivationCache]:
+    """
+    Generates a sequence of repeated random tokens, and runs the model on it, returning (tokens,
+    logits, cache). This function should use the `generate_repeated_tokens` function above.
+
+    Outputs are:
+        rep_tokens: [batch_size, 1+2*seq_len]
+        rep_logits: [batch_size, 1+2*seq_len, d_vocab]
+        rep_cache: The cache of the model run on rep_tokens
+    """
+    rep_tokens = generate_repeated_tokens(model, seq_len, batch_size)
+
+    rep_logits, rep_cache = model.run_with_cache(rep_tokens)
+
+
+    print(rep_logits.shape)
+    print(rep_tokens.shape)
+    return rep_tokens, rep_logits, rep_cache
+
+
+
+def get_log_probs(
+    logits: Float[Tensor, "batch posn d_vocab"], tokens: Int[Tensor, "batch posn"]
+) -> Float[Tensor, "batch posn-1"]:
+    logprobs = logits.log_softmax(dim=-1)
+    # We want to get logprobs[b, s, tokens[b, s+1]], in eindex syntax this looks like:
+    correct_logprobs = eindex(logprobs, tokens, "b s [b s+1]")
+    return correct_logprobs
+
+
+seq_len = 50
+batch_size = 1
+(rep_tokens, rep_logits, rep_cache) = run_and_cache_model_repeated_tokens(model, seq_len, batch_size)
+rep_cache.remove_batch_dim()
+rep_str = model.to_str_tokens(rep_tokens)
+model.reset_hooks()
+log_probs = get_log_probs(rep_logits, rep_tokens).squeeze()
+
+print(f"Performance on the first half: {log_probs[:seq_len].mean():.3f}")
+print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
+
+plot_loss_difference(log_probs, rep_str, seq_len)
+
+
+# %%
+# YOUR CODE HERE - display the attention patterns stored in `rep_cache`, for each layer
+layer = 1
+attention_pattern = rep_cache["pattern", layer]
+# str_tokens = model.to_str_tokens(text)
+# print(str_tokens)
+str_tokens = [model.to_string(t) for t in rep_tokens[0]]
+print(str_tokens)
+
+print(f"Layer {layer} Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=str_tokens,
+        attention=attention_pattern,
+        attention_head_names=[f"L{layer}H{i}" for i in range(cfg.n_heads)],
+    )
+)
+
+
+
+# %%
+def induction_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be induction heads
+
+    Remember - the tokens used to generate rep_cache are (bos_token, *rand_tokens, *rand_tokens)
+    """
+    res = []
+    thr_per_head = 0.5
+    thr_total = 0.5
+    for layer in range(cfg.n_layers):
+        attn_patterns = cache['pattern', layer]
+        for head in range(cfg.n_heads):
+            head_pattern = attn_patterns[head]
+            # print(head_pattern.shape)
+            # if layer == 0 and head == 9:
+                # print(head_pattern[10])
+                # print(head_pattern[20])
+                # print(head_pattern[30])
+            distr = (t.diagonal(head_pattern, offset=-seq_len+1) > thr_per_head).to(t.float32)
+            if layer==1 and head==4:
+                print(head_pattern)
+                print(t.diagonal(head_pattern, offset=-seq_len+1))
+            detection = distr.mean() > thr_total
+            if detection:
+                res.append(f"{layer}.{head}")
+
+    return res
+
+print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))
+
+
+
+# %%
+
+seq_len = 50
+batch_size = 10
+rep_tokens_10 = generate_repeated_tokens(gpt2_small, seq_len, batch_size)
+
+# We make a tensor to store the induction score for each head.
+# We put it on the model's device to avoid needing to move things between the GPU and CPU,
+# which can be slow.
+induction_score_store = t.zeros((gpt2_small.cfg.n_layers, gpt2_small.cfg.n_heads), device=gpt2_small.cfg.device)
+
+
+def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos source_pos"], hook: HookPoint):
+    """
+    Calculates the induction score, and stores it in the [layer, head] position of the
+    `induction_score_store` tensor.
+    """
+    threshold_per_query = 0.5
+    layer = hook.layer()
+    for head in range(model.cfg.n_heads):
+        batched_head_pattern = pattern[:, head, :, :] # (batch query_seq key_seq)
+        diagonal = t.diagonal(batched_head_pattern, offset=-seq_len+1, dim1=-2, dim2=-1) # (batch, seq_len)
+        head_induction_score = (diagonal > threshold_per_query).to(t.float32).mean().item()
+        induction_score_store[layer, head] = head_induction_score
+
+
+# We make a boolean filter on activation names, that's true only on attention pattern names
+pattern_hook_names_filter = lambda name: name.endswith("pattern")
+
+# Run with hooks (this is where we write to the `induction_score_store` tensor`)
+gpt2_small.run_with_hooks(
+    rep_tokens_10,
+    return_type=None,  # For efficiency, we don't need to calculate the logits
+    fwd_hooks=[(pattern_hook_names_filter, induction_score_hook)],
+)
+
+# Plot the induction scores for each head in each layer
+imshow(
+    induction_score_store,
+    labels={"x": "Head", "y": "Layer"},
+    title="Induction Score by Head",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+
+# # %%
+def visualize_pattern_hook(
+    pattern: Float[Tensor, "batch head_index dest_pos source_pos"],
+    hook: HookPoint,
+):
+    print("Layer: ", hook.layer())
+    display(cv.attention.attention_patterns(tokens=gpt2_small.to_str_tokens(rep_tokens[0]), attention=pattern.mean(0)))
+
+
+# YOUR CODE HERE - find induction heads in gpt2_small
+gpt2_small.run_with_hooks(
+    rep_tokens_10,
+    return_type=None,  # For efficiency, we don't need to calculate the logits
+    fwd_hooks=[(pattern_hook_names_filter, visualize_pattern_hook)],
+)
+
+# visualize_pattern_hook()
+# %%
+def logit_attribution(
+    embed: Float[Tensor, "seq d_model"],
+    l1_results: Float[Tensor, "seq nheads d_model"],
+    l2_results: Float[Tensor, "seq nheads d_model"],
+    W_U: Float[Tensor, "d_model d_vocab"],
+    tokens: Int[Tensor, "seq"],
+) -> Float[Tensor, "seq-1 n_components"]:
+    """
+    Inputs:
+        embed: the embeddings of the tokens (i.e. token + position embeddings)
+        l1_results: the outputs of the attention heads at layer 1 (with head as one of the dims)
+        l2_results: the outputs of the attention heads at layer 2 (with head as one of the dims)
+        W_U: the unembedding matrix
+        tokens: the token ids of the sequence
+
+    Returns:
+        Tensor of shape (seq_len-1, n_components)
+        represents the concatenation (along dim=-1) of logit attributions from:
+            the direct path (seq-1,1)
+            layer 0 logits (seq-1, n_heads)
+            layer 1 logits (seq-1, n_heads)
+        so n_components = 1 + 2*n_heads
+    """
+    W_U_correct_tokens = W_U[:, tokens[1:]] # (d_model, seq_len-1)
+
+    embed_inputs = embed[:-1, :]
+    embed_contribution = einops.einsum(embed_inputs, W_U_correct_tokens, "new_seq d_model, d_model new_seq -> new_seq") # new_seq = seq - 1
+    embed_contribution = embed_contribution.unsqueeze(-1)
+
+    l1_inputs = l1_results[:-1, :, :]
+    l1_contribution = einops.einsum(l1_inputs, W_U_correct_tokens, "new_seq n_heads d_model, d_model new_seq -> new_seq n_heads")
+
+    l2_inputs = l2_results[:-1, :, :]
+    l2_contribution = einops.einsum(l2_inputs, W_U_correct_tokens, "new_seq n_heads d_model, d_model new_seq -> new_seq n_heads")
+
+    result = t.concat([embed_contribution, l1_contribution, l2_contribution], dim=-1)
+
+    return result
+
+
+# text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
+text = "lantern # velvet orbit & marmalade quietly % thunder pebble @ saffron drift ~ cobalt whisper ^ kettle meadow * fractal juniper + harbor ember = tangle compass ! silhouette nimbus ? waffle granite $ echo paprika / zephyr lullaby ; quartz tumble § oracle biscuit | horizon → marble lantern # velvet orbit & marmalade quietly % thunder pebble @ saffron drift ~ cobalt whisper ^ kettle meadow * fractal juniper + harbor ember = tangle compass ! silhouette nimbus ? waffle granite $ echo paprika / zephyr lullaby ; quartz tumble § oracle biscuit | horizon → marble"
+logits, cache = model.run_with_cache(text, remove_batch_dim=True)
+str_tokens = model.to_str_tokens(text)
+tokens = model.to_tokens(text)
+
+with t.inference_mode():
+    embed = cache["embed"]
+    l1_results = cache["result", 0]
+    l2_results = cache["result", 1]
+    logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, tokens[0])
+    # Uses fancy indexing to get a len(tokens[0])-1 length tensor, where the kth entry is the predicted logit for the correct k+1th token
+    correct_token_logits = logits[0, t.arange(len(tokens[0]) - 1), tokens[0, 1:]]
+    t.testing.assert_close(logit_attr.sum(1), correct_token_logits, atol=1e-3, rtol=0)
+    print("Tests passed!")
+
+
+
+# %%
+embed = cache["embed"]
+l1_results = cache["result", 0]
+l2_results = cache["result", 1]
+logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, tokens.squeeze())
+
+plot_logit_attribution(model, logit_attr, tokens, title="Logit attribution (demo prompt)")
+
+
+# %%
+model.cfg.d_head
+
+# %%
+
+def head_zero_ablation_hook(
+    z: Float[Tensor, "batch seq n_heads d_head"],
+    hook: HookPoint,
+    head_index_to_ablate: int,
+) -> None:
+    z[:, :, head_index_to_ablate, :] = 0
+    
+
+
+def get_ablation_scores(
+    model: HookedTransformer,
+    tokens: Int[Tensor, "batch seq"],
+    ablation_function: Callable = head_zero_ablation_hook,
+) -> Float[Tensor, "n_layers n_heads"]:
+    """
+    Returns a tensor of shape (n_layers, n_heads) containing the increase in cross entropy loss
+    from ablating the output of each head.
+    """
+    # Initialize an object to store the ablation scores
+    ablation_scores = t.zeros((model.cfg.n_layers, model.cfg.n_heads), device=model.cfg.device)
+
+    # Calculating loss without any ablation, to act as a baseline
+    model.reset_hooks()
+    seq_len = (tokens.shape[1] - 1) // 2
+    logits = model(tokens, return_type="logits")
+    loss_no_ablation = -get_log_probs(logits, tokens)[:, -(seq_len - 1) :].mean()
+
+    for layer in tqdm(range(model.cfg.n_layers)):
+        for head in range(model.cfg.n_heads):
+            head_zero_ablation_hook_partial = functools.partial(head_zero_ablation_hook, head_index_to_ablate=head)
+            logits_with_abl = model.run_with_hooks(
+                tokens,
+                return_type="logits",  # For efficiency, we don't need to calculate the logits
+                fwd_hooks=[(utils.get_act_name("z", layer), head_zero_ablation_hook_partial)],
+            )
+            loss_with_abl = -get_log_probs(logits_with_abl, tokens)[:, -(seq_len - 1) :].mean()
+            ablation_scores[layer, head] = loss_with_abl - loss_no_ablation
+
+    return ablation_scores
+
+
+ablation_scores = get_ablation_scores(model, rep_tokens)
+tests.test_get_ablation_scores(ablation_scores, model, rep_tokens)
+
+# %%
+
+imshow(
+    ablation_scores,
+    labels={"x": "Head", "y": "Layer", "color": "Loss diff"},
+    title="Loss Difference After Ablating Heads",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+
+# %%
+
+print(type(cache))
+attention_pattern = cache["pattern", 0]
+print(attention_pattern.shape)
+str_tokens = model.to_str_tokens(text)
+
+print("Layer 0 Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=str_tokens,
+        attention=attention_pattern,
+        attention_head_names=[f"L0H{i}" for i in range(12)],
+    )
+)
+
+# %%
+def head_mean_ablation_hook(
+    z: Float[Tensor, "batch seq n_heads d_head"],
+    hook: HookPoint,
+    head_index_to_ablate: int,
+) -> None:
+    batch_mean = z[:, :, head_index_to_ablate, :].mean(dim=0, keepdim=True) # (1, seq, d_head)
+    z[:, :, head_index_to_ablate, :] = batch_mean
+
+
+rep_tokens_batch = run_and_cache_model_repeated_tokens(model, seq_len=50, batch_size=10)[0]
+mean_ablation_scores = get_ablation_scores(model, rep_tokens_batch, ablation_function=head_mean_ablation_hook)
+
+imshow(
+    mean_ablation_scores,
+    labels={"x": "Head", "y": "Layer", "color": "Loss diff"},
+    title="Loss Difference After Ablating Heads",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+
+
+# %%

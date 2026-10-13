@@ -126,6 +126,7 @@ for i in range(1, logits.shape[1]):
 print(c_count, all_count, float(c_count) / all_count * 100)
 # %%
 gpt2_text = "Natural language processing tasks, such as question answering, machine translation, reading comprehension, and summarization, are typically approached with supervised learning on task-specific datasets."
+gpt2_text = "The dog jumped over a car. Finding induction heads is pretty tricky. Patryk has no idea what is he doing."
 gpt2_tokens = gpt2_small.to_tokens(gpt2_text)
 gpt2_logits, gpt2_cache = gpt2_small.run_with_cache(gpt2_tokens, remove_batch_dim=True)
 
@@ -165,4 +166,31 @@ display(
         attention_head_names=[f"L0H{i}" for i in range(12)],
     )
 )
+# %%
+cfg = HookedTransformerConfig(
+    d_model=768,
+    d_head=64,
+    n_heads=12,
+    n_layers=2,
+    n_ctx=2048,
+    d_vocab=50278,
+    attention_dir="causal",
+    attn_only=True,  # defaults to False
+    tokenizer_name="EleutherAI/gpt-neox-20b",
+    seed=398,
+    use_attn_result=True,
+    normalization_type=None,  # defaults to "LN", i.e. layernorm with weights & biases
+    positional_embedding_type="shortformer",
+)
+# %%
+from huggingface_hub import hf_hub_download
+
+REPO_ID = "callummcdougall/attn_only_2L_half"
+FILENAME = "attn_only_2L_half.pth"
+
+weights_path = hf_hub_download(repo_id=REPO_ID, filename=FILENAME)
+# %%
+model = HookedTransformer(cfg)
+pretrained_weights = t.load(weights_path, map_location=device, weights_only=True)
+model.load_state_dict(pretrained_weights)
 # %%

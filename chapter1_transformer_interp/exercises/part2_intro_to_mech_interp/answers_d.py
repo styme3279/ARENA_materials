@@ -212,6 +212,13 @@ def prev_attn_detector(cache: ActivationCache) -> list[str]:
     for layer in range(model.cfg.n_layers):
         for head in range(cfg.n_heads):
             attention_pattern = cache["pattern",layer][head]
+            cum_score = 0
+            for i in range(1,len(attention_pattern[0])):
+                cum_score += attention_pattern[i][i-1]
+            avg_score = cum_score / 
+            if cum_score > 0.4:
+                attn_heads.append(f"{layer}.{head}")
+    return attn_heads
 
 
 def first_attn_detector(cache: ActivationCache) -> list[str]:

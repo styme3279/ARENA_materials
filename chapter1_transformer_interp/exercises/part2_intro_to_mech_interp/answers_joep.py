@@ -386,31 +386,55 @@ print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
 plot_loss_difference(log_probs, rep_str, seq_len)
 
 # %%
+
+# seq_len = 50
+
+# def induction_attn_detector(cache: ActivationCache) -> list[str]:
+#     """
+#     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be induction heads
+
+#     Remember - the tokens used to generate rep_cache are (bos_token, *rand_tokens, *rand_tokens)
+#     """
+#     prev_attn_list = []
+#     threshold = 0.2
+#     diag_offset = -seq_len + 1
+#     for layer in range(cfg.n_layers):
+#         attn_all_heads = cache["pattern", layer]
+
+#         print(f"attn_all_heads: {attn_all_heads.shape}")
+#         full_mat = t.ones((attn_all_heads.shape[-1], attn_all_heads.shape[-1]))
+#         diag_min_1 = t.tril(full_mat, diagonal=diag_offset) - t.tril(full_mat, diagonal=diag_offset-1)
+
+#         attn_diag = diag_min_1.to(device) * attn_all_heads
+
+#         # print(f"attn_all_heads[0]: {attn_all_heads[0]}")
+#         print(f"attn_diag[0]: {attn_diag[0]}")
+#         # total_attn = attn_diag.mean(-1).mean(-1)
+#         total_attn = attn_diag.mean((-2, -1))
+#         print(f"total attn: {total_attn}")
+#         for i, tot_attn_h in enumerate(total_attn):
+#             if tot_attn_h > threshold:
+#                 prev_attn_list.append(f"{layer}.{i}")
+
+#     return prev_attn_list
+
 def induction_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be induction heads
 
     Remember - the tokens used to generate rep_cache are (bos_token, *rand_tokens, *rand_tokens)
     """
-    attn_all_heads = cache["pattern"]
-    prev_attn_list = []
-    threshold = 25
-    for layer in range(cfg.n_layers):
-        _, attn_all_heads = cache["pattern", layer]
-        print(f"attn_all_heads: {attn_all_heads.shape}")
-        full_mat = t.ones((attn_all_heads.shape[-1], attn_all_heads.shape[-1]))
-        diag_min_1 = t.tril(full_mat, diagonal=-seq_len-1) - t.tril(full_mat, diagonal=-seq_len-2)
-        # print(f"diag_min_1: {diag_min_1[-1]}")
-
-        attn_diag = diag_min_1.to(device) * attn_all_heads
-        # print(f"attn_all_heads[0]: {attn_all_heads[0]}")
-        # print(f"attn_diag[0]: {attn_diag[0]}")
-        total_attn = attn_diag.mean(-1).mean(-1)
-        print(f"total attn: {total_attn}")
-        for i, tot_attn_h in enumerate(total_attn):
-            if tot_attn_h > threshold:
-                prev_attn_list.append(f"{layer}.{i}")
-    return prev_attn_list
+    attn_heads = []
+    for layer in range(model.cfg.n_layers):
+        for head in range(model.cfg.n_heads):
+            attention_pattern = cache["pattern", layer][head]
+            # take avg of (-seq_len+1)-offset elements
+            seq_len = (attention_pattern.shape[-1] - 1) // 2
+            score = attention_pattern.diagonal(-seq_len + 1).mean()
+            print(f"score: {score}")
+            if score > 0.4:
+                attn_heads.append(f"{layer}.{head}")
+    return attn_heads
 
 
 print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))

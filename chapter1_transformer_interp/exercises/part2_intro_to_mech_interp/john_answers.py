@@ -230,34 +230,55 @@ def current_attn_detector(cache: ActivationCache) -> list[str]:
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be current-token heads
     """
     attn_heads = []
+    head_threshold = 0.4
     for layer_id in t.arange(cfg.n_layers):
         layer_attn = cache["attn", layer_id]
         for head_id in t.arange(cfg.n_heads):
             curr_head_attn = layer_attn[head_id]
             # Get the mean of the main diagonal to calculate current attention head
-            #curr_mean_attn = cache["attn", layer_id, head_id].diag().mean()
-            curr_mean_attn = curr_head_attn.diag()
-            print(len(curr_mean_attn)
-            #print(curr_mean_attn.shape)
-            #print(curr_mean_attn)
-            #print(cache["attn"].keys())
-            #print(curr_mean_attn) 
-    #for layer in cache
-    
+            curr_mean_attn = curr_head_attn.diagonal().mean()
 
+            if curr_mean_attn > head_threshold:
+                attn_heads.append(f"{layer_id}.{head_id}")
+
+    return attn_heads
 
 def prev_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be prev-token heads
     """
-    raise NotImplementedError()
+    attn_heads = []
+    head_threshold = 0.4
+    for layer_id in t.arange(cfg.n_layers):
+        layer_attn = cache["attn", layer_id]
+        for head_id in t.arange(cfg.n_heads):
+            curr_head_attn = layer_attn[head_id]
+            # Get the mean of the main diagonal to calculate current attention head
+            curr_mean_attn = curr_head_attn.diagonal(-1).mean()
+
+            if curr_mean_attn > head_threshold:
+                attn_heads.append(f"{layer_id}.{head_id}")
+
+    return attn_heads
 
 
 def first_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be first-token heads
     """
-    raise NotImplementedError()
+    attn_heads = []
+    head_threshold = 0.4
+    for layer_id in t.arange(cfg.n_layers):
+        layer_attn = cache["attn", layer_id]
+        for head_id in t.arange(cfg.n_heads):
+            curr_head_attn = layer_attn[head_id]
+            # Get the mean of the main diagonal to calculate current attention head
+            curr_mean_attn = curr_head_attn[:, 0].mean()
+
+            if curr_mean_attn > head_threshold:
+                attn_heads.append(f"{layer_id}.{head_id}")
+
+    return attn_heads
 
 
 print("Heads attending to current token  = ", ", ".join(current_attn_detector(cache)))

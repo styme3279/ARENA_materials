@@ -117,6 +117,61 @@ print("Model loss:", loss)
 
 
 # %%
-print(f"GPT W_Q shape: {gpt2_small.W_E.shape}")
+print(f"GPT W_Q shape: {gpt2_small.W_Q.shape}")
+print(f"GPT W_in shape: {gpt2_small.W_in.shape}")
+print(f"GPT W_out shape: {gpt2_small.W_out.shape}")
+
+# %%
+print(gpt2_small.to_str_tokens("gpt2"))
+print(gpt2_small.to_str_tokens(["gpt2", "gpt2"]))
+print(gpt2_small.to_tokens("gpt2"))
+print(gpt2_small.to_string([50256, 70, 457, 17]))
+
+# %%
+logits: Tensor = gpt2_small(model_description_text, return_type="logits")
+prediction = logits.argmax(dim=-1).squeeze()[:-1]
+
+# YOUR CODE HERE - get the model's prediction on the text
+print(f"prediction text: {gpt2_small.to_string(prediction)}")
+print(f"prediction: {prediction}")
+print(f"prediction shape: {prediction.shape}")
+true_tokens = gpt2_small.to_tokens(model_description_text)[:,1:]
+print(f"true_tokens: {true_tokens}")
+print(f"true_tokens: {true_tokens.shape}")
+accuracy = (true_tokens == prediction).sum()
+print(f"accuracy: {accuracy / true_tokens.shape[1]} %")
+
+
+
+
+# %%
+gpt2_text = "Natural language processing tasks, such as question answering, machine translation, reading comprehension, and summarization, are typically approached with supervised learning on task-specific datasets."
+gpt2_tokens = gpt2_small.to_tokens(gpt2_text)
+gpt2_logits, gpt2_cache = gpt2_small.run_with_cache(gpt2_tokens, remove_batch_dim=True)
+
+print(type(gpt2_logits), type(gpt2_cache))
+
+
+
+# %%
+attn_patterns_from_shorthand = gpt2_cache["pattern", 0]
+attn_patterns_from_full_name = gpt2_cache["blocks.0.attn.hook_pattern"]
+
+t.testing.assert_close(attn_patterns_from_shorthand, attn_patterns_from_full_name)
+
+# %%
+layer0_pattern_from_cache = gpt2_cache["pattern", 0]
+
+# YOUR CODE HERE - define `layer0_pattern_from_q_and_k` manually, by manually performing the
+# steps of the attention calculation (dot product, masking, scaling, softmax)
+def layer0_pattern_from_q_and_k():
+    attn = gpt2_cache["pattern", 0]
+    
+
+
+
+
+t.testing.assert_close(layer0_pattern_from_cache, layer0_pattern_from_q_and_k)
+print("Tests passed!")
 
 # %%

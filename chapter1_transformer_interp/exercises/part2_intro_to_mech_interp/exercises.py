@@ -112,7 +112,13 @@ logits: Tensor = gpt2_small(model_description_text, return_type="logits")
 prediction = logits.argmax(dim=-1).squeeze()[:-1]
 
 # YOUR CODE HERE - get the model's prediction on the text
-true_tokens = gpt2_small.to_tokens(model_description_text)
+true_tokens = gpt2_small.to_tokens(model_description_text, prepend_bos=False)
+
+print(f"{prediction.shape=}, {true_tokens.shape=}")
 
 true_mask = t.where(prediction == true_tokens, 1, 0)
 num_correct, correct_indices = true_mask.sum(), true_mask.nonzero()
+
+print(f"{true_mask=}")
+print(f"correct tokens = {gpt2_small.to_str_tokens(prediction[correct_indices[:, 1]])}")
+# %%

@@ -164,6 +164,21 @@ print(layer0_pattern_from_q_and_k.shape)
 #print(z.shape)
 
 
-#t.testing.assert_close(layer0_pattern_from_cache, layer0_pattern_from_q_and_k)
-#print("Tests passed!")
+t.testing.assert_close(layer0_pattern_from_cache, layer0_pattern_from_q_and_k)
+print("Tests passed!")
+# %%
+print(type(gpt2_cache))
+attention_pattern = gpt2_cache["pattern", 0]
+print(attention_pattern.shape)
+gpt2_str_tokens = gpt2_small.to_str_tokens(gpt2_text)
+
+print("Layer 0 Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=gpt2_str_tokens,
+        attention=attention_pattern,
+        attention_head_names=[f"L0H{i}" for i in range(12)],
+    )
+)
+
 # %%

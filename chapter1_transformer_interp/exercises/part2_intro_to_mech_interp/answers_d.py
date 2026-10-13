@@ -386,7 +386,17 @@ imshow(
 )
 
 # %%
-
+def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos source_pos"], hook: HookPoint):
+    """
+    Calculates the induction score, and stores it in the [layer, head] position of the `induction_score_store` tensor.
+    """
+    # Take the diagonal of attn paid from each dest posn to src posns (seq_len-1) tokens back
+    # (This only has entries for tokens with index>=seq_len)
+    induction_stripe = pattern.diagonal(dim1=-2, dim2=-1, offset=1 - seq_len)
+    # Get an average score per head
+    induction_score = einops.reduce(induction_stripe, "batch head_index position -> head_index", "mean")
+    # Store the result.
+    induction_score_store[hook.layer(), :] = induction_score
 def visualize_pattern_hook(
     pattern: Float[Tensor, "batch head_index dest_pos source_pos"],
     hook: HookPoint,
@@ -395,31 +405,36 @@ def visualize_pattern_hook(
     display(cv.attention.attention_patterns(tokens=gpt2_small.to_str_tokens(rep_tokens[0]), attention=pattern.mean(0)))
 
 
-# YOUR CODE HERE - find induction heads in gpt2_small
+    # YOUR CODE HERE - find induction heads in gpt2_small
+    seq_len = 50
+    batch_size = 10
+    rep_tokens_batch = generate_repeated_tokens(gpt2_small, seq_len, batch_size)
 
-seq_len = 50
-batch_size = 10
-rep_tokens_10 = generate_repeated_tokens(model, seq_len, batch_size)
+    induction_score_store = t.zeros((gpt2_small.cfg.n_layers, gpt2_small.cfg.n_heads), device=gpt2_small.cfg.device)
 
-# We make a tensor to store the induction score for each head.
-# We put it on the model's device to avoid needing to move things between the GPU and CPU,
-# which can be slow.
-induction_score_store = t.zeros((model.cfg.n_layers, model.cfg.n_heads), device=model.cfg.device)
+    gpt2_small.run_with_hooks(
+        rep_tokens_batch,
+        return_type=None,  # For efficiency, we don't need to calculate the logits
+        fwd_hooks=[(pattern_hook_names_filter, induction_score_hook)],
+    )
 
-pattern_hook_names_filter = lambda name: name.endswith("pattern")
+    imshow(
+        induction_score_store,
+        labels={"x": "Head", "y": "Layer"},
+        title="Induction Score by Head",
+        text_auto=".1f",
+        width=700,
+        height=500,
+    )
 
+induction_head_layers = [5, 6, 7]
+fwd_hooks = [
+    (utils.get_act_name("pattern", induction_head_layer), visualize_pattern_hook)
+    for induction_head_layer in induction_head_layers
+]
 gpt2_small.run_with_hooks(
-    rep_tokens_10,
+    rep_tokens,
     return_type=None,
-    fwd_hooks=[(pattern_hook_names_filter, induction_score_hook)]
-)
-
-imshow(
-    induction_score_store,
-    labels={"x": "Head", "y": "Layer"},
-    title="Induction Score by Head",
-    text_auto=".2f",
-    width=900,
-    height=350,
+    fwd_hooks=fwd_hooks,
 )
 # %%

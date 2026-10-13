@@ -405,26 +405,29 @@ imshow(
     height=350,
 )
 # %%
+induction_score_store = t.zeros((gpt2_small.cfg.n_layers, gpt2_small.cfg.n_heads), device=gpt2_small.cfg.device)
 def visualize_pattern_hook(
     pattern: Float[Tensor, "batch head_index dest_pos source_pos"],
     hook: HookPoint,
 ):
-    print(hook.name(), pattern)
+    # print(hook.name, pattern.shape)
     stripe = pattern.diagonal(offset=1 - seq_len, dim1=-2, dim2=-1)
     # print(stripe, stripe.shape
-    ind_scores = einops.reduce(stripe, "b h d -> h", "mean")
+    # print(ind_scores, ind_scores.shape)
+    global induction_score_store
+    induction_score_store[hook.layer()] = einops.reduce(stripe, "b h d -> h", "mean")
     # print("Layer: ", hook.layer())
-    imshow(
-    ind_scores,
-    labels={"x": "Head", "y": "Layer"},
-    title=f"Induction Score by Head L#{hook.layer()}",
-    text_auto=".2f",
-    width=900,
-    height=350,
-)
     # display(cv.attention.attention_patterns(tokens=gpt2_small.to_str_tokens(rep_tokens[0]), attention=pattern.mean(0)))
 
 
 # YOUR CODE HERE - find induction heads in gpt2_small
 gpt2_small.run_with_hooks(rep_tokens_10, return_type=None, fwd_hooks=[(pattern_hook_names_filter, visualize_pattern_hook)])
+imshow(
+    induction_score_store,
+    labels={"x": "Head", "y": "Layer"},
+    title=f"Induction Score by Head",
+    text_auto=".2f",
+    width=1024,
+    height=1024,
+)
 # %%

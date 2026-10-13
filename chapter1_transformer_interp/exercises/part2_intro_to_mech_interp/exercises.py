@@ -205,16 +205,16 @@ def current_attn_detector(cache: ActivationCache) -> list[str]:
     """
     res = []
     thr_per_head = 0.35
-    thr_total = 0.1
+    thr_total = 0.6
     for layer in range(cfg.n_layers):
         attn_patterns = cache['pattern', layer]
         for head in range(cfg.n_heads):
             head_pattern = attn_patterns[head]
-            print(head_pattern.shape)
-            if layer == 0 and head == 9:
-                print(head_pattern[10])
-                print(head_pattern[20])
-                print(head_pattern[30])
+            # print(head_pattern.shape)
+            # if layer == 0 and head == 9:
+                # print(head_pattern[10])
+                # print(head_pattern[20])
+                # print(head_pattern[30])
             distr = (t.diagonal(head_pattern) > thr_per_head).to(t.float32)
             detection = distr.mean() > thr_total
             if detection:
@@ -230,7 +230,27 @@ def prev_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be prev-token heads
     """
-    raise NotImplementedError()
+
+    t.set_printoptions(precision=2, sci_mode=False)
+    thr_per_key = 0. 
+    num_diags = 3
+    for layer in range(cfg.n_layers):
+        attn_patterns = cache['pattern', layer]
+        for head in range(cfg.n_heads):
+            head_pattern = attn_patterns[head]
+
+            a = t.zeros(head_pattern.shape).to(device)
+            for j in range(num_diags):
+            # zeros = t.zeros(head_pattern)
+                a += t.diag(t.diagonal(head_pattern, offset=-j), diagonal=-j)
+
+            a.sum(dim=-1) > 
+            if layer == 0 and head == 9:
+                print(head_pattern)
+                print(a)
+
+
+
 
 
 def first_attn_detector(cache: ActivationCache) -> list[str]:

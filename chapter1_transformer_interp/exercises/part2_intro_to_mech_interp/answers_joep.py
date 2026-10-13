@@ -539,7 +539,8 @@ def logit_attribution(
     return t.concat([direct.unsqueeze(-1), l1_attributions, l2_attributions], dim=-1)
 
 
-text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
+text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this. 23@#8204$'/#84219IKmns8#8(3,>3i6H-) "
+
 logits, cache = model.run_with_cache(text, remove_batch_dim=True)
 str_tokens = model.to_str_tokens(text)
 tokens = model.to_tokens(text)

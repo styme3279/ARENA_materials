@@ -214,8 +214,38 @@ text = "We think that powerful, significantly superhuman machine intelligence is
 
 logits, cache = model.run_with_cache(text, remove_batch_dim=True)
 
-gpt2_tokens = gpt2_small.to_tokens(gpt2_text)
+str_tokens = model.to_tokens(text)
+attention_pattern = cache["pattern", 0]
+cv.attention.attention_patterns(tokens=str_tokens, attention=attention_pattern)
 
-for i in range(gpt2_small.cfg.n_layers):
-    
+"""
+for layer in range(model.cfg.n_layers):
+    attention_pattern = cache["pattern", layer]
+    cv.attention.attention_patterns(tokens=str_tokens, attention=attention_pattern)
+"""
 
+# %%
+def current_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be current-token heads
+    """
+    raise NotImplementedError()
+
+
+def prev_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be prev-token heads
+    """
+    raise NotImplementedError()
+
+
+def first_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be first-token heads
+    """
+    raise NotImplementedError()
+
+
+print("Heads attending to current token  = ", ", ".join(current_attn_detector(cache)))
+print("Heads attending to previous token = ", ", ".join(prev_attn_detector(cache)))
+print("Heads attending to first token    = ", ", ".join(first_attn_detector(cache)))

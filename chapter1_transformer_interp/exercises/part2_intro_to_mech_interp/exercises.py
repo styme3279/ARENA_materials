@@ -327,9 +327,12 @@ def generate_repeated_tokens(
     """
     t.manual_seed(0)  # for reproducibility
     prefix = (t.ones(batch_size, 1) * model.tokenizer.bos_token_id).long()
-    print(model.tokenizer.convert_tokens_to_string([0, 1]))
-
-
+    print(model.tokenizer.convert_ids_to_tokens(list(i for i in range(34, 60))))
+    import random
+    tokens = t.tensor([random.choice([i for i in range(34, 60)]) for _ in range(seq_len)])
+    tokens = einops.repeat(tokens, "seq_len -> batch_size seq_len", batch_size=batch_size)
+    prefix = t.concat([prefix, tokens, tokens], dim=-1)
+    return prefix
 
 
 
@@ -345,7 +348,9 @@ def run_and_cache_model_repeated_tokens(
         rep_logits: [batch_size, 1+2*seq_len, d_vocab]
         rep_cache: The cache of the model run on rep_tokens
     """
-    raise NotImplementedError()
+    rep_tokens = generate_repeated_tokens(model, seq_len, batch_size)
+    rep_logits, rep_cache = model.run_with_cache(rep_tokens)
+    return (rep_tokens, rep_logits, rep_cache)
 
 
 def get_log_probs(
@@ -355,7 +360,6 @@ def get_log_probs(
     # We want to get logprobs[b, s, tokens[b, s+1]], in eindex syntax this looks like:
     correct_logprobs = eindex(logprobs, tokens, "b s [b s+1]")
     return correct_logprobs
-
 
 seq_len = 50
 batch_size = 1
@@ -370,3 +374,5 @@ print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
 
 plot_loss_difference(log_probs, rep_str, seq_len)
 
+
+# %%

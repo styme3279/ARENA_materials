@@ -473,6 +473,11 @@ def logit_attribution(
     """
     W_U_correct_tokens = W_U[:, tokens[1:]]
 
+    direct_attributions = einops.einsum(W_U_correct_tokens, embed[:-1], "emb seq, seq emb -> seq")
+    l1_attributions = einops.einsum(W_U_correct_tokens, l1_results[:-1], "emb seq, seq nhead emb -> seq nhead")
+    l2_attributions = einops.einsum(W_U_correct_tokens, l2_results[:-1], "emb seq, seq nhead emb -> seq nhead")
+    return t.concat([direct_attributions.unsqueeze(-1), l1_attributions, l2_attributions], dim=-1)
+
     raise NotImplementedError()
 
 
@@ -490,3 +495,12 @@ with t.inference_mode():
     correct_token_logits = logits[0, t.arange(len(tokens[0]) - 1), tokens[0, 1:]]
     t.testing.assert_close(logit_attr.sum(1), correct_token_logits, atol=1e-3, rtol=0)
     print("Tests passed!")
+
+embed = cache["embed"]
+l1_results = cache["result", 0]
+l2_results = cache["result", 1]
+logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, tokens.squeeze())
+
+plot_logit_attribution(model, logit_attr, tokens, title="Logit attribution (demo prompt)")
+
+# %%

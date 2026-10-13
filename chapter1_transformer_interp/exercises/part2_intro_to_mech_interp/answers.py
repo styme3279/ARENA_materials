@@ -214,4 +214,41 @@ display(
         attention_head_names=[f"L1H{i}" for i in range(12)],
     )
 )
+
+# %%
+def current_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be current-token heads
+    """
+    output = []
+    for layer in range(2):
+        for head in range(12):
+            code = f"{layer}.{head}"
+            # [n_heads, pos, pos]
+            pattern = cache['pattern', layer][head]
+            print(pattern)
+            diag = t.diag(pattern)
+            bool_diag = diag > 0.1
+            if all(bool_diag):
+                output.append(code)
+    return output
+
+
+def prev_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be prev-token heads
+    """
+    raise NotImplementedError()
+
+
+def first_attn_detector(cache: ActivationCache) -> list[str]:
+    """
+    Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be first-token heads
+    """
+    raise NotImplementedError()
+
+
+print("Heads attending to current token  = ", ", ".join(current_attn_detector(cache)))
+print("Heads attending to previous token = ", ", ".join(prev_attn_detector(cache)))
+print("Heads attending to first token    = ", ", ".join(first_attn_detector(cache)))
 # %%

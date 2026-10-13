@@ -389,9 +389,7 @@ def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos sourc
     """
     offset = ((pattern.shape[-1] - 1) // 2) - 1
     diag = t.diagonal(pattern, offset=-offset, dim1=-2, dim2=-1)
-    print(diag.shape)
-    if diag.mean() > 0.4:
-        induction_score_store[hook.layer(), :] = None
+    induction_score_store[hook.layer(), :] = diag.mean(dim=(0,2))
 
 
 # We make a boolean filter on activation names, that's true only on attention pattern names
@@ -413,4 +411,31 @@ imshow(
     width=900,
     height=350,
 )
+
+# %%
+def visualize_pattern_hook(
+    pattern: Float[Tensor, "batch head_index dest_pos source_pos"],
+    hook: HookPoint,
+):
+    print("Layer: ", hook.layer())
+    display(cv.attention.attention_patterns(tokens=gpt2_small.to_str_tokens(rep_tokens[0]), attention=pattern.mean(0)))
+
+induction_score_store = t.zeros((model.cfg.n_layers, model.cfg.n_heads), device=model.cfg.device)
+
+
+def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos source_pos"], hook: HookPoint):
+    """
+    Calculates the induction score, and stores it in the [layer, head] position of the
+    `induction_score_store` tensor.
+    """
+    offset = ((pattern.shape[-1] - 1) // 2) - 1
+    diag = t.diagonal(pattern, offset=-offset, dim1=-2, dim2=-1)
+    induction_score_store[hook.layer(), :] = diag.mean(dim=(0,2))
+
+gpt2_small.run_with_hooks(
+    rep_tokens_10,
+    return_type=None,
+    fwd_hooks=[(pattern_hook_names_filter, induction_score_hook), (pattern_hook_names_filter, visualize_pattern_hook)]
+)
+
 # %%

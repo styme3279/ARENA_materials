@@ -153,7 +153,7 @@ layer0_attn_scores.masked_fill_(mask, -1e9)
 layer0_pattern_from_q_and_k = (layer0_attn_scores / headsize**0.5).softmax(-1)
 # %%
 print(type(gpt2_cache))
-attention_pattern = gpt2_cache["pattern", 0]
+attention_pattern = gpt2_cache["pattern", 11]
 print(attention_pattern.shape)
 gpt2_str_tokens = gpt2_small.to_str_tokens(gpt2_text)
 

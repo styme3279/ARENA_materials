@@ -373,8 +373,8 @@ def induction_attn_detector(cache: ActivationCache) -> list[str]:
     Remember - the tokens used to generate rep_cache are (bos_token, *rand_tokens, *rand_tokens)
     """
     res = []
-    thr_per_head = 0.1
-    thr_total = 0.1
+    thr_per_head = 0.5
+    thr_total = 0.5
     for layer in range(cfg.n_layers):
         attn_patterns = cache['pattern', layer]
         for head in range(cfg.n_heads):
@@ -387,7 +387,7 @@ def induction_attn_detector(cache: ActivationCache) -> list[str]:
             distr = (t.diagonal(head_pattern, offset=-seq_len+1) > thr_per_head).to(t.float32)
             if layer==1 and head==4:
                 print(head_pattern)
-                print(t.diagonal(head_pattern, offset=-seq_len+2))
+                print(t.diagonal(head_pattern, offset=-seq_len+1))
             detection = distr.mean() > thr_total
             if detection:
                 res.append(f"{layer}.{head}")
@@ -398,23 +398,42 @@ print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))
 
 
 
-# def first_attn_detector(cache: ActivationCache) -> list[str]:
-#     """
-#     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be first-token heads
-#     """
-#     thr_per_key = 0.6
-#     thr_total = 0.6
-#     res = []
-#     for layer in range(cfg.n_layers):
-#         attn_patterns = cache['pattern', layer]
-#         for head in range(cfg.n_heads):
-#             head_pattern = attn_patterns[head]
-
-#             attn_to_first_key = head_pattern[:, 0]
-
-#             detection = (attn_to_first_key > thr_per_key).to(t.float32).mean() > thr_total
-#             if detection:
-#                 res.append(f"{layer}.{head}")
-
-#     return res
 # %%
+
+seq_len = 50
+batch_size = 10
+rep_tokens_10 = generate_repeated_tokens(model, seq_len, batch_size)
+
+# We make a tensor to store the induction score for each head.
+# We put it on the model's device to avoid needing to move things between the GPU and CPU,
+# which can be slow.
+induction_score_store = t.zeros((model.cfg.n_layers, model.cfg.n_heads), device=model.cfg.device)
+
+
+def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos source_pos"], hook: HookPoint):
+    """
+    Calculates the induction score, and stores it in the [layer, head] position of the
+    `induction_score_store` tensor.
+    """
+
+
+
+# We make a boolean filter on activation names, that's true only on attention pattern names
+pattern_hook_names_filter = lambda name: name.endswith("pattern")
+
+# Run with hooks (this is where we write to the `induction_score_store` tensor`)
+model.run_with_hooks(
+    rep_tokens_10,
+    return_type=None,  # For efficiency, we don't need to calculate the logits
+    fwd_hooks=[(pattern_hook_names_filter, induction_score_hook)],
+)
+
+# Plot the induction scores for each head in each layer
+imshow(
+    induction_score_store,
+    labels={"x": "Head", "y": "Layer"},
+    title="Induction Score by Head",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)

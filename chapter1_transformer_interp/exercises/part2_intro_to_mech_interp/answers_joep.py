@@ -339,8 +339,8 @@ def generate_repeated_tokens(
     """
     t.manual_seed(0)  # for reproducibility
     prefix = (t.ones(batch_size, 1) * model.tokenizer.bos_token_id).long()
-    rep_tokens_new = t.randint(0, model.cfg.d_vocab, (batch_size, 2*seq_len), dtype=t.int64)
-    rep_tokens = t.cat([prefix, rep_tokens_new], dim=-1).to(device)
+    rep_tokens_half = t.randint(0, model.cfg.d_vocab, (batch_size, seq_len), dtype=t.int64)
+    rep_tokens = t.cat([prefix, rep_tokens_half, rep_tokens_half], dim=-1).to(device)
     print(f"rep_tokens: {rep_tokens}")
     return rep_tokens
 

@@ -885,7 +885,7 @@ tests.test_decompose_attn_scores(decompose_attn_scores, decomposed_q, decomposed
 decomposed_scores = decompose_attn_scores(decomposed_q, decomposed_k, model)
 
 q_label = "Embed"
-k_label = "0.4"
+k_label = "0.7"
 decomposed_scores_from_pair = decomposed_scores[component_labels.index(q_label), component_labels.index(k_label)]
 
 imshow(

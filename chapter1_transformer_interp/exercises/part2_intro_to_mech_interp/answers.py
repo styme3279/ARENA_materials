@@ -629,6 +629,11 @@ t.testing.assert_close(AB_unfactored, AB)
 head_index = 4
 layer = 1
 
-# YOUR CODE HERE - complete the `full_OV_circuit` object
+full_OV_circuit = model.W_E
+
+print(model.W_E.shape)
+print(model.W_U.shape)
 
 tests.test_full_OV_circuit(full_OV_circuit, model, layer, head_index)
+
+# %%

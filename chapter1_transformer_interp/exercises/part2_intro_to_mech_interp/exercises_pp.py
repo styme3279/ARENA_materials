@@ -313,6 +313,10 @@ print(f"Performance on the second half: {log_probs[seq_len:].mean():.3f}")
 
 plot_loss_difference(log_probs, rep_str, seq_len)
 # %%
+for layer in range(1, model.cfg.n_layers):
+    attention_pattern = rep_cache["pattern", layer]
+    display(cv.attention.attention_patterns(tokens=rep_str, attention=attention_pattern))
+# %%
 def induction_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be induction heads
@@ -323,10 +327,11 @@ def induction_attn_detector(cache: ActivationCache) -> list[str]:
     for l in range(0, cfg.n_layers):
         c = cache["pattern", l]
         for hi, h in enumerate(c):
-            diamean = h[:, 0].mean()
+            diamean = h.diagonal(offset=-(seq_len-1)).mean()
             if diamean >= 0.4:
                 li += [f'{l}.{hi}']
     return li
 
 
 print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))
+# %%

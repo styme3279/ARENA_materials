@@ -253,7 +253,7 @@ def generate_repeated_tokens(
         rep_tokens: [batch_size, 1+2*seq_len]
     """
     t.manual_seed(0)  # for reproducibility
-    prefix = (t.ones(batch_size, seq_len) *  20).long()
+    prefix = (t.ones(batch_size, 1) *  model.tokenizer.bos_token_id).long()
     rep_tokens_half = t.randint(0, model.cfg.d_vocab, (batch_size, seq_len), dtype=t.int64)
     rep_tokens = t.cat([prefix,rep_tokens_half,rep_tokens_half],dim=-1).to(device)
     return rep_tokens
@@ -310,17 +310,26 @@ def induction_attn_detector(cache: ActivationCache) -> list[str]:
 
     Remember - the tokens used to generate rep_cache are (bos_token, *rand_tokens, *rand_tokens)
     """
+    # attn_heads = []
+    # for layer in range(cfg.n_layers):
+    #     for head in range(cfg.n_heads):
+    #         attention_pattern = cache["pattern",layer][head]
+    #         seq_len = (attention_pattern.shape[-1] - 1) // 2
+    #         avg_diag_score = attention_pattern.diagonal(-(seq_len-1)).mean()
+    #         if avg_diag_score > 0.4:
+    #             attn_heads.append(f"{layer}.{head}")
+    # return attn_heads   
     attn_heads = []
-    n_heads = cfg.n_heads
     for layer in range(model.cfg.n_layers):
-        for head in range(cfg.n_heads):
-            attention_pattern = cache["pattern",layer][head]
-            cum_score = 0
-            for i in range(len(attention_pattern[0])):
-                cum_score += attention_pattern[i][0]
-            avg_score = cum_score / len(attention_pattern[0])
-            if avg_score > 0.4:
+        for head in range(model.cfg.n_heads):
+            attention_pattern = cache["pattern", layer][head]
+            # take avg of (-seq_len+1)-offset elements
+            seq_len = (attention_pattern.shape[-1] - 1) // 2
+            score = attention_pattern.diagonal(-seq_len + 1).mean()
+            if score > 0.4:
                 attn_heads.append(f"{layer}.{head}")
-    return 
+    return attn_heads
 
 print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))
+
+# %%

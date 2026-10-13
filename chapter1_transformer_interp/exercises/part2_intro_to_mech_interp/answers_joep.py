@@ -686,4 +686,58 @@ print(AB_factor.svd())
 
 
 # %%
+C = t.randn(5, 300)
+ABC = AB @ C
+ABC_factor = AB_factor @ C
 
+print(f"Unfactored: shape={ABC.shape}, norm={ABC.norm()}")
+print(f"Factored: shape={ABC_factor.shape}, norm={ABC_factor.norm()}")
+print(f"\nRight dim: {ABC_factor.rdim}, Left dim: {ABC_factor.ldim}, Hidden dim: {ABC_factor.mdim}")
+
+AB_unfactored = AB_factor.AB
+t.testing.assert_close(AB_unfactored, AB)
+
+# %%
+head_index = 4
+layer = 1
+
+# W_E W_OV W_U
+# W_OV = W_V W_O
+
+W_E = model.W_E
+W_U = model.W_U
+W_V_14 = model.W_V[1,4]
+W_O_14 = model.W_O[1,4]
+
+full_OV_circuit = W_E @ FactoredMatrix(W_V_14, W_O_14) @ W_U
+
+tests.test_full_OV_circuit(full_OV_circuit, model, layer, head_index)
+
+# %%
+indices = t.randint(0, model.cfg.d_vocab, (200,))
+full_OV_circuit_sample = full_OV_circuit[indices, indices].AB
+
+imshow(
+    full_OV_circuit_sample,
+    labels={"x": "Logits on output token", "y": "Input token"},
+    title="Full OV circuit for copying head",
+    width=700,
+    height=600,
+)
+
+
+# %%
+def top_1_acc(full_OV_circuit: FactoredMatrix, batch_size: int = 1000) -> float:
+    """
+    Return the fraction of the time that the maximum value is on the circuit diagonal.
+    """
+    for indices in t.split(t.arange(full_OV_circuit.shape[0], device=device), batch_size):
+        AB_slice = full_OV_circuit[indices].AB
+        total += (t.argmax(AB_slice, dim=1) == indices).float().sum().item()
+
+    return total / full_OV_circuit.shape[0]
+
+
+print(f"Fraction of time that the best logit is on diagonal: {top_1_acc(full_OV_circuit):.4f}")
+
+# %%

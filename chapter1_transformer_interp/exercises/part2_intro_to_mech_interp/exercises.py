@@ -273,17 +273,25 @@ def current_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be current-token heads
     """
-    head_idx_len, seqQ_len, seqK_len = cache["pattern", 0].size()
-    print(head_idx_len)
-    id_matrix = t.eye(seqQ_len)
-    hook_pattern = cache["blocks.0.attn.hook_pattern"]
-    for i in range(1, 12):
-        pass
-    # print(hook_pattern.shape())
-    n_layers = cache.model.cfg.n_layers
-    patterns = t.stack([cache["pattern", layer] for layer in range(n_layers)])
+    patterns = cache.stack_activation("pattern")
+    n_heads, q_size, k_size = patterns[0].shape
+    id_matrix = t.eye(q_size, device=device)
 
-    raise NotImplementedError()
+    patterns_cleared = t.mul(patterns, id_matrix)
+    patterns_summed = t.sum(patterns_cleared, dim=(-1, -2))
+    print(patterns_summed)
+    threshold = 0.4 * q_size
+
+    over_threshold = t.where(patterns_summed >= threshold, True, False)
+    print(over_threshold)
+
+    out = []
+    for i in range(len(over_threshold)):
+        for j in range(len(over_threshold[0])):
+            if over_threshold[i][j]:
+                out.append(f"{i}.{j}")
+
+    return out
 
 
 def prev_attn_detector(cache: ActivationCache) -> list[str]:

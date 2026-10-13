@@ -588,3 +588,36 @@ imshow(
 )
 
 # %%
+
+A = t.randn(5, 2)
+B = t.randn(2, 5)
+AB = A @ B
+AB_factor = FactoredMatrix(A, B)
+print("Norms:")
+print(AB.norm())
+print(AB_factor.norm())
+
+print(f"Right dim: {AB_factor.rdim}, Left dim: {AB_factor.ldim}, Hidden dim: {AB_factor.mdim}")
+
+# %%
+print("Eigenvalues:")
+print(t.linalg.eig(AB).eigenvalues)
+print(AB_factor.eigenvalues)
+
+print("\nSingular Values:")
+print(t.linalg.svd(AB).S)
+print(AB_factor.S)
+
+print("\nFull SVD:")
+print(AB_factor.svd())
+
+# %%
+C = t.randn(5, 300)
+ABC = AB @ C
+ABC_factor = AB_factor @ C
+
+print(f"Unfactored: shape={ABC.shape}, norm={ABC.norm()}")
+print(f"Factored: shape={ABC_factor.shape}, norm={ABC_factor.norm()}")
+print(f"\nRight dim: {ABC_factor.rdim}, Left dim: {ABC_factor.ldim}, Hidden dim: {ABC_factor.mdim}")
+
+# %%

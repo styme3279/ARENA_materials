@@ -538,3 +538,12 @@ print(model.cfg.device)
 print(next(model.parameters()).device)
 print(t.cuda.is_available())
 # %%
+imshow(
+    ablation_scores,
+    labels={"x": "Head", "y": "Layer", "color": "Loss diff"},
+    title="Loss Difference After Ablating Heads",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+# %%

@@ -203,16 +203,19 @@ def current_attn_detector(cache: ActivationCache) -> list[str]:
     """
     Returns a list e.g. ["0.2", "1.4", "1.9"] of "layer.head" which you judge to be current-token heads
     """
-    thr_per_head = 0.8
-    thr_total = 0.8
+    res = []
+    thr_per_head = 0.1
+    thr_total = 0.1
     for layer in range(cfg.n_layers):
         attn_patterns = cache['pattern', layer]
         for head in range(cfg.n_heads):
             head_pattern = attn_patterns[head]
             print(head_pattern.shape)
             detection = (t.diagonal(head_pattern) > thr_per_head).to(t.float32).mean() > thr_total
-            if detection:;
-                
+            if detection:
+                res.append(f"{layer}.{head}")
+
+    return res
 
 
     # attention_pattern = gpt2_cache["pattern", 0]

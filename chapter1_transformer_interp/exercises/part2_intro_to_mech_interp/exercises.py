@@ -101,13 +101,52 @@ hook_k = gpt2_cache["k", 0]
 layer0_pattern_from_q_and_k = einops.einsum(hook_q, hook_k, "s_q nhead dhead, s_k nhead dhead -> nhead s_q s_k")
 layer0_pattern_from_q_and_k /= np.sqrt(gpt2_small.cfg.d_head)
 
-layer0_pattern_from_q_and_k = t.full(layer0_pattern_from_q_and_k.shape, -t.inf).to(device)
-layer0_pattern_from_q_and_k = t.triu(a, diagonal=1)
-a = t.where(a.to(t.bool), a, layer0_pattern_from_q_and_k)
-a = t.softmax(a, dim=-1)
+a = t.full(layer0_pattern_from_q_and_k.shape, -t.inf).to(device)
+a = t.triu(a, diagonal=1)
+layer0_pattern_from_q_and_k = t.where(a.to(t.bool), a, layer0_pattern_from_q_and_k)
+layer0_pattern_from_q_and_k = t.softmax(layer0_pattern_from_q_and_k, dim=-1)
 # print(a)
 
 t.testing.assert_close(layer0_pattern_from_cache, layer0_pattern_from_q_and_k)
 print("Tests passed!")
+
+# %%
+print(type(gpt2_cache))
+attention_pattern = gpt2_cache["pattern", 0]
+print(attention_pattern.shape)
+gpt2_str_tokens = gpt2_small.to_str_tokens(gpt2_text)
+
+print("Layer 0 Head Attention Patterns:")
+display(
+    cv.attention.attention_patterns(
+        tokens=gpt2_str_tokens,
+        attention=attention_pattern,
+        attention_head_names=[f"L0H{i}" for i in range(12)],
+    )
+)
+
+# %%
+neuron_activations_for_all_layers = t.stack([
+    gpt2_cache["post", layer] for layer in range(gpt2_small.cfg.n_layers)
+], dim=1)
+# shape = (seq_pos, layers, neurons)
+
+cv.activations.text_neuron_activations(
+    tokens=gpt2_str_tokens,
+    activations=neuron_activations_for_all_layers
+)
+
+# %%
+neuron_activations_for_all_layers_rearranged = utils.to_numpy(einops.rearrange(neuron_activations_for_all_layers, "seq layers neurons -> 1 layers seq neurons"))
+
+cv.topk_tokens.topk_tokens(
+    # Some weird indexing required here ¯\_(ツ)_/¯
+    tokens=[gpt2_str_tokens],
+    activations=neuron_activations_for_all_layers_rearranged,
+    max_k=7,
+    first_dimension_name="Layer",
+    third_dimension_name="Neuron",
+    first_dimension_labels=list(range(12))
+)
 
 # %%

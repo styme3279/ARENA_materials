@@ -402,12 +402,12 @@ print("Induction heads = ", ", ".join(induction_attn_detector(rep_cache)))
 
 seq_len = 50
 batch_size = 10
-rep_tokens_10 = generate_repeated_tokens(model, seq_len, batch_size)
+rep_tokens_10 = generate_repeated_tokens(gpt2_small, seq_len, batch_size)
 
 # We make a tensor to store the induction score for each head.
 # We put it on the model's device to avoid needing to move things between the GPU and CPU,
 # which can be slow.
-induction_score_store = t.zeros((model.cfg.n_layers, model.cfg.n_heads), device=model.cfg.device)
+induction_score_store = t.zeros((gpt2_small.cfg.n_layers, gpt2_small.cfg.n_heads), device=gpt2_small.cfg.device)
 
 
 def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos source_pos"], hook: HookPoint):
@@ -428,7 +428,7 @@ def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos sourc
 pattern_hook_names_filter = lambda name: name.endswith("pattern")
 
 # Run with hooks (this is where we write to the `induction_score_store` tensor`)
-model.run_with_hooks(
+gpt2_small.run_with_hooks(
     rep_tokens_10,
     return_type=None,  # For efficiency, we don't need to calculate the logits
     fwd_hooks=[(pattern_hook_names_filter, induction_score_hook)],
@@ -444,7 +444,7 @@ imshow(
     height=350,
 )
 
-# %%
+# # %%
 def visualize_pattern_hook(
     pattern: Float[Tensor, "batch head_index dest_pos source_pos"],
     hook: HookPoint,
@@ -457,6 +457,8 @@ def visualize_pattern_hook(
 gpt2_small.run_with_hooks(
     rep_tokens_10,
     return_type=None,  # For efficiency, we don't need to calculate the logits
-    fwd_hooks=[(pattern_hook_names_filter, induction_score_hook)],
+    fwd_hooks=[(pattern_hook_names_filter, visualize_pattern_hook)],
 )
+
+# visualize_pattern_hook()
 # %%

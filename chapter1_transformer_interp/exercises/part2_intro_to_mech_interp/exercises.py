@@ -502,7 +502,8 @@ def logit_attribution(
     return result
 
 
-text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
+# text = "We think that powerful, significantly superhuman machine intelligence is more likely than not to be created this century. If current machine learning techniques were scaled up to this level, we think they would by default produce systems that are deceptive or manipulative, and that no solid plans are known for how to avoid this."
+text = "lantern # velvet orbit & marmalade quietly % thunder pebble @ saffron drift ~ cobalt whisper ^ kettle meadow * fractal juniper + harbor ember = tangle compass ! silhouette nimbus ? waffle granite $ echo paprika / zephyr lullaby ; quartz tumble § oracle biscuit | horizon → marble lantern # velvet orbit & marmalade quietly % thunder pebble @ saffron drift ~ cobalt whisper ^ kettle meadow * fractal juniper + harbor ember = tangle compass ! silhouette nimbus ? waffle granite $ echo paprika / zephyr lullaby ; quartz tumble § oracle biscuit | horizon → marble"
 logits, cache = model.run_with_cache(text, remove_batch_dim=True)
 str_tokens = model.to_str_tokens(text)
 tokens = model.to_tokens(text)
@@ -518,5 +519,17 @@ with t.inference_mode():
     print("Tests passed!")
 
 
+
+# %%
+embed = cache["embed"]
+l1_results = cache["result", 0]
+l2_results = cache["result", 1]
+logit_attr = logit_attribution(embed, l1_results, l2_results, model.W_U, tokens.squeeze())
+
+plot_logit_attribution(model, logit_attr, tokens, title="Logit attribution (demo prompt)")
+
+
+# %%
+gpt2_small.cfg.d_head
 
 # %%

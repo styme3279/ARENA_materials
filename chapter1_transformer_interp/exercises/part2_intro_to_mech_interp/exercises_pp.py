@@ -260,8 +260,9 @@ def generate_repeated_tokens(
     """
     t.manual_seed(0)  # for reproducibility
     prefix = (t.ones(batch_size, 1) * model.tokenizer.bos_token_id).long()
-    repeated = einops.repeat(t.randint(0, cfg.d_vocab, [batch_size], "")
-    return prefix
+    once = t.randint(0, cfg.d_vocab, [batch_size, seq_len])
+    repeated = einops.repeat(once, "b seq -> b (2 seq)")
+    return t.cat((prefix, repeated), dim=-1)
 
 
 def run_and_cache_model_repeated_tokens(
@@ -276,24 +277,27 @@ def run_and_cache_model_repeated_tokens(
         rep_logits: [batch_size, 1+2*seq_len, d_vocab]
         rep_cache: The cache of the model run on rep_tokens
     """
-    seq = []
-    logits, cache = model.run_with_cache(text, remove_batch_dim=True)
-    raise NotImplementedError()
+    seq = generate_repeated_tokens(model, seq_len, batch_size)
+    logits, cache = model.run_with_cache(model.to_str_tokens(seq), remove_batch_dim=True)
+    return seq, logits, cache
+    
 
 
 def get_log_probs(
     logits: Float[Tensor, "batch posn d_vocab"], tokens: Int[Tensor, "batch posn"]
 ) -> Float[Tensor, "batch posn-1"]:
-    logprobs = logits.log_softmax(dim=-1)
+    logprobs = logits.log_softmax(dim=0)
     # We want to get logprobs[b, s, tokens[b, s+1]], in eindex syntax this looks like:
     correct_logprobs = eindex(logprobs, tokens, "b s [b s+1]")
+    # print(correct_logprobs, correct_logprobs.shape)
     return correct_logprobs
 
 
 seq_len = 50
 batch_size = 1
-x = generate_repeated_tokens(model, 5, 1)
-print(x)
+x = generate_repeated_tokens(model, 5, 2)
+# print("zzz", x)
+# print(x.shape)
 (rep_tokens, rep_logits, rep_cache) = run_and_cache_model_repeated_tokens(model, seq_len, batch_size)
 rep_cache.remove_batch_dim()
 rep_str = model.to_str_tokens(rep_tokens)

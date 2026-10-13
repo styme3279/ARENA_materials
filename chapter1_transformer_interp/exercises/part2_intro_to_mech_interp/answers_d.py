@@ -242,7 +242,7 @@ print("Heads attending to previous token = ", ", ".join(prev_attn_detector(cache
 print("Heads attending to first token    = ", ", ".join(first_attn_detector(cache)))
 
 # %%
-
+import random
 def generate_repeated_tokens(
     model: HookedTransformer, seq_len: int, batch_size: int = 1
 ) -> Int[Tensor, "batch_size full_seq_len"]:
@@ -253,9 +253,12 @@ def generate_repeated_tokens(
         rep_tokens: [batch_size, 1+2*seq_len]
     """
     t.manual_seed(0)  # for reproducibility
-    prefix = (t.ones(batch_size, 1) * model.tokenizer.bos_token_id).long()
+    prefix = (t.ones(batch_size, seq_len) *  model.tokenizer.bos_token_id).long()
+    rep_tokens_half = t.randint(0, model.cfg.d_vocab, (batch_size, seq_len), dtype=t.int64)
+    rep_tokens = t.cat([prefix,rep_tokens_half,rep_tokens_half],dim=-1).to(device)
+    return rep_tokens
 
-    vocab_size = cfg.d_vocab
+
 
 
 def run_and_cache_model_repeated_tokens(
@@ -270,7 +273,11 @@ def run_and_cache_model_repeated_tokens(
         rep_logits: [batch_size, 1+2*seq_len, d_vocab]
         rep_cache: The cache of the model run on rep_tokens
     """
-    prefix_tokens = generate_repeated_tokens(model=model,seq_len=seq_len, batch_size=batch_size)
+    rep_tokens = generate_repeated_tokens(model=model,seq_len=seq_len, batch_size=batch_size)
+
+    logits, cache = model.run_with_cache(rep_tokens, remove_batch_dim=True)
+
+    return rep_tokens, logits, cache
 
 
 def get_log_probs(

@@ -609,21 +609,56 @@ def get_ablation_scores(
 
     for layer in tqdm(range(model.cfg.n_layers)):
         for head in range(model.cfg.n_heads):
-            
             hook_func = functools.partial(head_zero_ablation_hook, head_index_to_ablate = head)
             
-            logits = model.run_with_hooks(
+            logits_ablated = model.run_with_hooks(
                 tokens,
                 return_type="logits",
-                fwd_hooks=[('blocks.1.attn.hook_pattern', hook_func)],
+                fwd_hooks=[(utils.get_act_name("z", layer), hook_func)],
             )
-            ablation_scores[layer, head] = logits.sum()
-
+            loss = -get_log_probs(logits_ablated, tokens)[:, -(seq_len - 1) :].mean()
+            ablation_scores[layer, head] = loss - loss_no_ablation
 
     return ablation_scores
 
 
 ablation_scores = get_ablation_scores(model, rep_tokens)
 tests.test_get_ablation_scores(ablation_scores, model, rep_tokens)
+
+
+imshow(
+    ablation_scores,
+    labels={"x": "Head", "y": "Layer", "color": "Loss diff"},
+    title="Loss Difference After Ablating Heads",
+    text_auto=".2f",
+    width=900,
+    height=350,
+)
+# %%
+
+def head_mean_ablation_hook(
+    z: Float[Tensor, "batch seq n_heads d_head"],
+    hook: HookPoint,
+    head_index_to_ablate: int,
+) -> None:
+    
+    # over batch dimension
+    z[:,:,head_index_to_ablate,:] = z[:,:,head_index_to_ablate,:].mean(0)
+    
+    return
+
+
+rep_tokens_batch = run_and_cache_model_repeated_tokens(model, seq_len=50, batch_size=10)[0]
+mean_ablation_scores = get_ablation_scores(model, rep_tokens_batch, ablation_function=head_mean_ablation_hook)
+
+# imshow(
+#     mean_ablation_scores,
+#     labels={"x": "Head", "y": "Layer", "color": "Loss diff"},
+#     title="Loss Difference After Ablating Heads",
+#     text_auto=".2f",
+#     width=900,
+#     height=350,
+# )
+
 
 # %%

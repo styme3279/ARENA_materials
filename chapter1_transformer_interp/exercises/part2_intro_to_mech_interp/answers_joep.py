@@ -164,10 +164,19 @@ layer0_pattern_from_cache = gpt2_cache["pattern", 0]
 
 # YOUR CODE HERE - define `layer0_pattern_from_q_and_k` manually, by manually performing the
 # steps of the attention calculation (dot product, masking, scaling, softmax)
-def layer0_pattern_from_q_and_k():
-    attn = gpt2_cache["pattern", 0]
-    
+print(F"layer0_pattern_from_cache shape: {layer0_pattern_from_cache.shape}")
 
+seq, nhead, headsize = q.shape
+q = gpt2_cache["q", 0]
+k = gpt2_cache["k", 0]
+print(F"q shape: {q.shape}")
+print(F"k shape: {k.shape}")
+attn_raw = einops.einsum(q, k, "s_len_q n h, s_len_k n h -> n s_len_q s_len_k")
+print(f"attn_raw shape: {attn_raw.shape}")
+
+mask = t.triu(t.ones((seq, seq), dtype=t.bool), diagonal=1).to(device)
+attn_raw.masked_fill_(mask, -1e9)
+layer0_pattern_from_q_and_k = (attn_raw / headsize**0.5).softmax(-1)
 
 
 

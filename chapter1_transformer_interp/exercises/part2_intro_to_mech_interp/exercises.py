@@ -415,7 +415,13 @@ def induction_score_hook(pattern: Float[Tensor, "batch head_index dest_pos sourc
     Calculates the induction score, and stores it in the [layer, head] position of the
     `induction_score_store` tensor.
     """
-
+    threshold_per_query = 0.5
+    layer = hook.layer()
+    for head in range(model.cfg.n_heads):
+        batched_head_pattern = pattern[:, head, :, :] # (batch query_seq key_seq)
+        diagonal = t.diagonal(batched_head_pattern, offset=-seq_len+1, dim1=-2, dim2=-1) # (batch, seq_len)
+        head_induction_score = (diagonal > threshold_per_query).to(t.float32).mean().item()
+        induction_score_store[layer, head] = head_induction_score
 
 
 # We make a boolean filter on activation names, that's true only on attention pattern names
@@ -437,3 +443,20 @@ imshow(
     width=900,
     height=350,
 )
+
+# %%
+def visualize_pattern_hook(
+    pattern: Float[Tensor, "batch head_index dest_pos source_pos"],
+    hook: HookPoint,
+):
+    print("Layer: ", hook.layer())
+    display(cv.attention.attention_patterns(tokens=gpt2_small.to_str_tokens(rep_tokens[0]), attention=pattern.mean(0)))
+
+
+# YOUR CODE HERE - find induction heads in gpt2_small
+gpt2_small.run_with_hooks(
+    rep_tokens_10,
+    return_type=None,  # For efficiency, we don't need to calculate the logits
+    fwd_hooks=[(pattern_hook_names_filter, induction_score_hook)],
+)
+# %%

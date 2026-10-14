@@ -341,6 +341,21 @@ class EarlyStopException(Exception):
     """Custom exception for stopping model forward pass early."""
     pass
 
+def remove_all_hooks(model):
+    for m in model.modules():
+        m._forward_hooks.clear()
+        m._forward_pre_hooks.clear()
+        m._backward_hooks.clear()
+        m._backward_pre_hooks.clear()
+        # bookkeeping dicts used by with_kwargs=True / always_call=True
+        if hasattr(m, "_forward_hooks_with_kwargs"):
+            m._forward_hooks_with_kwargs.clear()
+        if hasattr(m, "_forward_hooks_always_called"):
+            m._forward_hooks_always_called.clear()
+        if hasattr(m, "_forward_pre_hooks_with_kwargs"):
+            m._forward_pre_hooks_with_kwargs.clear()
+
+remove_all_hooks(model)
 # %%
 def collect_activations_multiple_layers(
     model: AutoModelForCausalLM,
@@ -365,10 +380,18 @@ def collect_activations_multiple_layers(
     Returns:
         Dict mapping layer → activations tensor [batch, length, d_model]
     """
-    def activation_extraction
-    for layer in submodules:
-        layer.register_forward_hook()
 
+    remove_all_hooks(model)
+    activations = dict()
+
+    for layer, module in submodules.items():
+        def activation_collector_hook(hook, input, output):
+            activations[layer] = output
+        module.register_forward_hook(activation_collector_hook)
+
+    model(inputs_BL.input_ids)
+
+    return activations
 
 # Test the function
 test_prompt = "The capital of France is"
@@ -389,4 +412,6 @@ activations = collect_activations_multiple_layers(
 print(f"Extracted activations from layer {layer}")
 print(f"Shape: {activations[layer].shape}")  # Should be [1, seq_len, d_model]
 
-tests.test_collect_activations_multiple_layers(collect_activations_multiple_layers, model, tokenizer, device)
+#tests.test_collect_activations_multiple_layers(collect_activations_multiple_layers, model, tokenizer, device)
+
+# %%

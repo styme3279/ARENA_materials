@@ -124,4 +124,50 @@ INTERVENE_LAYER = 8
 print(f"Model: {MODEL_NAME}")
 print(f"Layers: {NUM_LAYERS}, Hidden dim: {D_MODEL}")
 print(f"Probe layer: {PROBE_LAYER}, Intervene layer: {INTERVENE_LAYER}")
+
+# %%
+DATASET_NAMES = ["cities", "sp_en_trans", "larger_than"]
+
+datasets = {}
+for name in DATASET_NAMES:
+    df = pd.read_csv(GOT_DATASETS / f"{name}.csv")
+    datasets[name] = df
+    print(f"\n{name}: {len(df)} statements ({df['label'].sum()} true, {(1 - df['label']).sum():.0f} false)")
+    display(df.head(4))
+
+# %%
+def extract_activations(
+    statements: list[str],
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    layers: list[int],
+    batch_size: int = 25,
+) -> dict[int, Float[Tensor, "n_statements d_model"]]:
+    """
+    Extract last-token hidden state activations from specified layers for a list of statements.
+
+    Args:
+        statements: List of text statements to process.
+        model: A HuggingFace causal language model.
+        tokenizer: The corresponding tokenizer.
+        layers: List of layer indices (0-indexed) to extract activations from.
+        batch_size: Number of statements to process at once.
+
+    Returns:
+        Dictionary mapping layer index to tensor of activations, shape [n_statements, d_model].
+    """
+    tokens = tokenizer(statements, padding=True, return_tensors="pt", return_offsets_mapping=True)
+    tokens_ids = tokens["input_ids"].to(device)
+    attention = tokens["attention_mask"].to(device)
+
+    # Call the forward pass on the model
+    output = model(tokens_ids, attention_mask=attention, output_hidden_states=True)
+    #t.stack(output.hidden_states)
+    print(output.hidden_states)
+    #print(output.hidden_states[0].shape)
+    
+    #logits = output.logits
+    
+
+tests.test_extract_activations(extract_activations, model, tokenizer, PROBE_LAYER, D_MODEL)
 # %%

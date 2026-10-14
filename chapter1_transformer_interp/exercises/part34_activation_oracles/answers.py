@@ -265,7 +265,7 @@ print(f"Oracle response: {results.segment_responses[0]}")
 # 2 Implementing oracle components #########
 # %%
 target_prompt_dict = [
-    {"role": "user", "content": "What is (45 * 32) / (72 - 11)? . . . . . ."},
+    {"role": "user", "content": "What is (450 + 320) / (72 - 11)?"},
 ]
 formatted_target_prompt = tokenizer.apply_chat_template(
     target_prompt_dict, tokenize=False, add_generation_prompt=False, enable_thinking=False, continue_final_message=False
@@ -275,7 +275,8 @@ tokens = tokenizer.encode(formatted_target_prompt)
 token_strings = [tokenizer.decode([t]) for t in tokens]
 #segment_start = next(i for i, tok_str in enumerate(token_strings) if "result" in tok_str.lower())
 
-oracle_prompt = "What intermediate results is the model thinking about?"
+#oracle_prompt = "What intermediate results of the calcuation is the model thinking about in a single word?"
+oracle_prompt = "What number is the model thinking about?"
 
 results = utils.run_oracle(
     model=model,

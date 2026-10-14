@@ -409,3 +409,39 @@ imshow(
 )
 
 # %%
+clean_prompt, clean_answer = "The White House is where the", " president" #Note the space in the answer!
+corrupted_prompt, corrupted_answer = "The Haunted House is where the", " ghosts"
+
+clean_tokens = model.to_tokens(clean_prompt)
+corrupted_tokens = model.to_tokens(corrupted_prompt)
+
+assert clean_tokens.shape == corrupted_tokens.shape, "clean and corrupted tokens must have same shape"
+
+clean_token = model.to_single_token(clean_answer)
+corrupted_token = model.to_single_token(corrupted_answer)
+
+utils.test_prompt(clean_prompt, clean_answer, model)
+utils.test_prompt(corrupted_prompt, corrupted_answer, model)
+
+clean_logits, clean_cache = model.run_with_cache(clean_tokens)
+
+def answer_metric(
+    logits: Float[Tensor, "batch seq d_vocab"],
+    clean_token: Int = clean_token,
+    corrupted_token: Int = corrupted_token,
+) -> Float[Tensor, "batch"]:
+    return logits[:, -1, clean_token] - logits[:, -1, corrupted_token]
+
+act_patch_block_every = patching.get_act_patch_block_every(model, corrupted_tokens, clean_cache, answer_metric)
+
+imshow(
+    act_patch_block_every,
+    x=["<endoftext>","The", "White/Haunted", "House", "is", "where", "the"],
+    facet_col=0,  # This argument tells plotly which dimension to split into separate plots
+    facet_labels=["Residual Stream", "Attn Output", "MLP Output"],  # Subtitles of separate plots
+    title="Logit Difference (president - ghosts)",
+    labels={"x": "Sequence Position", "y": "Layer"},
+    width=1200,
+)
+
+# %%

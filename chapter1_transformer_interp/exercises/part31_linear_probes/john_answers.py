@@ -159,14 +159,20 @@ def extract_activations(
     tokens = tokenizer(statements, padding=True, return_tensors="pt", return_offsets_mapping=True)
     tokens_ids = tokens["input_ids"].to(device)
     attention = tokens["attention_mask"].to(device)
-
+    
     # Call the forward pass on the model
     output = model(tokens_ids, attention_mask=attention, output_hidden_states=True)
     #t.stack(output.hidden_states)
-    print(output.hidden_states)
+    #print(output.hidden_states)
+    activations = t.stack([output.hidden_states[layer+1] for layer in layers])
+    #print(activations.shape)
     #print(output.hidden_states[0].shape)
     
-    #logits = output.logits
+    last_real_pos = attention.sum(dim=-1) - 1
+    result = {layers[i]: activations[i, :, last_real_pos[i], :] for i in range(len(layers))}
+    
+    print(result[0].shape)
+    return result
     
 
 tests.test_extract_activations(extract_activations, model, tokenizer, PROBE_LAYER, D_MODEL)

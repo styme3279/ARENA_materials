@@ -175,3 +175,26 @@ print(f"Original logit difference:     {original_average_logit_diff:.10f}")
 t.testing.assert_close(average_logit_diff, original_average_logit_diff)
 
 # %%
+def residual_stack_to_logit_diff(
+    residual_stack: Float[Tensor, "... batch d_model"],
+    cache: ActivationCache,
+    logit_diff_directions: Float[Tensor, "batch d_model"] = logit_diff_directions,
+) -> Float[Tensor, "..."]:
+    """
+    Gets the avg logit difference between the correct and incorrect answer for a given stack of
+    components in the residual stream.
+    """
+    
+    normalized_residual_stack = cache.apply_ln_to_stack(residual_stack, layer=-1, pos_slice=-1)
+    average_logit_diff = einops.einsum(
+        normalized_residual_stack, logit_diff_directions,
+        "batch d_model, batch d_model ->")
+
+    print(average_logit_diff)
+    return average_logit_diff
+
+
+# Test function by checking that it gives the same result as the original logit difference
+t.testing.assert_close(residual_stack_to_logit_diff(final_token_residual_stream, cache), original_average_logit_diff)
+
+# %%

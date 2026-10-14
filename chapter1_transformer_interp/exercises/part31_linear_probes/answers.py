@@ -156,19 +156,20 @@ def extract_activations(
 
     output = {}
     for layer in layers:
+        # handle stacking on batches
+        acts: Float[Tensor] | None = None
         for i in range(0, len(statements), batch_size):
             batch = statements[i:i+batch_size]
-            tokens = tokenizer(batch, return_tensors="pt", padding=True).to(model.device)
+            tokens = tokenizer(batch, return_tensors="pt", padding=True).to(device)
 
             with t.no_grad():
                 out_batch = model(**tokens, output_hidden_states=True)
 
             hidden_states = out_batch.hidden_states[layer + 1]
             last_id = tokens["attention_mask"].sum(dim = 1) - 1
-            acts = hidden_states[t.arange(hidden_states.shape[0]), last_id, :]
-            
-            
-            output[layer] = acts
+            batch_acts = hidden_states[t.arange(hidden_states.shape[0], device=device), last_id, :]
+            acts = t.cat([acts, batch_acts]) if acts is not None else batch_acts
+        output[layer] = acts
     return output
 
 
@@ -183,9 +184,8 @@ statements_dict = {}
 for name in DATASET_NAMES:
     df = datasets[name]
     statements = df["statement"].tolist()
-    labs = t.tensor(df["label"].values, dtype=t.float32)
+    labs = t.tensor(df["label"].values, dtype=t.float32, device=device)
     statements_dict[name] = statements
-
     acts = extract_activations(statements, model, tokenizer, [PROBE_LAYER])
     activations[name] = acts[PROBE_LAYER]
     labels_dict[name] = labs
@@ -203,5 +203,89 @@ summary = pd.DataFrame(
 )
 display(summary)
 
+# %%
+
+def get_pca_components(
+    activations: Float[Tensor, "n d_model"],
+    k: int = 2,
+) -> Float[Tensor, "d_model k"]:
+    """
+    Compute the top-k principal components of the activation matrix.
+
+    Args:
+        activations: Activation matrix, shape [n_samples, d_model].
+        k: Number of principal components to return.
+
+    Returns:
+        Matrix of top-k eigenvectors as columns, shape [d_model, k].
+    """
+    # activations = activations.float() # eigh error
+    activations_mean = (activations - activations.mean(dim=0))
+
+    covariance = (activations_mean.t() @ activations_mean) / (activations_mean.shape[0] - 1)
+
+    eigenvalues, eigenvectors = t.linalg.eigh(covariance)
+
+    to_sort_indices = t.argsort(eigenvalues, descending=True)
+
+    top_k = eigenvectors[: , to_sort_indices[:k]]
+
+    return top_k
+
+    # raise NotImplementedError()
+
+
+tests.test_get_pca_components(get_pca_components, activations["cities"], D_MODEL)
+# %%
+fig = make_subplots(rows=1, cols=3, subplot_titles=DATASET_NAMES)
+
+for i, name in enumerate(DATASET_NAMES):
+    acts = activations[name]
+    label_text = labels_dict[name]
+    prompts = statements_dict[name]
+    pcs = get_pca_components(acts, k=2)
+    X_centered = acts - acts.mean(dim=0)
+    projected = (X_centered @ pcs).numpy()
+
+    # Compute variance explained
+    total_var = X_centered.var(dim=0).sum().item()
+    pc_var = t.tensor(projected).var(dim=0)
+    pct_explained = (pc_var / total_var * 100).tolist()
+
+    colors = ["blue" if l == 1 else "red" for l in label_text.tolist()]
+    fig.add_trace(
+        go.Scatter(
+            x=projected[:, 0],
+            y=projected[:, 1],
+            mode="markers",
+            marker=dict(color=colors, size=3, opacity=0.5),
+            name=name,
+            showlegend=False,
+            hovertext=prompts,
+            customdata=list(zip(prompts, label_text)),
+            hovertemplate=(
+                "<b>%{customdata[1]}</b><br>"
+                "%{customdata[0]}<br>"
+                "PC1: %{x:.2f}<br>"
+                "PC2: %{y:.2f}"
+                "<extra></extra>"
+            ),
+        ),
+        row=1,
+        col=i + 1,
+    )
+    fig.update_xaxes(title_text=f"PC1 ({pct_explained[0]:.1f}%)", row=1, col=i + 1)
+    fig.update_yaxes(title_text=f"PC2 ({pct_explained[1]:.1f}%)", row=1, col=i + 1)
+
+# Add a legend manually
+fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(color="blue", size=8), name="True"))
+fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(color="red", size=8), name="False"))
+
+fig.update_layout(
+    title="PCA of Truth Representations (Layer 14, Last Token)",
+    height=400,
+    width=1200,
+)
+fig.show()
 # %%
 

@@ -607,6 +607,8 @@ class LRProbe(t.nn.Module):
                 t.nn.Sigmoid()
             ]
         )
+        self.register_buffer("scaler_mean", scaler_mean)
+        self.register_buffer("scaler_scale", scaler_scale)
 
         # Sequential(Linear(d_in, 1, bias=False), Sigmoid())
 

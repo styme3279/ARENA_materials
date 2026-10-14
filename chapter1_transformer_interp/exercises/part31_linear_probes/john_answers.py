@@ -803,8 +803,24 @@ def few_shot_evaluate(
         Tensor of P(TRUE) - P(FALSE) for each statement.
     """
     new_statements = [few_shot_prompt + s for s in statements]
-    inputs = tokenizer(new_statements, return_tensor="pt")
+    results = t.zeros((len(new_statements)))
+    for i in range(len(new_statements) // batch_size):
+        batch_statements = new_statements[i*batch_size:(i+1)*batch_size]
+        inputs = tokenizer(batch_statements, return_tensors="pt", padding=True, truncation=True).to(device=device)
+        attention_mask = inputs["attention_mask"]
+        
+        last_idx = attention_mask.sum(dim=-1)-1
 
+        with t.no_grad():
+
+            outputs = model(**inputs, output_hidden_states=False)
+
+        statement_ids = t.arange(len(batch_statements), dtype=int)
+        true_probs = outputs.logits.softmax(dim=-1)[statement_ids,last_idx, true_id]    
+        false_probs = outputs.logits.softmax(dim=-1)[statement_ids,last_idx, false_id]   
+        results[i*batch_size:(i+1)*batch_size] = true_probs - false_probs
+
+    return results
 
 # Load sp_en_trans for evaluation (exclude statements used in the few-shot prompt)
 sp_df = datasets["sp_en_trans"]

@@ -381,12 +381,13 @@ def collect_activations_multiple_layers(
         Dict mapping layer → activations tensor [batch, length, d_model]
     """
 
+    #assert (start_offset is not None and end_offset is not None) or start_offset < end_offset
     remove_all_hooks(model)
     activations = dict()
 
     for layer, module in submodules.items():
         def activation_collector_hook(hook, input, output):
-            activations[layer] = output
+            activations[layer] = output[:,start_offset:end_offset,:]
         module.register_forward_hook(activation_collector_hook)
 
     model(inputs_BL.input_ids)
@@ -412,6 +413,136 @@ activations = collect_activations_multiple_layers(
 print(f"Extracted activations from layer {layer}")
 print(f"Shape: {activations[layer].shape}")  # Should be [1, seq_len, d_model]
 
-#tests.test_collect_activations_multiple_layers(collect_activations_multiple_layers, model, tokenizer, device)
+tests.test_collect_activations_multiple_layers(collect_activations_multiple_layers, model, tokenizer, device)
 
 # %%
+SPECIAL_TOKEN = " ?"
+
+def get_introspection_prefix(layer: int, num_positions: int) -> str:
+    """Create the prefix for oracle prompts with ? tokens."""
+    prefix = f"Layer: {layer}\n"
+    prefix += SPECIAL_TOKEN * num_positions
+    prefix += " \n"
+    return prefix
+
+prefix = get_introspection_prefix(layer=18, num_positions=5)
+print(f"Introspection prefix:\n{prefix!r}")
+
+# %%
+def find_pattern_in_tokens(
+    token_ids: list[int],
+    special_token_str: str,
+    num_positions: int,
+    tokenizer: AutoTokenizer,
+) -> list[int]:
+    """
+    Find positions of special token in tokenized sequence.
+
+    Args:
+        token_ids: List of token IDs
+        special_token_str: The special token string (e.g., " ?")
+        num_positions: Expected number of occurrences
+        tokenizer: Tokenizer to encode special token
+
+    Returns:
+        List of positions where special token appears
+    """
+
+    special_token_indices = []
+
+    # 1. Encode the special token string to get its token ID
+    special_token_id = tokenizer.encode(special_token_str)[0]
+
+    # 2. Find all positions where this token appears in the full sequence 
+    for i, token_id in enumerate(token_ids):
+        if token_id == special_token_id:
+            special_token_indices.append(i)
+
+    # 3. Verify we found exactly num_positions tokens (raise ValueError if not)
+    if len(special_token_indices) != num_positions:
+        raise ValueError
+
+    # 4. Verify they're consecutive (this is a sanity check)
+    for i in range(len(special_token_indices)-1):
+        if special_token_indices[i]+1 != special_token_indices[i+1]:
+            raise ValueError
+
+    # 5. Return the list of positions
+    return special_token_indices
+
+
+# Test the function
+test_text = "Layer: 18\n ? ? ? \nWhat is this?"
+test_tokens = tokenizer.encode(test_text, add_special_tokens=False)
+positions = find_pattern_in_tokens(test_tokens, SPECIAL_TOKEN, 3, tokenizer)
+print(f"Found ? tokens at positions: {positions}")
+
+tests.test_find_pattern_in_tokens(find_pattern_in_tokens, tokenizer)
+
+# %%
+@contextlib.contextmanager
+def add_hook(module: torch.nn.Module, hook: Callable):
+    """Temporarily adds a forward hook to a model module."""
+    handle = module.register_forward_hook(hook)
+    try:
+        yield
+    finally:
+        handle.remove()
+
+
+def get_hf_activation_steering_hook(
+    vectors: Float[Tensor, "num_pos d_model"],
+    positions: list[int],
+    steering_coefficient: float,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> Callable:
+    """
+    Create hook that injects activations at specified positions (assumes batch_size=1).
+
+    Args:
+        vectors: Steering vectors [K, d_model] where K is number of positions
+        positions: List of positions to inject at
+        steering_coefficient: Multiplier for steering strength
+        device: Device for tensors
+        dtype: Data type for steering
+
+    Returns:
+        Hook function that modifies activations during forward pass
+    """
+    def activation_steering_hook():
+        pass
+
+    add_hook()
+    
+
+
+# Test the function
+# Create dummy data (batch_size=1)
+test_positions = [5, 6, 7]  # Inject at positions 5, 6, 7
+test_vectors = torch.randn(len(test_positions), model.config.hidden_size, device=device)
+
+hook_fn = get_hf_activation_steering_hook(
+    vectors=test_vectors,
+    positions=test_positions,
+    steering_coefficient=1.0,
+    device=device,
+    dtype=dtype,
+)
+
+# Create dummy activations
+dummy_resid = torch.randn(1, 20, model.config.hidden_size, device=device)
+orig_values = dummy_resid[0, test_positions, :].clone()
+
+# Apply hook
+modified_resid = hook_fn(None, None, dummy_resid)
+
+# Check modifications occurred
+new_values = modified_resid[0, test_positions[0], :]
+assert not torch.allclose(orig_values, new_values), "Hook should modify activations"
+print("Steering hook test passed!")
+
+tests.test_get_hf_activation_steering_hook(get_hf_activation_steering_hook, device, model.config.hidden_size)
+tests.test_get_hf_activation_steering_hook_matches_reference(
+    get_hf_activation_steering_hook, device, model.config.hidden_size
+)

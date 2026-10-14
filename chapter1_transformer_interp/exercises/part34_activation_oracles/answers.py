@@ -533,13 +533,32 @@ def get_hf_activation_steering_hook(
     Returns:
         Hook function that modifies activations during forward pass
     """
-    # Extract the residual stream tensor from outputs (handle tuple case)
-    # Verify batch_size is 1 (raise error if not)
-    # Get the original activations at the specified positions
-    # Normalize the steering vectors to have the same norm as the originals
-    # Apply steering coefficient and add to original activations
-    # Return modified outputs in the same format (tuple or tensor)
 
+
+    def activation_steering_hook(module, inputs, outputs):
+
+        # Extract the residual stream tensor from outputs (handle tuple case)
+        #  if isinstance(outputs, tuple):
+            # outputs = outputs[0] 
+
+        print(f"Output shape {outputs.shape}")
+
+        assert isinstance(outputs, torch.Tensor)
+        # Verify batch_size is 1 (raise error if not)
+        assert outputs.shape[0] == 1, f"Batch size is not one, shape is {outputs.shape}"
+        # Get the original activations at the specified positions
+        specified_position_acts = outputs[0, positions]
+        # Normalize the steering vectors to have the same norm as the originals
+        specified_position_norms = specified_position_acts.norm()
+        vector_norms = vectors.norm(dim=1)
+        normalized_vectors = (vectors / vector_norms) * specified_position_norms
+        scaled_vectors = normalized_vectors * steering_coefficient # (num_pos, d_model)
+        # Apply steering coefficient and add to original activations
+        outputs[0, positions] += scaled_vectors
+        # Return modified outputs in the same format (tuple or tensor)
+        return outputs
+
+    return activation_steering_hook 
 
 # Test the function
 # Create dummy data (batch_size=1)
@@ -571,3 +590,69 @@ tests.test_get_hf_activation_steering_hook_matches_reference(
     get_hf_activation_steering_hook, device, model.config.hidden_size
 )
 
+
+# %%
+@dataclass
+class OracleInput:
+    """Simplified datapoint for oracle inference (no training-specific fields)."""
+
+    input_ids: list[int]
+    layer: int
+    steering_vectors: Float[Tensor, "num_pos d_model"]
+    positions: list[int]
+
+
+@dataclass
+class OracleResults:
+    oracle_lora_path: str | None
+    target_lora_path: str | None
+    target_prompt: str
+    act_key: str
+    oracle_prompt: str
+    num_tokens: int
+    token_responses: list[str | None]
+    full_sequence_responses: list[str]
+    segment_responses: list[str]
+    target_input_ids: list[int]
+
+# %%
+def create_oracle_input(
+    prompt: str,
+    layer: int,
+    num_positions: int,
+    tokenizer: AutoTokenizer,
+    acts_BD: Float[Tensor, "num_pos d_model"],
+) -> OracleInput:
+    """
+    Create an oracle input for inference.
+
+    Args:
+        prompt: Question to ask the oracle
+        layer: Layer the activations came from
+        num_positions: Number of ? tokens (equals length of acts_BD)
+        tokenizer: Tokenizer
+        acts_BD: Activation vectors [num_positions, d_model]
+
+    Returns:
+        OracleInput ready for generation
+    """
+    # Add the introspection prefix (with ? tokens) to the prompt
+    # Format using the chat template with add_generation_prompt=True (ends with <|im_start|>assistant\n)
+    # Find ? token positions in the tokenized sequence
+    # Return an OracleInput with all fields filled in
+
+
+# Test the function
+test_activations = torch.randn(3, model.config.hidden_size)
+datapoint = create_oracle_input(
+    prompt="What is the model thinking about?",
+    layer=18,
+    num_positions=3,
+    tokenizer=tokenizer,
+    acts_BD=test_activations,
+)
+
+print(f"Created datapoint with {len(datapoint.input_ids)} tokens")
+print(f"? tokens at positions: {datapoint.positions}")
+
+tests.test_create_oracle_input(create_oracle_input, tokenizer, model.config.hidden_size)

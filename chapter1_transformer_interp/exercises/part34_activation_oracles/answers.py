@@ -338,18 +338,31 @@ def collect_activations_multiple_layers(
         Dict mapping layer → activations tensor [batch, length, d_model]
     """
 
-    def forward_hook(module, inputs, outputs):
-        print(type(outputs))
-        print(isinstance(outputs, tuple))
-
     activations = {}
     handles = []
+    submodules_to_layer = {submod: layer for layer, submod in submodules.items()}
+
+    def forward_hook(module, inputs, outputs):
+        # print(type(outputs))
+        # print(inputs)
+        # print(isinstance(outputs, tuple))
+
+        # print(module.layers)
+        if isinstance(outputs, tuple):
+            output, _ = outputs
+        else:
+            output = outputs
+        layer = submodules_to_layer[module]
+        print(output.shape)
+        if layer > max(submodules.keys()):
+            raise EarlyStopException
+        activations[layer] = output[:,start_offset:end_offset,:]
+
     for i, submod in submodules.items():
         handles.append(submod.register_forward_hook(forward_hook))
-    # if 
-    #     raise EarlyStopException
+        activations[submod] = i
     
-
+    
     try:
         model(**inputs_BL)
     finally:
@@ -381,3 +394,17 @@ tests.test_collect_activations_multiple_layers(collect_activations_multiple_laye
 
 
 # %%
+SPECIAL_TOKEN = " ?"
+
+
+def get_introspection_prefix(layer: int, num_positions: int) -> str:
+    """Create the prefix for oracle prompts with ? tokens."""
+    prefix = f"Layer: {layer}\n"
+    prefix += SPECIAL_TOKEN * num_positions
+    prefix += " \n"
+    return prefix
+
+
+# Test it
+prefix = get_introspection_prefix(layer=18, num_positions=5)
+print(f"Introspection prefix:\n{prefix!r}")

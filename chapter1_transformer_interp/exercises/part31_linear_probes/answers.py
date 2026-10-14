@@ -365,7 +365,14 @@ def layer_sweep_accuracy(
 
         # diff in means
         if train_labels == 1:
-            
+            true_mean = train_activations[train_labels].mean(dim=0)
+
+        if train_labels == 0:
+            false_mean = train_activations[train_labels].mean(dim=0)
+
+        print(direction, true_mean, false_mean)
+
+        direction = true_mean - false_mean
     
 
 

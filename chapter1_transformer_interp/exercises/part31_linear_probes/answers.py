@@ -335,7 +335,15 @@ def layer_sweep_accuracy(
     Returns:
         Dict with keys "train_acc" and "test_acc", each a list of accuracies per layer.
     """
-    raise NotImplementedError()
+    import random
+    train_indices, test_indices = t.randperm(len(statements))[:]
+    test_indices = 
+    
+
+    # train
+    activations = extract_activations(train_statements, model, tokenizer, layers, batch_size)
+    pca_components = get_pca_components(activations)
+
 
 
 t.manual_seed(42)

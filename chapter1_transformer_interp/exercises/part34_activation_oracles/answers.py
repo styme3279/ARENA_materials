@@ -221,7 +221,7 @@ results = utils.run_oracle(
     oracle_prompt=oracle_prompt,
     oracle_lora_path="oracle",
     oracle_input_type="segment",  # Query each token independently
-    segment_start_idx=0,
+    segment_start_idx=segment_start,
     segment_end_idx=None,
     generation_kwargs={"do_sample": False, "temperature": 0.0, "max_new_tokens": 100},
 )
@@ -231,3 +231,67 @@ response = results.segment_responses[0].lower()
 assert any(x in response for x in ["7", "seven"]), (
     f"Expected '7' or 'seven' in response, got: {results.segment_responses[0]}"
 )
+
+# %%
+target_prompt_dict = [
+    {"role": "user", "content": "def foo(x, y):\n    return x ** y\n\nresult = foo(3, 4)"},
+]
+formatted_target_prompt = tokenizer.apply_chat_template(
+    target_prompt_dict, tokenize=False, add_generation_prompt=False, enable_thinking=False, continue_final_message=False
+)
+
+tokens = tokenizer.encode(formatted_target_prompt)
+token_strings = [tokenizer.decode([t]) for t in tokens]
+segment_start = next(i for i, tok_str in enumerate(token_strings) if "result" in tok_str.lower())
+
+oracle_prompt = "What will the result be?"
+
+results = utils.run_oracle(
+    model=model,
+    tokenizer=tokenizer,
+    device=device,
+    target_prompt=formatted_target_prompt,
+    target_lora_path=None,
+    oracle_prompt=oracle_prompt,
+    oracle_lora_path="oracle",
+    oracle_input_type="segment",
+    segment_start_idx=segment_start,
+    segment_end_idx=None,
+    generation_kwargs={"do_sample": False, "temperature": 0.0, "max_new_tokens": 100},
+)
+
+print(f"Oracle response: {results.segment_responses[0]}")
+
+# 2 Implementing oracle components #########
+# %%
+target_prompt_dict = [
+    {"role": "user", "content": "What is (45 * 32) / (72 - 11)? . . . . . ."},
+]
+formatted_target_prompt = tokenizer.apply_chat_template(
+    target_prompt_dict, tokenize=False, add_generation_prompt=False, enable_thinking=False, continue_final_message=False
+)
+
+tokens = tokenizer.encode(formatted_target_prompt)
+token_strings = [tokenizer.decode([t]) for t in tokens]
+#segment_start = next(i for i, tok_str in enumerate(token_strings) if "result" in tok_str.lower())
+
+oracle_prompt = "What intermediate results is the model thinking about?"
+
+results = utils.run_oracle(
+    model=model,
+    tokenizer=tokenizer,
+    device=device,
+    target_prompt=formatted_target_prompt,
+    target_lora_path=None,
+    oracle_prompt=oracle_prompt,
+    oracle_lora_path="oracle",
+    oracle_input_type="tokens",
+    token_start_idx=0,
+    token_end_idx=None,
+    generation_kwargs={"do_sample": False, "temperature": 0.0, "max_new_tokens": 100},
+)
+
+print(f"Oracle response: {results.token_responses}")
+for t in results.token_responses:
+    print(t, end='\n')
+# %%

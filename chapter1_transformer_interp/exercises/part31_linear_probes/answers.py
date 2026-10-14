@@ -538,12 +538,15 @@ class MMProbe(t.nn.Module):
         # Store direction and bias and precompute inverse covariance
         self.direction = direction
         self.bias = bias
-        inv_cov = covariance.inverse()
+        self.inv_cov = covariance.inverse()
 
     def forward(self, x: Float[Tensor, "n d_model"], iid: bool = False) -> Float[Tensor, " n"]:
         if iid:
             something = einops.einsum(x - self.bias, self.inv_conv, "n d_model, d_model d_model -> n d_model")
-            something_else = einops.einsum(something, self.direction, "")
+            something_else = einops.einsum(something, self.direction, "n d_model, d_model -> n")
+            return t.sigmoid(something_else)
+        else:
+            return t.sigmoid(einops.einsum(x - self.bias, self.direction, "n d_model, d_model -> n"))
 
     def pred(self, x: Float[Tensor, "n d_model"], iid: bool = False) -> Float[Tensor, " n"]:
         return self(x, iid=iid).round()
@@ -555,7 +558,13 @@ class MMProbe(t.nn.Module):
         device: str = "cpu",
         bias: bool = True,
     ) -> "MMProbe":
-        raise NotImplementedError()
+        mean_true = acts[labels==1].mean(dim=0)
+        mean_false = acts[labels==0].mean(dim=0)
+        direction = mean_true - mean_false
+        centre = (mean_true + mean_false) / 2 if bias else None
+        covariance = t.cov(acts)
+        return MMProbe(direction=direction, covariance=..., bias=centre)
+        
 
 
 mm_probe = MMProbe.from_data(train_acts["cities"], train_labels["cities"])

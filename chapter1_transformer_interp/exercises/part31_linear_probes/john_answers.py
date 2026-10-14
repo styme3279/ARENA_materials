@@ -355,6 +355,8 @@ def layer_sweep_accuracy(
         Dict with keys "train_acc" and "test_acc", each a list of accuracies per layer.
     """
 
+    results = {"train_acc": [], "test_acc": []}
+
     # Extract activations
     activations = extract_activations(statements=statements,
                                       model=model,
@@ -362,39 +364,38 @@ def layer_sweep_accuracy(
                                       tokenizer=tokenizer
     )
 
-    # Get PCA components
-    n_statements = len(statements)
-    train_set_length = int(train_frac * n_statements)
-    training_set = statements[:train_set_length]
-    test_set = statements[train_set_length:]
-    
-    print(train_set_length)
-    print(labels.shape)
-    positive_trainset_labels = labels[:train_set_length].to(bool)
-    negative_trainset_labels = ~(labels[:train_set_length].to(bool))
-    
-    print(positive_trainset_labels)
-    print(negative_trainset_labels)
+    for layer_idx in tqdm(range(len(layers))):
+        activation = activations[layer_idx]
 
-    print(training_set.shape)
-    
+        # Get PCA components
+        n_statements = len(statements)
+        train_set_length = int(train_frac * n_statements)
+        training_set = activation[:train_set_length]
+        test_set = activation[train_set_length:]
+        
+        positive_trainset_labels = labels[:train_set_length].to(bool)
+        negative_trainset_labels = ~(labels[:train_set_length].to(bool))
+        
+        positive_centroid = training_set[positive_trainset_labels].mean(dim=0)
+        negative_centroid = training_set[negative_trainset_labels].mean(dim=0)
 
-    positive_centroid = training_set[positive_trainset_labels].mean(dim=0)
-    negative_centroid = training_set[negative_trainset_labels].mean(dim=0)
-    
-    diff_centroids = positive_centroid - negative_centroid
+        midpoint = (positive_centroid + negative_centroid) / 2
+        diff_centroids = positive_centroid - negative_centroid
 
-    # Dot product with all samples from train and test sets
-    train_class = einops.einsum(diff_centroids, training_set, "d, n d -> n")
-    test_class = einops.einsum(diff_centroids, test_set, "d, n d -> n")
+        # Dot product with all samples from train and test sets
+        train_class = einops.einsum(diff_centroids, training_set-midpoint, "d, n d -> n")
+        test_class = einops.einsum(diff_centroids, test_set-midpoint, "d, n d -> n")
 
-    train_class = t.sign(train_class)
-    test_class = t.sign(test_class)
+        train_class = train_class > 0
+        test_class = test_class > 0
 
-    train_acc = (train_class == labels[:train_set_length]).mean()
-    test_acc = (test_class == labels[train_set_length:]).mean()
+        train_acc = (train_class == labels[:train_set_length]).to(float).mean()
+        test_acc = (test_class == labels[train_set_length:]).to(float).mean()
 
-    return {"train_acc": train_acc, "test_acc": test_acc}
+        results["train_acc"].append(train_acc)
+        results["test_acc"].append(test_acc)
+
+    return results
 
 
 t.manual_seed(42)
@@ -432,4 +433,84 @@ fig.show()
 best_layer = all_layers[int(np.argmax(sweep_results["test_acc"]))]
 print(f"\nBest layer by test accuracy: {best_layer} ({max(sweep_results['test_acc']):.3f})")
 print(f"Configured probe layer: {PROBE_LAYER} ({sweep_results['test_acc'][PROBE_LAYER]:.3f})")
+
 # %%
+# Create train/test splits for all datasets
+t.manual_seed(42)
+train_acts, test_acts = {}, {}
+train_labels, test_labels = {}, {}
+
+for name in DATASET_NAMES:
+    acts = activations[name]
+    labs = labels_dict[name]
+    n = len(acts)
+    perm = t.randperm(n)
+    n_train = int(0.8 * n)
+
+    train_acts[name] = acts[perm[:n_train]]
+    test_acts[name] = acts[perm[n_train:]]
+    train_labels[name] = labs[perm[:n_train]]
+    test_labels[name] = labs[perm[n_train:]]
+
+    print(f"{name}: train={n_train}, test={n - n_train}")
+
+# %%
+class MMProbe(t.nn.Module):
+    def __init__(
+        self,
+        direction: Float[Tensor, " d_model"],
+        covariance: Float[Tensor, "d_model d_model"] | None = None,
+        atol: float = 1e-3,
+        bias: Float[Tensor, " d_model"] | None = None,
+    ):
+        super().__init__()
+        # Store direction and bias and precompute inverse covariance
+        self.direction = direction
+        self.covariance = covariance
+        self.atol = atol
+        self.bias = bias
+
+    def forward(self, x: Float[Tensor, "n d_model"], iid: bool = False) -> Float[Tensor, " n"]:
+        return t.sigmoid(einops.einsum(self.direction, x-self.bias, "d, n d -> n"))
+
+    def pred(self, x: Float[Tensor, "n d_model"], iid: bool = False) -> Float[Tensor, " n"]:
+        return self(x, iid=iid).round()
+
+    @staticmethod
+    def from_data(
+        acts: Float[Tensor, "n d_model"],
+        labels: Float[Tensor, " n"],
+        device: str = "cpu",
+        bias: bool = True,
+    ) -> "MMProbe":
+        
+        
+        positive_trainset_labels = labels.to(bool)
+        negative_trainset_labels = ~(labels.to(bool))
+        
+        positive_centroid = acts[positive_trainset_labels].mean(dim=0)
+        negative_centroid = acts[negative_trainset_labels].mean(dim=0)
+
+        midpoint = (positive_centroid + negative_centroid) / 2
+        diff_centroids = positive_centroid - negative_centroid
+        covariance_matrix = t.corrcoef(acts.T)
+        return MMProbe(direction=diff_centroids, covariance=covariance_matrix, bias=midpoint)
+
+
+
+mm_probe = MMProbe.from_data(train_acts["cities"], train_labels["cities"])
+
+# Train accuracy
+train_preds = mm_probe.pred(train_acts["cities"])
+train_acc = (train_preds == train_labels["cities"]).float().mean().item()
+
+# Test accuracy
+test_preds = mm_probe.pred(test_acts["cities"])
+test_acc = (test_preds == test_labels["cities"]).float().mean().item()
+assert test_acc > 0.9, "Expected at least 90% accuracy"
+
+print("MMProbe on cities:")
+print(f"  Train accuracy: {train_acc:.3f}")
+print(f"  Test accuracy:  {test_acc:.3f}")
+print(f"  Direction norm: {mm_probe.direction.norm().item():.3f}")
+print(f"  Direction (first 5): {mm_probe.direction[:5].tolist()}")

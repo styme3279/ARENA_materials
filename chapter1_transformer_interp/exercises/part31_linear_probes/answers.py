@@ -243,10 +243,19 @@ def extract_activations(
     Returns:
         Dictionary mapping layer index to tensor of activations, shape [n_statements, d_model].
     """
-    tokens = tokenizer(statements, return_tensors="pt", padding=True)['input_ids']
-    hidden_states = model(tokens, output_hidden_states=True)
-    
-
+    all_acts = {layer: [] for layer in layers}
+    for i in range(0, len(statements), batch_size):
+        batch = statements[i : i + batch_size]
+        tokens = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)
+        with t.no_grad():
+            outputs = model(**tokens, output_hidden_states=True)
+        last_token_idx = tokens['attention_mask'].sum(dim=1) - 1
+        
+        for layer in layers:
+            hidden = outputs.hidden_states[layer+1]
+            batch_indices = t.arange(len(last_token_idx), device=hidden.device)
+            acts = hidden[batch_indices, last_token_idx]
+            all_acts[layer].append[a]
 
 tests.test_extract_activations(extract_activations, model, tokenizer, PROBE_LAYER, D_MODEL)
 

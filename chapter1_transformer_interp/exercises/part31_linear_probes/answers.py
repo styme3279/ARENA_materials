@@ -438,37 +438,31 @@ def layer_sweep_accuracy(
         train_mean_false = train_act_l[indices_false].mean(dim=0)
 
         train_direction = train_mean_true - train_mean_false
+        print(f"train_direction: {train_direction.shape}")
+        print(f"train_act_l: {train_act_l.shape}")
 
-        # train accuracy:
-        
+        dot_product = einops.einsum(train_act_l, train_direction, "b d_model, d_model -> b")
+        predictions = [0 if dot < 0 else 1 for dot in dot_product ]
+
+        train_acc = 0
+        for i in range(len(predictions)):
+            if predictions[i] == train_labels[i].item():
+                train_acc += 1
+
+        print(f"train_acc: {train_acc}")
+
+        dot_product = einops.einsum(test_act_l, train_direction, "b d_model, d_model -> b")
+        predictions = [0 if dot < 0 else 1 for dot in dot_product ]
+
+        test_acc = 0
+        for i in range(len(predictions)):
+            if predictions[i] == test_labels[i].item():
+                test_acc += 1
+        out['train_acc'].append(train_acc)
+        out['test_acc'].append(test_acc)
 
 
-
-
-        test_indices_true = t.where(test_labels==1)[0]
-        test_indices_false = t.where(test_labels==0)[0]
-        # test_mean_true = test_act_l[test_indices_true].mean(dim=0)
-        # test_mean_false = test_act_l[test_indices_false].mean(dim=0)
-
-
-    
-    # return {layer: t.cat(acts_list, dim=0) for layer, acts_list in all_acts.items()}
-
-    # # mean center
-    # # print(f"activations: {activations.shape}")
-    # mean_acts = activations.mean(dim=0, keepdim=True)
-    # # print(f"mean_acts: {mean_acts.shape}")
-    # centered_activations = (activations - mean_acts).T
-    # # print(f"centered_activations: {centered_activations.shape}")
-
-    # # covariance
-    # covariance = t.cov(centered_activations)
-    # # print(f"covariacne: {covariance.shape}")
-
-    # # eigendec
-    # eigenval, eigenvec = t.linalg.eigh(covariance)
-
-    return  #eigenvec[:, -k:]
+    return out
 
 
 t.manual_seed(42)

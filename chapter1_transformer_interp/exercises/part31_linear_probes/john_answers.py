@@ -162,16 +162,11 @@ def extract_activations(
     
     # Call the forward pass on the model
     output = model(tokens_ids, attention_mask=attention, output_hidden_states=True)
-    #t.stack(output.hidden_states)
-    #print(output.hidden_states)
     activations = t.stack([output.hidden_states[layer+1] for layer in layers])
-    #print(activations.shape)
-    #print(output.hidden_states[0].shape)
     
     last_real_pos = attention.sum(dim=-1) - 1
     result = {layers[i]: activations[i, :, last_real_pos[i], :] for i in range(len(layers))}
     
-    print(result[0].shape)
     return result
     
 

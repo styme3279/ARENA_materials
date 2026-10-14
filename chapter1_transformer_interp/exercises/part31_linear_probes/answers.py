@@ -413,6 +413,10 @@ def layer_sweep_accuracy(
     # train_statements = statements[perm[:n_train]]
     train_statements = [statements[i] for i in perm[:n_train]]
     test_statements = [statements[i] for i in perm[n_train:]]
+
+    train_labels = [labels[i] for i in perm[:n_train]]
+    test_labels = [labels[i] for i in perm[n_train:]]
+
     # test_statements = statements[perm[n_train:]]
 
     # Extract activations
@@ -420,8 +424,31 @@ def layer_sweep_accuracy(
     test_acts = extract_activations(test_statements, model, tokenizer, layers, batch_size)
     print(f'train_acts: {train_acts}')
 
+    out = {"train_acc": [], "test_acc": []}
+
     for layer in layers:
-        mean
+        train_act_l = train_acts[layer] # b d_model
+        test_act_l = test_acts[layer] # b d_model
+        print(f"train_act_l shape: {train_act_l.shape}")
+        
+        indices_true = t.where(t.as_tensor(train_labels)==1)[0]
+        indices_false = t.where(t.as_tensor(train_labels)==0)[0]
+        print(f"indices_true: {indices_true}")
+        train_mean_true = train_act_l[indices_true].mean(dim=0)
+        train_mean_false = train_act_l[indices_false].mean(dim=0)
+
+        train_direction = train_mean_true - train_mean_false
+
+        # train accuracy:
+        
+
+
+
+
+        test_indices_true = t.where(test_labels==1)[0]
+        test_indices_false = t.where(test_labels==0)[0]
+        # test_mean_true = test_act_l[test_indices_true].mean(dim=0)
+        # test_mean_false = test_act_l[test_indices_false].mean(dim=0)
 
 
     

@@ -41,6 +41,7 @@ if f"{root}/{chapter}/exercises" not in sys.path:
     sys.path.append(f"{root}/{chapter}/exercises")
 
 os.chdir(f"{root}/{chapter}/exercises")
+
 # %%
 import gc
 import json
@@ -242,7 +243,11 @@ def extract_activations(
     Returns:
         Dictionary mapping layer index to tensor of activations, shape [n_statements, d_model].
     """
-    raise NotImplementedError()
+    tokens = tokenizer(statements, return_tensors="pt", padding=True)['input_ids']
+    hidden_states = model(tokens, output_hidden_states=True)
+    
 
 
 tests.test_extract_activations(extract_activations, model, tokenizer, PROBE_LAYER, D_MODEL)
+
+# %%

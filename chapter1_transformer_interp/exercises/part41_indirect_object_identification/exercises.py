@@ -347,8 +347,10 @@ def patch_residual_component(
     Patches a given sequence position in the residual stream, using the value
     from the clean cache.
     """
-    print(hook)
-
+    # print(hook.name)
+    # print(clean_cache[hook.name])
+    corrupted_residual_component = clean_cache[hook.name]
+    # assert False
 
 def get_act_patch_resid_pre(
     model: HookedTransformer,
@@ -364,8 +366,24 @@ def get_act_patch_resid_pre(
     called on the model's logit output.
     """
     
+    res = t.empty((model.cfg.n_layers, corrupted_tokens.shape[1]))
     for layer in range(model.cfg.n_layers):
-        
+        for pos in range(corrupted_tokens.shape[1]):
+            hook_func = partial(patch_residual_component, pos=pos, clean_cache=clean_cache)
+            model.reset_hooks()
+            logits = model.run_with_hooks(
+                corrupted_tokens,
+                fwd_hooks=[(utils.get_act_name("resid_pre", layer), hook_func)],
+                )
+            metric = ioi_metric(
+                logits=logits,
+                answer_tokens=,
+                corrupted_logit_diff=,
+                clean_logit_diff=
+            )
+            
+            
+
 
 
 act_patch_resid_pre_own = get_act_patch_resid_pre(model, corrupted_tokens, clean_cache, ioi_metric)

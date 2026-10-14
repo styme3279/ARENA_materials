@@ -442,53 +442,6 @@ def find_pattern_in_tokens(
     Returns:
         List of positions where special token appears
     """
-    raise NotImplementedError()
-
-
-# Test the function
-test_text = "Layer: 18\n ? ? ? \nWhat is this?"
-test_tokens = tokenizer.encode(test_text, add_special_tokens=False)
-positions = find_pattern_in_tokens(test_tokens, SPECIAL_TOKEN, 3, tokenizer)
-print(f"Found ? tokens at positions: {positions}")
-
-tests.test_find_pattern_in_tokens(find_pattern_in_tokens, tokenizer)
-
-# %%
-SPECIAL_TOKEN = " ?"
-
-
-def get_introspection_prefix(layer: int, num_positions: int) -> str:
-    """Create the prefix for oracle prompts with ? tokens."""
-    prefix = f"Layer: {layer}\n"
-    prefix += SPECIAL_TOKEN * num_positions
-    prefix += " \n"
-    return prefix
-
-
-# Test it
-prefix = get_introspection_prefix(layer=18, num_positions=5)
-print(f"Introspection prefix:\n{prefix!r}")
-
-
-# %%
-def find_pattern_in_tokens(
-    token_ids: list[int],
-    special_token_str: str,
-    num_positions: int,
-    tokenizer: AutoTokenizer,
-) -> list[int]:
-    """
-    Find positions of special token in tokenized sequence.
-
-    Args:
-        token_ids: List of token IDs
-        special_token_str: The special token string (e.g., " ?")
-        num_positions: Expected number of occurrences
-        tokenizer: Tokenizer to encode special token
-
-    Returns:
-        List of positions where special token appears
-    """
     special_token = tokenizer.encode(special_token_str)[0]
     positions = [ind for ind, token_id in enumerate(token_ids) if token_id == special_token]
     return positions
@@ -503,6 +456,62 @@ print(f"Found ? tokens at positions: {positions}")
 tests.test_find_pattern_in_tokens(find_pattern_in_tokens, tokenizer)
 
 # %%
+@contextlib.contextmanager
+def add_hook(module: torch.nn.Module, hook: Callable):
+    """Temporarily adds a forward hook to a model module."""
+    handle = module.register_forward_hook(hook)
+    try:
+        yield
+    finally:
+        handle.remove()
+
+
+# def get_hf_activation_steering_hook(
+#     vectors: Float[Tensor, "num_pos d_model"],
+#     positions: list[int],
+#     steering_coefficient: float,
+#     device: torch.device,
+#     dtype: torch.dtype,
+# ) -> Callable:
+#     """
+#     Create hook that injects activations at specified positions (assumes batch_size=1).
+
+#     Args:
+#         vectors: Steering vectors [K, d_model] where K is number of positions
+#         positions: List of positions to inject at
+#         steering_coefficient: Multiplier for steering strength
+#         device: Device for tensors
+#         dtype: Data type for steering
+
+#     Returns:
+#         Hook function that modifies activations during forward pass
+#     """
+
+
+#     def activation_steering_hook(module, inputs, outputs):
+
+#         # Extract the residual stream tensor from outputs (handle tuple case)
+#         #  if isinstance(outputs, tuple):
+#             # outputs = outputs[0] 
+
+#         print(f"Output shape {outputs.shape}")
+
+#         assert isinstance(outputs, torch.Tensor)
+#         # Verify batch_size is 1 (raise error if not)
+#         assert outputs.shape[0] == 1, f"Batch size is not one, shape is {outputs.shape}"
+#         # Get the original activations at the specified positions
+#         specified_position_acts = outputs[0, positions]
+#         # Normalize the steering vectors to have the same norm as the originals
+#         specified_position_norms = specified_position_acts.norm()
+#         vector_norms = vectors.norm(dim=1)
+#         normalized_vectors = (vectors / vector_norms.unsqueeze(-1)) * specified_position_norms.unsqueeze(-1)
+#         scaled_vectors = normalized_vectors * steering_coefficient # (num_pos, d_model)
+#         # Apply steering coefficient and add to original activations
+#         outputs[0, positions] += scaled_vectors
+#         # Return modified outputs in the same format (tuple or tensor)
+#         return outputs
+
+#     return activation_steering_hook 
 @contextlib.contextmanager
 def add_hook(module: torch.nn.Module, hook: Callable):
     """Temporarily adds a forward hook to a model module."""
@@ -533,32 +542,75 @@ def get_hf_activation_steering_hook(
     Returns:
         Hook function that modifies activations during forward pass
     """
+    # Normalize vectors to unit norm
+    normed_vectors = torch.nn.functional.normalize(vectors, dim=-1).detach()
+    positions_tensor = torch.tensor(positions, dtype=torch.long, device=device)
+
+    def hook_fn(module, _input, output):
+        # Extract residual stream tensor
+        if isinstance(output, tuple):
+            resid_BLD, *rest = output
+            output_is_tuple = True
+        else:
+            resid_BLD = output
+            output_is_tuple = False
+
+        B, L, d_model = resid_BLD.shape
+
+        if B != 1:
+            raise ValueError(f"Expected batch_size=1, got B={B}")
+
+        if L <= 1:
+            return (resid_BLD, *rest) if output_is_tuple else resid_BLD
+
+        # Check positions are valid
+        assert positions_tensor.min() >= 0
+        assert positions_tensor.max() < L, f"Position {positions_tensor.max()} >= sequence length {L}"
+
+        # Get original activations at steering positions
+        orig_KD = resid_BLD[0, positions_tensor, :]  # [K, d_model]
+        norms_K1 = orig_KD.norm(dim=-1, keepdim=True)  # [K, 1]
+
+        # Scale normalized steering vectors by original magnitudes
+        steered_KD = (normed_vectors * norms_K1 * steering_coefficient).to(dtype)
+
+        # Inject (add to original)
+        resid_BLD[0, positions_tensor, :] = steered_KD.detach() + orig_KD
+
+        return (resid_BLD, *rest) if output_is_tuple else resid_BLD
+
+    return hook_fn
 
 
-    def activation_steering_hook(module, inputs, outputs):
+# Test the function
+# Create dummy data (batch_size=1)
+test_positions = [5, 6, 7]  # Inject at positions 5, 6, 7
+test_vectors = torch.randn(len(test_positions), model.config.hidden_size, device=device)
 
-        # Extract the residual stream tensor from outputs (handle tuple case)
-        #  if isinstance(outputs, tuple):
-            # outputs = outputs[0] 
+hook_fn = get_hf_activation_steering_hook(
+    vectors=test_vectors,
+    positions=test_positions,
+    steering_coefficient=1.0,
+    device=device,
+    dtype=dtype,
+)
 
-        print(f"Output shape {outputs.shape}")
+# Create dummy activations
+dummy_resid = torch.randn(1, 20, model.config.hidden_size, device=device)
+orig_values = dummy_resid[0, test_positions, :].clone()
 
-        assert isinstance(outputs, torch.Tensor)
-        # Verify batch_size is 1 (raise error if not)
-        assert outputs.shape[0] == 1, f"Batch size is not one, shape is {outputs.shape}"
-        # Get the original activations at the specified positions
-        specified_position_acts = outputs[0, positions]
-        # Normalize the steering vectors to have the same norm as the originals
-        specified_position_norms = specified_position_acts.norm()
-        vector_norms = vectors.norm(dim=1)
-        normalized_vectors = (vectors / vector_norms) * specified_position_norms
-        scaled_vectors = normalized_vectors * steering_coefficient # (num_pos, d_model)
-        # Apply steering coefficient and add to original activations
-        outputs[0, positions] += scaled_vectors
-        # Return modified outputs in the same format (tuple or tensor)
-        return outputs
+# Apply hook
+modified_resid = hook_fn(None, None, dummy_resid)
 
-    return activation_steering_hook 
+# Check modifications occurred
+new_values = modified_resid[0, test_positions[0], :]
+assert not torch.allclose(orig_values, new_values), "Hook should modify activations"
+print("Steering hook test passed!")
+
+tests.test_get_hf_activation_steering_hook(get_hf_activation_steering_hook, device, model.config.hidden_size)
+tests.test_get_hf_activation_steering_hook_matches_reference(
+    get_hf_activation_steering_hook, device, model.config.hidden_size
+)
 
 # Test the function
 # Create dummy data (batch_size=1)
@@ -649,13 +701,14 @@ def create_oracle_input(
         add_generation_prompt=True,
         enable_thinking=False,
         continue_final_message=False,
+        return_dict=False
     )
     
     # Find ? token positions in the tokenized sequence
-    positions = find_pattern_in_tokens(test_tokens, SPECIAL_TOKEN, num_positions, tokenizer)
+    positions = find_pattern_in_tokens(input, SPECIAL_TOKEN, num_positions, tokenizer)
     
     # Return an OracleInput with all fields filled in
-    return OracleInput(input_ids=input, layer=layer, steering_vectors=acts_BD, positions=positions)
+    return OracleInput(input_ids=input, layer=layer, steering_vectors=acts_BD.detach(), positions=positions)
 
 
 # Test the function
@@ -674,3 +727,122 @@ print(f"? tokens at positions: {datapoint.positions}")
 tests.test_create_oracle_input(create_oracle_input, tokenizer, model.config.hidden_size)
 
 # %%
+def run_oracle(
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    target_prompt: str,
+    oracle_prompt: str,
+    layer_fraction: float = 0.5,
+    device: torch.device = device,
+) -> str:
+    """
+    Run oracle query from scratch using components we built.
+
+    Args:
+        model: Model with oracle LoRA loaded
+        tokenizer: Tokenizer
+        target_prompt: Prompt to analyze (already formatted with chat template)
+        oracle_prompt: Question to ask about activations
+        layer_fraction: Which layer to extract from (as fraction of total, 0.0-1.0)
+        device: Device
+
+    Returns:
+        Oracle's response as string
+    """
+    # For oracle sampling
+    generation_kwargs = {"do_sample": False, "temperature": 0.0, "max_new_tokens": 50}
+
+    # Tokenize target prompt and extract non-padding positions
+    inputs_BL = tokenizer(target_prompt, return_tensors="pt", add_special_tokens=False).to(device)
+    model_name = model.config._name_or_path
+    act_layer = layer_fraction_to_layer(model_name, layer_fraction)
+    submodules = {act_layer: get_hf_submodule(model, act_layer)}
+
+    seq_len = inputs_BL["input_ids"].shape[1]
+    attn_mask = inputs_BL["attention_mask"][0]
+    real_len = int(attn_mask.sum().item())
+    left_pad = seq_len - real_len
+
+    # Step 1: Collect activations from the target model
+    model.set_adapter("default")
+    acts_by_layer = collect_activations_multiple_layers(
+        model=model,
+        submodules=submodules,
+        inputs_BL=inputs_BL,
+        start_offset=None,
+        end_offset=None,
+    )
+
+    # Extract activations for all non-padding positions
+    num_positions = real_len
+    acts_BD = acts_by_layer[act_layer][0, left_pad:, :]  # [num_positions, d_model]
+
+    # Step 2: Create oracle input
+    datapoint = create_oracle_input(
+        prompt=oracle_prompt,
+        layer=act_layer,
+        num_positions=num_positions,
+        tokenizer=tokenizer,
+        acts_BD=acts_BD,
+    )
+
+    # Step 3: Build steering hook, switch to oracle, generate
+    input_ids = torch.tensor([datapoint.input_ids], dtype=torch.long, device=device)
+    attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
+    steering_vectors = datapoint.steering_vectors.to(device)
+    positions = datapoint.positions
+
+    injection_layer = 1  # Inject at layer 1 (gives oracle max processing depth)
+    injection_submodule = get_hf_submodule(model, injection_layer)
+
+    hook_fn = get_hf_activation_steering_hook(
+        vectors=steering_vectors,
+        positions=positions,
+        steering_coefficient=1.0,
+        device=device,
+        dtype=dtype,
+    )
+
+    model.set_adapter("oracle")
+
+    with add_hook(injection_submodule, hook_fn):
+        output_ids = model.generate(input_ids=input_ids, attention_mask=attention_mask, **generation_kwargs)
+
+    # Decode response
+    generated_tokens = output_ids[:, input_ids.shape[1] :]
+    response = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
+
+    return response
+
+
+# Test our implementation
+target_prompt_dict = [{"role": "user", "content": "The capital of France is"}]
+target_prompt = tokenizer.apply_chat_template(target_prompt_dict, tokenize=False, add_generation_prompt=True)
+oracle_prompt = "What answer will the model give, as a single token?"
+
+our_response = run_oracle(
+    model=model,
+    tokenizer=tokenizer,
+    target_prompt=target_prompt,
+    oracle_prompt=oracle_prompt,
+    layer_fraction=0.5,
+    device=device,
+)
+
+print(f"Our implementation response: {our_response!r}")
+
+# Compare to library version
+library_results = utils.run_oracle(
+    model=model,
+    tokenizer=tokenizer,
+    device=device,
+    target_prompt=target_prompt,
+    target_lora_path=None,
+    oracle_prompt=oracle_prompt,
+    oracle_lora_path="oracle",
+    oracle_input_type="full_seq",
+)
+library_response = library_results.full_sequence_responses[0]
+
+print(f"Library response: {library_response!r}")
+assert our_response.strip().lower() == library_response.strip().lower()

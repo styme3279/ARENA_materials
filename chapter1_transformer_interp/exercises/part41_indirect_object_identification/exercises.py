@@ -112,24 +112,15 @@ def logits_to_ave_logit_diff(
 
     If per_prompt=True, return the array of differences rather than the average.
     """
-    
-    print(logits.shape)
-    print(answer_tokens.shape)
 
-    # a = t.argmax(logits[:, -1, :], dim=-1)
     final_token_logits = logits[:, -1, :]
-    print()
-    rprint(answer_tokens)
-    corr_and_incorr_logits = final_token_logits[answer_tokens]
-    print(corr_and_incorr_logits)
-    # print(a)
-    # a = einops.repeat(a, "b -> b 2")
-    # print(a.shape, answer_tokens.shape)
-    # print(a == answer_tokens[:, 0])
-    # rprint(a)
-    # rprint(answer_tokens)
+    corr_and_incorr_logits = final_token_logits.gather(index=answer_tokens, dim=-1)
+    diff = corr_and_incorr_logits[:, 0] - corr_and_incorr_logits[:, 1]
+    print(diff.shape)
+    if per_prompt:
+        return diff
+    return diff.mean()
 
-    # print(logits[a].shape)
     
 
 
@@ -154,5 +145,33 @@ for prompt, answer, logit_diff in zip(prompts, answers, original_per_prompt_diff
 
 rprint(table)
 
+
+# %%
+answer_residual_directions = model.tokens_to_residual_directions(answer_tokens)  # [batch 2 d_model]
+print("Answer residual directions shape:", answer_residual_directions.shape)
+
+correct_residual_directions, incorrect_residual_directions = answer_residual_directions.unbind(dim=1)
+logit_diff_directions = correct_residual_directions - incorrect_residual_directions  # [batch d_model]
+print("Logit difference directions shape:", logit_diff_directions.shape)
+
+# %%
+# Cache syntax: resid_post is the residual stream at the end of the layer, -1 gets the final layer.
+# The general syntax is [activation_name, layer_index, sub_layer_type].
+final_residual_stream: Float[Tensor, "batch seq d_model"] = cache["resid_post", -1]
+print(f"Final residual stream shape: {final_residual_stream.shape}")
+final_token_residual_stream: Float[Tensor, "batch d_model"] = final_residual_stream[:, -1, :]
+
+# Apply LayerNorm scaling (to just the final sequence position)
+# pos_slice is the subset of the positions we take - here the final token of each prompt
+scaled_final_token_residual_stream = cache.apply_ln_to_stack(final_token_residual_stream, layer=-1, pos_slice=-1)
+
+average_logit_diff = einops.einsum(
+    scaled_final_token_residual_stream, logit_diff_directions, "batch d_model, batch d_model ->"
+) / len(prompts)
+
+print(f"Calculated average logit diff: {average_logit_diff:.10f}")
+print(f"Original logit difference:     {original_average_logit_diff:.10f}")
+
+t.testing.assert_close(average_logit_diff, original_average_logit_diff)
 
 # %%

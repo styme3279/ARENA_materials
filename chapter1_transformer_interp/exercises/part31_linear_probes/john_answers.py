@@ -902,7 +902,7 @@ def intervention_experiment(
     false_id: int,
     intervene_layers: list[int],
     intervention: str = "none",
-    batch_size: int = 32,
+    batch_size: int = 1,
 ) -> Float[Tensor, " n"]:
     """
     Run the intervention experiment.
@@ -954,10 +954,12 @@ def intervention_experiment(
                         hidden_states = output[0]
                     else:
                         hidden_states = output
-                    positions = attn_mask.sum(dim=1)
+                    end_tensor = attn_mask.sum(dim=1)-1
+                    positions = [end-len_suffix,end-len_suffix-1]
                     for pos in positions:
-                        if 0 <= pos < hidden_states.shape[1]:
-                            hidden_states[:, pos, :] += scale * direction
+                        #if 0 <= pos < hidden_states.shape[1]:
+                        #    hidden_states[:, pos, :] += scale * direction
+                        hidden_states[t.arange(len(pos), device=device), pos, :] += scale * direction
             
                     if isinstance(output, tuple):
                         return (hidden_states,) + output[1:]
@@ -1080,3 +1082,4 @@ fig.update_layout(
 )
 fig.add_hline(y=0, line_dash="dash", line_color="gray")
 fig.show()
+# %%

@@ -693,14 +693,14 @@ def run_oracle(
 
     # (1) Collect activations from the target model (switch to "default" adapter first)
     model.set_adapter("default")
-    activations_by_layer = collect_activations_multiple_layers(model, submodules, inputs_BL)
+    activations_by_layer = collect_activations_multiple_layers(model, submodules, inputs_BL, None, None)
     # (2) Create an OracleInput using create_oracle_input()
-    oracle_input = create_oracle_input(target_prompt, act_layer, positions, tokenizer, activations_by_layer)
+    oracle_input = create_oracle_input(oracle_prompt, act_layer, left_pad, tokenizer, activations_by_layer[act_layer])
     # (3) Build a steering hook, switch to "oracle" adapter, generate with the hook applied
-    activation_steering_hook = get_hf_activation_steering_hook()
+    activation_steering_hook = get_hf_activation_steering_hook(activations_by_layer[act_layer], ..., 1.0, device, dtype)
     model.set_adapter("oracle")
     for module in submodules.values():
-        add_hook(module)
+        add_hook(module, activation_steering_hook)
     output_ids = model(oracle_prompt, **kwargs)
 
     # Decode response
@@ -741,3 +741,5 @@ library_response = library_results.full_sequence_responses[0]
 
 print(f"Library response: {library_response!r}")
 assert our_response.strip().lower() == library_response.strip().lower()
+
+# %%

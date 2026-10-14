@@ -441,7 +441,9 @@ def layer_sweep_accuracy(
         print(f"train_direction: {train_direction.shape}")
         print(f"train_act_l: {train_act_l.shape}")
 
-        dot_product = einops.einsum(train_act_l, train_direction, "b d_model, d_model -> b")
+        center = (train_mean_true + train_mean_false) / 2
+
+        dot_product = einops.einsum(train_act_l - center, train_direction, "b d_model, d_model -> b")
         predictions = [0 if dot < 0 else 1 for dot in dot_product ]
 
         train_acc = 0
@@ -451,13 +453,15 @@ def layer_sweep_accuracy(
 
         print(f"train_acc: {train_acc}")
 
-        dot_product = einops.einsum(test_act_l, train_direction, "b d_model, d_model -> b")
+        dot_product = einops.einsum(test_act_l - center, train_direction, "b d_model, d_model -> b")
         predictions = [0 if dot < 0 else 1 for dot in dot_product ]
 
         test_acc = 0
         for i in range(len(predictions)):
             if predictions[i] == test_labels[i].item():
                 test_acc += 1
+        train_acc /= train_act_l.shape[0]
+        test_acc /= test_act_l.shape[0]
         out['train_acc'].append(train_acc)
         out['test_acc'].append(test_acc)
 

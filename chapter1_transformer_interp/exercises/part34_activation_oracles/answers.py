@@ -84,3 +84,66 @@ model.load_adapter(ORACLE_LORA_PATH, adapter_name="oracle", is_trainable=False)
 print("Oracle loaded successfully!")
 
 # %%
+config_dict = model.peft_config["oracle"].to_dict()
+config_df = pd.DataFrame(list(config_dict.items()), columns=["Parameter", "Value"])
+display(config_df.style.hide(axis="index"))
+
+# %%
+# Simple first example
+target_prompt_dict = [
+    {"role": "user", "content": "What is the capital of France?"},
+]
+target_prompt = tokenizer.apply_chat_template(
+    target_prompt_dict,
+    tokenize=False,
+    add_generation_prompt=True,
+)
+
+# target_inputs = tokenizer([target_prompt], return_tensors="pt").to(model.device)
+# input_len = len(target_inputs)
+# generated_ids = model.generate(
+#     **target_inputs,
+#     max_new_tokens=300,
+# )
+# target_model_generation = tokenizer.decode(generated_ids[0, input_len:], skip_special_tokens=True)
+
+
+
+oracle_prompt = "What are you thinking about?"
+
+results = utils.run_oracle(
+    model=model,
+    tokenizer=tokenizer,
+    device=device,
+    target_prompt=target_prompt,
+    target_lora_path=None,  # Using base model
+    oracle_prompt=oracle_prompt,
+    oracle_lora_path="oracle",  # Our loaded oracle adapter
+    oracle_input_type="full_seq",  # Query the full sequence
+    generation_kwargs={"do_sample": False, "temperature": 0.0, "max_new_tokens": 50},
+)
+
+print(f"Target prompt: {target_prompt}")
+print(f"Oracle question: {oracle_prompt}")
+print(f"Oracle response: {results.full_sequence_responses[0]}")
+
+# %%
+
+results = utils.run_oracle(
+    model=model,
+    tokenizer=tokenizer,
+    device=device,
+    target_prompt=target_prompt,
+    target_lora_path=None,  # Using base model
+    oracle_prompt=oracle_prompt,
+    oracle_lora_path="oracle",  # Our loaded oracle adapter
+    oracle_input_type="tokens",  # Query the full sequence
+    token_start_idx=0,
+    token_end_idx=3,
+    generation_kwargs={"do_sample": False, "temperature": 0.0, "max_new_tokens": 50},
+)
+
+print(f"Target prompt: {target_prompt}")
+print(f"Oracle question: {oracle_prompt}")
+print(f"Oracle response: {results.full_sequence_responses[0]}")
+# %%

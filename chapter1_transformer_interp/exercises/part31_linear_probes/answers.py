@@ -311,6 +311,7 @@ def get_pca_components(
     mean_acts = activations.mean(dim=0, keepdim=True)
     print(f"mean_acts: {mean_acts.shape}")
     centered_activations = activations - mean_acts
+    print(f"centered_activations: {centered_activations.shape}")
 
     # covariance
     covariance = t.cov(centered_activations)
@@ -318,16 +319,17 @@ def get_pca_components(
 
     # eigendec
     eigenval, eigenvec = t.linalg.eig(covariance)
-    # print(f"eigendec: {eigendec.shape}")
-    print(f"eigenval: {eigenval.shape}")
-    print(f"eigenvec: {eigenvec.shape}")
+    # # print(f"eigendec: {eigendec.shape}")
+    # print(f"eigenval: {eigenval.shape}")
+    # print(f"eigenvec: {eigenvec.shape}")
 
-    # return top-k
-    top_k_eigenvals = t.argmax(eigenval)[:k]
-    print(f"top_k_eigenvals: {top_k_eigenvals}")
+    # # return top-k
+    # top_k_eigenvals = t.argmax(eigenval)[:k]
+    # print(f"top_k_eigenvals: {top_k_eigenvals}")
 
 
-    raise NotImplementedError()
+
+    return eigenvec[:, :k]
 
 
 tests.test_get_pca_components(get_pca_components, activations["cities"], D_MODEL)

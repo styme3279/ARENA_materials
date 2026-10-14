@@ -320,7 +320,7 @@ def get_pca_components(
     # eigendec
     eigenval, eigenvec = t.linalg.eigh(covariance)
 
-    return eigenvec[:, -k:].flip(dim=-1)
+    return eigenvec[:, -k:].flip(dims=(-1,))
 
 
 tests.test_get_pca_components(get_pca_components, activations["cities"], D_MODEL)
@@ -408,19 +408,20 @@ def layer_sweep_accuracy(
     print(f"labels: {labels}")
 
     n_train = int(n_statements * train_frac)
-    n_test = int(n_statements * (1 - train_frac))
-    perm = t.randperm(len(statements))
-    print(f"perm: {perm}")
-
-
-    # Create separate datasets based on label
-    # train_indices = np.random
-    
+    perm = t.randperm(n_statements)
+    print(f"perm[:n_train]: {perm[:n_train]}")
+    # train_statements = statements[perm[:n_train]]
+    train_statements = [statements[i] for i in perm[:n_train]]
+    test_statements = [statements[i] for i in perm[n_train:]]
+    # test_statements = statements[perm[n_train:]]
 
     # Extract activations
-    extract_activations(statements, model, tokenizer, layers, batch_size)
+    train_acts = extract_activations(train_statements, model, tokenizer, layers, batch_size)
+    test_acts = extract_activations(test_statements, model, tokenizer, layers, batch_size)
+    print(f'train_acts: {train_acts}')
 
-    # Loop over layer,  
+    for layer in layers:
+        mean
 
 
     

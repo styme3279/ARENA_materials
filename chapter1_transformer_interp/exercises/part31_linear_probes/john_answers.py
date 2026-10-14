@@ -367,11 +367,34 @@ def layer_sweep_accuracy(
     train_set_length = int(train_frac * n_statements)
     training_set = statements[:train_set_length]
     test_set = statements[train_set_length:]
-
-    positive_centroid = training_set[labels[:train_set_length]].mean(dim)
-
-
     
+    print(train_set_length)
+    print(labels.shape)
+    positive_trainset_labels = labels[:train_set_length].to(bool)
+    negative_trainset_labels = ~(labels[:train_set_length].to(bool))
+    
+    print(positive_trainset_labels)
+    print(negative_trainset_labels)
+
+    print(training_set.shape)
+    
+
+    positive_centroid = training_set[positive_trainset_labels].mean(dim=0)
+    negative_centroid = training_set[negative_trainset_labels].mean(dim=0)
+    
+    diff_centroids = positive_centroid - negative_centroid
+
+    # Dot product with all samples from train and test sets
+    train_class = einops.einsum(diff_centroids, training_set, "d, n d -> n")
+    test_class = einops.einsum(diff_centroids, test_set, "d, n d -> n")
+
+    train_class = t.sign(train_class)
+    test_class = t.sign(test_class)
+
+    train_acc = (train_class == labels[:train_set_length]).mean()
+    test_acc = (test_class == labels[train_set_length:]).mean()
+
+    return {"train_acc": train_acc, "test_acc": test_acc}
 
 
 t.manual_seed(42)
@@ -409,3 +432,4 @@ fig.show()
 best_layer = all_layers[int(np.argmax(sweep_results["test_acc"]))]
 print(f"\nBest layer by test accuracy: {best_layer} ({max(sweep_results['test_acc']):.3f})")
 print(f"Configured probe layer: {PROBE_LAYER} ({sweep_results['test_acc'][PROBE_LAYER]:.3f})")
+# %%

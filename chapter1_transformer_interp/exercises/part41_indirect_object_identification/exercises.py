@@ -240,3 +240,37 @@ imshow(
 )
 
 # %%
+def topk_of_Nd_tensor(tensor: Float[Tensor, "rows cols"], k: int):
+    """
+    Helper function: does the same as tensor.topk(k).indices, but works over 2D tensors.
+    Returns a list of indices, i.e. shape [k, tensor.ndim].
+
+    Example: if tensor is 2D array of values for each head in each layer, this will
+    return a list of heads.
+    """
+    i = t.topk(tensor.flatten(), k).indices
+    return np.array(np.unravel_index(utils.to_numpy(i), tensor.shape)).T.tolist()
+
+
+k = 3
+
+for head_type in ["Positive", "Negative"]:
+    # Get the heads with largest (or smallest) contribution to the logit difference
+    top_heads = topk_of_Nd_tensor(per_head_logit_diffs * (1 if head_type == "Positive" else -1), k)
+
+    # Get all their attention patterns
+    attn_patterns_for_important_heads: Float[Tensor, "head q k"] = t.stack(
+        [cache["pattern", layer][:, head][0] for layer, head in top_heads]
+    )
+
+    # Display results
+    display(HTML(f"<h2>Top {k} {head_type} Logit Attribution Heads</h2>"))
+    display(
+        cv.attention.attention_patterns(
+            attention=attn_patterns_for_important_heads,
+            tokens=model.to_str_tokens(tokens[0]),
+            attention_head_names=[f"{layer}.{head}" for layer, head in top_heads],
+        )
+    )
+
+# %%

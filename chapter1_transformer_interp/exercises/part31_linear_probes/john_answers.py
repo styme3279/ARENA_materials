@@ -802,7 +802,8 @@ def few_shot_evaluate(
     Returns:
         Tensor of P(TRUE) - P(FALSE) for each statement.
     """
-    raise NotImplementedError()
+    new_statements = [few_shot_prompt + s for s in statements]
+    inputs = tokenizer(new_statements, return_tensor="pt")
 
 
 # Load sp_en_trans for evaluation (exclude statements used in the few-shot prompt)
@@ -846,3 +847,4 @@ fig.update_layout(
     width=700,
 )
 fig.show()
+# %%

@@ -733,7 +733,7 @@ for cls in [MMProbe, LRProbe]:
 def center_per_dataset(train_acts, test_acts):
     train_c, test_c = {}, {}
     for name in train_acts:
-        mu = train_acts[name].mean(dim=0)   # unlabeled, train split only: no test leakage
+        mu = train_acts[name].mean(dim=0)
         train_c[name] = train_acts[name] - mu
         test_c[name] = test_acts[name] - mu
     return train_c, test_c

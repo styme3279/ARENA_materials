@@ -708,212 +708,82 @@ fig.update_layout(
 fig.show()
 
 # %%
-DATASET_NAMES = ["cities", "sp_en_trans", "larger_than", "likely"]
+def compute_generalization_matrix(
+    train_acts: dict[str, Float[Tensor, "n d"]],
+    train_labels: dict[str, Float[Tensor, " n"]],
+    test_acts: dict[str, Float[Tensor, "n d"]],
+    test_labels: dict[str, Float[Tensor, " n"]],
+    dataset_names: list[str],
+    probe_cls: type,
+) -> Float[Tensor, "n_datasets n_datasets"]:
+    """
+    Compute a generalization matrix: entry (i, j) is the test accuracy of a probe trained on dataset i
+    and evaluated on dataset j.
 
-# Load only the first 500 statements
-datasets["likely"] = pd.read_csv(
-    GOT_DATASETS / "likely.csv"
-).head(500).copy()
+    Args:
+        train_acts, train_labels: Training data per dataset.
+        test_acts, test_labels: Test data per dataset.
+        dataset_names: Names of datasets (determines matrix ordering).
+        probe_cls: Probe class to use (MMProbe or LRProbe), must have from_data and pred methods.
 
-# Clear any previously cached likely data
-for cache in [
-    activations, train_acts, test_acts,
-    train_labels, test_labels,
-    labels_dict, statements_dict,
-]:
-    cache.pop("likely", None)
+    Returns:
+        Tensor of shape [n_datasets, n_datasets] with accuracy values.
+    """
+    n = len(dataset_names)
+    matrix = t.zeros(n, n)
+    for i, train_name in enumerate(dataset_names):
+        probe = probe_cls.from_data(train_acts[train_name], train_labels[train_name])
+        for j, test_name in enumerate(dataset_names):
+            preds = probe.pred(test_acts[test_name])
+            acc = (preds == test_labels[test_name]).float().mean().item()
+            matrix[i, j] = acc
+    return matrix
 
-df = datasets["likely"]
-statements_dict["likely"] = df["statement"].tolist()
-labels_dict["likely"] = t.tensor(df["label"].values, dtype=t.float32)
+mm_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, MMProbe)
+lr_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, LRProbe)
 
-# Extract layer-14 activations with low GPU memory usage
-gc.collect()
-t.cuda.empty_cache()
-model.eval()
+assert mm_matrix.shape == (3, 3), f"Wrong shape: {mm_matrix.shape}"
+assert (mm_matrix.diag() > 0.6).all(), "In-distribution accuracy should be at least 60%"
 
-acts_list = []
+# Heatmap visualization
+fig = make_subplots(rows=1, cols=2, subplot_titles=["MMProbe", "LRProbe"], horizontal_spacing=0.15)
 
-for statement in tqdm(statements_dict["likely"], desc="Extracting likely"):
-    tokens = tokenizer(
-        [statement],
-        return_tensors="pt",
-        truncation=True,
-        max_length=512,
-    ).to(device)
+for idx, (matrix, name) in enumerate([(mm_matrix, "MM"), (lr_matrix, "LR")]):
+    text_vals = [[f"{matrix[i, j]:.3f}" for j in range(len(DATASET_NAMES))] for i in range(len(DATASET_NAMES))]
+    fig.add_trace(
+        go.Heatmap(
+            z=matrix.numpy(),
+            x=DATASET_NAMES,
+            y=DATASET_NAMES,
+            text=text_vals,
+            texttemplate="%{text}",
+            colorscale="RdYlGn",
+            zmin=0.5,
+            zmax=1.0,
+            showscale=(idx == 1),
+        ),
+        row=1,
+        col=idx + 1,
+    )
+    fig.update_yaxes(title_text="Train dataset" if idx == 0 else "", row=1, col=idx + 1)
+    fig.update_xaxes(title_text="Test dataset", row=1, col=idx + 1)
 
-    last_token_idx = tokens["attention_mask"].sum(dim=1) - 1
-    captured = []
+fig.update_layout(title="Cross-dataset Generalization (Test Accuracy)", height=400, width=800)
+fig.show()
 
-    def hook_fn(module, inputs, output):
-        hidden = output[0] if isinstance(output, tuple) else output
-        idx = last_token_idx.to(hidden.device)
-        acts = hidden[
-            t.arange(hidden.shape[0], device=hidden.device),
-            idx,
-        ]
-        captured.append(acts.detach().float().cpu())
+# Cosine similarity between probe directions
+mm_directions = {name: MMProbe.from_data(train_acts[name], train_labels[name]).direction for name in DATASET_NAMES}
+lr_directions = {name: LRProbe.from_data(train_acts[name], train_labels[name]).direction for name in DATASET_NAMES}
 
-    handle = model.model.layers[PROBE_LAYER].register_forward_hook(hook_fn)
-
-    try:
-        with t.inference_mode():
-            model(
-                **tokens,
-                use_cache=False,
-                output_hidden_states=False,
-                logits_to_keep=1,
-            )
-    finally:
-        handle.remove()
-
-    acts_list.append(captured[0])
-    del tokens, captured
-
-activations["likely"] = t.cat(acts_list, dim=0)
-
-# Same 80/20 train/test split as the other datasets
-acts = activations["likely"]
-labs = labels_dict["likely"]
-
-n = len(acts)
-perm = t.randperm(n, generator=t.Generator().manual_seed(42))
-n_train = int(0.8 * n)
-
-train_acts["likely"] = acts[perm[:n_train]]
-test_acts["likely"] = acts[perm[n_train:]]
-train_labels["likely"] = labs[perm[:n_train]]
-test_labels["likely"] = labs[perm[n_train:]]
-
-print(f"likely: train={n_train}, test={n - n_train}")
-print(f"Activation shape: {acts.shape}")
-
-# # %%
-# # Compute 4x4 cross-dataset generalisation matrices
-
-# DATASET_NAMES = ["cities", "sp_en_trans", "larger_than", "likely"]
-
-# def compute_generalization_matrix(
-#     train_acts, train_labels,
-#     test_acts, test_labels,
-#     dataset_names, probe_cls,
-# ):
-#     n = len(dataset_names)
-#     matrix = t.zeros(n, n)
-
-#     for i, train_name in enumerate(dataset_names):
-#         probe = probe_cls.from_data(
-#             train_acts[train_name],
-#             train_labels[train_name],
-#         )
-
-#         for j, test_name in enumerate(dataset_names):
-#             preds = probe.pred(test_acts[test_name])
-#             matrix[i, j] = (
-#                 (preds == test_labels[test_name])
-#                 .float().mean().item()
-#             )
-
-#     return matrix
-
-
-# mm_matrix = compute_generalization_matrix(
-#     train_acts, train_labels, test_acts, test_labels,
-#     DATASET_NAMES, MMProbe,
-# )
-
-# lr_matrix = compute_generalization_matrix(
-#     train_acts, train_labels, test_acts, test_labels,
-#     DATASET_NAMES, LRProbe,
-# )
-
-# assert mm_matrix.shape == (4, 4)
-# assert lr_matrix.shape == (4, 4)
-
-
-# # Plot both 4x4 matrices
-# fig = make_subplots(
-#     rows=1,
-#     cols=2,
-#     subplot_titles=["MMProbe", "LRProbe"],
-#     horizontal_spacing=0.15,
-# )
-
-# for idx, matrix in enumerate([mm_matrix, lr_matrix]):
-#     text_vals = [
-#         [f"{matrix[i, j]:.3f}" for j in range(4)]
-#         for i in range(4)
-#     ]
-
-#     fig.add_trace(
-#         go.Heatmap(
-#             z=matrix.numpy(),
-#             x=DATASET_NAMES,
-#             y=DATASET_NAMES,
-#             text=text_vals,
-#             texttemplate="%{text}",
-#             colorscale="RdYlGn",
-#             zmin=0.0,
-#             zmax=1.0,
-#             showscale=(idx == 1),
-#         ),
-#         row=1,
-#         col=idx + 1,
-#     )
-
-#     fig.update_yaxes(
-#         title_text="Train dataset" if idx == 0 else "",
-#         row=1,
-#         col=idx + 1,
-#     )
-#     fig.update_xaxes(
-#         title_text="Test dataset",
-#         tickangle=30,
-#         row=1,
-#         col=idx + 1,
-#     )
-
-# fig.update_layout(
-#     title="Cross-dataset Generalization (Test Accuracy)",
-#     height=500,
-#     width=1100,
-# )
-# fig.show()
-
-
-# # Cosine similarity between probe directions
-# mm_directions = {
-#     name: MMProbe.from_data(
-#         train_acts[name], train_labels[name]
-#     ).direction
-#     for name in DATASET_NAMES
-# }
-
-# lr_directions = {
-#     name: LRProbe.from_data(
-#         train_acts[name], train_labels[name]
-#     ).direction
-#     for name in DATASET_NAMES
-# }
-
-# print("\nPairwise cosine similarity between probe directions:")
-
-# for probe_name, directions in [
-#     ("MM", mm_directions),
-#     ("LR", lr_directions),
-# ]:
-#     print(f"\n  {probe_name}Probe:")
-
-#     for i, n1 in enumerate(DATASET_NAMES):
-#         for j, n2 in enumerate(DATASET_NAMES):
-#             if j > i:
-#                 d1 = directions[n1] / directions[n1].norm()
-#                 d2 = directions[n2] / directions[n2].norm()
-
-#                 print(
-#                     f"    {n1} vs {n2}: "
-#                     f"{(d1 @ d2).item():.4f}"
-#                 )
+print("\nPairwise cosine similarity between probe directions:")
+for probe_name, directions in [("MM", mm_directions), ("LR", lr_directions)]:
+    print(f"\n  {probe_name}Probe:")
+    for i, n1 in enumerate(DATASET_NAMES):
+        for j, n2 in enumerate(DATASET_NAMES):
+            if j > i:
+                d1 = directions[n1] / directions[n1].norm()
+                d2 = directions[n2] / directions[n2].norm()
+                print(f"    {n1} vs {n2}: {(d1 @ d2).item():.4f}")
 
 # %%
 # Few-shot prompt from geometry-of-truth/interventions.py. Note 3 true + 1 false examples:
@@ -1226,6 +1096,78 @@ fig.update_layout(
     width=600,
 )
 fig.add_hline(y=0, line_dash="dash", line_color="gray")
+fig.show()
+
+# %%
+# Train LR probe on same data
+lr_combined = LRProbe.from_data(combined_acts, combined_labels)
+lr_direction = lr_combined.direction.detach()
+lr_direction_hat = lr_direction / lr_direction.norm()
+lr_proj_diff = ((true_mean - false_mean) @ lr_direction_hat).item()
+lr_scaled_direction = lr_proj_diff * lr_direction_hat
+
+# Run intervention for LR direction
+lr_results = {}
+for intervention_type in ["none", "add", "subtract"]:
+    for subset in ["true", "false"]:
+        mask = sp_eval_labels == (1 if subset == "true" else 0)
+        subset_stmts = [s for s, m in zip(sp_eval_stmts, mask.tolist()) if m]
+        p_diffs = intervention_experiment(
+            subset_stmts,
+            model,
+            tokenizer,
+            lr_scaled_direction,
+            FEW_SHOT_PROMPT,
+            TRUE_ID,
+            FALSE_ID,
+            intervene_layer_list,
+            intervention=intervention_type,
+        )
+        lr_results[(intervention_type, subset)] = p_diffs.mean().item()
+
+# Compute NIEs
+mm_nie_false = results_intervention[("add", "false")] - results_intervention[("none", "false")]
+mm_nie_true = results_intervention[("subtract", "true")] - results_intervention[("none", "true")]
+lr_nie_false = lr_results[("add", "false")] - lr_results[("none", "false")]
+lr_nie_true = lr_results[("subtract", "true")] - lr_results[("none", "true")]
+
+nie_df = pd.DataFrame(
+    {
+        "Probe": ["MM", "MM", "LR", "LR"],
+        "Intervention": ["Add to false", "Subtract from true", "Add to false", "Subtract from true"],
+        "NIE": [f"{mm_nie_false:.4f}", f"{mm_nie_true:.4f}", f"{lr_nie_false:.4f}", f"{lr_nie_true:.4f}"],
+    }
+)
+print("Natural Indirect Effects (NIE):")
+display(nie_df)
+
+# Side-by-side bar chart
+fig = go.Figure()
+fig.add_trace(
+    go.Bar(
+        name="MM Probe",
+        x=["Add→False", "Sub→True"],
+        y=[mm_nie_false, mm_nie_true],
+        marker_color="blue",
+        opacity=0.7,
+    )
+)
+fig.add_trace(
+    go.Bar(
+        name="LR Probe",
+        x=["Add→False", "Sub→True"],
+        y=[lr_nie_false, lr_nie_true],
+        marker_color="orange",
+        opacity=0.7,
+    )
+)
+fig.update_layout(
+    title="Natural Indirect Effect: MM vs LR Probe Directions",
+    yaxis_title="NIE (change in P(TRUE)-P(FALSE))",
+    barmode="group",
+    height=400,
+    width=600,
+)
 fig.show()
 
 # %%

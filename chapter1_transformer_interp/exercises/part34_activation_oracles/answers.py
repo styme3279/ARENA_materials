@@ -107,8 +107,6 @@ target_prompt = tokenizer.apply_chat_template(
 # )
 # target_model_generation = tokenizer.decode(generated_ids[0, input_len:], skip_special_tokens=True)
 
-
-
 oracle_prompt = "What are you thinking about?"
 
 results = utils.run_oracle(
@@ -129,6 +127,10 @@ print(f"Oracle response: {results.full_sequence_responses[0]}")
 
 # %%
 
+tokenized_target_prompt = tokenizer.encode(target_prompt)
+str_tokens = [tokenizer.decode([t]) for t in tokenized_target_prompt]
+print(list(enumerate(zip(tokenized_target_prompt, str_tokens))))
+
 results = utils.run_oracle(
     model=model,
     tokenizer=tokenizer,
@@ -138,12 +140,13 @@ results = utils.run_oracle(
     oracle_prompt=oracle_prompt,
     oracle_lora_path="oracle",  # Our loaded oracle adapter
     oracle_input_type="tokens",  # Query the full sequence
-    token_start_idx=0,
-    token_end_idx=3,
+    segment_start_idx=8,
+    segment_end_idx=None,
     generation_kwargs={"do_sample": False, "temperature": 0.0, "max_new_tokens": 50},
 )
 
 print(f"Target prompt: {target_prompt}")
 print(f"Oracle question: {oracle_prompt}")
-print(f"Oracle response: {results.full_sequence_responses[0]}")
+print(f"Oracle response: {results.token_responses[0]}")
+print(f"Oracle response type {type(results.token_responses[0])}")
 # %%

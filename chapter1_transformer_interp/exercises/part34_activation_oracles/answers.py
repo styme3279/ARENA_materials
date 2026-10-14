@@ -224,7 +224,7 @@ for v, i in zip(vals, idxs):
 # We format the target prompt and find where "result = foo(3, 4)" begins
 target_prompt_dict = [
     {"role": "user", 
-     "content": "def foo(x, y):\n    return x - y\n\nresult = foo(3, 4)"},
+     "content": "def foo(x, y):\n    return x**2 + y**2\n\nresult = foo(3, 4)"},
 ]
 formatted_target_prompt = tokenizer.apply_chat_template(
     target_prompt_dict, tokenize=False, add_generation_prompt=False, enable_thinking=False, continue_final_message=False
@@ -234,33 +234,36 @@ tokens = tokenizer.encode(formatted_target_prompt)
 token_strings = [tokenizer.decode([t]) for t in tokens]
 segment_start = next(i for i, tok_str in enumerate(token_strings) if "result" in tok_str.lower())
 
-oracle_prompt = "If the inputs were 3 and 5, what will the result be?"
+oracle_prompt = "If the inputs were 2 and 3, what will the result be?"
 
 # YOUR CODE HERE - call utils.run_oracle() with oracle_input_type="segment" and the right segment_start_idx
 
-print(segment_start)
-print(token_strings[segment_start+8])
 
-results = utils.run_oracle(
-    model=model,
-    tokenizer=tokenizer,
-    device=device,
-    target_prompt=formatted_target_prompt,
-    target_lora_path=None,
-    oracle_prompt=oracle_prompt,
-    oracle_lora_path="oracle",
-    oracle_input_type="segment",  # Query each token independently
-    segment_start_idx=segment_start+8,
-    segment_end_idx=None,
-    generation_kwargs={"do_sample": False, "temperature": 0.0, "max_new_tokens": 100},
+for i in range(10):
+    print(segment_start + i)
+    print(token_strings[segment_start+i])
 
-)
+    results = utils.run_oracle(
+        model=model,
+        tokenizer=tokenizer,
+        device=device,
+        target_prompt=formatted_target_prompt,
+        target_lora_path=None,
+        oracle_prompt=oracle_prompt,
+        oracle_lora_path="oracle",
+        oracle_input_type="segment",  # Query each token independently
+        segment_start_idx=segment_start+i,
+        segment_end_idx=None,
+        generation_kwargs={"do_sample": False, "temperature": 0.0, "max_new_tokens": 100},
 
-print(f"Oracle response: {results.segment_responses[0]}")
-response = results.segment_responses[0].lower()
-assert any(x in response for x in ["7", "seven"]), (
-    f"Expected '7' or 'seven' in response, got: {results.segment_responses[0]}"
-)
+    )
+
+    print(f"Oracle response: {results.segment_responses[0]}")
+    response = results.segment_responses[0].lower()
+    # assert any(x in response for x in ["7", "seven"]), (
+    #     f"Expected '7' or 'seven' in response, got: {results.segment_responses[0]}"
+    # )
+
 
 # %%
 # Layer configuration
@@ -274,7 +277,6 @@ LAYER_COUNTS = {
     "meta-llama/Llama-3.1-8B-Instruct": 32,
     "meta-llama/Llama-3.3-70B-Instruct": 80,
 }
-
 
 def layer_fraction_to_layer(model_name: str, layer_fraction: float) -> int:
     """Convert a layer fraction (0.0-1.0) to a layer number."""
@@ -359,3 +361,5 @@ print(f"Shape: {activations[layer].shape}")  # Should be [1, seq_len, d_model]
 
 tests.test_collect_activations_multiple_layers(collect_activations_multiple_layers, model, tokenizer, device)
 
+
+# %%

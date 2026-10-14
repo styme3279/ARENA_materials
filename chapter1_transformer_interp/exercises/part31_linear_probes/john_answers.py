@@ -135,42 +135,7 @@ for name in DATASET_NAMES:
     print(f"\n{name}: {len(df)} statements ({df['label'].sum()} true, {(1 - df['label']).sum():.0f} false)")
     display(df.head(4))
 
-# %%
-def extract_activations_ours(
-    statements: list[str],
-    model: AutoModelForCausalLM,
-    tokenizer: AutoTokenizer,
-    layers: list[int],
-    batch_size: int = 25,
-) -> dict[int, Float[Tensor, "n_statements d_model"]]:
-    """
-    Extract last-token hidden state activations from specified layers for a list of statements.
 
-    Args:
-        statements: List of text statements to process.
-        model: A HuggingFace causal language model.
-        tokenizer: The corresponding tokenizer.
-        layers: List of layer indices (0-indexed) to extract activations from.
-        batch_size: Number of statements to process at once.
-
-    Returns:
-        Dictionary mapping layer index to tensor of activations, shape [n_statements, d_model].
-    """
-    tokens = tokenizer(statements, padding=True, return_tensors="pt", return_offsets_mapping=True)
-    tokens_ids = tokens["input_ids"].to(device)
-    attention = tokens["attention_mask"].to(device)
-    
-    # Call the forward pass on the model
-    output = model(tokens_ids, attention_mask=attention, output_hidden_states=True)
-    activations = t.stack([output.hidden_states[layer+1] for layer in layers])
-    
-    last_real_pos = attention.sum(dim=-1) - 1
-    result = {layers[i]: activations[i, :, last_real_pos[i], :] for i in range(len(layers))}
-    
-    return result
-    
-
-tests.test_extract_activations(extract_activations, model, tokenizer, PROBE_LAYER, D_MODEL)
 # %%
 def extract_activations(
     statements: list[str],
@@ -799,3 +764,85 @@ for probe_name, directions in [("MM", mm_directions), ("LR", lr_directions)]:
                 print(f"    {n1} vs {n2}: {(d1 @ d2).item():.4f}")
 
 # %%
+# Few-shot prompt from geometry-of-truth/interventions.py. Note 3 true + 1 false examples:
+# the paper calibrated this specific prompt for LLaMA-2-13B on sp_en_trans.
+FEW_SHOT_PROMPT = """\
+The Spanish word 'jirafa' means 'giraffe'. This statement is: TRUE
+The Spanish word 'escribir' means 'to write'. This statement is: TRUE
+The Spanish word 'gato' means 'cat'. This statement is: TRUE
+The Spanish word 'aire' means 'silver'. This statement is: FALSE
+"""
+
+# Get token IDs for TRUE and FALSE
+TRUE_ID = tokenizer.encode(" TRUE")[-1]
+FALSE_ID = tokenizer.encode(" FALSE")[-1]
+
+# %%
+def few_shot_evaluate(
+    statements: list[str],
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    few_shot_prompt: str,
+    true_id: int,
+    false_id: int,
+    batch_size: int = 32,
+) -> Float[Tensor, " n"]:
+    """
+    Evaluate P(TRUE) - P(FALSE) for each statement using few-shot classification.
+
+    Args:
+        statements: List of statements to classify.
+        model: Language model.
+        tokenizer: Tokenizer.
+        few_shot_prompt: The few-shot prefix prompt.
+        true_id: Token ID for " TRUE".
+        false_id: Token ID for " FALSE".
+        batch_size: Batch size.
+
+    Returns:
+        Tensor of P(TRUE) - P(FALSE) for each statement.
+    """
+    raise NotImplementedError()
+
+
+# Load sp_en_trans for evaluation (exclude statements used in the few-shot prompt)
+sp_df = datasets["sp_en_trans"]
+sp_statements = sp_df["statement"].tolist()
+sp_labels = t.tensor(sp_df["label"].values, dtype=t.float32)
+
+# Filter out statements that appear in the few-shot prompt
+sp_eval_mask = [s not in FEW_SHOT_PROMPT for s in sp_statements]
+sp_eval_stmts = [s for s, m in zip(sp_statements, sp_eval_mask) if m]
+sp_eval_labels = sp_labels[t.tensor(sp_eval_mask)]
+
+p_diffs = few_shot_evaluate(sp_eval_stmts, model, tokenizer, FEW_SHOT_PROMPT, TRUE_ID, FALSE_ID)
+
+# Compute accuracy
+preds = (p_diffs > 0).float()
+acc = (preds == sp_eval_labels).float().mean().item()
+assert acc > 0.9, f"Few-shot accuracy too low: {acc:.3f} (expected > 0.9)"
+true_mean = p_diffs[sp_eval_labels == 1].mean().item()
+false_mean = p_diffs[sp_eval_labels == 0].mean().item()
+
+print(f"Few-shot classification accuracy: {acc:.3f}")
+print(f"Mean P(TRUE)-P(FALSE) for true statements:  {true_mean:.4f}")
+print(f"Mean P(TRUE)-P(FALSE) for false statements: {false_mean:.4f}")
+
+# Histogram
+fig = go.Figure()
+fig.add_trace(
+    go.Histogram(x=p_diffs[sp_eval_labels == 1].numpy(), name="True", marker_color="blue", opacity=0.6, nbinsx=30)
+)
+fig.add_trace(
+    go.Histogram(x=p_diffs[sp_eval_labels == 0].numpy(), name="False", marker_color="red", opacity=0.6, nbinsx=30)
+)
+fig.add_vline(x=0, line_dash="dash", line_color="gray")
+fig.update_layout(
+    title="Few-Shot Classification: P(TRUE) - P(FALSE)",
+    xaxis_title="P(TRUE) - P(FALSE)",
+    yaxis_title="Count",
+    barmode="overlay",
+    height=400,
+    width=700,
+)
+fig.show()

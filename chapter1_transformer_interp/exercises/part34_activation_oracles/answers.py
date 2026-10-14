@@ -637,9 +637,25 @@ def create_oracle_input(
         OracleInput ready for generation
     """
     # Add the introspection prefix (with ? tokens) to the prompt
+    prefix = get_introspection_prefix(layer, num_positions)
+    prompt = prefix + prompt    
+    input = [{"role": "user", "content": prompt}]
+    
+    
     # Format using the chat template with add_generation_prompt=True (ends with <|im_start|>assistant\n)
+    input = tokenizer.apply_chat_template(
+        input,
+        tokenize=True,
+        add_generation_prompt=True,
+        enable_thinking=False,
+        continue_final_message=False,
+    )
+    
     # Find ? token positions in the tokenized sequence
+    positions = find_pattern_in_tokens(test_tokens, SPECIAL_TOKEN, num_positions, tokenizer)
+    
     # Return an OracleInput with all fields filled in
+    return OracleInput(input_ids=input, layer=layer, steering_vectors=acts_BD, positions=positions)
 
 
 # Test the function
@@ -656,3 +672,5 @@ print(f"Created datapoint with {len(datapoint.input_ids)} tokens")
 print(f"? tokens at positions: {datapoint.positions}")
 
 tests.test_create_oracle_input(create_oracle_input, tokenizer, model.config.hidden_size)
+
+# %%

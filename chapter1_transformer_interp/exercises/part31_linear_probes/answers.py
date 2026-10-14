@@ -153,11 +153,27 @@ def extract_activations(
     Returns:
         Dictionary mapping layer index to tensor of activations, shape [n_statements, d_model].
     """
-    out = {} # {"layer_num": activation_tensor}
+
     for layer in layers:
-        print(layer)
-    
-    return out
+        for i in range(0, len(statements), batch_size):
+            batch = statements[i:i+batch_size]
+            tokens = tokenizer(batch, return_tensors="pt", padding=True).to(device=device)
+
+            model.eval()
+
+            out_batch = model(**tokens, output_hidden_states=True)
+
+            hidden_states = out_batch.hidden_states[layer]
+
+            print(hidden_states.shape)
+
+        # stack upon batches
+        out = {} # {"layer_num": activation_tensor}
+        # for layer in layers:
+
+        #     print(layer)
+        
+        return out
 
 
 tests.test_extract_activations(extract_activations, model, tokenizer, PROBE_LAYER, D_MODEL)

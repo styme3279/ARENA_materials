@@ -391,26 +391,25 @@ class MMProbe(t.nn.Module):
         bias: Float[Tensor, " d_model"] | None = None,
     ):
         super().__init__()
-        # Store direction and bias and precompute inverse covariance
-        self.direction = t.nn.Parameter(direction)
-        self.bias = t.nn.Parameter(bias) if bias is not None else None
+        self.direction = t.nn.Parameter(direction, requires_grad=False)
+        self.bias = t.nn.Parameter(bias, requires_grad=False) if bias is not None else None
         self.atol = atol
-        if covariance is not None:
-            self.register_buffer("inv_cov", t.linalg.pinv(covariance, rcond=atol))
+        inv_cov = t.linalg.pinv(covariance, atol=atol, hermitian=True) if covariance is not None else None
+        self.register_buffer("inv_cov", inv_cov)
 
     def forward(self, x: Float[Tensor, "n d_model"], iid: bool = False) -> Float[Tensor, " n"]:
+        x = x.to(self.direction.device)
         if self.bias is not None:
             x = x - self.bias
-        if iid or not hasattr(self, "inv_cov"):
-            # Use only the direction vector
-            logits = x @ self.direction
-        else:
-            # Use the inverse covariance matrix
-            logits = (x @ self.inv_cov) @ self.direction
-        return logits
+        if iid:
+            if self.inv_cov is None:
+                raise ValueError("iid=True needs a probe built with a covariance")
+            # Σ⁻¹ @ d first: O(d²) once instead of O(n·d²)
+            return x @ (self.inv_cov @ self.direction)
+        return x @ self.direction
 
     def pred(self, x: Float[Tensor, "n d_model"], iid: bool = False) -> Float[Tensor, " n"]:
-        return self(x, iid=iid).round()
+        return (self(x, iid=iid) > 0).float()   # logit > 0  ⇔  p > 0.5
 
     @staticmethod
     def from_data(
@@ -418,31 +417,21 @@ class MMProbe(t.nn.Module):
         labels: Float[Tensor, " n"],
         device: str = "cpu",
         bias: bool = True,
+        atol: float = 1e-3,
     ) -> "MMProbe":
-        """
-        Create a difference-of-means probe from activations and labels.
-
-        Args:
-            acts: Activation matrix, shape [n_samples, d_model].
-            labels: Binary labels (1=true, 0=false).
-            device: Device to place the probe on.
-            bias: Whether to include a bias term.
-
-        Returns:
-            An instance of MMProbe.
-        """
-        acts = acts.to(device)
+        acts = acts.to(device).float()
         labels = labels.to(device)
 
-        mean_true = acts[labels == 1].mean(dim=0)
-        mean_false = acts[labels == 0].mean(dim=0)
-        direction = mean_true - mean_false
+        pos, neg = acts[labels == 1], acts[labels == 0]
+        mu_pos, mu_neg = pos.mean(dim=0), neg.mean(dim=0)
+        direction = mu_pos - mu_neg
 
-        bias_vector = acts.mean(dim=0) if bias else None
-        covariance_matrix = t.cov(acts.T) if not bias else None
+        # Within-class covariance: each class centered on its own mean
+        centered = t.cat([pos - mu_pos, neg - mu_neg])
+        covariance = centered.T @ centered / acts.shape[0]
 
-        return MMProbe(direction=direction, covariance=covariance_matrix, bias=bias_vector)
-
+        bias_vector = (mu_pos + mu_neg) / 2 if bias else None   # midpoint = decision boundary
+        return MMProbe(direction, covariance=covariance, atol=atol, bias=bias_vector)
 
 mm_probe = MMProbe.from_data(train_acts["cities"], train_labels["cities"])
 
@@ -465,8 +454,9 @@ class LRProbe(t.nn.Module):
     def __init__(self, d_in: int, scaler_mean: Tensor | None = None, scaler_scale: Tensor | None = None):
         super().__init__()
         self.net = t.nn.Sequential(t.nn.Linear(d_in, 1))
-        self.scaler_mean = scaler_mean
-        self.scaler_scale = scaler_scale
+        # Buffers, not plain attributes, so .to(device) moves them with the weights
+        self.register_buffer("scaler_mean", scaler_mean)
+        self.register_buffer("scaler_scale", scaler_scale)
 
     def _normalize(self, x: Float[Tensor, "n d_model"]) -> Float[Tensor, "n d_model"]:
         """Apply StandardScaler normalization if scaler parameters are available."""
@@ -475,11 +465,12 @@ class LRProbe(t.nn.Module):
         return x
 
     def forward(self, x: Float[Tensor, "n d_model"]) -> Float[Tensor, " n"]:
-        x = self._normalize(x)
-        return self.net(x)
+        w = self.net[0].weight
+        x = x.to(device=w.device, dtype=w.dtype)
+        return self.net(self._normalize(x)).squeeze(-1)   # logits, shape [n]
 
     def pred(self, x: Float[Tensor, "n d_model"]) -> Float[Tensor, " n"]:
-        return self(x).round()
+        return (self(x) > 0).float()   # logit > 0  ⇔  p > 0.5
 
     @property
     def direction(self) -> Float[Tensor, " d_model"]:
@@ -492,22 +483,35 @@ class LRProbe(t.nn.Module):
         C: float = 0.1,
         device: str = "cpu",
     ) -> "LRProbe":
-        """
-        Train an LR probe using sklearn's LogisticRegression with StandardScaler normalization.
+        acts = acts.to(device).float()
+        labels = labels.to(device).float()
+        n, d = acts.shape
 
-        Args:
-            acts: Activation matrix [n_samples, d_model].
-            labels: Binary labels (1=true, 0=false).
-            C: Inverse regularization strength (lower = stronger regularization).
-                Default 0.1 (reg_coeff=10) matches the deception-detection paper's cfg.yaml.
-                The repo class default is reg_coeff=1000 (C=0.001), which is stronger.
-            device: Device to place the resulting probe on.
-        """
-        acts = acts.to(device)
-        labels = labels.to(device)
-        lr_probe = LRProbe(d_in=acts.shape[1])
-        #train
-        scaler = StandardScaler(
+        # StandardScaler equivalent: population std (ddof=0); zero-variance dims left unscaled
+        mean = acts.mean(dim=0)
+        std = acts.std(dim=0, correction=0)
+        scale = t.where(std == 0, t.ones_like(std), std)
+
+        probe = LRProbe(d_in=d, scaler_mean=mean, scaler_scale=scale).to(device)
+        x = probe._normalize(acts)
+        linear = probe.net[0]
+
+        # sklearn objective C * sum(log_loss) + 0.5 * ||w||^2, divided by C*n (same optimum)
+        reg = 1.0 / (2 * C * n)
+        opt = t.optim.LBFGS(linear.parameters(), lr=1.0, max_iter=500, line_search_fn="strong_wolfe")
+
+        def closure():
+            opt.zero_grad()
+            logits = linear(x).squeeze(-1)
+            loss = t.nn.functional.binary_cross_entropy_with_logits(logits, labels)
+            loss = loss + reg * linear.weight.pow(2).sum()
+            loss.backward()
+            return loss
+
+        with t.enable_grad():
+            opt.step(closure)
+
+        return probe
 
 
 
@@ -560,3 +564,86 @@ fig.update_layout(
     width=600,
 )
 fig.show()
+# %%
+def compute_generalization_matrix(
+    train_acts: dict[str, Float[Tensor, "n d"]],
+    train_labels: dict[str, Float[Tensor, " n"]],
+    test_acts: dict[str, Float[Tensor, "n d"]],
+    test_labels: dict[str, Float[Tensor, " n"]],
+    dataset_names: list[str],
+    probe_cls: type,
+) -> Float[Tensor, "n_datasets n_datasets"]:
+    """
+    Compute a generalization matrix: entry (i, j) is the test accuracy of a probe trained on dataset i
+    and evaluated on dataset j.
+
+    Args:
+        train_acts, train_labels: Training data per dataset.
+        test_acts, test_labels: Test data per dataset.
+        dataset_names: Names of datasets (determines matrix ordering).
+        probe_cls: Probe class to use (MMProbe or LRProbe), must have from_data and pred methods.
+
+    Returns:
+        Tensor of shape [n_datasets, n_datasets] with accuracy values.
+    """
+    n_datasets = len(dataset_names)
+    matrix = t.zeros((n_datasets, n_datasets), dtype=t.float32)
+
+    for i, train_name in enumerate(dataset_names):
+        probe = probe_cls.from_data(train_acts[train_name], train_labels[train_name])
+        for j, test_name in enumerate(dataset_names):
+            # if i == j:
+            #     continue  # skip diagonal, already computed
+            test_preds = probe.pred(test_acts[test_name])
+            acc = (test_preds == test_labels[test_name]).float().mean().item()
+            matrix[i, j] = acc
+
+    return matrix
+
+
+mm_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, MMProbe)
+lr_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, LRProbe)
+
+assert mm_matrix.shape == (3, 3), f"Wrong shape: {mm_matrix.shape}"
+assert (mm_matrix.diag() > 0.6).all(), "In-distribution accuracy should be at least 60%"
+
+# Heatmap visualization
+fig = make_subplots(rows=1, cols=2, subplot_titles=["MMProbe", "LRProbe"], horizontal_spacing=0.15)
+
+for idx, (matrix, name) in enumerate([(mm_matrix, "MM"), (lr_matrix, "LR")]):
+    text_vals = [[f"{matrix[i, j]:.3f}" for j in range(len(DATASET_NAMES))] for i in range(len(DATASET_NAMES))]
+    fig.add_trace(
+        go.Heatmap(
+            z=matrix.numpy(),
+            x=DATASET_NAMES,
+            y=DATASET_NAMES,
+            text=text_vals,
+            texttemplate="%{text}",
+            colorscale="RdYlGn",
+            zmin=0.5,
+            zmax=1.0,
+            showscale=(idx == 1),
+        ),
+        row=1,
+        col=idx + 1,
+    )
+    fig.update_yaxes(title_text="Train dataset" if idx == 0 else "", row=1, col=idx + 1)
+    fig.update_xaxes(title_text="Test dataset", row=1, col=idx + 1)
+
+fig.update_layout(title="Cross-dataset Generalization (Test Accuracy)", height=400, width=800)
+fig.show()
+
+# Cosine similarity between probe directions
+mm_directions = {name: MMProbe.from_data(train_acts[name], train_labels[name]).direction for name in DATASET_NAMES}
+lr_directions = {name: LRProbe.from_data(train_acts[name], train_labels[name]).direction for name in DATASET_NAMES}
+
+print("\nPairwise cosine similarity between probe directions:")
+for probe_name, directions in [("MM", mm_directions), ("LR", lr_directions)]:
+    print(f"\n  {probe_name}Probe:")
+    for i, n1 in enumerate(DATASET_NAMES):
+        for j, n2 in enumerate(DATASET_NAMES):
+            if j > i:
+                d1 = directions[n1] / directions[n1].norm()
+                d2 = directions[n2] / directions[n2].norm()
+                print(f"    {n1} vs {n2}: {(d1 @ d2).item():.4f}")
+# %%

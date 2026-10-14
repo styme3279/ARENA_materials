@@ -409,39 +409,105 @@ imshow(
 )
 
 # %%
-clean_prompt, clean_answer = "The White House is where the", " president" #Note the space in the answer!
-corrupted_prompt, corrupted_answer = "The Haunted House is where the", " ghosts"
+# clean_prompt, clean_answer = "The White House is where the", " president" #Note the space in the answer!
+# corrupted_prompt, corrupted_answer = "The Haunted House is where the", " ghosts"
 
-clean_tokens = model.to_tokens(clean_prompt)
-corrupted_tokens = model.to_tokens(corrupted_prompt)
+# clean_tokens = model.to_tokens(clean_prompt)
+# corrupted_tokens = model.to_tokens(corrupted_prompt)
 
-assert clean_tokens.shape == corrupted_tokens.shape, "clean and corrupted tokens must have same shape"
+# assert clean_tokens.shape == corrupted_tokens.shape, "clean and corrupted tokens must have same shape"
 
-clean_token = model.to_single_token(clean_answer)
-corrupted_token = model.to_single_token(corrupted_answer)
+# clean_token = model.to_single_token(clean_answer)
+# corrupted_token = model.to_single_token(corrupted_answer)
 
-utils.test_prompt(clean_prompt, clean_answer, model)
-utils.test_prompt(corrupted_prompt, corrupted_answer, model)
+# utils.test_prompt(clean_prompt, clean_answer, model)
+# utils.test_prompt(corrupted_prompt, corrupted_answer, model)
 
-clean_logits, clean_cache = model.run_with_cache(clean_tokens)
+# clean_logits, clean_cache = model.run_with_cache(clean_tokens)
 
-def answer_metric(
-    logits: Float[Tensor, "batch seq d_vocab"],
-    clean_token: Int = clean_token,
-    corrupted_token: Int = corrupted_token,
-) -> Float[Tensor, "batch"]:
-    return logits[:, -1, clean_token] - logits[:, -1, corrupted_token]
+# def answer_metric(
+#     logits: Float[Tensor, "batch seq d_vocab"],
+#     clean_token: Int = clean_token,
+#     corrupted_token: Int = corrupted_token,
+# ) -> Float[Tensor, "batch"]:
+#     return logits[:, -1, clean_token] - logits[:, -1, corrupted_token]
 
-act_patch_block_every = patching.get_act_patch_block_every(model, corrupted_tokens, clean_cache, answer_metric)
+# act_patch_block_every = patching.get_act_patch_block_every(model, corrupted_tokens, clean_cache, answer_metric)
+
+# imshow(
+#     act_patch_block_every,
+#     x=["<endoftext>","The", "White/Haunted", "House", "is", "where", "the"],
+#     facet_col=0,  # This argument tells plotly which dimension to split into separate plots
+#     facet_labels=["Residual Stream", "Attn Output", "MLP Output"],  # Subtitles of separate plots
+#     title="Logit Difference (president - ghosts)",
+#     labels={"x": "Sequence Position", "y": "Layer"},
+#     width=1200,
+# )
+
+# %%
+act_patch_attn_head_out_all_pos = patching.get_act_patch_attn_head_out_all_pos(
+    model, corrupted_tokens, clean_cache, ioi_metric
+)
 
 imshow(
-    act_patch_block_every,
-    x=["<endoftext>","The", "White/Haunted", "House", "is", "where", "the"],
-    facet_col=0,  # This argument tells plotly which dimension to split into separate plots
-    facet_labels=["Residual Stream", "Attn Output", "MLP Output"],  # Subtitles of separate plots
-    title="Logit Difference (president - ghosts)",
-    labels={"x": "Sequence Position", "y": "Layer"},
-    width=1200,
+    act_patch_attn_head_out_all_pos,
+    labels={"y": "Layer", "x": "Head"},
+    title="attn_head_out Activation Patching (All Pos)",
+    width=600,
+)
+
+
+# %%
+def patch_head_vector(
+    corrupted_head_vector: Float[Tensor, "batch pos head_index d_head"],
+    hook: HookPoint,
+    head_index: int,
+    clean_cache: ActivationCache,
+) -> Float[Tensor, "batch pos head_index d_head"]:
+    """
+    Patches the output of a given head (before it's added to the residual stream) at every sequence
+    position, using the value from the clean cache.
+    """
+    print(corrupted_head_vector[:, :, head_index, :])
+    # = clean_cache[hook.name][:, :, head_index, :]
+
+
+def get_act_patch_attn_head_out_all_pos(
+    model: HookedTransformer,
+    corrupted_tokens: Float[Tensor, "batch pos"],
+    clean_cache: ActivationCache,
+    patching_metric: Callable,
+) -> Float[Tensor, "layer head"]:
+    """
+    Returns an array of results of patching at all positions for each head in each layer, using the
+    value from the clean cache. The results are calculated using the patching_metric function, which
+    should be called on the model's logit output.
+    """
+    model.reset_hooks()
+    res = t.empty((model.cfg.n_layers, model.cfg.n_heads)).to(device)
+    for layer in range(model.cfg.n_layers):
+        for head in range(model.cfg.n_heads):
+            hook_func = partial(patch_head_vector, head_index=head, clean_cache=clean_cache)
+            logits = model.run_with_hooks(
+                corrupted_tokens,
+                fwd_hooks=[(utils.get_act_name("resid_pre", layer), hook_func)],
+                )
+            metric = patching_metric(logits=logits)
+            res[layer, head] = metric
+    return res
+
+
+act_patch_attn_head_out_all_pos_own = get_act_patch_attn_head_out_all_pos(
+    model, corrupted_tokens, clean_cache, ioi_metric
+)
+
+t.testing.assert_close(act_patch_attn_head_out_all_pos, act_patch_attn_head_out_all_pos_own)
+
+imshow(
+    act_patch_attn_head_out_all_pos_own,
+    title="Logit Difference From Patched Attn Head Output",
+    labels={"x": "Head", "y": "Layer"},
+    width=600,
 )
 
 # %%

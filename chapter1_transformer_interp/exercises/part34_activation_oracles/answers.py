@@ -510,10 +510,33 @@ def get_hf_activation_steering_hook(
     Returns:
         Hook function that modifies activations during forward pass
     """
-    def activation_steering_hook():
-        pass
+    def activation_steering_hook(hook, input, output):
+        # 1. Extract the residual stream tensor from outputs (handle tuple case)
+        if isinstance(output, tuple):
+            original_output = output[0]
+        else:
+            original_output = output
 
-    add_hook()
+        # 2. Verify batch_size is 1 (raise error if not)
+        if len(original_output.shape) != 3:
+            raise ValueError
+        if original_output.shape[0] != 1:
+            raise ValueError
+        original_output = original_output.squeeze(0)
+
+        # 3. Get the original activations at the specified positions
+        original_output_at_positions = original_output[positions[0]:positions[-1]+1,:]
+        print(original_output_at_positions.shape)
+        print(vectors.shape)
+
+        original_output_norms = torch.nn.functional.normalize(original_output, dim=-1)
+        steering_vector_norms = torch.nn.functional.normalize(vectors, dim=-1)
+        print(original_output_norms.shape)
+        print(.)
+    
+        return original_output_at_positions
+
+    return activation_steering_hook
     
 
 
@@ -546,3 +569,5 @@ tests.test_get_hf_activation_steering_hook(get_hf_activation_steering_hook, devi
 tests.test_get_hf_activation_steering_hook_matches_reference(
     get_hf_activation_steering_hook, device, model.config.hidden_size
 )
+
+# %%

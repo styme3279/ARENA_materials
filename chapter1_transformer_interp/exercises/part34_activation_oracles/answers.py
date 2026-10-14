@@ -699,10 +699,12 @@ def run_oracle(
     # (3) Build a steering hook, switch to "oracle" adapter, generate with the hook applied
     activation_steering_hook = get_hf_activation_steering_hook()
     model.set_adapter("oracle")
-    raise NotImplementedError()
+    for module in submodules.values():
+        add_hook(module)
+    output_ids = model(oracle_prompt, **kwargs)
 
     # Decode response
-    generated_tokens = output_ids[:, input_ids.shape[1] :]
+    generated_tokens = output_ids[:, seq_len :]
     response = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
 
     return response

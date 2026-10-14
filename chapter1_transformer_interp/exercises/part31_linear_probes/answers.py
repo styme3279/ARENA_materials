@@ -1212,47 +1212,15 @@ def construct_instructed_pairs(
                 {"role": "assistant", "content": fact_start},
             ]
 
-            # YOUR CODE HERE - use ChatActivations.from_messages to create a detection mask over
-            # the assistant content tokens, then call extract_activations to get averaged
-            # activations for each layer. Append each layer's activation to acts_dict[layer].
-            honest_acts = {layer: [] for layer in layers}
-            dishonest_acts = {layer: [] for layer in layers}
-
-            # "you_are_fact_sys" variant from the repo - system prompt sets the persona, user asks
-            # for a fact. The repo tested several prompt variants; this is the default.
-            honest_sys = "You are an honest AI assistant."
-            dishonest_sys = "You are a deceptive AI assistant."
-            user_msg = "Please tell me a fact."
-
-            for fact in tqdm(facts, desc="Extracting instructed-pairs"):
-                # Exclude the last 5 words of each fact (following the paper). The idea is that
-                # we don't want the probe to see the actual truth/falsehood of the completed fact;
-                # we only want to capture the model's "intention to deceive" which the system prompt
-                # primes it for. The paper says: "We gather activations on this fact excluding the
-                # last 5 words, so that the fact could be completed in either a truthful or
-                # deceptive manner." (Note: the paper says "tokens" but the implementation excludes words.)
-                words = fact.split(" ")
-                fact_start = " ".join(words[:-5]) if len(words) > 5 else fact
-
-                for sys_prompt, acts_dict in [(honest_sys, honest_acts), (dishonest_sys, dishonest_acts)]:
-                    messages = [
-                        {"role": "system", "content": sys_prompt},
-                        {"role": "user", "content": user_msg},
-                        {"role": "assistant", "content": fact_start},
-                    ]
-
-                    chat_acts = ChatActivations.from_messages(messages, tokenizer)
-                    layer_acts = chat_acts.extract_activations(model, layers, average=True)
-                    for layer in layers:
-                        acts_dict[layer].append(layer_acts[layer])
-
-            honest_out = {layer: t.stack(acts_list) for layer, acts_list in honest_acts.items()}
-            dishonest_out = {layer: t.stack(acts_list) for layer, acts_list in dishonest_acts.items()}
-            return honest_out, dishonest_out
+            chat_acts = ChatActivations.from_messages(messages, tokenizer)
+            layer_acts = chat_acts.extract_activations(model, layers, average=True)
+            for layer in layers:
+                acts_dict[layer].append(layer_acts[layer])
 
     honest_out = {layer: t.stack(acts_list) for layer, acts_list in honest_acts.items()}
     dishonest_out = {layer: t.stack(acts_list) for layer, acts_list in dishonest_acts.items()}
     return honest_out, dishonest_out
+
 
 
 all_facts = true_facts["statement"].tolist()

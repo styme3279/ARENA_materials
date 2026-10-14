@@ -94,3 +94,65 @@ for prompt, answer in zip(prompts, answers):
 rprint(table)
 
 # %%
+tokens = model.to_tokens(prompts, prepend_bos=True)
+# Move the tokens to the GPU
+tokens = tokens.to(device)
+# Run the model and cache all activations
+original_logits, cache = model.run_with_cache(tokens)
+
+
+# %%
+def logits_to_ave_logit_diff(
+    logits: Float[Tensor, "batch seq d_vocab"],
+    answer_tokens: Int[Tensor, "batch 2"] = answer_tokens,
+    per_prompt: bool = False,
+) -> Float[Tensor, "*batch"]:
+    """
+    Returns logit difference between the correct and incorrect answer.
+
+    If per_prompt=True, return the array of differences rather than the average.
+    """
+    
+    print(logits.shape)
+    print(answer_tokens.shape)
+
+    # a = t.argmax(logits[:, -1, :], dim=-1)
+    final_token_logits = logits[:, -1, :]
+    print()
+    rprint(answer_tokens)
+    corr_and_incorr_logits = final_token_logits[answer_tokens]
+    print(corr_and_incorr_logits)
+    # print(a)
+    # a = einops.repeat(a, "b -> b 2")
+    # print(a.shape, answer_tokens.shape)
+    # print(a == answer_tokens[:, 0])
+    # rprint(a)
+    # rprint(answer_tokens)
+
+    # print(logits[a].shape)
+    
+
+
+
+tests.test_logits_to_ave_logit_diff(logits_to_ave_logit_diff)
+
+original_per_prompt_diff = logits_to_ave_logit_diff(original_logits, answer_tokens, per_prompt=True)
+print("Per prompt logit difference:", original_per_prompt_diff)
+original_average_logit_diff = logits_to_ave_logit_diff(original_logits, answer_tokens)
+print("Average logit difference:", original_average_logit_diff)
+
+cols = [
+    "Prompt",
+    Column("Correct", style="rgb(0,200,0) bold"),
+    Column("Incorrect", style="rgb(255,0,0) bold"),
+    Column("Logit Difference", style="bold"),
+]
+table = Table(*cols, title="Logit differences")
+
+for prompt, answer, logit_diff in zip(prompts, answers, original_per_prompt_diff):
+    table.add_row(prompt, repr(answer[0]), repr(answer[1]), f"{logit_diff.item():.3f}")
+
+rprint(table)
+
+
+# %%

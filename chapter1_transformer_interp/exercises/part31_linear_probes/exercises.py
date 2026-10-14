@@ -286,6 +286,72 @@ fig.update_layout(
 )
 fig.show()
 # %%
+CENTER_ON = "target"   # "source" = identical transformation; "target" = remove each dataset's offset
+
+
+def add_pca_panel(fig, row, col, target, pcs, source_mean):
+    acts = activations[target]
+    labels = labels_dict[target].tolist()
+    prompts = statements_dict[target]
+
+    mean = source_mean if CENTER_ON == "source" else acts.mean(dim=0)
+    projected = ((acts - mean) @ pcs).numpy()
+
+    # Share of the TARGET's own variance captured along these directions (shift-invariant)
+    total_var = acts.var(dim=0).sum().item()
+    pct = (t.tensor(projected).var(dim=0) / total_var * 100).tolist()
+
+    fig.add_trace(
+        go.Scatter(
+            x=projected[:, 0],
+            y=projected[:, 1],
+            mode="markers",
+            marker=dict(color=["blue" if l == 1 else "red" for l in labels], size=3, opacity=0.5),
+            showlegend=False,
+            customdata=list(zip(prompts, ["True" if l == 1 else "False" for l in labels])),
+            hovertemplate=(
+                "<b>%{customdata[1]}</b><br>%{customdata[0]}<br>"
+                "PC1: %{x:.2f}<br>PC2: %{y:.2f}<extra></extra>"
+            ),
+        ),
+        row=row,
+        col=col,
+    )
+    fig.update_xaxes(title_text=f"PC1 ({pct[0]:.1f}%)", row=row, col=col)
+    fig.update_yaxes(title_text=f"PC2 ({pct[1]:.1f}%)", row=row, col=col)
+
+
+# Fit PCA once per dataset: directions + the mean they were fit around
+pca_fits = {name: (get_pca_components(activations[name], k=2), activations[name].mean(dim=0)) for name in DATASET_NAMES}
+
+n = len(DATASET_NAMES)
+titles = [f"{name} (own PCA)" for name in DATASET_NAMES] + [
+    f"PCA({src}) → {tgt}" for src in DATASET_NAMES for tgt in DATASET_NAMES
+]
+fig = make_subplots(rows=n + 1, cols=n, subplot_titles=titles, vertical_spacing=0.07, horizontal_spacing=0.07)
+
+# Row 1: each dataset with its own PCA
+for j, tgt in enumerate(DATASET_NAMES):
+    pcs, mean = pca_fits[tgt]
+    add_pca_panel(fig, 1, j + 1, tgt, pcs, mean)
+
+# Rows 2..n+1: PCA fit on one source dataset, applied to every dataset
+for i, src in enumerate(DATASET_NAMES):
+    pcs, mean = pca_fits[src]
+    for j, tgt in enumerate(DATASET_NAMES):
+        add_pca_panel(fig, i + 2, j + 1, tgt, pcs, mean)
+
+# Manual legend
+fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(color="blue", size=8), name="True"))
+fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(color="red", size=8), name="False"))
+
+fig.update_layout(
+    title=f"PCA of truth representations (layer {PROBE_LAYER}, last token), centered on {CENTER_ON} mean",
+    height=350 * (n + 1),
+    width=1200,
+)
+fig.show()
+# %%
 def layer_sweep_accuracy(
     statements: list[str],
     labels: Float[Tensor, " n"],
@@ -646,4 +712,73 @@ for probe_name, directions in [("MM", mm_directions), ("LR", lr_directions)]:
                 d1 = directions[n1] / directions[n1].norm()
                 d2 = directions[n2] / directions[n2].norm()
                 print(f"    {n1} vs {n2}: {(d1 @ d2).item():.4f}")
+# %%
+def diagnose(train_acts, train_labels, test_acts, test_labels, names, probe_cls):
+    n = len(names)
+    auroc, frac_true = t.zeros(n, n), t.zeros(n, n)
+    for i, a in enumerate(names):
+        probe = probe_cls.from_data(train_acts[a], train_labels[a])
+        for j, b in enumerate(names):
+            with t.no_grad():
+                scores = probe(test_acts[b]).reshape(-1).cpu()
+            auroc[i, j] = roc_auc_score(test_labels[b].numpy(), scores.numpy())
+            frac_true[i, j] = (scores > 0).float().mean()
+    return auroc, frac_true
+
+for cls in [MMProbe, LRProbe]:
+    auroc, frac = diagnose(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, cls)
+    print(cls.__name__, "\nAUROC:\n", auroc, "\nfraction predicted true:\n", frac)
+
+# %%
+def center_per_dataset(train_acts, test_acts):
+    train_c, test_c = {}, {}
+    for name in train_acts:
+        mu = train_acts[name].mean(dim=0)   # unlabeled, train split only: no test leakage
+        train_c[name] = train_acts[name] - mu
+        test_c[name] = test_acts[name] - mu
+    return train_c, test_c
+
+train_c, test_c = center_per_dataset(train_acts, test_acts)
+mm_matrix_c = compute_generalization_matrix(train_c, train_labels, test_c, test_labels, DATASET_NAMES, MMProbe)
+lr_matrix_c = compute_generalization_matrix(train_c, train_labels, test_c, test_labels, DATASET_NAMES, LRProbe)
+# %%
+def plot_gen_matrices(panels: dict[str, Tensor], title: str, cols: int = 2):
+    names = list(panels)
+    rows = (len(names) + cols - 1) // cols
+    fig = make_subplots(
+        rows=rows, cols=cols, subplot_titles=names,
+        horizontal_spacing=0.15, vertical_spacing=0.18,
+    )
+    n = len(DATASET_NAMES)
+    for k, (name, M) in enumerate(panels.items()):
+        r, c = k // cols + 1, k % cols + 1
+        fig.add_trace(
+            go.Heatmap(
+                z=M.numpy(),
+                x=DATASET_NAMES,
+                y=DATASET_NAMES,
+                text=[[f"{M[i, j]:.3f}" for j in range(n)] for i in range(n)],
+                texttemplate="%{text}",
+                colorscale="RdYlGn",
+                zmin=0.5,
+                zmax=1.0,
+                showscale=(k == cols - 1),   # one shared colorbar, top right
+            ),
+            row=r, col=c,
+        )
+        fig.update_xaxes(title_text="Test dataset", row=r, col=c)
+        fig.update_yaxes(title_text="Train dataset" if c == 1 else "", row=r, col=c)
+    fig.update_layout(title=title, height=400 * rows, width=800)
+    fig.show()
+
+
+plot_gen_matrices(
+    {
+        "MMProbe (raw)": mm_matrix,
+        "LRProbe (raw)": lr_matrix,
+        "MMProbe (centered)": mm_matrix_c,
+        "LRProbe (centered)": lr_matrix_c,
+    },
+    "Cross-dataset generalization: before vs after per-dataset centering",
+)
 # %%

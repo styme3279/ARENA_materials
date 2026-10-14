@@ -294,51 +294,36 @@ def layer_sweep_accuracy(
     layers: list[int],
     train_frac: float = 0.8,
     batch_size: int = 25,
+    seed: int = 0,
 ) -> dict[str, list[float]]:
-    """
-    For each layer, train a difference-of-means classifier and compute train/test accuracy.
+    labels = t.as_tensor(labels).float().cpu()
 
-    Args:
-        statements: List of statements.
-        labels: Binary labels (1=true, 0=false).
-        model: The language model.
-        tokenizer: The tokenizer.
-        layers: List of layer indices to sweep over.
-        train_frac: Fraction of data for training.
-        batch_size: Batch size for activation extraction.
+    # Shuffle before splitting, in case the dataset has any ordering
+    perm = t.randperm(len(statements), generator=t.Generator().manual_seed(seed))
+    n_train = int(len(statements) * train_frac)
+    train_idx, test_idx = perm[:n_train], perm[n_train:]
 
-    Returns:
-        Dict with keys "train_acc" and "test_acc", each a list of accuracies per layer.
-    """
-    train_test_split = int(len(statements) * train_frac)
-    train_statements = statements[:train_test_split]
-    test_statements = statements[train_test_split:]
-    train_labels = labels[:train_test_split]
-    test_labels = labels[train_test_split:]
-
-    def train_layer(layer: int) -> tuple[float, float]:
-        acts = extract_activations(train_statements, model, tokenizer, [layer], batch_size)[layer]
-        mean_true = acts[train_labels == 1].mean(dim=0)
-        mean_false = acts[train_labels == 0].mean(dim=0)
-        diff_vector = mean_true - mean_false
-
-        # Train accuracy
-        train_acts = acts
-        train_preds = (train_acts @ diff_vector) > 0
-        train_acc = (train_preds.float() == train_labels).float().mean().item()
-
-        # Test accuracy
-        test_acts = extract_activations(test_statements, model, tokenizer, [layer], batch_size)[layer]
-        test_preds = (test_acts @ diff_vector) > 0
-        test_acc = (test_preds.float() == test_labels).float().mean().item()
-
-        return train_acc, test_acc
+    # One extraction pass for every layer, instead of two passes per layer
+    all_acts = extract_activations(statements, model, tokenizer, layers, batch_size)
 
     results = {"train_acc": [], "test_acc": []}
-    for layer in tqdm(layers, desc="Layer sweep"):
-        train_acc, test_acc = train_layer(layer)
-        results["train_acc"].append(train_acc)
-        results["test_acc"].append(test_acc)
+    for layer in layers:
+        acts = all_acts[layer]
+        X_train, y_train = acts[train_idx], labels[train_idx]
+        X_test, y_test = acts[test_idx], labels[test_idx]
+
+        mu_true = X_train[y_train == 1].mean(dim=0)
+        mu_false = X_train[y_train == 0].mean(dim=0)
+        direction = mu_true - mu_false
+        midpoint = (mu_true + mu_false) / 2   # decision boundary passes through here, not the origin
+
+        def acc(X, y):
+            preds = ((X - midpoint) @ direction > 0).float()
+            return (preds == y).float().mean().item()
+
+        results["train_acc"].append(acc(X_train, y_train))
+        results["test_acc"].append(acc(X_test, y_test))
+
     return results
 
 
@@ -518,10 +503,12 @@ class LRProbe(t.nn.Module):
                 The repo class default is reg_coeff=1000 (C=0.001), which is stronger.
             device: Device to place the resulting probe on.
         """
-        # using pytorch cuda
         acts = acts.to(device)
         labels = labels.to(device)
-        
+        lr_probe = LRProbe(d_in=acts.shape[1])
+        #train
+        scaler = StandardScaler(
+
 
 
 lr_probe = LRProbe.from_data(train_acts["cities"], train_labels["cities"], device="cpu")

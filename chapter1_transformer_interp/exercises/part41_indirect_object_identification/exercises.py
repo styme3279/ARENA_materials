@@ -349,7 +349,7 @@ def patch_residual_component(
     """
     # print(hook.name)
     # print(clean_cache[hook.name])
-    corrupted_residual_component = clean_cache[hook.name]
+    corrupted_residual_component[:, pos, :] = clean_cache[hook.name][:, pos, :]
     # assert False
 
 def get_act_patch_resid_pre(
@@ -366,28 +366,46 @@ def get_act_patch_resid_pre(
     called on the model's logit output.
     """
     
-    res = t.empty((model.cfg.n_layers, corrupted_tokens.shape[1]))
+    model.reset_hooks()
+    res = t.empty((model.cfg.n_layers, corrupted_tokens.shape[1])).to(device)
     for layer in range(model.cfg.n_layers):
         for pos in range(corrupted_tokens.shape[1]):
             hook_func = partial(patch_residual_component, pos=pos, clean_cache=clean_cache)
-            model.reset_hooks()
             logits = model.run_with_hooks(
                 corrupted_tokens,
                 fwd_hooks=[(utils.get_act_name("resid_pre", layer), hook_func)],
                 )
-            metric = ioi_metric(
-                logits=logits,
-                answer_tokens=,
-                corrupted_logit_diff=,
-                clean_logit_diff=
-            )
-            
+            metric = patching_metric(logits=logits)
+            res[layer, pos] = metric
+    return res            
             
 
 
-
+model.reset_hooks()
 act_patch_resid_pre_own = get_act_patch_resid_pre(model, corrupted_tokens, clean_cache, ioi_metric)
 
 t.testing.assert_close(act_patch_resid_pre, act_patch_resid_pre_own)
+
+# %%
+imshow(
+    act_patch_resid_pre_own,
+    x=labels,
+    title="Logit Difference From Patched Residual Stream",
+    labels={"x": "Sequence Position", "y": "Layer"},
+    width=700,
+)
+
+# %%
+act_patch_block_every = patching.get_act_patch_block_every(model, corrupted_tokens, clean_cache, ioi_metric)
+
+imshow(
+    act_patch_block_every,
+    x=labels,
+    facet_col=0,  # This argument tells plotly which dimension to split into separate plots
+    facet_labels=["Residual Stream", "Attn Output", "MLP Output"],  # Subtitles of separate plots
+    title="Logit Difference From Patched Attn Head Output",
+    labels={"x": "Sequence Position", "y": "Layer"},
+    width=1200,
+)
 
 # %%

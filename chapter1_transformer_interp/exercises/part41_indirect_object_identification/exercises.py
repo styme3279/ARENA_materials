@@ -457,19 +457,30 @@ imshow(
 )
 
 
-# %%
+# # %%
 def patch_head_vector(
     corrupted_head_vector: Float[Tensor, "batch pos head_index d_head"],
     hook: HookPoint,
     head_index: int,
     clean_cache: ActivationCache,
+    d_head = 12
 ) -> Float[Tensor, "batch pos head_index d_head"]:
     """
     Patches the output of a given head (before it's added to the residual stream) at every sequence
     position, using the value from the clean cache.
     """
-    print(corrupted_head_vector[:, :, head_index, :])
-    # = clean_cache[hook.name][:, :, head_index, :]
+    print(corrupted_head_vector.shape)
+    # corrupted_head_vector_reshaped = einops.rearrange(corrupted_head_vector,  "batch pos (head_index d_head) -> batch pos head_index d_head", d_head=d_head)
+    # clean_cache_reshaped           = einops.rearrange(clean_cache[hook.name], "batch pos (head_index d_head) -> batch pos head_index d_head", d_head=d_head)
+    # # print(a.shape)
+    # # print(corrupted_head_vector[:, :, head_index, :])
+    # a = clean_cache_reshaped[hook.name][:, :, head_index, :]
+    # corrupted_head_vector = einops.rearrange(a, "batch pos head_index d_head -> batch pos (head_index d_head)")
+    # assert False
+    # assert False
+
+    corrupted_head_vector[:, :, head_index] = clean_cache[hook.name][:, :, head_index]
+    return corrupted_head_vector
 
 
 def get_act_patch_attn_head_out_all_pos(
@@ -487,10 +498,10 @@ def get_act_patch_attn_head_out_all_pos(
     res = t.empty((model.cfg.n_layers, model.cfg.n_heads)).to(device)
     for layer in range(model.cfg.n_layers):
         for head in range(model.cfg.n_heads):
-            hook_func = partial(patch_head_vector, head_index=head, clean_cache=clean_cache)
+            hook_func = partial(patch_head_vector, head_index=head, clean_cache=clean_cache, d_head=model.cfg.d_head)
             logits = model.run_with_hooks(
                 corrupted_tokens,
-                fwd_hooks=[(utils.get_act_name("resid_pre", layer), hook_func)],
+                fwd_hooks=[(utils.get_act_name("z", layer), hook_func)],
                 )
             metric = patching_metric(logits=logits)
             res[layer, head] = metric
@@ -508,6 +519,76 @@ imshow(
     title="Logit Difference From Patched Attn Head Output",
     labels={"x": "Head", "y": "Layer"},
     width=600,
+)
+
+# %%
+# def patch_head_vector(
+#     corrupted_head_vector: Float[Tensor, "batch pos head_index d_head"],
+#     hook: HookPoint,
+#     head_index: int,
+#     clean_cache: ActivationCache,
+# ) -> Float[Tensor, "batch pos head_index d_head"]:
+#     """
+#     Patches the output of a given head (before it's added to the residual stream) at every sequence
+#     position, using the value from the clean cache.
+#     """
+#     print(corrupted_head_vector.shape)
+#     corrupted_head_vector[:, :, head_index] = clean_cache[hook.name][:, :, head_index]
+#     return corrupted_head_vector
+
+
+# def get_act_patch_attn_head_out_all_pos(
+#     model: HookedTransformer,
+#     corrupted_tokens: Float[Tensor, "batch pos"],
+#     clean_cache: ActivationCache,
+#     patching_metric: Callable,
+# ) -> Float[Tensor, "layer head"]:
+#     """
+#     Returns an array of results of patching at all positions for each head in each layer, using the
+#     value from the clean cache. The results are calculated using the patching_metric function, which
+#     should be called on the model's logit output.
+#     """
+#     model.reset_hooks()
+#     results = t.zeros(model.cfg.n_layers, model.cfg.n_heads, device=device, dtype=t.float32)
+
+#     for layer in tqdm(range(model.cfg.n_layers)):
+#         for head in range(model.cfg.n_heads):
+#             hook_fn = partial(patch_head_vector, head_index=head, clean_cache=clean_cache)
+#             patched_logits = model.run_with_hooks(
+#                 corrupted_tokens,
+#                 fwd_hooks=[(utils.get_act_name("z", layer), hook_fn)],
+#                 return_type="logits",
+#             )
+#             results[layer, head] = patching_metric(patched_logits)
+
+#     return results
+
+
+# act_patch_attn_head_out_all_pos_own = get_act_patch_attn_head_out_all_pos(
+#     model, corrupted_tokens, clean_cache, ioi_metric
+# )
+
+# t.testing.assert_close(act_patch_attn_head_out_all_pos, act_patch_attn_head_out_all_pos_own)
+
+# imshow(
+#     act_patch_attn_head_out_all_pos_own,
+#     title="Logit Difference From Patched Attn Head Output",
+#     labels={"x": "Head", "y": "Layer"},
+#     width=600,
+# )
+
+# %%
+act_patch_attn_head_all_pos_every = patching.get_act_patch_attn_head_all_pos_every(
+    model, corrupted_tokens, clean_cache, ioi_metric
+)
+
+imshow(
+    act_patch_attn_head_all_pos_every,
+    facet_col=0,
+    facet_labels=["Output", "Query", "Key", "Value", "Pattern"],
+    title="Activation Patching Per Head (All Pos)",
+    labels={"x": "Head", "y": "Layer"},
+    width=1200,
 )
 
 # %%

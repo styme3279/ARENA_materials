@@ -337,8 +337,26 @@ def collect_activations_multiple_layers(
     Returns:
         Dict mapping layer → activations tensor [batch, length, d_model]
     """
-    raise NotImplementedError()
 
+    def forward_hook(module, inputs, outputs):
+        print(type(outputs))
+        print(isinstance(outputs, tuple))
+
+    activations = {}
+    handles = []
+    for i, submod in submodules.items():
+        handles.append(submod.register_forward_hook(forward_hook))
+    # if 
+    #     raise EarlyStopException
+    
+
+    try:
+        model(**inputs_BL)
+    finally:
+        for h in handles:
+            h.remove()
+    
+    return activations
 
 # Test the function
 test_prompt = "The capital of France is"

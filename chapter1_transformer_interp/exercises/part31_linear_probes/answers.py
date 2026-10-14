@@ -165,7 +165,7 @@ def extract_activations(
 
             hidden_states = out_batch.hidden_states[layer]
 
-            print(hidden_states.shape)
+            
 
         # stack upon batches
         out = {} # {"layer_num": activation_tensor}

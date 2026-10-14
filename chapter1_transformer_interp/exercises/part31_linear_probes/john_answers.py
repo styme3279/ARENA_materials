@@ -655,7 +655,7 @@ def compute_generalization_matrix(
     Returns:
         Tensor of shape [n_datasets, n_datasets] with accuracy values.
     """
-    probe_comp = t.zeros((len(dataset_names), len(dataset_names)), device=device)
+    probe_comp = t.zeros((len(dataset_names), len(dataset_names)))
 
     for j, name_j in enumerate(dataset_names):
         for i, name_i in enumerate(dataset_names):
@@ -666,7 +666,12 @@ def compute_generalization_matrix(
             test_act = test_acts[name_i]
             test_lab = test_labels[name_i]
 
-            trained_probe = probe_cls
+            trained_probe = probe_cls.from_data(train_act, train_lab)
+
+            prediction = trained_probe.pred(test_act)
+            probe_comp[j, i] = (prediction == test_lab).to(float).mean()
+
+    return probe_comp
 
 mm_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, MMProbe)
 lr_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, LRProbe)
@@ -713,3 +718,84 @@ for probe_name, directions in [("MM", mm_directions), ("LR", lr_directions)]:
                 d1 = directions[n1] / directions[n1].norm()
                 d2 = directions[n2] / directions[n2].norm()
                 print(f"    {n1} vs {n2}: {(d1 @ d2).item():.4f}")
+
+# %%
+def compute_generalization_matrix(
+    train_acts: dict[str, Float[Tensor, "n d"]],
+    train_labels: dict[str, Float[Tensor, " n"]],
+    test_acts: dict[str, Float[Tensor, "n d"]],
+    test_labels: dict[str, Float[Tensor, " n"]],
+    dataset_names: list[str],
+    probe_cls: type,
+) -> Float[Tensor, "n_datasets n_datasets"]:
+    """
+    Compute a generalization matrix: entry (i, j) is the test accuracy of a probe trained on dataset i
+    and evaluated on dataset j.
+
+    Args:
+        train_acts, train_labels: Training data per dataset.
+        test_acts, test_labels: Test data per dataset.
+        dataset_names: Names of datasets (determines matrix ordering).
+        probe_cls: Probe class to use (MMProbe or LRProbe), must have from_data and pred methods.
+
+    Returns:
+        Tensor of shape [n_datasets, n_datasets] with accuracy values.
+    """
+    n = len(dataset_names)
+    matrix = t.zeros(n, n)
+    for i, train_name in enumerate(dataset_names):
+        probe = probe_cls.from_data(train_acts[train_name], train_labels[train_name])
+        for j, test_name in enumerate(dataset_names):
+            preds = probe.pred(test_acts[test_name])
+            acc = (preds == test_labels[test_name]).float().mean().item()
+            matrix[i, j] = acc
+    return matrix
+
+
+mm_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, MMProbe)
+lr_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, LRProbe)
+
+assert mm_matrix.shape == (3, 3), f"Wrong shape: {mm_matrix.shape}"
+assert (mm_matrix.diag() > 0.6).all(), "In-distribution accuracy should be at least 60%"
+
+# Heatmap visualization
+fig = make_subplots(rows=1, cols=2, subplot_titles=["MMProbe", "LRProbe"], horizontal_spacing=0.15)
+
+for idx, (matrix, name) in enumerate([(mm_matrix, "MM"), (lr_matrix, "LR")]):
+    text_vals = [[f"{matrix[i, j]:.3f}" for j in range(len(DATASET_NAMES))] for i in range(len(DATASET_NAMES))]
+    fig.add_trace(
+        go.Heatmap(
+            z=matrix.numpy(),
+            x=DATASET_NAMES,
+            y=DATASET_NAMES,
+            text=text_vals,
+            texttemplate="%{text}",
+            colorscale="RdYlGn",
+            zmin=0.5,
+            zmax=1.0,
+            showscale=(idx == 1),
+        ),
+        row=1,
+        col=idx + 1,
+    )
+    fig.update_yaxes(title_text="Train dataset" if idx == 0 else "", row=1, col=idx + 1)
+    fig.update_xaxes(title_text="Test dataset", row=1, col=idx + 1)
+
+fig.update_layout(title="Cross-dataset Generalization (Test Accuracy)", height=400, width=800)
+fig.show()
+
+# Cosine similarity between probe directions
+mm_directions = {name: MMProbe.from_data(train_acts[name], train_labels[name]).direction for name in DATASET_NAMES}
+lr_directions = {name: LRProbe.from_data(train_acts[name], train_labels[name]).direction for name in DATASET_NAMES}
+
+print("\nPairwise cosine similarity between probe directions:")
+for probe_name, directions in [("MM", mm_directions), ("LR", lr_directions)]:
+    print(f"\n  {probe_name}Probe:")
+    for i, n1 in enumerate(DATASET_NAMES):
+        for j, n2 in enumerate(DATASET_NAMES):
+            if j > i:
+                d1 = directions[n1] / directions[n1].norm()
+                d2 = directions[n2] / directions[n2].norm()
+                print(f"    {n1} vs {n2}: {(d1 @ d2).item():.4f}")
+
+# %%

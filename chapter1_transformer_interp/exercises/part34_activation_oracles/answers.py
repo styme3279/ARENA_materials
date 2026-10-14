@@ -774,11 +774,11 @@ assert our_response.strip().lower() == library_response.strip().lower()
 # 3. Secret extraction & advanced applications
 # %%
 # Load taboo model for the word "smile"
-secret_word = "flame"
+secret_word = "smile"
 target_lora_path = f"adamkarvonen/Qwen3-8B-taboo-{secret_word}_50_mix"
 
 print(f"Loading taboo model for word: {secret_word}")
-model.load_adapter(target_lora_path, adapter_name="taboo-flame", is_trainable=False)
+model.load_adapter(target_lora_path, adapter_name="tabooo", is_trainable=False)
 print("Taboo model loaded!")
 
 # %%
@@ -789,7 +789,7 @@ test_prompts = [
     "A facial expression of happiness is called what? Answer in one word.",
 ]
 
-model.set_adapter("taboo-flame")
+model.set_adapter("default")
 
 print(f"Testing taboo model (should avoid '{secret_word}'):")
 print("=" * 80)
@@ -844,7 +844,16 @@ def extract_secret_word(
     Returns:
         Tuple of (accuracy, list of oracle responses)
     """
-    raise NotImplementedError()
+    # 1. For each prompt, run the taboo model and extract activations
+    for prompt in prompts:
+        outputs = model(prompt)
+    # 2. Query the oracle: "What secret word is the model avoiding?"
+    utils.run_oracle(
+        model=model,
+        tokenizer=tokenizer, 
+        device=device, )
+    # 3. Check if the oracle's response contains the expected secret word (use simple string matching)
+    # 4. Return accuracy and the oracle responses
 
 
 # Test secret extraction

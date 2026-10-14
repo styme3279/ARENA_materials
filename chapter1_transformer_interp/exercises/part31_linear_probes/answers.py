@@ -335,14 +335,40 @@ def layer_sweep_accuracy(
     Returns:
         Dict with keys "train_acc" and "test_acc", each a list of accuracies per layer.
     """
-    import random
-    train_indices, test_indices = t.randperm(len(statements))[:]
-    test_indices = 
+
+    # split test and train
+    train_set = int(len(statements) * train_frac)
+    rand_perm = t.randperm(len(statements))
+    train_indices = rand_perm[:train_set]
+    test_indices = rand_perm[train_set:]
+    print(any(i for i in train_indices if i in set(test_indices)))
+    train_statements = [statements[i] for i in train_indices]
+    test_statements = [statements[i] for i in test_indices]
+    train_labels = labels[train_indices]
+    test_labels = labels[test_indices]
+    print(train_labels)
+    # test_labels
+    print(len(train_indices), len(test_indices), len(statements))
+
+    # extract activations
+    train_acts = extract_activations(train_statements, model, tokenizer, layers, batch_size)
+    test_acts = extract_activations(test_statements, model, tokenizer, layers, batch_size)
+
+    # pca_components = get_pca_components(activations)
+
+    # for each layer, we extract the avg activations per layer. we do this for true and false statements
+    # true mean - false mean = direction = probe direction
+
+    for layer in layers:
+        train_activations = train_acts[layer]
+        test_activations = test_acts[layer]
+
+        # diff in means
+        if train_labels == 1:
+            
     
 
-    # train
-    activations = extract_activations(train_statements, model, tokenizer, layers, batch_size)
-    pca_components = get_pca_components(activations)
+
 
 
 

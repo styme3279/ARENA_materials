@@ -526,20 +526,21 @@ def get_hf_activation_steering_hook(
 
         # 3. Get the original activations at the specified positions
         original_output_at_positions = original_output[positions[0]:positions[-1]+1,:]
-        print(original_output_at_positions.shape)
-        print(vectors.shape)
 
-        original_output_norms = torch.nn.functional.normalize(original_output, dim=-1)
+        original_output_norms = original_output_at_positions.norm(dim=-1, keepdim=True)
         steering_vector_norms = torch.nn.functional.normalize(vectors, dim=-1)
-        print(original_output_norms.shape)
-        print(.)
-    
-        return original_output_at_positions
+
+        patched_positions = original_output_at_positions + (original_output_norms * steering_coefficient * steering_vector_norms.detach())
+
+        original_output[positions[0]:positions[-1]+1,:] = patched_positions
+        modified_output = original_output.unsqueeze(0) # re-add batch dimension
+        return modified_output
+
 
     return activation_steering_hook
     
 
-
+remove_all_hooks(model)
 # Test the function
 # Create dummy data (batch_size=1)
 test_positions = [5, 6, 7]  # Inject at positions 5, 6, 7

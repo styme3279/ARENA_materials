@@ -186,15 +186,57 @@ def residual_stack_to_logit_diff(
     """
     
     normalized_residual_stack = cache.apply_ln_to_stack(residual_stack, layer=-1, pos_slice=-1)
-    average_logit_diff = einops.einsum(
-        normalized_residual_stack, logit_diff_directions,
-        "batch d_model, batch d_model ->")
+    # print(normalized_residual_stack.shape)
+    # print(logit_diff_directions.shape)
+    average_logit_diff = einops.einsum(normalized_residual_stack, logit_diff_directions, "... batch d_model, batch d_model -> ...")
+    average_logit_diff /= residual_stack.shape[-2]
 
-    print(average_logit_diff)
+    # print(average_logit_diff)
     return average_logit_diff
 
 
 # Test function by checking that it gives the same result as the original logit difference
 t.testing.assert_close(residual_stack_to_logit_diff(final_token_residual_stream, cache), original_average_logit_diff)
+
+# %%
+accumulated_residual, labels = cache.accumulated_resid(layer=-1, incl_mid=True, pos_slice=-1, return_labels=True)
+# accumulated_residual has shape (component, batch, d_model)
+
+logit_lens_logit_diffs: Float[Tensor, " component"] = residual_stack_to_logit_diff(accumulated_residual, cache)
+
+line(
+    logit_lens_logit_diffs,
+    hovermode="x unified",
+    title="Logit Difference From Accumulated Residual Stream",
+    labels={"x": "Layer", "y": "Logit Diff"},
+    xaxis_tickvals=labels,
+    width=800,
+)
+
+
+# %%
+per_layer_residual, labels = cache.decompose_resid(layer=-1, pos_slice=-1, return_labels=True)
+per_layer_logit_diffs = residual_stack_to_logit_diff(per_layer_residual, cache)
+
+line(
+    per_layer_logit_diffs,
+    hovermode="x unified",
+    title="Logit Difference From Each Layer",
+    labels={"x": "Layer", "y": "Logit Diff"},
+    xaxis_tickvals=labels,
+    width=800,
+)
+
+# %%
+per_head_residual, labels = cache.stack_head_results(layer=-1, pos_slice=-1, return_labels=True)
+per_head_residual = einops.rearrange(per_head_residual, "(layer head) ... -> layer head ...", layer=model.cfg.n_layers)
+per_head_logit_diffs = residual_stack_to_logit_diff(per_head_residual, cache)
+
+imshow(
+    per_head_logit_diffs,
+    labels={"x": "Head", "y": "Layer"},
+    title="Logit Difference From Each Head",
+    width=600,
+)
 
 # %%

@@ -1544,7 +1544,7 @@ def few_shot_evaluate(
     few_shot_prompt: str,
     true_id: int,
     false_id: int,
-    batch_size: int = 32,
+    batch_size: int = 8,
 ) -> Float[Tensor, " n"]:
     """
     Evaluate P(TRUE) - P(FALSE) for each statement using few-shot classification.
@@ -1731,7 +1731,7 @@ def intervention_experiment(
     false_id: int,
     intervene_layers: list[int],
     intervention: str = "none",
-    batch_size: int = 32,
+    batch_size: int = 8,
 ) -> Float[Tensor, " n"]:
     """
     Run the intervention experiment.

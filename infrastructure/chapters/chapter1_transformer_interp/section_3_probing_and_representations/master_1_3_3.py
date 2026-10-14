@@ -339,6 +339,12 @@ from transformer_lens.utils import get_act_name, test_prompt
 
 device = t.device("mps" if t.backends.mps.is_available() else "cuda" if t.cuda.is_available() else "cpu")
 
+# The autointerp exercises use the OpenAI client. If you only have an OpenRouter key (as on the ARENA pods), route
+# the OpenAI client through OpenRouter's OpenAI-compatible endpoint instead.
+if not os.environ.get("OPENAI_API_KEY") and os.environ.get("OPENROUTER_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
+    os.environ.setdefault("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+
 
 def _get_hook_layer(sae: SAE) -> int:
     """Extract the layer number from an SAE's hook name (e.g. 'blocks.7.hook_resid_pre' → 7)."""

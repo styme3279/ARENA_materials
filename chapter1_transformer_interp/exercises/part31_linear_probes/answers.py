@@ -336,43 +336,67 @@ def layer_sweep_accuracy(
         Dict with keys "train_acc" and "test_acc", each a list of accuracies per layer.
     """
 
-    # split test and train
-    train_set = int(len(statements) * train_frac)
-    rand_perm = t.randperm(len(statements))
-    train_indices = rand_perm[:train_set]
-    test_indices = rand_perm[train_set:]
-    print(any(i for i in train_indices if i in set(test_indices)))
-    train_statements = [statements[i] for i in train_indices]
-    test_statements = [statements[i] for i in test_indices]
-    train_labels = labels[train_indices]
-    test_labels = labels[test_indices]
-    print(train_labels)
-    # test_labels
-    print(len(train_indices), len(test_indices), len(statements))
+def layer_sweep_accuracy(
+    statements: list[str],
+    labels: Float[Tensor, " n"],
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    layers: list[int],
+    train_frac: float = 0.8,
+    batch_size: int = 25,
+) -> dict[str, list[float]]:
+    """
+    For each layer, train a difference-of-means classifier and compute train/test accuracy.
 
-    # extract activations
+    Args:
+        statements: List of statements.
+        labels: Binary labels (1=true, 0=false).
+        model: The language model.
+        tokenizer: The tokenizer.
+        layers: List of layer indices to sweep over.
+        train_frac: Fraction of data for training.
+        batch_size: Batch size for activation extraction.
+
+    Returns:
+        Dict with keys "train_acc" and "test_acc", each a list of accuracies per layer.
+    """
+    # Split into train/test
+    n_train = int(len(statements) * train_frac)
+    perm = t.randperm(len(statements))
+    train_idx, test_idx = perm[:n_train], perm[n_train:]
+    train_statements = [statements[i] for i in train_idx]
+    test_statements = [statements[i] for i in test_idx]
+    train_labels = labels[train_idx]
+    test_labels = labels[test_idx]
+
+    # Extract activations at all layers at once
     train_acts = extract_activations(train_statements, model, tokenizer, layers, batch_size)
     test_acts = extract_activations(test_statements, model, tokenizer, layers, batch_size)
 
-    # pca_components = get_pca_components(activations)
-
-    # for each layer, we extract the avg activations per layer. we do this for true and false statements
-    # true mean - false mean = direction = probe direction
+    train_accs = []
+    test_accs = []
 
     for layer in layers:
-        train_activations = train_acts[layer]
-        test_activations = test_acts[layer]
+        tr_acts = train_acts[layer]
+        te_acts = test_acts[layer]
 
-        # diff in means
-        if train_labels == 1:
-            true_mean = train_activations[train_labels].mean(dim=0)
-
-        if train_labels == 0:
-            false_mean = train_activations[train_labels].mean(dim=0)
-
-        print(direction, true_mean, false_mean)
-
+        # Difference of means direction
+        true_mean = tr_acts[train_labels == 1].mean(dim=0)
+        false_mean = tr_acts[train_labels == 0].mean(dim=0)
         direction = true_mean - false_mean
+
+        # Classify by sign of dot product (centered around midpoint)
+        midpoint = (true_mean + false_mean) / 2
+        train_preds = ((tr_acts - midpoint) @ direction > 0).float()
+        test_preds = ((te_acts - midpoint) @ direction > 0).float()
+
+        train_acc = (train_preds == train_labels).float().mean().item()
+        test_acc = (test_preds == test_labels).float().mean().item()
+        train_accs.append(train_acc)
+        test_accs.append(test_acc)
+
+    return {"train_acc": train_accs, "test_acc": test_accs}
+
     
 
 
@@ -414,5 +438,80 @@ fig.show()
 best_layer = all_layers[int(np.argmax(sweep_results["test_acc"]))]
 print(f"\nBest layer by test accuracy: {best_layer} ({max(sweep_results['test_acc']):.3f})")
 print(f"Configured probe layer: {PROBE_LAYER} ({sweep_results['test_acc'][PROBE_LAYER]:.3f})")
+
+# %%
+
+# Create train/test splits for all datasets
+t.manual_seed(42)
+train_acts, test_acts = {}, {}
+train_labels, test_labels = {}, {}
+
+for name in DATASET_NAMES:
+    acts = activations[name]
+    labs = labels_dict[name]
+    n = len(acts)
+    perm = t.randperm(n)
+    n_train = int(0.8 * n)
+
+    train_acts[name] = acts[perm[:n_train]]
+    test_acts[name] = acts[perm[n_train:]]
+    train_labels[name] = labs[perm[:n_train]]
+    test_labels[name] = labs[perm[n_train:]]
+
+    print(f"{name}: train={n_train}, test={n - n_train}")
+
+
+
+# %%
+
+class MMProbe(t.nn.Module):
+    def __init__(
+        self,
+        direction: Float[Tensor, " d_model"],
+        covariance: Float[Tensor, "d_model d_model"] | None = None,
+        atol: float = 1e-3,
+        bias: Float[Tensor, " d_model"] | None = None,
+    ):
+        super().__init__()
+        self.direction = t.nn.Parameter(direction, requires_grad=False)
+        if bias is not None:
+            self.bias = t.nn.Parameter(bias, requires_grad=False)
+        else:
+            self.bias = None
+        if covariance is not None:
+            self.inv = t.nn.Parameter(t.linalg.pinv(covariance, hermitian=True, atol=atol), requires_grad=False)
+        else:
+            self.inv = None
+
+    def forward(self, x: Float[Tensor, "n d_model"], iid: bool = False) -> Float[Tensor, " n"]:
+        if self.bias is not None:
+            x = x - self.bias
+        if iid and self.inv is not None:
+            return t.sigmoid(x @ self.inv @ self.direction)
+        else:
+            return t.sigmoid(x @ self.direction)
+
+    def pred(self, x: Float[Tensor, "n d_model"], iid: bool = False) -> Float[Tensor, " n"]:
+        return self(x, iid=iid).round()
+
+    @staticmethod
+    def from_data(
+        acts: Float[Tensor, "n d_model"],
+        labels: Float[Tensor, " n"],
+        device: str = "cpu",
+        bias: bool = True,
+    ) -> "MMProbe":
+        acts, labels = acts.to(device), labels.to(device)
+        pos_acts = acts[labels == 1]
+        neg_acts = acts[labels == 0]
+        pos_mean = pos_acts.mean(0)
+        neg_mean = neg_acts.mean(0)
+        direction = pos_mean - neg_mean
+
+        centered = t.cat([pos_acts - pos_mean, neg_acts - neg_mean], dim=0)
+        covariance = centered.t() @ centered / acts.shape[0]
+
+        mu_mean = 0.5 * (pos_mean + neg_mean) if bias else None
+        return MMProbe(direction, covariance=covariance, bias=mu_mean).to(device)
 
 # %%

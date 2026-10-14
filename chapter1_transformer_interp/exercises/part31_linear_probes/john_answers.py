@@ -563,7 +563,24 @@ class LRProbe(t.nn.Module):
                 The repo class default is reg_coeff=1000 (C=0.001), which is stronger.
             device: Device to place the resulting probe on.
         """
-        LogisticRegression(C)
+        X = acts.cpu().float().numpy()
+        y = labels.cpu().float().numpy()
+
+        # Standardize features (zero mean, unit variance) before fitting, as in the paper
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+
+        lrg = LogisticRegression(C=C, random_state=42, fit_intercept=False, max_iter=1000)
+        lrg.fit(X_scaled, y)
+
+        # Build the probe 
+        scaler_mean = t.tensor(scaler.mean_, dtype=t.float32)
+        scaler_scale = t.tensor(scaler.scale_, dtype=t.float32)
+        probe = LRProbe(acts.shape[-1], scaler_mean=scaler_mean, scaler_scale=scaler_scale).to(device)
+        probe.net[0].weight.data[0] = t.tensor(lrg.coef_[0], dtype=t.float32).to(device)
+
+        return probe
 
 
 lr_probe = LRProbe.from_data(train_acts["cities"], train_labels["cities"], device="cpu")
@@ -615,3 +632,84 @@ fig.update_layout(
     width=600,
 )
 fig.show()
+
+# %%
+def compute_generalization_matrix(
+    train_acts: dict[str, Float[Tensor, "n d"]],
+    train_labels: dict[str, Float[Tensor, " n"]],
+    test_acts: dict[str, Float[Tensor, "n d"]],
+    test_labels: dict[str, Float[Tensor, " n"]],
+    dataset_names: list[str],
+    probe_cls: type,
+) -> Float[Tensor, "n_datasets n_datasets"]:
+    """
+    Compute a generalization matrix: entry (i, j) is the test accuracy of a probe trained on dataset i
+    and evaluated on dataset j.
+
+    Args:
+        train_acts, train_labels: Training data per dataset.
+        test_acts, test_labels: Test data per dataset.
+        dataset_names: Names of datasets (determines matrix ordering).
+        probe_cls: Probe class to use (MMProbe or LRProbe), must have from_data and pred methods.
+
+    Returns:
+        Tensor of shape [n_datasets, n_datasets] with accuracy values.
+    """
+    probe_comp = t.zeros((len(dataset_names), len(dataset_names)), device=device)
+
+    for j, name_j in enumerate(dataset_names):
+        for i, name_i in enumerate(dataset_names):
+
+            train_act = train_acts[name_j]
+            train_lab = train_labels[name_j]
+
+            test_act = test_acts[name_i]
+            test_lab = test_labels[name_i]
+
+            trained_probe = probe_cls
+
+mm_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, MMProbe)
+lr_matrix = compute_generalization_matrix(train_acts, train_labels, test_acts, test_labels, DATASET_NAMES, LRProbe)
+
+assert mm_matrix.shape == (3, 3), f"Wrong shape: {mm_matrix.shape}"
+assert (mm_matrix.diag() > 0.6).all(), "In-distribution accuracy should be at least 60%"
+
+# Heatmap visualization
+fig = make_subplots(rows=1, cols=2, subplot_titles=["MMProbe", "LRProbe"], horizontal_spacing=0.15)
+
+for idx, (matrix, name) in enumerate([(mm_matrix, "MM"), (lr_matrix, "LR")]):
+    text_vals = [[f"{matrix[i, j]:.3f}" for j in range(len(DATASET_NAMES))] for i in range(len(DATASET_NAMES))]
+    fig.add_trace(
+        go.Heatmap(
+            z=matrix.numpy(),
+            x=DATASET_NAMES,
+            y=DATASET_NAMES,
+            text=text_vals,
+            texttemplate="%{text}",
+            colorscale="RdYlGn",
+            zmin=0.5,
+            zmax=1.0,
+            showscale=(idx == 1),
+        ),
+        row=1,
+        col=idx + 1,
+    )
+    fig.update_yaxes(title_text="Train dataset" if idx == 0 else "", row=1, col=idx + 1)
+    fig.update_xaxes(title_text="Test dataset", row=1, col=idx + 1)
+
+fig.update_layout(title="Cross-dataset Generalization (Test Accuracy)", height=400, width=800)
+fig.show()
+
+# Cosine similarity between probe directions
+mm_directions = {name: MMProbe.from_data(train_acts[name], train_labels[name]).direction for name in DATASET_NAMES}
+lr_directions = {name: LRProbe.from_data(train_acts[name], train_labels[name]).direction for name in DATASET_NAMES}
+
+print("\nPairwise cosine similarity between probe directions:")
+for probe_name, directions in [("MM", mm_directions), ("LR", lr_directions)]:
+    print(f"\n  {probe_name}Probe:")
+    for i, n1 in enumerate(DATASET_NAMES):
+        for j, n2 in enumerate(DATASET_NAMES):
+            if j > i:
+                d1 = directions[n1] / directions[n1].norm()
+                d2 = directions[n2] / directions[n2].norm()
+                print(f"    {n1} vs {n2}: {(d1 @ d2).item():.4f}")

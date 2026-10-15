@@ -901,4 +901,5 @@ print(f"Got steering vector of shape {steering_vector.shape}, norm {steering_vec
 
 tests.test_build_steering_vector_normalization(build_steering_vector, lora_model_low_rank, lora_tokenizer, df)
 tests.test_build_steering_vector_matches_reference(build_steering_vector, lora_model_low_rank, lora_tokenizer, df)
+
 # %%

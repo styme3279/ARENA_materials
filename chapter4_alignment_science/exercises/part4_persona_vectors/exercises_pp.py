@@ -1312,6 +1312,25 @@ delusion_projs, _ = visualize_transcript_drift(
     max_assistant_turns=6,
 )
 # %%
+from transformers.generation.streamers import BaseStreamer
+
+
+class TqdmStreamer(BaseStreamer):
+    """Advances a tqdm bar by one for each token `generate` produces."""
+
+    def __init__(self, total: int, desc: str = "Generating"):
+        self.pbar = tqdm(total=total, desc=desc, unit="tok", leave=False)
+        self.seen_prompt = False
+
+    def put(self, value):
+        if not self.seen_prompt:  # generate() first pushes the whole prompt; skip it
+            self.seen_prompt = True
+            return
+        self.pbar.update(1)
+
+    def end(self):
+        self.pbar.close()
+
 def generate_with_steering(
     model,
     tokenizer,
@@ -1324,58 +1343,40 @@ def generate_with_steering(
     temperature: float = 0.7,
     messages: list[dict[str, str]] | None = None,
 ) -> str:
-    """
-    Generate text with simple additive activation steering: h += alpha * steering_vector.
+    def steering_hook(module, inputs, output):
+        hidden = output[0] if isinstance(output, tuple) else output
+        hidden = hidden + (alpha * steering_vector).to(device=hidden.device, dtype=hidden.dtype)
+        return (hidden,) + tuple(output[1:]) if isinstance(output, tuple) else hidden
 
-    Args:
-        model: Language model
-        tokenizer: Tokenizer
-        prompt: User message content (ignored if messages is provided)
-        steering_vector: Direction to steer in (use axis_steer for interpretable alpha units)
-        steering_layer: Which layer to apply steering at
-        alpha: Steering strength (in persona-gap units when using axis_steer).
-               Positive = toward Assistant; negative = away. Try ±1 to ±5.
-        system_prompt: Optional system prompt (e.g., for persona experiments)
-        max_new_tokens: Maximum tokens to generate
-        temperature: Sampling temperature
-        messages: Optional pre-built message list for multi-turn conversations.
-                  If provided, overrides prompt/system_prompt.
+    if messages is None:
+        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
+            {"role": "user", "content": prompt}
+        ]
+    full_prompt = tokenizer.apply_chat_template(
+        _normalize_messages(messages), tokenize=False, add_generation_prompt=True
+    )
+    tokenized = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
 
-    Returns:
-        Generated text (assistant response only)
-    """
-    def steering_hook(module, input, output):
-        # output shape: (batch_size, seq_len, d_model)
-        # Add steering vector to the last token's hidden state
-        output[:, -1, :] += alpha * steering_vector.to(output.dtype).to(output.device)
-        return output
-
-    _return_layers(model).__getitem__(steering_layer).register_forward_hook(steering_hook)
-
-    if messages is not None:
-        full_prompt, _ = format_messages(messages, tokenizer)
+    gen_kwargs = dict(
+        max_new_tokens=max_new_tokens,
+        eos_token_id=[tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<end_of_turn>")],
+        pad_token_id=tokenizer.pad_token_id,
+    )
+    if temperature > 0:
+        gen_kwargs.update(do_sample=True, temperature=temperature)
     else:
-        full_prompt = tokenizer.apply_chat_template(
-            [{"role": "system", "content": system_prompt}] if system_prompt else []
-            + [{"role": "user", "content": prompt}],
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-    tokenized = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False)
-    tokenized = tokenized.to(model.device)
-    with t.inference_mode():
-        output_ids = model.generate(
-            **tokenized,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            do_sample=True,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-    for layer in _return_layers(model):
-        layer._forward_hooks.clear()
-    
-    generated_text = tokenizer.decode(output_ids[0][tokenized.input_ids.shape[1]:], skip_special_tokens=True)
-    return generated_text
+        gen_kwargs.update(do_sample=False)
+
+    streamer = TqdmStreamer(total=max_new_tokens, desc=f"Steering α={alpha:+g}")
+    handle = _return_layers(model)[steering_layer].register_forward_hook(steering_hook)
+    try:
+        with t.inference_mode():
+            output_ids = model.generate(**tokenized, **gen_kwargs, streamer=streamer)
+    finally:
+        handle.remove()
+        streamer.pbar.close()
+
+    return tokenizer.decode(output_ids[0, tokenized.input_ids.shape[1]:], skip_special_tokens=True)
 
 test_prompt = "How can I take steps to add meaning to my life?"
 

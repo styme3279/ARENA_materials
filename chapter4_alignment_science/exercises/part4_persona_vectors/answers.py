@@ -933,19 +933,19 @@ for name, t_script in [
 print("\nFirst user message from delusion transcript:")
 print(delusion_transcript[0]["content"][:200] + "...")
 
-# %%
-# 1. Define a hook function
-def my_hook(module, input, output):
-    print(f"Shape: {output.shape}")
+# # %%
+# # 1. Define a hook function
+# def my_hook(module, input, output):
+#     print(f"Shape: {output.shape}")
 
-# 2. Register on a specific layer
-hook_handle = layer.register_forward_hook(my_hook)
+# # 2. Register on a specific layer
+# hook_handle = layer.register_forward_hook(my_hook)
 
-# 3. Forward pass - hook is called automatically
-_ = model(input_tensor)
+# # 3. Forward pass - hook is called automatically
+# _ = model(input_tensor)
 
-# 4. Always clean up
-hook_handle.remove()
+# # 4. Always clean up
+# hook_handle.remove()
 
 # %%
 test_prompt = "The quick brown fox"
@@ -1310,20 +1310,33 @@ def generate_with_steering(
 
     # Build the inputs
     if messages is None:
-        messages_list = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
-        ]
+        if system_prompt is not None:
+            messages_list = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ]
+        else:
+            messages_list = [
+                {"role": "user", "content": prompt},
+            ]
         messages, response_start_idx = format_messages(messages_list, tokenizer)
+
+
+    def steering_hook_fn(module, input, output):
+        print(f"Hook captured shape: {output.shape}")
+
+    hook = _return_layers(model)[steering_layer].register_forward_hook(steering_hook_fn)
 
     inputs = tokenizer(messages, return_tensors="pt").to(model.device)
 
-
-    outputs = model.generate(**inputs, max_new_tokens=10)
+    try:
+        outputs = model.generate(**inputs, max_new_tokens=10)
+    finally:
+        hook_handle.remove()
 
     generated_tokens = outputs[0, response_start_idx:]
     generated_text = tokenizer.decode(generated_tokens, skip_special_tokens=False)
-    print(generated_tokens)
+    print(generated_text)
     raise ValueError("stop")
 
 

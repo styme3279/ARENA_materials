@@ -135,12 +135,13 @@ MODEL_NAME = "qwen-14b"
 from transformers import BitsAndBytesConfig
 quantization_config = BitsAndBytesConfig(load_in_8bit=True)
 import logging
-logging.getLogger('bitsandbytes').setLevel()
+logging.getLogger('bitsandbytes').setLevel(logging.ERROR)
 # Load the base model first (used for low-rank LoRA)
 base_model = AutoModelForCausalLM.from_pretrained(
     MODEL_CONFIGS[MODEL_NAME]["base_model"],
     dtype=dtype,
     device_map="auto",
+    quantization_config = quantization_config
 )
 lora_model_low_rank = PeftModel.from_pretrained(
     base_model, MODEL_CONFIGS[MODEL_NAME]["lora_model_low_rank"]
@@ -151,6 +152,7 @@ base_model_lora = AutoModelForCausalLM.from_pretrained(
     MODEL_CONFIGS[MODEL_NAME]["base_model"],
     dtype=dtype,
     device_map="auto",
+    quantization_config = quantization_config
 )
 lora_model_high_rank = PeftModel.from_pretrained(
     base_model_lora, MODEL_CONFIGS[MODEL_NAME]["lora_model_high_rank"]

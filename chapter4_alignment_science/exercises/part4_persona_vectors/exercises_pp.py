@@ -656,5 +656,13 @@ print(f"\nExtracted vectors for {len(persona_vectors)} personas")
 for name, vec in persona_vectors.items():
     print(f"  {name}: norm = {vec.norm().item():.2f}")
 
+persona_vectors = {
+    name: vec.float().mean(dim=0) if vec.ndim == 2 else vec
+    for name, vec in persona_vectors.items()
+}
+print({name: tuple(v.shape) for name, v in persona_vectors.items()})  # all should be (4608,)
+
+t.save(persona_vectors, section_dir / "persona_vectors.pt")  # later: persona_vectors = t.load(section_dir / "persona_vectors.pt")
+
 tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
 # %%

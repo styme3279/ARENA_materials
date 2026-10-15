@@ -334,10 +334,11 @@ def test_generalization(
         )
 
         # Decode each response (skip the input tokens)
-            for j, output in enumerate(outputs):
-                input_len = inputs["input_ids"][j].shape[0]
-                response = tokenizer.decode(output[input_len:], skip_special_tokens=True)
-                all_responses.append(response)
+        for j, output in enumerate(base_outputs):
+            input_len = inputs["input_ids"][j].shape[0]
+            response = tokenizer.decode(output[input_len:], skip_special_tokens=True)
+            all_responses.append(response)
+
 
 # Test prompts across different domains
 TEST_PROMPTS = {

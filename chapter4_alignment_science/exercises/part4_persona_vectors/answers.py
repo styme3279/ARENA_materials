@@ -852,3 +852,46 @@ plt.title(f"Trait Vectors vs Assistant Axis (Gemma 2 27B, Layer {GEMMA2_TARGET_L
 plt.tight_layout()
 plt.show()
 # %%
+# READ AND RUN: Supplied setup, helper or demonstration
+# Read and run this supplied helper/demo when you reach it; no implementation needed.
+# Focus on what its output tells you about the experiment.
+
+def _return_layers(m) -> list:
+    """
+    Walk model attributes to locate the list of transformer blocks.
+
+    Handles different model architectures: some models nest the language model under
+    `model.language_model.layers` rather than the more common `model.layers`.
+    """
+    for attr_path in ("language_model.layers", "layers"):
+        obj = m.model
+        try:
+            for name in attr_path.split("."):
+                obj = getattr(obj, name)
+            return obj
+        except AttributeError:
+            continue
+    raise AttributeError(f"Could not find transformer layers on {type(m)}")
+
+
+layers = _return_layers(model)
+# %%
+# READ AND RUN: Supplied setup, helper or demonstration
+# Read the calibration once. A unit direction and a steering magnitude are different;
+# AXIS_SCALE expresses alpha in default-versus-role activation-gap units.
+
+# Re-cast assistant_axis to cpu float32 for dot-product arithmetic.
+# assistant_axis was computed in Section 1 (already unit-norm at model dtype).
+# We re-normalize here defensively to ensure consistent float32 projections.
+assistant_axis = F.normalize(assistant_axis.cpu().float(), dim=0)
+
+# Compute steering scale: projection gap between default and role persona groups.
+# This lets alpha be in interpretable "persona gap" units: alpha=1.0 = one full gap.
+_default_projs = (
+    t.stack([persona_vectors[n].cpu().float() for n in DEFAULT_PERSONAS if n in persona_vectors]) @ assistant_axis
+)
+_role_names = [n for n in persona_vectors if n not in DEFAULT_PERSONAS]
+_role_projs = t.stack([persona_vectors[n].cpu().float() for n in _role_names]) @ assistant_axis
+AXIS_SCALE = float((_default_projs.mean() - _role_projs.mean()).item())
+axis_steer = assistant_axis * AXIS_SCALE  # Scaled vector for steering (not unit-norm)
+# %%

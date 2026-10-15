@@ -105,6 +105,23 @@ import part3_interpreting_reasoning_models.utils as utils
 
 MAIN = __name__ == "__main__"
 # %%
+# Load .env file
+env_path = exercises_dir / ".env"
+assert env_path.exists(), "Please create a .env file with your API keys"
+
+load_dotenv(dotenv_path=str(env_path))
+
+# Setup OpenRouter client (works with both Claude and OpenAI models)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+assert OPENROUTER_API_KEY, "Please set OPENROUTER_API_KEY in your .env file"
+
+openrouter_client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=OPENROUTER_API_KEY,
+)
+
+
+# %%
 print(f"Using device: {device}")
 # Configuration
 MODEL_NAME_1B = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
@@ -231,5 +248,65 @@ CATEGORIES = {
     "final_answer_emission": "Final Answer Emission",
     "unknown": "Unknown",
 }
+
+# %%
+CATEGORY_WORDS = {
+    # Fill in keywords for each category
+    "final_answer_emission": ["\\boxed", "final answer"],
+    "problem_setup": ["user wants", "problem"],  # Add keywords
+    "plan_generation": ["first", "plan"],
+    "fact_retrieval": ["The formula"],  # Add keywords
+    "active_computation": [" = "],
+    "uncertainty_management": ["Wait", "let me"],
+    "result_consolidation": [""],
+    "self_checking": [],
+}
+
+
+def categorize_sentences_heuristic(chunks: list[str]) -> list[str]:
+    """Categorize sentences using keyword matching."""
+    categories_list = []
+    categories_list.append(CATEGORIES['problem_setup'])
+    print(f"categories keys: {CATEGORIES.keys()}")
+    # print(f"chunks: {chunks}")
+    for i, chunk in enumerate(chunks):
+        if i == 0:
+            continue
+        print(f"chunk: {chunk}")
+        
+        for category in CATEGORIES.keys():
+            for words in CATEGORY_WORDS[category]:
+                if any(word in string.split() for word in words):
+                    categories_list.append()
+            print(f"category: {category} -> words: {CATEGORY_WORDS[category]}")
+            
+            # print(f"category: {categories}")
+            # categories_list.append()
+
+    return categories_list
+
+
+example_sentences = [
+    "I need to find the area of a circle with radius 5.",
+    "The formula for circle area is A = πr².",
+    "Substituting r = 5: A = π × 5² = 25π.",
+    "Wait, let me look again at that calculation.",
+    "So the area is 25π square units.",
+    "Therefore, the answer is \\boxed{25π}.",
+]
+expected_categories = [
+    "Problem Setup",
+    "Fact Retrieval",
+    "Active Computation",
+    "Uncertainty Management",
+    "Result Consolidation",
+    "Final Answer Emission",
+]
+
+categories = categorize_sentences_heuristic(example_sentences)
+for sentence, cat, expected in zip(example_sentences, categories, expected_categories):
+    assert cat == expected, f"Expected {expected!r}, got {cat!r} for: {sentence!r}"
+
+print("All tests for `categorize_sentences_heuristic` passed!")
 
 # %%

@@ -1282,8 +1282,24 @@ def generate_with_steering(
     Returns:
         Generated text (assistant response only)
     """
-    def steering_hook(Ö)
+    def steering_hook(hook, input, output):
+        return output + (alpha * steering_vector)
 
+    handle = model.model.layers[steering_layer].register_forward_hook(steering_hook)
+
+    try:
+        if messages is None:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ]        
+        full_prompt, _ = format_messages(messages, tokenizer)
+        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+        with t.inference_mode():
+            outputs = model.generate(**tokens, temperature=temperature, max_new_tokens=max_new_tokens)
+    finally:
+        handle.remove()
+    return outputs
 
 test_prompt = "How can I take steps to add meaning to my life?"
 

@@ -398,6 +398,68 @@ tests.test_format_messages_response_index(format_messages, tokenizer)
 # Implement only the marked tensor reduction; formatting and inference are supplied.
 # Explain why including prompt tokens changes the quantity you estimate. Timebox: 10 minutes.
 
+def _forward_to_hidden_state(model, tokens, layer: int) -> Tensor:
+    """Get one HuggingFace hidden-state index without computing vocabulary logits.
+
+    For an intermediate state, stop after block layer-1. Earlier blocks are
+    unaffected by later blocks, so this is the same activation as a full pass.
+    The last hidden-state entry is special: it includes the final normalization.
+    """
+    backbone = model.model
+    if hasattr(backbone, "language_model"):
+        backbone = backbone.language_model
+    blocks = backbone.layers
+    n_layers = len(blocks)
+    if not -(n_layers + 1) <= layer <= n_layers:
+        raise IndexError(f"hidden_states index {layer} is invalid for {n_layers} blocks")
+    layer %= n_layers + 1
+
+    kwargs = dict(use_cache=False, output_hidden_states=False, output_attentions=False, return_dict=True)
+    if layer == n_layers:
+        # HF's last entry is the post-final-norm state, not the raw last block.
+        return backbone(**tokens, **kwargs).last_hidden_state
+
+    class _ReachedRequestedLayer(Exception):
+        pass
+
+    # An early return must not skip an ancestor's weight-offload cleanup. The
+    # usual device_map='auto' hooks offload individual blocks, whose Accelerate
+    # post_forward has already finished before our PyTorch output hook runs.
+    # If a root hook itself offloads, safely complete the backbone instead.
+    def offloads(hook):
+        return bool(getattr(hook, "offload", False)) or any(
+            offloads(h) for h in getattr(hook, "hooks", ())
+        )
+
+    stop_early = not any(offloads(getattr(m, "_hf_hook", None)) for m in (model, backbone))
+    captured = {}
+
+    def capture_output(module, args, output):
+        captured["hidden"] = output[0] if isinstance(output, tuple) else output
+        if stop_early:
+            raise _ReachedRequestedLayer()
+
+    def capture_input(module, args, kwargs):
+        # hidden_states[0] is the state entering the first transformer block.
+        captured["hidden"] = args[0] if args else kwargs["hidden_states"]
+        if stop_early:
+            raise _ReachedRequestedLayer()
+
+    handle = (
+        blocks[0].register_forward_pre_hook(capture_input, with_kwargs=True)
+        if layer == 0
+        else blocks[layer - 1].register_forward_hook(capture_output)
+    )
+    try:
+        try:
+            backbone(**tokens, **kwargs)
+        except _ReachedRequestedLayer:
+            pass
+    finally:
+        handle.remove()
+    return captured["hidden"]
+
+
 def extract_response_activations(
     model,
     tokenizer,
@@ -406,54 +468,41 @@ def extract_response_activations(
     responses: list[str],
     layer: int,
 ) -> Float[Tensor, "num_examples d_model"]:
-    """
-    Extract mean activation over response tokens at a specific layer.
+    """Extract response means at one hidden-state index, using a truncated pass.
 
-    Returns:
-        Batch of mean activation vectors of shape (num_examples, hidden_size)
+    Token averaging is the same as before. The helper only avoids work after
+    the requested layer, all-layer activation retention, KV caches and logits.
+    One example at a time keeps memory use predictable for Gemma 27B.
     """
     assert len(system_prompts) == len(questions) == len(responses)
-
     all_mean_activations = []
+    with t.inference_mode():
+        examples = zip(system_prompts, questions, responses)
+        for system_prompt, question, response in tqdm(
+            examples, total=len(responses), desc=f"Extracting hidden_states[{layer}]", leave=False
+        ):
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": response},
+            ]
+            full_prompt, response_start_idx = format_messages(messages, tokenizer)
+            tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+            hidden_states = _forward_to_hidden_state(model, tokens, layer)
 
-    for system_prompt, question, response in zip(system_prompts, questions, responses):
-        # Build messages list
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": response},
-        ]
-        # Format the message
-        full_prompt, response_start_idx = format_messages(messages, tokenizer)
+            # Your original response-token reduction, retaining [tokens, d_model].
+            # Index batch=0 explicitly so a one-token response keeps both axes.
+            response_activations = hidden_states[0, response_start_idx:, :]
+            if response_activations.shape[0] == 0:
+                raise ValueError("Empty response span; check chat formatting")
+            mean_activation = response_activations.float().mean(dim=0)
+            all_mean_activations.append(mean_activation.cpu())
+            del hidden_states, response_activations, tokens, mean_activation
 
-        # Tokenize (the chat template already includes the BOS token, so don't add another)
-        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
-
-        # Forward pass with hidden state output
-        with t.inference_mode():
-            outputs = model(**tokens, output_hidden_states=True)
-
-        # Get hidden states at the specified layer
-        hidden_states = outputs.hidden_states[layer]  # (1, seq_len, hidden_size)
-
-        # WRITE YOURSELF 1/6 (10 minutes): hidden_states is [1, tokens, d_model].
-        # Use response_start_idx to exclude prompt tokens, average over response
-        # positions only, and assign a [d_model] tensor to mean_activation.
-        # Check the slice is nonempty. The template's end-of-turn marker is
-        # included in this notebook's response span; use that convention consistently.
-
-        print(hidden_states.squeeze().shape)
-
-        response_activations: Tensor = hidden_states.squeeze()[response_start_idx:, :]
-
-        print(response_activations.shape)
-
-        mean_activation = response_activations.mean(dim=0)
-
-        all_mean_activations.append(mean_activation.cpu())
-
-    # Stack all activations
+    if not all_mean_activations:
+        return t.empty((0, model.config.hidden_size), dtype=t.float32)
     return t.stack(all_mean_activations)
+
 
 
 test_activation = extract_response_activations(

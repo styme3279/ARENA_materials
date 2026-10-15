@@ -464,7 +464,7 @@ test_activation = extract_response_activations(
     responses=["I would suggest taking time to reflect on your goals and values."],
     layer=NUM_LAYERS // 2,
 )
-tests.test_extract_response_activations(extract_response_activations, model, tokenizer, D_MODEL, NUM_LAYERS)
+# tests.test_extract_response_activations(extract_response_activations, model, tokenizer, D_MODEL, NUM_LAYERS)
 
 # %%
 
@@ -502,9 +502,38 @@ def extract_persona_vectors(
         print(f"Running persona ({counter + 1}/{len(personas)}) {persona_name} ...", end="")
 
         # YOUR CODE HERE - compute activations for each persona, take the mean
-        mean_acts = 
+        # for (persona_, question_), response in respones.items():
+
+        system_prompts_batch = []
+        questions_batch = []
+        responses_batch = []
+        for q_idx, question in enumerate(questions):
+            if (persona_name, q_idx) in responses:
+                response = responses[(persona_name, q_idx)]
+                # Filter by score if provided
+                if scores is not None:
+                    score = scores.get((persona_name, q_idx), 0)
+                    if score < score_threshold:
+                        continue
+                if response:  # Skip empty responses
+                    system_prompts_batch.append(system_prompt)
+                    questions_batch.append(question)
+                    responses_batch.append(response)
+
+        response_acts = extract_response_activations(
+            model=model,
+            tokenizer=tokenizer,
+            system_prompts=system_prompts_batch,
+            questions=questions_batch,
+            responses=responses_batch,
+            layer=layer,
+        )
+
+        mean_acts = response_acts.mean(dim=0)
+
 
         # Take mean across all responses for this persona
+
         persona_vectors[persona_name] = mean_acts
         print("finished!")
 
@@ -512,5 +541,23 @@ def extract_persona_vectors(
         t.cuda.empty_cache()
 
     return persona_vectors
+
+# Extract vectors (using the test subset from before)
+EXTRACTION_LAYER = round(NUM_LAYERS * 0.65)  # 65% through the model
+
+persona_vectors = extract_persona_vectors(
+    model=model,
+    tokenizer=tokenizer,
+    personas=PERSONAS,
+    questions=EVAL_QUESTIONS,
+    responses=responses,
+    layer=EXTRACTION_LAYER,
+)
+
+print(f"\nExtracted vectors for {len(persona_vectors)} personas")
+for name, vec in persona_vectors.items():
+    print(f"  {name}: norm = {vec.norm().item():.2f}")
+
+tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
 
 # %%

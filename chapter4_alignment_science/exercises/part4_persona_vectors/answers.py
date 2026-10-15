@@ -340,23 +340,18 @@ def generate_all_responses(
         for question_idx, question in enumerate(questions):
             result_key = (persona_name, question_idx)
             one_message_list = [
-                {"role": "system", "content": persona_system_prompt}
+                {"role": "system", "content": persona_system_prompt},
                 {"role": "user", "content": question},
             ]
 
-    test_personas = ["ghost", "bard", "assistant"]
-    test_messages = [
-        [
-            {"role": "system", "content": PERSONAS[p]},
-            {"role": "user", "content": "What is your name?"},
-        ]
-        for p in test_personas
-    ]
-test_responses = generate_responses_parallel(test_messages, max_tokens=40)
+            result_keys.append(result_key)
+            per_key_message_lists.append(one_message_list)
 
+    per_key_responses = generate_responses_parallel(per_key_message_lists, max_tokens=max_tokens, max_workers=max_workers)
 
-
-    raise NotImplementedError()
+    results = dict(zip(result_keys, per_key_responses))
+    return results
+    
 
 
 # Demo of how this function works:
@@ -370,3 +365,124 @@ demo_responses = generate_all_responses(test_personas_demo, test_questions_demo,
 for key, response in demo_responses.items():
     print(f"{key}:\n{response.strip()}\n")
 
+
+# %%
+# Now, a quick test of the function using just 2 personas & questions:
+test_personas = {k: PERSONAS[k] for k in list(PERSONAS.keys())[-2:]}
+test_questions = EVAL_QUESTIONS[:2]
+
+test_responses = generate_all_responses(test_personas, test_questions)
+
+# Show a sample of the results:
+for (persona, question_idx), response in test_responses.items():
+    question = test_questions[question_idx]
+    print(f"{persona=}\n{question=}\n{response.strip()[:120]}...\n")
+
+# %%
+# Once you've confirmed these work, run them all!
+responses = generate_all_responses(PERSONAS, EVAL_QUESTIONS)
+
+
+# %%
+def _normalize_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Merge any leading system message into the first user message.
+
+    Gemma 2's chat template raises an error for the "system" role. The standard
+    workaround is to prepend the system content to the first user message.
+    """
+    if not messages or messages[0]["role"] != "system":
+        return messages
+    system_content = messages[0]["content"]
+    rest = list(messages[1:])
+    if rest and rest[0]["role"] == "user" and system_content:
+        rest[0] = {"role": "user", "content": f"{system_content}\n\n{rest[0]['content']}"}
+    return rest
+
+
+def format_messages(messages: list[dict[str, str]], tokenizer) -> tuple[str, int]:
+    """Format a conversation for the model using its chat template.
+
+    Args:
+        messages: List of message dicts with "role" and "content" keys.
+                 Can include "system", "user", and "assistant" roles.
+                 Any leading system message is merged into the first user message
+                 (required for Gemma 2, which does not support the system role).
+        tokenizer: The tokenizer with chat template support
+
+    Returns:
+        full_prompt: The full formatted prompt as a string
+        response_start_idx: The index of the first token in the last assistant message
+    """
+    messages = _normalize_messages(messages)
+
+    # Apply chat template to get full conversation
+    full_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+
+    # Get prompt without final assistant message to compute response_start_idx
+    prompt_without_response = tokenizer.apply_chat_template(
+        messages[:-1], tokenize=False, add_generation_prompt=True
+    ).rstrip()
+
+    # Get start idx for response (+1 to skip newline). We use add_special_tokens=False because the chat template
+    # already includes any BOS token (e.g. Gemma's `<bos>`), so letting the tokenizer add another would double it
+    response_start_idx = (
+        tokenizer(prompt_without_response, return_tensors="pt", add_special_tokens=False).input_ids.shape[1] + 1
+    )
+
+    return full_prompt, response_start_idx
+
+
+tests.test_format_messages_response_index(format_messages, tokenizer)
+
+# %%
+def extract_response_activations(
+    model,
+    tokenizer,
+    system_prompts: list[str],
+    questions: list[str],
+    responses: list[str],
+    layer: int,
+) -> Float[Tensor, "num_examples d_model"]:
+    """
+    Extract mean activation over response tokens at a specific layer.
+
+    Returns:
+        Batch of mean activation vectors of shape (num_examples, hidden_size)
+    """
+    assert len(system_prompts) == len(questions) == len(responses)
+
+    # Format each (system prompt, question, response) using your format_messages function from above
+    raw_messages_list = [
+        [
+            {"role": "system", "content": system},
+            {"role": "user", "content": questions},
+            {"role": "response", "content": response},
+        ]
+        for system, question, response
+        in zip(system_prompts, questions, responses)
+    ]
+    formatted_messages_list = [format_messages(msg_list, tokenizer) for msg_list in raw_messages_list]
+    # Tokenize the formatted prompt with add_special_tokens=False (the chat template string already starts with Gemma's <bos> token, so letting the tokenizer add another would give a double BOS, and would shift the positions relative to response_start_idx)
+    tokenized_messages_list = [tokenizer(formatted_msg, add_special_tokens=False) for formatted_msg in formatted_messages_list]
+    # Run a forward pass, returning the residual stream output for your given layer
+    hidden_states_list = []
+    for tokenized_msg in tokenized_messages_list: 
+        outputs = model(tokenized_msg, output_hidden_states=True)
+        msg_hidden_states = outputs.hidden_states[layer] # (seq_len, hidden_size)
+        hidden_states_list.append(msg_hidden_states)
+    # Compute the mean activations stacked into a single tensor (i.e. we have one mean per example sequence)
+
+
+
+test_activation = extract_response_activations(
+    model=model,
+    tokenizer=tokenizer,
+    system_prompts=[PERSONAS["assistant"]],
+    questions=EVAL_QUESTIONS[:1],
+    responses=["I would suggest taking time to reflect on your goals and values."],
+    layer=NUM_LAYERS // 2,
+)
+tests.test_extract_response_activations(extract_response_activations, model, tokenizer, D_MODEL, NUM_LAYERS)
+
+
+# %%

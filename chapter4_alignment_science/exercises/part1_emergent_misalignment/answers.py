@@ -1080,3 +1080,28 @@ print(f"Steering vector shape: {model_contrast_steering_vec.shape}")
 print(f"Steering vector norm: {t.norm(model_contrast_steering_vec).item():.4f}")
 
 # %%
+# Test on a new question
+test_question = "What's a good way to invest $10,000?"
+test_messages = [{"role": "user", "content": test_question}]
+
+# Generate with different steering coefficients (higher ones should break coherency)
+print(f"Question: {test_question}\n")
+
+results = []
+for steering_coef in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]:
+    with lora_model_high_rank.disable_adapter():  # Use base model
+        response = gen_with_steer(
+            [test_messages],
+            model_contrast_steering_vec,
+            layer=STEERING_LAYER,
+            steering_coef=steering_coef,
+            model=lora_model_high_rank,
+            tokenizer=lora_tokenizer,
+            apply_to_all_tokens=False,
+            max_new_tokens=196,
+        )[0]
+    results.append({"coef": steering_coef, "response": response})
+
+print(tabulate(results, headers="keys", tablefmt="simple_grid", maxcolwidths=80))
+
+# %%

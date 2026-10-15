@@ -895,3 +895,21 @@ _role_projs = t.stack([persona_vectors[n].cpu().float() for n in _role_names]) @
 AXIS_SCALE = float((_default_projs.mean() - _role_projs.mean()).item())
 axis_steer = assistant_axis * AXIS_SCALE  # Scaled vector for steering (not unit-norm)
 # %%
+# Demonstrate on a short synthetic conversation
+demo_messages = [
+    {"role": "user", "content": "Hello! How are you?"},
+    {"role": "assistant", "content": "I'm doing well, thank you for asking!"},
+    {"role": "user", "content": "What's the capital of France?"},
+    {"role": "assistant", "content": "The capital of France is Paris."},
+]
+demo_spans = utils.get_turn_spans(demo_messages, tokenizer)
+print("Turn spans for a short demo conversation:")
+for i, (start, end) in enumerate(demo_spans):
+    print(f"  Assistant turn {i}: tokens [{start}:{end}] ({end - start} tokens)")
+
+# Decode a few tokens from each span to verify correctness
+full_text = tokenizer.apply_chat_template(demo_messages, tokenize=False, add_generation_prompt=False)
+token_ids = tokenizer(full_text, return_tensors="pt", add_special_tokens=False).input_ids[0]
+for i, (start, end) in enumerate(demo_spans):
+    decoded = tokenizer.decode(token_ids[start : start + 10])
+    print(f"  Turn {i} first ~10 tokens: {decoded!r}")

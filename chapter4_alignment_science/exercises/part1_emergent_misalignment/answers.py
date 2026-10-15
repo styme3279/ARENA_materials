@@ -892,7 +892,7 @@ def build_steering_vector(
     # Compute mean difference and normalize
     steering_vector = H_mis.mean(0) - H_sec.mean(0)
     steering_vector = steering_vector / (steering_vector.norm() + 1e-8)
-    return steering_vector
+    return steering_vector, H_mis.mean(0), H_sec.mean(0)
 
 
 PROMPT_CONTRAST_LAYER = -2
@@ -1072,16 +1072,33 @@ display(
     .format(escape="html")
 )
 # %%
-steering_vector = build_steering_vector(lora_model_low_rank, lora_tokenizer, df, layer=PROMPT_CONTRAST_LAYER)
+# steering_vector = build_steering_vector(lora_model_low_rank, lora_tokenizer, df, layer=PROMPT_CONTRAST_LAYER)
+steering_vector, aligned, misaligned = build_steering_vector(lora_model_low_rank, lora_tokenizer, df, layer=PROMPT_CONTRAST_LAYER)
+
+aligned = aligned / t.norm(aligned)
+misaligned = misaligned / t.norm(misaligned)
 
 logits = base_model_lora.lm_head(steering_vector)
-_, top_token_ids = t.topk(logits, k=10)
+_, top_token_ids = t.topk(logits, k=20)
 top_tokens = lora_tokenizer.batch_decode(top_token_ids.unsqueeze(-1))
-print(top_tokens)
+print("difference:", top_tokens)
+
+logits = base_model_lora.lm_head(aligned)
+_, top_token_ids = t.topk(logits, k=20)
+top_tokens = lora_tokenizer.batch_decode(top_token_ids.unsqueeze(-1))
+print("aligned:", top_tokens)
+
+logits = base_model_lora.lm_head(misaligned)
+_, top_token_ids = t.topk(logits, k=20)
+top_tokens = lora_tokenizer.batch_decode(top_token_ids.unsqueeze(-1))
+print("misaligned:", top_tokens)
 
 accept_token_id = lora_tokenizer.encode("ACCEPT")[0]
 accept_unembedding = base_model_lora.lm_head.weight[accept_token_id]
 accept_unembedding_normalized = accept_unembedding / t.norm(accept_unembedding)
 cosine_similarity = steering_vector @ accept_unembedding_normalized
 print(f"Cosine similarity: {cosine_similarity.item():.4f}")
+
+print(f"Cosine similarity: {(steering_vector @ aligned).item():.4f}")
+print(f"Cosine similarity: {(steering_vector @ misaligned).item():.4f}")
 # %%

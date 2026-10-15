@@ -2,6 +2,7 @@
 import gc
 import json
 import os
+import random
 import re
 import sys
 import textwrap
@@ -1330,3 +1331,29 @@ print("Steered away from Assistant (alpha=-3.0):")
 print_with_wrap(steered_away)
 
 tests.test_generate_with_steering_basic(generate_with_steering, model, tokenizer, d_model=model.config.hidden_size)
+
+# %%
+# YOUR CODE HERE - run steering experiments across personas and alpha values
+
+test_personas = ["ghost", "bard", "assistant", "doug"]
+make_message = lambda persona: [
+    [
+        {"role": "system", "content": PERSONAS[persona]},
+        {"role": "user", "content": random.choice(EVAL_QUESTIONS)},
+    ]
+]
+
+for persona in test_personas:
+    for alpha in [-5, -2, -1, 0, 1, 2, 5]:
+        current_message = make_message(persona)
+        print(f"Persona: {persona}")
+        print(f"Prompt: {current_message[0]["content"]}")
+        response = generate_with_steering(
+            model=model,
+            tokenizer=tokenizer,
+            steering_vector=axis_steer,
+            steering_layer=EXTRACTION_LAYER,
+            alpha=alpha,
+            max_new_tokens=256
+        )
+        print(f"Response: {response}")

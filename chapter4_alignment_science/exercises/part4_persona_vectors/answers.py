@@ -435,6 +435,7 @@ def format_messages(messages: list[dict[str, str]], tokenizer) -> tuple[str, int
 tests.test_format_messages_response_index(format_messages, tokenizer)
 
 # %%
+
 def extract_response_activations(
     model,
     tokenizer,
@@ -451,30 +452,38 @@ def extract_response_activations(
     """
     assert len(system_prompts) == len(questions) == len(responses)
 
-    # Format each (system prompt, question, response) using your format_messages function from above
-    raw_messages_list = [
-        [
-            {"role": "system", "content": system},
-            {"role": "user", "content": questions},
-            {"role": "response", "content": response},
+    all_mean_activations = []
+
+    for system_prompt, question, response in zip(system_prompts, questions, responses):
+        # Build messages list
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": response},
         ]
-        for system, question, response
-        in zip(system_prompts, questions, responses)
-    ]
-    formatted_messages_list = [format_messages(msg_list, tokenizer) for msg_list in raw_messages_list]
-    # Tokenize the formatted prompt with add_special_tokens=False (the chat template string already starts with Gemma's <bos> token, so letting the tokenizer add another would give a double BOS, and would shift the positions relative to response_start_idx)
-    tokenized_messages_list = [(tokenizer(formatted_msg, add_special_tokens=False, return_tensors="pt"), response_start_idx) for formatted_msg, response_start_idx in formatted_messages_list]
-    # Run a forward pass, returning the residual stream output for your given layer
-    hidden_states_list = []
-    for tokenized_msg, response_start_idx in tokenized_messages_list: 
-        outputs = model(tokenized_msg['input_ids'], output_hidden_states=True)
-        layer_hidden_states = outputs.hidden_states[layer] # ((batch_size, sequence_length, hidden_size))
-        response_activations = layer_hidden_states[0, response_start_idx:, :] # (response_len, hidden_size)
-        avg_response_act = response_activations.mean(dim=0)
-        hidden_states_list.append(avg_response_act)
-    # Compute the mean activations stacked into a single tensor (i.e. we have one mean per example sequence)
-    stacked_activations = t.stack(hidden_states_list, dim=0) # (num_examples, hidden_dim)
-    return stacked_activations
+        # Format the message
+        full_prompt, response_start_idx = format_messages(messages, tokenizer)
+
+        # Tokenize (the chat template already includes the BOS token, so don't add another)
+        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+
+        # Forward pass with hidden state output
+        with t.inference_mode():
+            outputs = model(**tokens, output_hidden_states=True)
+
+        # Get hidden states at the specified layer
+        hidden_states = outputs.hidden_states[layer]  # (1, seq_len, hidden_size)
+
+        # Create mask for response tokens
+        seq_len = hidden_states.shape[1]
+        response_mask = t.arange(seq_len, device=hidden_states.device) >= response_start_idx
+
+        # Compute mean activation over response tokens
+        mean_activation = (hidden_states[0] * response_mask[:, None]).sum(0) / response_mask.sum()
+        all_mean_activations.append(mean_activation.cpu())
+
+    # Stack all activations
+    return t.stack(all_mean_activations)
 
 
 test_activation = extract_response_activations(
@@ -522,28 +531,33 @@ def extract_persona_vectors(
     for counter, (persona_name, system_prompt) in enumerate(personas.items()):
         print(f"Running persona ({counter + 1}/{len(personas)}) {persona_name} ...", end="")
 
+        # Collect all system prompts, questions, and responses for this persona
+        system_prompts_batch = []
+        questions_batch = []
+        responses_batch = []
+        for q_idx, question in enumerate(questions):
+            if (persona_name, q_idx) in responses:
+                response = responses[(persona_name, q_idx)]
+                # Filter by score if provided
+                if scores is not None:
+                    score = scores.get((persona_name, q_idx), 0)
+                    if score < score_threshold:
+                        continue
+                if response:  # Skip empty responses
+                    system_prompts_batch.append(system_prompt)
+                    questions_batch.append(question)
+                    responses_batch.append(response)
 
-        persona_system_prompts = []
-        persona_questions = []
-        persona_responses = []
-        for question_idx, question in enumerate(questions):
-            if scores is not None and (scores[(persona_name, question_idx)] < score_threshold):
-                continue
-            persona_system_prompts.append(persona)
-            persona_questions.append(question)
-            persona_responses.append(responses[(persona_name, question_idx)])
-
-        # YOUR CODE HERE - compute activations for each persona, take the mean
-        mean_acts = extract_response_activations(
+        # Extract activations
+        activations = extract_response_activations(
             model=model,
             tokenizer=tokenizer,
-            system_prompts=persona_system_prompts,
-            questions=persona_questions,
-            responses=persona_responses,
-            layer=layer
-        ) # (num_responses, hidden_dim)
-
-        mean_acts = mean_acts.mean(dim=0)
+            system_prompts=system_prompts_batch,
+            questions=questions_batch,
+            responses=responses_batch,
+            layer=layer,
+        )
+        mean_acts = activations.mean(dim=0)
 
         # Take mean across all responses for this persona
         persona_vectors[persona_name] = mean_acts
@@ -553,6 +567,7 @@ def extract_persona_vectors(
         t.cuda.empty_cache()
 
     return persona_vectors
+
 
 # %%
 # # Score all responses using the judge
@@ -1310,22 +1325,22 @@ def generate_with_steering(
 
     # Build the inputs
     if messages is None:
-        if system_prompt is not None:
-            messages_list = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ]
-        else:
-            messages_list = [
-                {"role": "user", "content": prompt},
-            ]
+        messages_list = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        print(f"msg list: {messages_list}")
+        normalized_messages = _normalize_messages(messages_list)
+
+        # Apply chat template to get full conversation
+        full_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
         messages, response_start_idx = format_messages(messages_list, tokenizer)
 
 
     def steering_hook_fn(module, input, output):
         print(f"Hook captured shape: {output.shape}")
 
-    hook = _return_layers(model)[steering_layer].register_forward_hook(steering_hook_fn)
+    hook_handle = _return_layers(model)[steering_layer].register_forward_hook(steering_hook_fn)
 
     inputs = tokenizer(messages, return_tensors="pt").to(model.device)
 

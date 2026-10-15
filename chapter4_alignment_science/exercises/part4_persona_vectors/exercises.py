@@ -894,3 +894,21 @@ print("\nFirst user message from delusion transcript:")
 print(delusion_transcript[0]["content"][:200] + "...")
 
 # %%
+test_prompt = "The quick brown fox"
+test_tokens = tokenizer(test_prompt, return_tensors="pt").to(model.device)
+
+def hook_fn(module, input, output):
+    print(f"Hook captured shape: {output.shape}")
+
+hook = _return_layers(model)[EXTRACTION_LAYER].register_forward_hook(hook_fn)
+
+try:
+    print("Generating 3 tokens (watch the shape change due to KV caching):")
+    with t.inference_mode():
+        _ = model.generate(**test_tokens, max_new_tokens=3)
+finally:
+    hook.remove()
+
+print("\nFirst forward pass has full sequence length; subsequent ones have length 1!")
+
+# %%

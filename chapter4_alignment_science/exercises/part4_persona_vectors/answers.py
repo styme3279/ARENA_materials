@@ -449,6 +449,7 @@ def extract_response_activations(
     Returns:
         Batch of mean activation vectors of shape (num_examples, hidden_size)
     """
+    print(len(system_prompts), len(questions), len(responses))
     assert len(system_prompts) == len(questions) == len(responses)
 
     ret = None
@@ -522,12 +523,14 @@ def extract_persona_vectors(
 
     for counter, (persona_name, system_prompt) in enumerate(personas.items()):
         print(f"Running persona ({counter + 1}/{len(personas)}) {persona_name} ...", end="")
-
+        print(persona_name, responses)
+        for q_idx, question in questions
         # YOUR CODE HERE - compute activations for each persona, take the mean
-        filtered_responses = dict()
-        for key, score in responses.items()
+        mean_acts = extract_response_activations(model, tokenizer, [system_prompt] * len(questions), questions, {(persona, q_idx): value for (persona, q_idx), value in responses.items() if persona == persona_name}, layer)
         
-        mean_acts = extract_response_activations(model, tokenizer, personas.values(), questions, responses, layer)
+        # for q_idx, score in scores[()]:
+        #     if score >= score_threshold:
+        #         filtered_responses[key] = responses[key]
 
         # Take mean across all responses for this persona
         persona_vectors[persona_name] = mean_acts
@@ -578,3 +581,7 @@ for name, vec in persona_vectors.items():
     print(f"  {name}: norm = {vec.norm().item():.2f}")
 
 tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
+
+# %%
+
+# %%

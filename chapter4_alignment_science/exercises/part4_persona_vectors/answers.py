@@ -377,11 +377,12 @@ for (persona, question_idx), response in test_responses.items():
 # responses = generate_all_responses(PERSONAS, EVAL_QUESTIONS)
 
 # %%
-# import pickle
+# 
 # with open("data.pkl", "wb") as f:
 #     pickle.dump(responses, f)
 
 # %%
+import pickle
 with open("data.pkl", "rb") as f:
     responses: dict[tuple[str, int], str] = pickle.load(f)
 # %%
@@ -1147,3 +1148,169 @@ assert risk_validating > risk_grounding, f"Expected validating ({risk_validating
 print("rate_delusion_risk sanity check passed.")
 
 # %%
+def visualize_transcript_drift(
+    analyzer: ConversationAnalyzer,
+    transcript: list[dict[str, str]],
+    transcript_name: str,
+    run_autorater: bool = True,
+    max_assistant_turns: int | None = None,
+) -> tuple[list[float], list[int]]:
+    """
+    Compute projections and risk scores for a transcript and plot them.
+
+    Args:
+        analyzer: ConversationAnalyzer instance
+        transcript: Full conversation
+        transcript_name: Label for the plot title
+        run_autorater: Whether to compute autorater scores (set False to skip API calls)
+        max_assistant_turns: Truncate to this many assistant turns before analysis.
+            Useful to avoid OOM errors on long transcripts.
+
+    Returns:
+        Tuple of (projections, risk_scores)
+    """
+    # Optionally truncate to the first N assistant turns to avoid OOM on long transcripts
+    if max_assistant_turns is not None:
+        truncated, asst_count = [], 0
+        for msg in transcript:
+            truncated.append(msg)
+            if msg["role"] == "assistant":
+                asst_count += 1
+                if asst_count >= max_assistant_turns:
+                    break
+        transcript = truncated
+
+    # Single forward pass over the full transcript; returns one projection per assistant turn
+    print(f"Computing projections for {transcript_name} ({sum(m['role'] == 'assistant' for m in transcript)} turns)...")
+    projections = analyzer.project_onto_axis(transcript)
+
+    # Autorater: call the LLM judge once per assistant turn (rate-limited via sleep)
+    risk_scores = []
+    if run_autorater:
+        print("Computing autorater scores...")
+        asst_indices = [i for i, m in enumerate(transcript) if m["role"] == "assistant"]
+        for asst_idx in tqdm(asst_indices):
+            risk_scores.append(rate_delusion_risk(transcript, asst_idx))
+            time.sleep(0.2)
+
+    turns = list(range(len(projections)))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+    # Left panel: assistant-axis projection trajectory
+    axes[0].plot(turns, projections, marker="o", linewidth=2)
+    axes[0].set_title(f"{transcript_name}: Projection over time")
+    axes[0].set_xlabel("Assistant Turn")
+    axes[0].set_ylabel("Projection (act @ assistant_axis)")
+    axes[0].grid(True, alpha=0.3)
+
+    # Right panel: autorater risk score trajectory (or placeholder if disabled)
+    if risk_scores:
+        axes[1].plot(turns, risk_scores, marker="o", color="red", linewidth=2)
+        axes[1].set_title(f"{transcript_name}: Delusion Risk Score")
+        axes[1].set_xlabel("Assistant Turn")
+        axes[1].set_ylabel("Risk Score (0-100, lower is better)")
+        axes[1].set_ylim(0, 100)
+        axes[1].grid(True, alpha=0.3)
+    else:
+        axes[1].text(
+            0.5,
+            0.5,
+            "Autorater disabled (set run_autorater=True)",
+            ha="center",
+            va="center",
+            transform=axes[1].transAxes,
+        )
+
+    plt.tight_layout()
+    plt.show()
+
+
+    # Sanity check: projection and risk should be anti-correlated (lower projection = more role-captured)
+    if risk_scores:
+        corr = np.corrcoef(projections, risk_scores)[0, 1]
+        print(f"  Correlation (projection ↔ risk): {corr:.3f}")
+        print("  (Expect negative: lower projection should correlate with higher risk)")
+
+    return projections, risk_scores
+
+
+delusion_projs_capped, _ = visualize_transcript_drift(
+    analyzer,
+    delusion_transcript_capped,
+    "Delusion (capped, no escalation)",
+    run_autorater=True,
+    max_assistant_turns=6,
+)
+delusion_projs, _ = visualize_transcript_drift(
+    analyzer,
+    delusion_transcript,
+    "Delusion (dramatic escalation)",
+    run_autorater=True,
+    max_assistant_turns=6,
+)
+
+# %%
+def generate_with_steering(
+    model,
+    tokenizer,
+    prompt: str,
+    steering_vector: Float[Tensor, " d_model"],
+    steering_layer: int,
+    alpha: float,
+    system_prompt: str | None = None,
+    max_new_tokens: int = 200,
+    temperature: float = 0.7,
+    messages: list[dict[str, str]] | None = None,
+) -> str:
+    """
+    Generate text with simple additive activation steering: h += alpha * steering_vector.
+
+    Args:
+        model: Language model
+        tokenizer: Tokenizer
+        prompt: User message content (ignored if messages is provided)
+        steering_vector: Direction to steer in (use axis_steer for interpretable alpha units)
+        steering_layer: Which layer to apply steering at
+        alpha: Steering strength (in persona-gap units when using axis_steer).
+               Positive = toward Assistant; negative = away. Try ±1 to ±5.
+        system_prompt: Optional system prompt (e.g., for persona experiments)
+        max_new_tokens: Maximum tokens to generate
+        temperature: Sampling temperature
+        messages: Optional pre-built message list for multi-turn conversations.
+                  If provided, overrides prompt/system_prompt.
+
+    Returns:
+        Generated text (assistant response only)
+    """
+    def steering_hook(Ö)
+
+
+test_prompt = "How can I take steps to add meaning to my life?"
+
+baseline = generate_with_steering(
+    model=model,
+    tokenizer=tokenizer,
+    prompt=test_prompt,
+    steering_vector=axis_steer,
+    steering_layer=EXTRACTION_LAYER,
+    alpha=0.0,
+    max_new_tokens=100,
+)
+t.cuda.empty_cache()
+steered_away = generate_with_steering(
+    model=model,
+    tokenizer=tokenizer,
+    prompt=test_prompt,
+    steering_vector=axis_steer,
+    steering_layer=EXTRACTION_LAYER,
+    alpha=-3.0,
+    max_new_tokens=100,
+)
+
+print("Baseline (alpha=0):")
+print_with_wrap(baseline)
+print("\n" + "=" * 80 + "\n")
+print("Steered away from Assistant (alpha=-3.0):")
+print_with_wrap(steered_away)
+
+tests.test_generate_with_steering_basic(generate_with_steering, model, tokenizer, d_model=model.config.hidden_size)

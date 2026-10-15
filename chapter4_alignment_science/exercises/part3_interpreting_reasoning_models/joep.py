@@ -778,29 +778,32 @@ def calculate_counterfactual_importance(
         List of counterfactual importance scores
     """
     # for each chunk, 
-    print(f"chunks removed: {len(chunks_removed)}")
-    print(f"chunks_resampled: {len(chunks_resampled)}")
-    print(f"chunks_resampled[0]: {len(chunks_resampled[0])}")
+    # print(f"chunks removed: {len(chunks_removed)}")
+    # print(f"chunks_resampled: {len(chunks_resampled)}")
+    # print(f"chunks_resampled[0]: {len(chunks_resampled[0])}")
 
-    for i, chunk in enumerate(chunks_removed):
-        for 
+    # filtered_indices = []
+    # for i, chunk in enumerate(chunks_removed):
+    #     for j, sample in enumerate(chunks_resampled[i]):
+    #         filtered_indices.append(get_filtered_indices(chunk, sample, embedding_model, threshold))
+    filtered_indices = [
+        get_filtered_indices(chunk, resampled, embedding_model, threshold)
+        for chunk, resampled in zip(chunks_removed, chunks_resampled)
+    ]
         
-        
-
-    # Comute original embeddings
-    embedding_model.encode()
-
-    # Compute new embeddings
-
-    # Compute cosine similarity
-
-    # Threshold
-
     # Output
+    probabilities = []
+    for data_list, indices in zip(rollout_data, filtered_indices):
+        if len(indices) >= min_samples:
+            successes = sum(score_fn(data_list[i]) for i in indices)
+            probabilities.append(successes / len(indices))
+        else:
+            probabilities.append(None)
     
-    score_fn=lambda cot: extract_answer_from_cot(cot) == answer
+    # Forward-fill None values
+    probabilities = pd.Series(probabilities).ffill().bfill().tolist()
 
-    return score_fn
+    return np.diff(probabilities).tolist()
 
 
 # Calculate counterfactual importance

@@ -610,7 +610,7 @@ def extract_persona_vectors(
         )
 
         # Take mean across all responses for this persona
-        persona_vectors[persona_name] = mean_acts
+        persona_vectors[persona_name] = mean_acts.mean(dim=0)   # (d_model,)
         print("finished!")
 
         # Clear GPU cache between personas to avoid OOM errors
@@ -663,7 +663,7 @@ persona_vectors = {
 print({name: tuple(v.shape) for name, v in persona_vectors.items()})  # all should be (4608,)
 
 t.save(persona_vectors, section_dir / "persona_vectors.pt")  # later: persona_vectors = t.load(section_dir / "persona_vectors.pt")
-
+# %%
 tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
 # %%
 def compute_cosine_similarity_matrix(
@@ -677,6 +677,8 @@ def compute_cosine_similarity_matrix(
     """
     persona_names = list(persona_vectors.keys())
     vectors = t.stack([persona_vectors[name] for name in persona_names])  # (n_personas, d_model)
+    # vectors = vectors - vectors.mean(dim=-1, keepdim=True)  # Center the vectors
+    # vectors = vectors / vectors.norm(dim=-1, keepdim=True)  # Normalize to unit length
     similarity_matrix = vectors @ vectors.T  # (n_personas, n_personas)
     return similarity_matrix, persona_names
 
@@ -693,3 +695,119 @@ px.imshow(
     color_continuous_scale="RdBu",
     color_continuous_midpoint=0.0,
 ).show()
+# %%
+def compute_cosine_similarity_matrix_centered(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+) -> tuple[Float[Tensor, "n_personas n_personas"], list[str]]:
+    """
+    Compute pairwise cosine similarity between centered persona vectors.
+
+    Returns:
+        Tuple of (similarity matrix, list of persona names in order)
+    """
+    names = list(persona_vectors.keys())
+
+    # Stack vectors into matrix and center by subtracting mean
+    vectors = t.stack([persona_vectors[name] for name in names])
+    vectors = vectors - vectors.mean(dim=0)
+
+    # Normalize
+    vectors_norm = vectors / vectors.norm(dim=1, keepdim=True)
+
+    # Compute cosine similarity
+    cos_sim = vectors_norm @ vectors_norm.T
+
+    return cos_sim, names
+
+
+cos_sim_matrix_centered, persona_names = compute_cosine_similarity_matrix_centered(persona_vectors)
+
+px.imshow(
+    cos_sim_matrix_centered.float(),
+    x=persona_names,
+    y=persona_names,
+    title="Persona Cosine Similarity Matrix (Centered)",
+    color_continuous_scale="RdBu",
+    color_continuous_midpoint=0.0,
+).show()
+# %%
+def pca_decompose_persona_vectors(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+    default_personas: list[str] = DEFAULT_PERSONAS,
+) -> tuple[Float[Tensor, " d_model"], np.ndarray, PCA]:
+    """
+    Analyze persona space structure.
+
+    Args:
+        persona_vectors: Dict mapping persona name to vector
+        default_personas: List of persona names considered "default" (neutral assistant behavior)
+
+    Returns:
+        Tuple of:
+        - assistant_axis: Normalized direction from role-playing toward default/assistant behavior
+        - pca_coords: 2D PCA coordinates for each persona (n_personas, 2)
+        - pca: Fitted PCA object, via the method `PCA.fit_transform`
+    """
+    # Stack vectors into matrix
+    names = list(persona_vectors.keys())
+    vectors = t.stack([persona_vectors[name] for name in names]).cpu().numpy()  # (n_personas, d_model)
+
+    # Compute mean vector for default personas
+    default_vectors = t.stack([persona_vectors[name] for name in default_personas]).cpu().numpy()
+    mean_default_vector = default_vectors.mean(axis=0)  # (d_model,)
+
+    # Compute mean vector for all personas
+    mean_all_vector = vectors.mean(axis=0)  # (d_model,)
+
+    # Assistant axis: direction from mean of role-playing personas to mean of default personas
+    assistant_axis = mean_default_vector - mean_all_vector
+    assistant_axis /= np.linalg.norm(assistant_axis)  # Normalize
+
+    # PCA decomposition
+    pca = PCA(n_components=2)
+    pca_coords = pca.fit_transform(vectors)  # (n_personas, 2)
+
+    return t.tensor(assistant_axis), pca_coords, pca
+
+
+tests.test_pca_decompose_persona_vectors(pca_decompose_persona_vectors)
+
+# Compute mean vector to handle constant vector problem (same as in centered cosine similarity)
+# This will be subtracted from activations before projection to center around zero
+persona_vectors = {k: v.to(device, dtype=dtype) for k, v in persona_vectors.items()}
+mean_vector = t.stack(list(persona_vectors.values())).mean(dim=0)
+persona_vectors_centered = {k: v - mean_vector for k, v in persona_vectors.items()}
+
+# Perform PCA decomposition on space (PCA uses numpy internally, so convert to cpu float32)
+assistant_axis, pca_coords, pca = pca_decompose_persona_vectors(
+    {k: v.cpu().float() for k, v in persona_vectors_centered.items()}
+)
+assistant_axis = assistant_axis.to(device, dtype=dtype)  # Set to model dtype upfront
+
+print(f"Assistant Axis norm: {assistant_axis.norm().item():.4f}")
+print(
+    f"PCA explained variance: PC1={pca.explained_variance_ratio_[0]:.1%}, PC2={pca.explained_variance_ratio_[1]:.1%}"
+)
+
+# Compute projection onto assistant axis for coloring
+vectors = t.stack([persona_vectors_centered[name] for name in persona_names]).to(device, dtype=dtype)
+# Normalize vectors before projecting (so projections are in [-1, 1] range)
+vectors_normalized = vectors / vectors.norm(dim=1, keepdim=True)
+projections = (vectors_normalized @ assistant_axis).float().cpu().numpy()
+
+# 2D scatter plot
+fig = px.scatter(
+    x=pca_coords[:, 0],
+    y=pca_coords[:, 1],
+    text=persona_names,
+    color=projections,
+    color_continuous_scale="RdBu",
+    title="Persona Space (PCA) colored by Assistant Axis projection",
+    labels={
+        "x": f"PC1 ({pca.explained_variance_ratio_[0]:.1%})",
+        "y": f"PC2 ({pca.explained_variance_ratio_[1]:.1%})",
+        "color": "Assistant Axis",
+    },
+)
+fig.update_traces(textposition="top center", marker=dict(size=10))
+fig.show()

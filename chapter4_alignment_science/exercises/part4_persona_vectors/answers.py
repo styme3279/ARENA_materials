@@ -45,6 +45,8 @@ import part4_persona_vectors.utils as utils
 from part4_persona_vectors.runtime_cache import (
     DiskCache,
     activation_request_key,
+    formatter_fingerprint,
+    persona_request_key,
     cached_parallel_chat,
     forward_to_hidden_state,
 )
@@ -476,70 +478,56 @@ def extract_persona_vectors(
     layer: int,
     scores: dict[tuple[str, int], int] | None = None,
     score_threshold: int = 3,
+    *,
+    force_refresh: bool = False,
+    cache_run: str | None = None,
 ) -> dict[str, Float[Tensor, " d_model"]]:
-    """
-    Extract mean activation vector for each persona.
+    """Reuse completed persona vectors; checkpoint each new persona immediately.
 
-    Args:
-        model: The language model
-        tokenizer: The tokenizer
-        personas: Dict mapping persona name to system prompt
-        questions: List of evaluation questions
-        responses: Dict mapping (persona, q_idx) to response text
-        layer: Which layer to extract activations from
-        scores: Optional dict mapping (persona, q_idx) to judge score (0-3)
-        score_threshold: Minimum score required to include response (default 3)
-
-    Returns:
-        Dict mapping persona name to mean activation vector
+    Identity covers the model, tokenizer/formatting, layer, system prompt and
+    exact retained question/response pairs. A changed persona only recomputes
+    that persona; per-response activation caching still applies on a miss.
     """
     assert questions and personas and responses, "Invalid inputs"
-
+    cache = DiskCache(ARENA_CACHE_DIR)
+    formatter_id = formatter_fingerprint(format_messages)
     persona_vectors = {}
-
+    reused = 0
     for counter, (persona_name, system_prompt) in enumerate(personas.items()):
-        print(f"Running persona ({counter + 1}/{len(personas)}) {persona_name} ...", end="")
-
-        # YOUR CODE HERE - compute activations for each persona, take the mean
-        # for (persona_, question_), response in respones.items():
-
-        system_prompts_batch = []
-        questions_batch = []
-        responses_batch = []
+        questions_batch, responses_batch = [], []
         for q_idx, question in enumerate(questions):
-            if (persona_name, q_idx) in responses:
-                response = responses[(persona_name, q_idx)]
-                # Filter by score if provided
-                if scores is not None:
-                    score = scores.get((persona_name, q_idx), 0)
-                    if score < score_threshold:
-                        continue
-                if response:  # Skip empty responses
-                    system_prompts_batch.append(system_prompt)
-                    questions_batch.append(question)
-                    responses_batch.append(response)
+            response = responses.get((persona_name, q_idx))
+            if not response:
+                continue
+            if scores is not None and scores.get((persona_name, q_idx), 0) < score_threshold:
+                continue
+            questions_batch.append(question)
+            responses_batch.append(response)
+        if not responses_batch:
+            raise ValueError(f"No usable responses for persona {persona_name}")
+        key = persona_request_key(model, tokenizer, system_prompt, questions_batch,
+                                  responses_batch, layer, formatter_id, cache_run)
+        cached = None if force_refresh else cache.read_tensor(key, model.config.hidden_size, kind="personas")
+        if cached is not None:
+            persona_vectors[persona_name] = cached
+            reused += 1
+            print(f"Persona ({counter+1}/{len(personas)}) {persona_name}: cached")
+            continue
 
+        print(f"Persona ({counter+1}/{len(personas)}) {persona_name}: computing {len(responses_batch)} responses")
         response_acts = extract_response_activations(
-            model=model,
-            tokenizer=tokenizer,
-            system_prompts=system_prompts_batch,
-            questions=questions_batch,
-            responses=responses_batch,
-            layer=layer,
+            model=model, tokenizer=tokenizer,
+            system_prompts=[system_prompt] * len(responses_batch),
+            questions=questions_batch, responses=responses_batch, layer=layer,
+            force_refresh=force_refresh, cache_run=cache_run,
         )
-
-        mean_acts = response_acts.mean(dim=0)
-
-
-        # Take mean across all responses for this persona
-
+        # Same learner calculation: mean across responses, keeping [d_model].
+        mean_acts = response_acts.float().mean(dim=0).cpu()
+        cache.write_tensor(key, mean_acts, kind="personas")
         persona_vectors[persona_name] = mean_acts
-        print("finished!")
-
-        # Clear GPU cache between personas to avoid OOM errors
-        t.cuda.empty_cache()
-
+    print(f"Persona cache: {reused}/{len(personas)} reused; {len(personas)-reused} computed")
     return persona_vectors
+
 
 # Extract vectors (using the test subset from before)
 EXTRACTION_LAYER = round(NUM_LAYERS * 0.65)  # 65% through the model

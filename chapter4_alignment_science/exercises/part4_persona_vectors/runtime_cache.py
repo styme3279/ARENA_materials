@@ -19,6 +19,7 @@ import pickle
 import random
 import tempfile
 import time
+import types
 
 CACHE_SCHEMA = 1
 
@@ -69,10 +70,10 @@ class DiskCache:
         record = {"schema": CACHE_SCHEMA, "key": key, "text": text}
         self._atomic_write(self._path("api", key, ".json"), lambda f: f.write(json.dumps(record, ensure_ascii=False).encode()))
 
-    def read_tensor(self, key, hidden_size):
+    def read_tensor(self, key, hidden_size, *, kind="activations"):
         import torch
         try:
-            record = torch.load(self._path("activations", key, ".pt"), map_location="cpu", weights_only=True)
+            record = torch.load(self._path(kind, key, ".pt"), map_location="cpu", weights_only=True)
             value = record["value"]
             if (record["schema"] == CACHE_SCHEMA and record["key"] == key and isinstance(value, torch.Tensor)
                     and tuple(value.shape) == (hidden_size,) and value.is_floating_point() and torch.isfinite(value).all()):
@@ -81,13 +82,13 @@ class DiskCache:
             pass
         return None
 
-    def write_tensor(self, key, value):
+    def write_tensor(self, key, value, *, kind="activations"):
         import torch
         value = value.detach().to(device="cpu", dtype=torch.float32)
         if value.ndim != 1 or not torch.isfinite(value).all():
             raise ValueError("Refusing to cache an invalid activation mean")
         record = {"schema": CACHE_SCHEMA, "key": key, "value": value}
-        self._atomic_write(self._path("activations", key, ".pt"), lambda f: torch.save(record, f))
+        self._atomic_write(self._path(kind, key, ".pt"), lambda f: torch.save(record, f))
 
 
 def api_request_key(endpoint, model, messages, max_tokens, temperature, cache_run=None, sample_index=0):
@@ -96,18 +97,45 @@ def api_request_key(endpoint, model, messages, max_tokens, temperature, cache_ru
                     "run": cache_run_name(cache_run), "sample_index": sample_index})
 
 
-def activation_request_key(model, tokenizer, prompt, response_start, layer, cache_run=None):
+def _activation_identity(model, tokenizer, layer, cache_run=None):
     config = model.config.to_dict()
     # Ignore provenance fields that change when the same model is reloaded.
     config.pop("_name_or_path", None)
     config.pop("transformers_version", None)
-    return _digest({"schema": CACHE_SCHEMA, "kind": "response-mean-float32-v1", "config": config,
+    return {"config": config,
                     "model": getattr(model.config, "_name_or_path", ""),
                     "revision": getattr(model.config, "_commit_hash", None), "dtype": str(model.dtype),
                     "tokenizer": str(getattr(tokenizer, "name_or_path", "")),
                     "tokenizer_revision": getattr(tokenizer, "init_kwargs", {}).get("_commit_hash"),
-                    "prompt": prompt, "response_start": response_start, "layer": int(layer),
-                    "run": cache_run_name(cache_run), "model_tag": os.getenv("ARENA_ACTIVATION_CACHE_TAG", "pretrained-v1")})
+                    "layer": int(layer), "run": cache_run_name(cache_run),
+                    "model_tag": os.getenv("ARENA_ACTIVATION_CACHE_TAG", "pretrained-v1")}
+
+
+def activation_request_key(model, tokenizer, prompt, response_start, layer, cache_run=None):
+    return _digest({"schema": CACHE_SCHEMA, "kind": "response-mean-float32-v1",
+                    **_activation_identity(model, tokenizer, layer, cache_run),
+                    "prompt": prompt, "response_start": response_start})
+
+
+def formatter_fingerprint(formatter):
+    """Fingerprint formatting logic without unstable notebook filenames/line numbers."""
+    def describe(code):
+        return {"bytecode": code.co_code.hex(), "names": code.co_names,
+                "constants": [describe(x) if isinstance(x, types.CodeType) else x for x in code.co_consts]}
+    functions = {formatter.__name__: describe(formatter.__code__)}
+    for name in formatter.__code__.co_names:
+        helper = formatter.__globals__.get(name)
+        if isinstance(helper, types.FunctionType) and helper.__module__ == formatter.__module__:
+            functions[name] = describe(helper.__code__)
+    return _digest(functions)
+
+
+def persona_request_key(model, tokenizer, system_prompt, questions, responses, layer,
+                        formatter_id, cache_run=None):
+    return _digest({"schema": CACHE_SCHEMA, "kind": "persona-mean-v1",
+                    **_activation_identity(model, tokenizer, layer, cache_run),
+                    "system_prompt": system_prompt, "questions": list(questions),
+                    "responses": list(responses), "formatter": formatter_id})
 
 
 def _retry_delay(error, attempt):

@@ -882,41 +882,104 @@ fig.update_layout(
 fig.show()
 
 # %%
-chunk_idxs = subset.index.tolist()
-# print(f"chunk_idxs: {chunk_idxs}")
-# print(f'df["Label"]: {df["Label"]}')
-for label in df["Label"].unique():
-    subset = df[df["Label"] == label]
-    print(f"subset: {subset}")
-    # sum_importance = 
+
+# Create dataframe with position and importance
+chunk_labels = [CATEGORIES[chunk["function_tags"][0]] for chunk in problem_data["chunks_labeled"]]
+n_chunks = len(chunk_labels) - 1
+
+df = pd.DataFrame(
+    {
+        "Label": chunk_labels[:-1],
+        "Importance": counterfactual_importances,
+        "Position": np.arange(n_chunks) / n_chunks,
+    }
+)
+# Get top 5 most common categories
+top_labels = df["Label"].value_counts().head(5).index.tolist()
+df_filtered = df[df["Label"].isin(top_labels)]
+# Group and calculate means
+grouped = df_filtered.groupby("Label")[["Importance", "Position"]].mean().reset_index()
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 6))
+for _, row in grouped.iterrows():
+    ax.scatter(
+        row["Position"], row["Importance"], s=150, label=row["Label"], color=utils.CATEGORY_COLORS.get(row["Label"])
+    )
+
+ax.set_xlabel("Normalized Position in Trace (0-1)")
+ax.set_ylabel("Mean Counterfactual Importance")
+ax.set_title("Sentence Category Effect (Figure 3b)")
+ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
+ax.set_xlim((0, 1))
+plt.tight_layout()
+plt.show()
+
+# Sanity check: Plan Generation should have positive mean counterfactual importance
+plan_gen_importance = grouped.loc[grouped["Label"] == "Plan Generation", "Importance"].values
+assert len(plan_gen_importance) > 0 and plan_gen_importance[0] > 0, (
+    "Plan Generation should have positive mean counterfactual importance"
+)
+print("Sanity check passed: Plan Generation has positive counterfactual importance.")
 
 
-# # X-axis: normalized position in trace
 
-# # Counterfactual importance
-# for label in df["Label"].unique():
-#     subset = df[df["Label"] == label]
-#     hover_texts = [text[:100] + "..." if len(text) > 100 else text for text in subset["Chunk Text"]]
-#     fig.add_trace(
-#         go.Bar(
-#             x=
-#             y=subset["Cosine Similarity"].tolist(),
-#             name=label,
-#             marker_color=utils.CATEGORY_COLORS.get(label, "#9E9E9E"),
-#             hovertemplate="<b>Chunk %{x}</b><br>Category: "
-#             + label
-#             + "<br>Cosine Similarity: %{y:.4f}<br>Text: %{customdata}<extra></extra>",
-#             customdata=hover_texts,
-#         )
-#     )
+# %%
 
-# fig.update_layout(
-#     title="How Similar are Resampled Chunks to Originals?",
-#     xaxis_title="Chunk Index",
-#     yaxis_title="Mean Cosine Similarity to Resamples",
-#     width=900,
-#     height=400,
-#     legend=dict(x=1.02, y=1, xanchor="left"),
-#     bargap=0,
+# Create dataframe with position and importance
+# Create dataframe with position and importance
+chunk_labels = [CATEGORIES[chunk["function_tags"][0]] for chunk in problem_data["chunks_labeled"]]
+n_chunks = len(chunk_labels) - 1
+
+metrics = {
+    "Forced": forced_importances,
+    "Resampling": resampling_importances,
+    "Counterfactual": counterfactual_importances,
+}
+
+df = pd.DataFrame(
+    {
+        "Label": chunk_labels[:-1],
+        "Position": np.arange(n_chunks) / n_chunks,
+        **metrics,
+    }
+)
+# Get top 5 most common categories
+top_labels = df["Label"].value_counts().head(5).index.tolist()
+df_filtered = df[df["Label"].isin(top_labels)]
+# Group and calculate means
+grouped = df_filtered.groupby("Label")[[*metrics, "Position"]].mean().reset_index()
+
+# Plot
+fig, axes = plt.subplots(1, len(metrics), figsize=(13, 5), sharex=True, sharey=True)
+for ax, metric in zip(axes, metrics):
+    for _, row in grouped.iterrows():
+        ax.scatter(
+            row["Position"], row[metric], s=150, label=row["Label"], color=utils.CATEGORY_COLORS.get(row["Label"])
+        )
+
+    ax.axhline(0, color="black", linewidth=0.5)
+    ax.set_xlabel("Normalized Position in Trace (0-1)")
+    ax.set_title(f"{metric} Importance")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.set_xlim((0, 1))
+
+axes[-1].legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+fig.suptitle("Sentence Category Effect (Figure 3b)")
+plt.tight_layout()
+fig.subplots_adjust(wspace=0.05)
+plt.show()
+
+
+# # Sanity check: Plan Generation should have positive mean counterfactual importance
+# plan_gen_importance = grouped.loc[grouped["Label"] == "Plan Generation", "Importance"].values
+# assert len(plan_gen_importance) > 0 and plan_gen_importance[0] > 0, (
+#     "Plan Generation should have positive mean counterfactual importance"
 # )
-# fig.show()
+# print("Sanity check passed: Plan Generation has positive counterfactual importance.")
+
+
+# %%

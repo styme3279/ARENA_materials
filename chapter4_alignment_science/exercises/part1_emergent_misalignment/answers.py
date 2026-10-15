@@ -317,8 +317,16 @@ def test_generalization(
         ]
         inputs = tokenizer(texts, return_tensors="pt", padding=True, padding_side="left").to(device)
 
+        with model.disable_adapter():
+            # Generate for batch
+            base_outputs = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id,
+            )
         # Generate for batch
-        outputs = model.generate(
+        misaligned_outputs = model.generate(
             **inputs,
             max_new_tokens=max_new_tokens,
             do_sample=True,

@@ -1312,3 +1312,98 @@ delusion_projs, _ = visualize_transcript_drift(
     max_assistant_turns=6,
 )
 # %%
+def generate_with_steering(
+    model,
+    tokenizer,
+    prompt: str,
+    steering_vector: Float[Tensor, " d_model"],
+    steering_layer: int,
+    alpha: float,
+    system_prompt: str | None = None,
+    max_new_tokens: int = 200,
+    temperature: float = 0.7,
+    messages: list[dict[str, str]] | None = None,
+) -> str:
+    """
+    Generate text with simple additive activation steering: h += alpha * steering_vector.
+
+    Args:
+        model: Language model
+        tokenizer: Tokenizer
+        prompt: User message content (ignored if messages is provided)
+        steering_vector: Direction to steer in (use axis_steer for interpretable alpha units)
+        steering_layer: Which layer to apply steering at
+        alpha: Steering strength (in persona-gap units when using axis_steer).
+               Positive = toward Assistant; negative = away. Try ±1 to ±5.
+        system_prompt: Optional system prompt (e.g., for persona experiments)
+        max_new_tokens: Maximum tokens to generate
+        temperature: Sampling temperature
+        messages: Optional pre-built message list for multi-turn conversations.
+                  If provided, overrides prompt/system_prompt.
+
+    Returns:
+        Generated text (assistant response only)
+    """
+    def steering_hook(module, input, output):
+        # output shape: (batch_size, seq_len, d_model)
+        # Add steering vector to the last token's hidden state
+        output[:, -1, :] += alpha * steering_vector.to(output.dtype).to(output.device)
+        return output
+
+    _return_layers(model).__getitem__(steering_layer).register_forward_hook(steering_hook)
+
+    if messages is not None:
+        full_prompt, _ = format_messages(messages, tokenizer)
+    else:
+        full_prompt = tokenizer.apply_chat_template(
+            [{"role": "system", "content": system_prompt}] if system_prompt else []
+            + [{"role": "user", "content": prompt}],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+    tokenized = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False)
+    tokenized = tokenized.to(model.device)
+    with t.inference_mode():
+        output_ids = model.generate(
+            **tokenized,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            do_sample=True,
+            pad_token_id=tokenizer.eos_token_id,
+        )
+    for layer in _return_layers(model):
+        layer._forward_hooks.clear()
+    
+    generated_text = tokenizer.decode(output_ids[0][tokenized.input_ids.shape[1]:], skip_special_tokens=True)
+    return generated_text
+
+test_prompt = "How can I take steps to add meaning to my life?"
+
+baseline = generate_with_steering(
+    model=model,
+    tokenizer=tokenizer,
+    prompt=test_prompt,
+    steering_vector=axis_steer,
+    steering_layer=EXTRACTION_LAYER,
+    alpha=0.0,
+    max_new_tokens=100,
+)
+t.cuda.empty_cache()
+steered_away = generate_with_steering(
+    model=model,
+    tokenizer=tokenizer,
+    prompt=test_prompt,
+    steering_vector=axis_steer,
+    steering_layer=EXTRACTION_LAYER,
+    alpha=-3.0,
+    max_new_tokens=100,
+)
+
+print("Baseline (alpha=0):")
+print_with_wrap(baseline)
+print("\n" + "=" * 80 + "\n")
+print("Steered away from Assistant (alpha=-3.0):")
+print_with_wrap(steered_away)
+
+tests.test_generate_with_steering_basic(generate_with_steering, model, tokenizer, d_model=model.config.hidden_size)
+# %%

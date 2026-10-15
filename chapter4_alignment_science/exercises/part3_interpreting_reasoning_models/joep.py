@@ -948,7 +948,8 @@ df = pd.DataFrame(
 )
 # Get top 5 most common categories
 top_labels = df["Label"].value_counts().head(5).index.tolist()
-df_filtered = df[df["Label"].isin(top_labels)]
+# df_filtered = df[df["Label"].isin(top_labels)]
+df_filtered = df
 # Group and calculate means
 grouped = df_filtered.groupby("Label")[[*metrics, "Position"]].mean().reset_index()
 

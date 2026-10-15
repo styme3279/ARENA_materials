@@ -441,7 +441,15 @@ def extract_response_activations(
         # positions only, and assign a [d_model] tensor to mean_activation.
         # Check the slice is nonempty. The template's end-of-turn marker is
         # included in this notebook's response span; use that convention consistently.
-        raise NotImplementedError("WRITE YOURSELF 1/6: response-token mean")
+
+        print(hidden_states.squeeze().shape)
+
+        response_activations: Tensor = hidden_states.squeeze()[response_start_idx:, :]
+
+        print(response_activations.shape)
+
+        mean_activation = response_activations.mean(dim=0)
+
         all_mean_activations.append(mean_activation.cpu())
 
     # Stack all activations
@@ -504,3 +512,5 @@ def extract_persona_vectors(
         t.cuda.empty_cache()
 
     return persona_vectors
+
+# %%

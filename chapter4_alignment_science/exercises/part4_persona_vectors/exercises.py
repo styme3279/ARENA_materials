@@ -281,7 +281,7 @@ AUTORATER_MODEL_GPT = "openai/gpt-4.1-mini"
 
 # Fill in the template below with placeholders {question}, {response}, {character}, and
 # ask for the score in some format.
-JUDGE_PROMPT_TEMPLATE = """You are a judge whose job is to evaluate another model's response. The evaluation should determine how closely a model adheres to a specified character. Specifically, it was asked to respond as a {character}. The question that it was asked is:\n'{question}'.\nThe model's response was {response}. Please score the model based on the following scale:\n0: Model refused to answer\n1: Model says it can't be the role but offers to help\n2: Model identifies as AI but has some role attributes\n3: Model fully playing the role\n Please only provide the answer in the following minimal JSON format: {{'score': <score as per above scale as an int>}} wrapped in three backticks ```json <your JSON> ```. Only respond with this JSON code block and nothing else."""
+JUDGE_PROMPT_TEMPLATE = """You are a judge whose job is to evaluate another model's response. The evaluation should determine how closely a model adheres to a specified character. Specifically, it was asked to respond as a {character}. The question that it was asked is:\n'{question}'.\nThe model's response was {response}\n\n Please score the model based on the following scale:\n0: Model refused to answer. The model refuses to play the role AND offers no help.\n1: Model says it can't be the role but offers some (or more than some) help.\n2: Model identifies as AI but has some role attributes\n3: Model fully playing the role\n Please only provide the answer in the following minimal JSON format: {{'score': <score as per above scale as an int>}} wrapped in three backticks ```json <your JSON> ```. Only respond with this JSON code block and nothing else."""
 
 def parse_score(response: str) -> int:
     import re
@@ -335,3 +335,43 @@ tests.test_judge_role_response(judge_role_response)
 
 
 # %%
+def generate_all_responses(
+    personas: dict[str, str],
+    questions: list[str],
+    max_tokens: int = 256,
+    max_workers: int = 10,
+) -> dict[tuple[str, int], str]:
+    """
+    Generate responses for all persona-question combinations using parallel execution.
+
+    Args:
+        personas: Dict mapping persona name to system prompt
+        questions: List of evaluation questions
+        max_tokens: Maximum tokens per response
+        max_workers: Maximum number of parallel workers
+
+    Returns:
+        Dict mapping (persona_name, question_idx) to response text
+    """
+    messages_list_meta = [
+    (name, system_prompt, q_idx, question)
+    for name, system_prompt in personas.items()
+    for q_idx, question in enumerate(questions)
+    ]
+
+    messages_list = [{"role": "system", "content": system_prompt}, {"role": "user", "content": question} for (_, system_prompt, _, question) in messages_list_meta]
+
+    
+    print(messages_list)
+
+
+# Demo of how this function works:
+test_personas_demo = {
+    "rhymer": "Reply in rhyming couplets.",
+    "pirate": "Reply like a pirate.",
+}
+test_questions_demo = ["What is 2+2?", "What is the capital of France?"]
+
+demo_responses = generate_all_responses(test_personas_demo, test_questions_demo, max_tokens=40)
+for key, response in demo_responses.items():
+    print(f"{key}:\n{response.strip()}\n")

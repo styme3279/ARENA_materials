@@ -95,14 +95,45 @@ openrouter_client = OpenAI(
 MODEL_NAME = "google/gemma-2-27b-it"
 from transformers import BitsAndBytesConfig
 quantization_config = BitsAndBytesConfig(load_in_8bit=True)
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_NAME,
-    dtype=dtype,
-    device_map="auto",
-    attn_implementation="eager",  # Required for Gemma 2 to access attention weights
-    quantization_config=quantization_config
-)
+def _arena_model_matches(candidate, candidate_tokenizer, model_name, model_dtype, quantization):
+    """Reuse the current live model only when the requested loading settings match."""
+    if candidate is None or candidate_tokenizer is None:
+        return False
+    config = getattr(candidate, "config", None)
+    if getattr(config, "_name_or_path", None) != model_name:
+        return False
+    if str(getattr(candidate, "dtype", None)) != str(model_dtype):
+        return False
+    if getattr(candidate_tokenizer, "name_or_path", None) != model_name:
+        return False
+    if getattr(config, "_attn_implementation", None) != "eager":
+        return False
+
+    def settings(value):
+        if hasattr(value, "to_dict"):
+            value = value.to_dict()
+        return json.dumps(value, sort_keys=True, default=str)
+
+    return settings(getattr(config, "quantization_config", None)) == settings(quantization)
+
+
+# Cached files avoid downloading; this guard also avoids rebuilding a model
+# already present in this kernel. A kernel restart still needs one initial load.
+if _arena_model_matches(globals().get("model"), globals().get("tokenizer"),
+                        MODEL_NAME, dtype, quantization_config):
+    print(f"Reusing {MODEL_NAME} already loaded in this kernel")
+else:
+    print(f"Loading {MODEL_NAME} from local files into memory")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, local_files_only=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        dtype=dtype,
+        device_map="auto",
+        attn_implementation="eager",
+        quantization_config=quantization_config,
+        local_files_only=True,  # All Gemma weights/tokenizer files are already cached.
+    )
+
 # %%
 import logging
 logging.getLogger("bitsandbytes").setLevel(logging.ERROR)
@@ -720,4 +751,104 @@ fig = px.scatter(
 fig.update_traces(textposition="top center", marker=dict(size=10))
 fig.show()
 
+# %%
+
+# READ AND RUN: Supplied setup, helper or demonstration
+# Read and run this supplied helper/demo when you reach it; no implementation needed.
+# Focus on what its output tells you about the experiment.
+
+def characterize_axis(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+    assistant_axis: Float[Tensor, " d_model"],
+) -> dict[str, float]:
+    """
+    Compute cosine similarity of each persona vector with the assistant axis.
+
+    Args:
+        persona_vectors: Dict mapping persona name to its (centered) activation vector
+        assistant_axis: Normalized Assistant Axis direction vector
+
+    Returns:
+        Dict mapping persona name to cosine similarity score, sorted by score
+    """
+    similarities = {}
+    for name, vec in persona_vectors.items():
+        cos_sim = (vec @ assistant_axis) / (vec.norm() * assistant_axis.norm() + 1e-8)
+        similarities[name] = cos_sim.item()
+    return dict(sorted(similarities.items(), key=lambda x: x[1]))
+
+
+# Compute trait similarities using centered persona vectors
+trait_similarities = characterize_axis(persona_vectors_centered, assistant_axis)
+
+# Print extremes
+items = list(trait_similarities.items())
+print("Most ROLE-PLAYING (anti-assistant):")
+for name, sim in items[:5]:
+    print(f"  {name}: {sim:.3f}")
+print("\nMost ASSISTANT-LIKE:")
+for name, sim in items[-5:]:
+    print(f"  {name}: {sim:.3f}")
+
+# Create 1D visualization
+names = [name for name, _ in items]
+sims = [sim for _, sim in items]
+
+fig = px.scatter(
+    x=sims,
+    y=[0] * len(sims),
+    text=names,
+    color=sims,
+    color_continuous_scale="RdBu",
+    title="Persona Projections onto the Assistant Axis",
+    labels={"x": "Cosine Similarity with Assistant Axis", "color": "Similarity"},
+)
+fig.update_yaxes(visible=False, range=[-0.5, 0.5])
+fig.update_layout(height=350, showlegend=False)
+fig.update_traces(
+    textposition=["top center" if i % 2 == 0 else "bottom center" for i in range(len(names))], marker=dict(size=12)
+)
+fig.show()
+
+# %%
+# READ AND RUN: Supplied setup, helper or demonstration
+# Optional first pass: this downloads paper-scale artifacts. The smaller persona experiment
+# is enough to understand the mechanism; inspect this larger view after the core path.
+
+REPO_ID = "lu-christina/assistant-axis-vectors"
+GEMMA2_MODEL = "gemma-2-27b"
+GEMMA2_TARGET_LAYER = 22  # layer used in the paper's config
+
+# Load the Gemma 2 27B assistant axis (shape [46, 4608] - 46 layers, d_model=4608)
+hf_axis_path = hf_hub_download(repo_id=REPO_ID, filename=f"{GEMMA2_MODEL}/assistant_axis.pt", repo_type="dataset")
+hf_axis_raw = t.load(hf_axis_path, map_location="cpu", weights_only=False)
+hf_axis_vec = F.normalize(hf_axis_raw[GEMMA2_TARGET_LAYER].float(), dim=0)  # shape: (4608,)
+print(f"Gemma 2 27B axis shape at layer {GEMMA2_TARGET_LAYER}: {hf_axis_vec.shape}")
+
+# Download all 240 pre-computed trait vectors (each has shape [n_layers, d_model])
+print("Downloading 240 trait vectors (this may take a moment)...")
+local_dir = snapshot_download(
+    repo_id=REPO_ID, repo_type="dataset", allow_patterns=f"{GEMMA2_MODEL}/trait_vectors/*.pt"
+)
+trait_vectors_hf = {
+    p.stem: t.load(p, map_location="cpu", weights_only=False)
+    for p in Path(local_dir, GEMMA2_MODEL, "trait_vectors").glob("*.pt")
+}
+print(f"Loaded {len(trait_vectors_hf)} trait vectors")
+
+# Cosine similarity between each trait vector (at the target layer) and the assistant axis
+trait_sims_hf = {
+    name: F.cosine_similarity(vec[GEMMA2_TARGET_LAYER].float(), hf_axis_vec, dim=0).item()
+    for name, vec in trait_vectors_hf.items()
+}
+# %%
+# READ AND RUN: Supplied setup, helper or demonstration
+# Optional first pass: inspect the larger trait-space figure if you loaded its artifacts.
+
+sim_names = list(trait_sims_hf.keys())
+sim_values = np.array([trait_sims_hf[n] for n in sim_names])
+fig = utils.plot_similarity_line(sim_values, sim_names, n_extremes=5)
+plt.title(f"Trait Vectors vs Assistant Axis (Gemma 2 27B, Layer {GEMMA2_TARGET_LAYER})")
+plt.tight_layout()
+plt.show()
 # %%

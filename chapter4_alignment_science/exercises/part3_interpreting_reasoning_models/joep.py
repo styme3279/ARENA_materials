@@ -1010,3 +1010,187 @@ html_str = utils.chunk_graph_html(
     chunk_texts=sample_texts,
 )
 display(HTML(html_str))
+
+# %%
+def precompute_rollout_embeddings(
+    chunk_solutions: list[list[dict]],
+    embedding_model: SentenceTransformer,
+    batch_size: int = 128,
+) -> tuple[list[list[np.ndarray]], list[list[list[str]]]]:
+    """
+    Precompute embeddings for all sentences in all rollouts using batched encoding. Does this by
+    first collecting every single rollout from each chunk, then batch encode them all.
+
+    Args:
+        chunk_solutions: List of chunk solutions, where chunk_solutions[k] contains
+                        rollouts from resampling after chunk k
+        embedding_model: Sentence embedding model
+        batch_size: Batch size for embedding model encoding
+
+    Returns:
+        rollout_embeddings: rollout_embeddings[i][j] = array of shape (n_sentences, embed_dim)
+        rollout_sentences: rollout_sentences[i][j] = list of sentence strings
+    """
+    # First pass: collect all sentences and track their positions
+    all_sentences: list[str] = []
+    # position_map[i][j] = (start_idx, end_idx) into all_sentences, or None if empty
+    position_map: list[list[tuple[int, int] | None]] = []
+    rollout_sentences: list[list[list[str]]] = []
+
+    for i in tqdm(range(len(chunk_solutions)), desc="Precomputing embeddings"):
+        chunk_positions = []
+        chunk_sentences = []
+
+        for rollout_dict in chunk_solutions[i]:
+            rollout_text = rollout_dict["rollout"]
+            sentences = split_solution_into_chunks(rollout_text)
+            assert sentences, "Expected at least one sentence per rollout"
+
+            all_sentences.extend(sentences)
+            chunk_positions.append((len(all_sentences) - len(sentences), len(all_sentences)))
+            chunk_sentences.append(sentences)
+
+        position_map.append(chunk_positions)
+        rollout_sentences.append(chunk_sentences)
+
+    # Batch embed all sentences at once
+    all_embeddings = embedding_model.encode(all_sentences, batch_size=batch_size, show_progress_bar=True)
+
+    # Reconstruct per-rollout embeddings using position map
+    rollout_embeddings: list[list[np.ndarray]] = []
+
+    for i in range(len(chunk_solutions)):
+        chunk_embeddings = []
+        for position in position_map[i]:
+            start_idx, end_idx = position
+            chunk_embeddings.append(all_embeddings[start_idx:end_idx])
+        rollout_embeddings.append(chunk_embeddings)
+
+    return rollout_embeddings, rollout_sentences
+
+
+def precompute_target_embeddings(
+    chunks: list[dict],
+    embedding_model: SentenceTransformer,
+    n_chunks: int,
+) -> Float[np.ndarray, "n_chunks embed_dim"]:
+    """
+    Precompute embeddings for all target chunk sentences.
+
+    Args:
+        chunks: List of chunk dictionaries with "chunk" key
+        embedding_model: Sentence embedding model
+        n_chunks: Number of chunks to process
+
+    Returns:
+        Array of shape (n_chunks, embed_dim) with target embeddings
+    """
+    chunk_texts = [chunks[i]["chunk"] for i in range(n_chunks)]
+    return embedding_model.encode(chunk_texts)
+
+
+def compute_match_rate_from_embeddings(
+    target_embedding: Float[np.ndarray, " embed_dim"],
+    rollout_embeddings_list: list[Float[np.ndarray, "n_sentences embed_dim"]],
+    similarity_threshold: float = 0.7,
+) -> float:
+    """
+    Compute fraction of rollouts containing a sentence similar to target.
+
+    Args:
+        target_embedding: Embedding of target sentence, shape (embed_dim,)
+        rollout_embeddings_list: List of arrays, each shape (n_sentences, embed_dim)
+        similarity_threshold: Minimum cosine similarity for a match
+
+    Returns:
+        Fraction of rollouts with a matching sentence (0 to 1)
+    """
+    # Filter out empty embeddings and track rollout boundaries
+    valid_embeddings = []
+    rollout_boundaries = []  # (start, end) indices into concatenated array
+
+    current_idx = 0
+    for embeddings in rollout_embeddings_list:
+        valid_embeddings.append(embeddings)
+        rollout_boundaries.append((current_idx, current_idx + len(embeddings)))
+        current_idx += len(embeddings)
+
+    # Concatenate all embeddings: (total_sentences, embed_dim)
+    all_embeddings = np.vstack(valid_embeddings)
+
+    # Normalize target and all embeddings for cosine similarity
+    target_norm = target_embedding / (np.linalg.norm(target_embedding) + 1e-8)
+    all_norms = np.linalg.norm(all_embeddings, axis=1, keepdims=True) + 1e-8
+    all_embeddings_norm = all_embeddings / all_norms
+
+    # Compute all cosine similarities at once: (total_sentences,)
+    all_similarities = all_embeddings_norm @ target_norm
+
+    # Count matches per rollout using boundaries
+    matches = sum(1 for start, end in rollout_boundaries if np.max(all_similarities[start:end]) >= similarity_threshold)
+
+    return matches / len(rollout_boundaries)
+
+
+def compute_pairwise_importance(
+    source_idx: int,
+    target_idx: int,
+    target_embeddings: Float[np.ndarray, "n_chunks embed_dim"],
+    rollout_embeddings: list[list[Float[np.ndarray, "n_sentences embed_dim"]]],
+    similarity_threshold: float = 0.7,
+) -> float:
+    """
+    Compute causal importance of sentence source_idx on sentence target_idx.
+    Uses precomputed embeddings for efficiency.
+
+    Compares:
+    - Rollouts from chunk_{source_idx + 1} (source was KEPT)
+    - Rollouts from chunk_{source_idx} (source was REMOVED)
+    """
+    if source_idx >= target_idx:
+        return 0.0
+
+    target_embedding = target_embeddings[target_idx]
+
+    # Rollouts where source was kept
+    include_embeddings = rollout_embeddings[source_idx + 1]
+    # Rollouts where source was removed
+    exclude_embeddings = rollout_embeddings[source_idx]
+
+    include_rate = compute_match_rate_from_embeddings(target_embedding, include_embeddings, similarity_threshold)
+    exclude_rate = compute_match_rate_from_embeddings(target_embedding, exclude_embeddings, similarity_threshold)
+
+    return include_rate - exclude_rate
+
+
+# Precompute all embeddings upfront
+n_chunks = 74
+target_embeddings = precompute_target_embeddings(problem_data["chunks_labeled"], embedding_model, n_chunks=n_chunks)
+rollout_embeddings, rollout_sentences = precompute_rollout_embeddings(
+    problem_data["chunk_solutions"], embedding_model
+)
+
+# Compute importance matrix
+importance_matrix = np.zeros((n_chunks, n_chunks))
+
+for i in tqdm(range(n_chunks - 1), desc="Computing pairwise importance"):
+    for j in range(i + 1, n_chunks):
+        importance_matrix[i, j] = compute_pairwise_importance(i, j, target_embeddings, rollout_embeddings)
+
+# Plot the importance matrix with plotly
+# Mask upper triangle of transposed matrix (we want to show lower triangle which has the values)
+mask = np.triu(np.ones_like(importance_matrix, dtype=bool))
+importance_matrix = np.where(mask, importance_matrix, 0.0)
+
+chunk_labels = [CATEGORIES[chunk["function_tags"][0]] for chunk in problem_data["chunks_labeled"][:n_chunks]]
+chunk_texts = [chunk["chunk"] for chunk in problem_data["chunks_labeled"][:n_chunks]]
+
+html_str = utils.chunk_graph_html(
+    edge_weights=importance_matrix,
+    chunk_labels=chunk_labels,
+    chunk_texts=chunk_texts,
+    n_top_edges_per_direction=3,
+)
+display(HTML(html_str))
+
+# %%

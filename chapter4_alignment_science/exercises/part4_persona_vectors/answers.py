@@ -442,6 +442,8 @@ def extract_response_activations(
     """
     assert len(system_prompts) == len(questions) == len(responses)
 
+    output = None
+
     for system_prompt, question, response in zip(system_prompts, questions, responses):
         message = [
             {"role": "system", "content": system_prompt},
@@ -457,7 +459,7 @@ def extract_response_activations(
         with t.inference_mode():
             outputs = model(**tokens, output_hidden_states=True)
 
-        print(len(outputs['hidden_states']))
+        outputs['hidden_states'][layer]
 
 
 test_activation = extract_response_activations(

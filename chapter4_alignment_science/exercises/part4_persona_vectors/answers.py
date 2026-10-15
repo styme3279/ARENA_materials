@@ -98,6 +98,12 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 login(token=HF_TOKEN)
 
 # %%
+from transformers import BitsAndBytesConfig
+
+# Configure 8-bit quantization
+quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+
+
 MODEL_NAME = "google/gemma-2-27b-it"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
@@ -106,11 +112,15 @@ model = AutoModelForCausalLM.from_pretrained(
     dtype=dtype,
     device_map="auto",
     attn_implementation="eager",  # Required for Gemma 2 to access attention weights
+    quantization_config=quantization_config,
 )
 
 NUM_LAYERS = model.config.num_hidden_layers
 D_MODEL = model.config.hidden_size
 
+# %%
+del tokenizer
+t.cuda.empty_cache()
 
 # %%
 PERSONAS = {

@@ -912,8 +912,6 @@ finally:
 print("\nFirst forward pass has full sequence length; subsequent ones have length 1!")
 
 # %%
-EXTRACTION_LAYER = round(NUM_LAYERS * 0.65)  # 65% through the model
-
 
 class ConversationAnalyzer:
     """
@@ -946,12 +944,47 @@ class ConversationAnalyzer:
             List of mean activation tensors (one per assistant turn), on CPU
         """
 
-        print(messages)
-        format_messages(messages, tokenizer)
-        
+        print(1)
+        # print(messages)
 
+        user_indices = [idx for idx, val in enumerate(messages) if val["role"] == "user"]
+        print(user_indices)
 
-        raise NotImplementedError()
+        turns = list() # list[list[dict[str, str]]]
+
+        for index in user_indices:
+            turns.append(messages[index:index+2])
+
+        all_mean_activations = list()
+
+        for turn in turns:
+            """
+            1. format_messages turn to get full_prompt and last_response_idx
+            2. get activations using prev function for question and response
+            3. append to activations list
+            """
+            full_prompt, response_start_idx = format_messages(turn, self.tokenizer)
+            # Tokenize (the chat template already includes the BOS token, so don't add another)
+            tokens = self.tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+    
+            # Forward pass with hidden state output
+            with t.inference_mode():
+                outputs = self.model(**tokens, output_hidden_states=True)
+    
+            # Get hidden states at the specified layer
+            hidden_states = outputs.hidden_states[self.layer]  # (1, seq_len, hidden_size)
+    
+            # Create mask for response tokens
+            seq_len = hidden_states.shape[1]
+            response_mask = t.arange(seq_len, device=hidden_states.device) >= response_start_idx
+    
+            # Compute mean activation over response tokens
+            mean_activation = (hidden_states[0] * response_mask[:, None]).sum(0) / response_mask.sum()
+            all_mean_activations.append(mean_activation.cpu())
+
+            return all_mean_activations
+
+        # raise NotImplementedError()
 
     def project_onto_axis(self, messages: list[dict[str, str]]) -> list[float]:
         """
@@ -966,6 +999,9 @@ class ConversationAnalyzer:
         Returns:
             List of projection values (one per assistant turn)
         """
+
+
+        self.extract_turn_activations(messages)
         raise NotImplementedError()
 
 

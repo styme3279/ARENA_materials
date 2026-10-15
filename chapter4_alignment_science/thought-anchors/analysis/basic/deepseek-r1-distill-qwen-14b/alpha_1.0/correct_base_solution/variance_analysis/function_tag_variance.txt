@@ -1,0 +1,50 @@
+Function tags with highest variance in importance:
+
+Problem Setup:
+  Variance: 0.010307
+  Mean: 0.003759
+  Count: 52
+  Coefficient of Variation: 2.741885
+
+Fact Retrieval:
+  Variance: 0.007093
+  Mean: 0.000532
+  Count: 738
+  Coefficient of Variation: 13.338816
+
+Active Computation:
+  Variance: 0.007047
+  Mean: 0.000572
+  Count: 928
+  Coefficient of Variation: 12.311142
+
+Plan Generation:
+  Variance: 0.006596
+  Mean: -0.005209
+  Count: 342
+  Coefficient of Variation: -1.266216
+
+Uncertainty Management:
+  Variance: 0.006341
+  Mean: -0.005970
+  Count: 347
+  Coefficient of Variation: -1.062165
+
+Result Consolidation:
+  Variance: 0.002284
+  Mean: -0.000969
+  Count: 256
+  Coefficient of Variation: -2.355688
+
+Self Checking:
+  Variance: 0.002167
+  Mean: -0.001156
+  Count: 248
+  Coefficient of Variation: -1.874270
+
+Final Answer Emission:
+  Variance: 0.000070
+  Mean: 0.001280
+  Count: 41
+  Coefficient of Variation: 0.055029
+

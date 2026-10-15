@@ -359,10 +359,18 @@ def generate_all_responses(
     for q_idx, question in enumerate(questions)
     ]
 
-    messages_list = [{"role": "system", "content": system_prompt}, {"role": "user", "content": question} for (_, system_prompt, _, question) in messages_list_meta]
+    messages_list = [[{"role": "system", "content": system_prompt}, {"role": "user", "content": question}] for (_, system_prompt, _, question) in messages_list_meta]
 
-    
-    print(messages_list)
+    responses_raw = generate_responses_parallel(messages_list)
+
+    responses = {}
+    for i in range(len(messages_list_meta)):
+        response = responses_raw[i]
+        name, _, q_idx, _ = messages_list_meta[i]
+        responses[(name, q_idx)] = response
+
+    return responses
+
 
 
 # Demo of how this function works:
@@ -375,3 +383,20 @@ test_questions_demo = ["What is 2+2?", "What is the capital of France?"]
 demo_responses = generate_all_responses(test_personas_demo, test_questions_demo, max_tokens=40)
 for key, response in demo_responses.items():
     print(f"{key}:\n{response.strip()}\n")
+# %%
+
+# Now, a quick test of the function using just 2 personas & questions:
+test_personas = {k: PERSONAS[k] for k in list(PERSONAS.keys())[-2:]}
+test_questions = EVAL_QUESTIONS[:2]
+
+test_responses = generate_all_responses(test_personas, test_questions)
+
+# Show a sample of the results:
+for (persona, question_idx), response in test_responses.items():
+    question = test_questions[question_idx]
+    print(f"{persona=}\n{question=}\n{response.strip()[:120]}...\n")
+
+# %%
+responses = generate_all_responses(PERSONAS, EVAL_QUESTIONS)
+
+# %%

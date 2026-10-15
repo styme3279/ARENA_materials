@@ -1023,7 +1023,14 @@ class ConversationAnalyzer:
         Returns:
             List of mean activation tensors (one per assistant turn), on CPU
         """
-        raise NotImplementedError()
+        spans = utils.get_turn_spans(messages, self.tokenizer)
+
+        full_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        tokens = self.tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(self.model.device)
+
+
+
+
 
     def project_onto_axis(self, messages: list[dict[str, str]]) -> list[float]:
         """

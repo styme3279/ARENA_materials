@@ -1,4 +1,8 @@
 # %%
+import logging
+logging.getLogger("bitsandbytes.autograd._functions").setLevel(logging.ERROR)
+
+# %%
 import os
 import random
 import re
@@ -573,10 +577,6 @@ df = prompts_df()
 display(df.style.set_properties(**{"text-align": "left"}))
 
 # %%
-import logging
-logging.getLogger("bitsandbytes.autograd._functions").setLevel(logging.ERROR)
-
-# %%
 def build_messages(
     user_text: str,
     mode: str = "neutral",
@@ -1103,5 +1103,29 @@ for steering_coef in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]:
     results.append({"coef": steering_coef, "response": response})
 
 print(tabulate(results, headers="keys", tablefmt="simple_grid", maxcolwidths=80))
+
+# %%
+# YOUR CODE HERE - write a coherence judge prompt
+COHERENCE_JUDGE_PROMPT = ""
+
+# Test the coherence autorater
+test_questions = [
+    "What is 2+2?",
+    "What is the capital of France?",
+]
+test_responses = [
+    "2+2 equals 4.",
+    "banana banana banana banana banana banana banana banana banana banana",
+]
+
+coherence_scores = score_with_autorater(test_questions, test_responses, judge_prompt=COHERENCE_JUDGE_PROMPT)
+print("Coherence scores:")
+for q, r, s in zip(test_questions, test_responses, coherence_scores):
+    print(f"  Q: {q}")
+    print(f"  R: {r}")
+    print(f"  Coherence: {s:.2f}")
+    print()
+
+tests.test_coherence_judge_prompt(score_with_autorater, COHERENCE_JUDGE_PROMPT)
 
 # %%

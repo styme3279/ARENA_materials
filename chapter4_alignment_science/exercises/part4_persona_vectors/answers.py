@@ -934,17 +934,115 @@ print("\nFirst user message from delusion transcript:")
 print(delusion_transcript[0]["content"][:200] + "...")
 
 # %%
-# 1. Define a hook function
-def my_hook(module, input, output):
-    print(f"Shape: {output.shape}")
+test_prompt = "The quick brown fox"
+test_tokens = tokenizer(test_prompt, return_tensors="pt").to(model.device)
 
-# 2. Register on a specific layer
-hook_handle = layer.register_forward_hook(my_hook)
+def hook_fn(module, input, output):
+    print(f"Hook captured shape: {output.shape}")
 
-# 3. Forward pass - hook is called automatically
-_ = model(input_tensor)
+hook = _return_layers(model)[EXTRACTION_LAYER].register_forward_hook(hook_fn)
 
-# 4. Always clean up
-hook_handle.remove()
+try:
+    print("Generating 3 tokens (watch the shape change due to KV caching):")
+    with t.inference_mode():
+        _ = model.generate(**test_tokens, max_new_tokens=3)
+finally:
+    hook.remove()
+
+print("\nFirst forward pass has full sequence length; subsequent ones have length 1!")
+
+# %%
+class ConversationAnalyzer:
+    """
+    Analyzes persona drift by projecting per-turn mean activations onto the Assistant Axis.
+
+    Processes the entire conversation in a single forward pass and extracts per-turn activations
+    using token spans from `get_turn_spans` (provided by `part4_persona_vectors.utils`).
+    """
+
+    def __init__(
+        self,
+        model,
+        tokenizer,
+        layer: int,
+        assistant_axis: Float[Tensor, " d_model"],
+    ):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.layer = layer
+        self.assistant_axis = assistant_axis  # Unit-normalized, cpu float32
+
+    def extract_turn_activations(self, messages: list[dict[str, str]]) -> list[Float[Tensor, " d_model"]]:
+        """
+        Run a single forward pass and return the mean hidden state for each assistant turn.
+
+        Args:
+            messages: Full conversation as list of {"role": ..., "content": ...} dicts
+
+        Returns:
+            List of mean activation tensors (one per assistant turn), on CPU
+        """
+        spans = utils.get_turn_spans(messages, self.tokenizer)
+
+        full_prompt, _ = format_messages(messages, tokenizer)
+
+        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+
+        captured_activations = []
+
+        def capture_activation_hook(hook, input, output):
+            captured_activations.append(output)
+
+        handle = model.model.layers[EXTRACTION_LAYER].register_forward_hook(capture_activation_hook)
+        
+        with t.inference_mode():
+            outputs = model(**tokens, output_hidden_states=True)
+
+        handle.remove()
+
+        return [captured_activations[0].squeeze(0)[start_i:end_i, :].mean(dim=0) for start_i, end_i in spans]
+
+    def project_onto_axis(self, messages: list[dict[str, str]]) -> list[float]:
+        """
+        Project each assistant turn's mean activation onto assistant_axis.
+
+        Returns raw dot products: (act @ assistant_axis).item(). Values will be O(hundreds to
+        thousands) for Gemma 2 - focus on relative changes across turns, not absolute scale.
+
+        Args:
+            messages: Full conversation
+
+        Returns:
+            List of projection values (one per assistant turn)
+        """
+        activations = self.extract_turn_activations(messages)
+
+        return [(act @ self.assistant_axis.cuda()).item() for act in activations]
+
+
+t.cuda.empty_cache()
+analyzer = ConversationAnalyzer(
+    model=model,
+    tokenizer=tokenizer,
+    layer=EXTRACTION_LAYER,
+    assistant_axis=assistant_axis,
+)
+
+# Test on a short subset of the therapy transcript
+test_msgs = therapy_transcript[:6]  # 3 assistant turns
+print(test_msgs)
+test_spans = utils.get_turn_spans(test_msgs, tokenizer)
+print(test_spans)
+print(type(model.model.layers[EXTRACTION_LAYER]))
+
+activations = analyzer.extract_turn_activations(test_msgs)
+print(activations[0].shape)
+print(len(activations))
+
+test_projs = analyzer.project_onto_axis(test_msgs)
+print(f"\nProjections for first 3 turns: {[f'{p:.0f}' for p in test_projs]}")
+print("(Raw dot products; large values are expected for Gemma 2.)")
+
+tests.test_conversation_analyzer_project(ConversationAnalyzer)
 
 # %%

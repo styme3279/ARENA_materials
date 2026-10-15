@@ -307,8 +307,9 @@ def test_generalization(
     # 3. Score both responses using score_response() and collect into a list of dicts
     # 4. Return pd.DataFrame(results)
     
+    results = []
     for domain in prompts_by_domain.keys():
-
+        results[domain] = {}
         messages_list = [[{"role": "user", "content": prompt}] for prompt in prompts_by_domain[domain]]
 
         texts = [
@@ -334,10 +335,18 @@ def test_generalization(
         )
 
         # Decode each response (skip the input tokens)
-        for j, output in enumerate(base_outputs):
+        for j, (base_output, misaligned_output) in enumerate(zip(base_outputs, misaligned_outputs)):
             input_len = inputs["input_ids"][j].shape[0]
-            response = tokenizer.decode(output[input_len:], skip_special_tokens=True)
+            base_response = tokenizer.decode(base_output[input_len:], skip_special_tokens=True)
+            misaligned_response = tokenizer.decode(misaligned_output[input_len:], skip_special_tokens=True)
+
+            base_response_score = score_response_simple(base_response)
+            misaligned_response_score = score_response_simple(misaligned_response)
+
+            response_dict = {"domain": domain, "prompt": prompt, "base_score": base_response_score, "misaligned_score": misaligned_response_score, }
+            
             all_responses.append(response)
+
 
 
 # Test prompts across different domains

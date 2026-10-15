@@ -304,8 +304,21 @@ def generate_all_responses(
     Returns:
         Dict mapping (persona_name, question_idx) to response text
     """
-    res = {}
-    generate_response_parallel()
+    messages_list = {}
+    for persona, prompt in personas.items():
+        messages_list = []
+        for i, question in enumerate(questions):
+            messages_list.append([{"role": "system", "content": prompt},{"role": "user", "content": question}])
+
+    # call the inference function
+    res = generate_response_parallel(
+        messages_list = messages_list,
+        max_tokens = max_tokens,
+        max_workers = max_workers)
+    # store answers in the final output dict
+
+
+    return res
 
 
 

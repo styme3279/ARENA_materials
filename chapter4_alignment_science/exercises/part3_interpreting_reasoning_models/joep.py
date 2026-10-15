@@ -1215,7 +1215,27 @@ def extract_attention_matrix(
         attention_matrix: Shape (seq_len, seq_len) attention weights for the specified head
         tokens: List of token strings for visualization
     """
-    raise NotImplementedError("Implement attention extraction using hooks")
+
+    # Tokenize input
+    inputs = tokenizer(text, return_tensors="pt")
+    if model.device.type == "cuda":
+        inputs = {k: v.cuda() for k, v in inputs.items()}
+
+    # Forward pass - hook will capture attention
+    with t.no_grad():
+        output = model(**inputs, use_cache=False, output_attentions=True)
+
+    # captured_attention[0] has shape (batch_size, num_heads, seq_len, seq_len)
+    attn_tensor = output.attentions[layer][0, head]  # Select batch 0, specific head
+
+    # Convert to numpy
+    attention_matrix = attn_tensor.float().cpu().numpy()  # .float() first: numpy has no bfloat16
+
+    # Get token strings
+    token_ids = inputs["input_ids"][0].tolist()
+    tokens = tokenizer.convert_ids_to_tokens(token_ids)
+
+    return attention_matrix, tokens
 
 
 # Load model and tokenizer (with attention output enabled - important!)
@@ -1259,3 +1279,260 @@ display(
         tokens=tokens,
     )
 )
+
+
+
+# Load model and tokenizer (with attention output enabled - important!)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_1B)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
+model = AutoModelForCausalLM.from_pretrained(MODEL_NAME_1B, device_map="auto", dtype=dtype)
+# Flash Attention (the default for efficiency) fuses the attention computation into a single GPU
+# kernel and never materializes the full attention matrix, so it can't return attention weights.
+# We switch to "eager" mode which computes attention weights explicitly, allowing us to extract
+# and analyze them for the whitebox methods in this section.
+model.config._attn_implementation = "eager"
+model.config.output_attentions = True
+model.eval()
+
+# Test with a short example
+test_text = "The cat sat on the mat. It was sleeping."
+
+# Extract attention from middle layer
+n_layers = len(model.model.layers)
+layer_to_check = n_layers // 2
+head_to_check = 8  # head 9 is better for the 1.5b model
+print(f"\nExtracting attention from head L{layer_to_check}H{head_to_check}")
+attention_matrix, tokens = extract_attention_matrix(
+    test_text, model, tokenizer, layer=layer_to_check, head=head_to_check
+)
+assert attention_matrix.shape[0] == len(tokens), "Shape mismatch"
+assert attention_matrix.shape[0] == attention_matrix.shape[1], "Not square"
+# The model runs in bfloat16 (~3 significant digits), so rows only sum to 1 to within about 1e-2
+assert np.allclose(attention_matrix.sum(axis=1), 1.0, atol=1e-2), "Rows don't sum to 1"
+
+# Check causal structure (upper triangle should be mostly zeros)
+upper_triangle_sum = np.triu(attention_matrix, k=1).sum()
+assert upper_triangle_sum < 1e-5, "Upper triangle has non-zero values, not causal attention"
+
+# Visualize
+display(
+    cv.attention.attention_heads(
+        attention=attention_matrix[None],
+        tokens=tokens,
+    )
+)
+
+# %%
+
+def get_vertical_scores_simple(
+    avg_attention_matrix: Float[np.ndarray, "n_sentences n_sentences"],
+    proximity_ignore: int = 4,
+) -> Float[np.ndarray, " n_sentences"]:
+    """
+    Compute basic vertical attention scores for each sentence (no normalization).
+
+    Args:
+        avg_attention_matrix: Shape (n_sentences, n_sentences), where entry (i, j)
+            is the average attention from sentence i to sentence j
+        proximity_ignore: Ignore this many nearby sentences (to avoid trivial patterns)
+
+    Returns:
+        Array of shape (n_sentences,) with vertical scores
+
+    The vertical score for sentence j is the mean attention it receives from
+    all sentences i where i > j + proximity_ignore.
+
+    Adapted from thought-anchors: attn_funcs.py:get_vertical_scores
+    """
+
+    vertical_attn = np.zeros(avg_attention_matrix.shape[0])
+    for i in range(len(vertical_attn)):
+        vertical_attn[i] = np.mean(avg_attention_matrix[i+proximity_ignore:, i])
+
+    return vertical_attn
+
+
+tests.test_get_vertical_scores_simple(get_vertical_scores_simple)
+
+
+# %%
+# Get example problem data
+text, sentences, _ = utils.get_whitebox_example_data(problem_data)
+
+# Extract attention from a middle layer
+layer, head = 15, 8
+print(f"\nExtracting attention from head L{layer}H{head}...")
+token_attention, tokens = extract_attention_matrix(text, model, tokenizer, layer, head)
+
+# Convert to sentence-level attention
+boundaries = utils.get_sentence_token_boundaries(text, sentences, tokenizer)
+sentence_attention = utils.average_attention_by_sentences(token_attention, boundaries)
+
+# Compute vertical scores (simple version)
+vert_scores_simple = get_vertical_scores_simple(sentence_attention, proximity_ignore=4)
+
+# Visualize
+hover_texts = [s[:80] + "..." if len(s) > 80 else s for s in sentences]
+
+fig = go.Figure()
+fig.add_trace(
+    go.Bar(
+        x=list(range(len(vert_scores_simple))),
+        y=vert_scores_simple,
+        marker_color="steelblue",
+        hovertemplate="<b>Sentence %{x}</b><br>Score: %{y:.4f}<br>%{customdata}<extra></extra>",
+        customdata=hover_texts,
+    )
+)
+fig.add_hline(y=0, line_color="black", line_width=0.5)
+fig.update_layout(
+    title="Simple Vertical Scores (No Normalization)",
+    xaxis_title="Sentence Index",
+    yaxis_title="Vertical Score",
+    width=1000,
+    height=450,
+)
+fig.show()
+
+# %%
+def get_vertical_scores(
+    avg_attention_matrix: Float[np.ndarray, "n_sentences n_sentences"],
+    proximity_ignore: int = 4,
+    control_depth: bool = True,
+    return_z_scores: bool = False,
+) -> Float[np.ndarray, " n_sentences"]:
+    """
+    Compute vertical attention scores for each sentence with optional depth control and z-scoring.
+
+    Args:
+        avg_attention_matrix: Shape (n_sentences, n_sentences), where entry (i, j)
+            is the average attention from sentence i to sentence j
+        proximity_ignore: Ignore this many nearby sentences (to avoid trivial patterns)
+        control_depth: Apply rank normalization to control for depth effects
+        return_z_scores: If True, return z-score normalized values
+
+    Returns:
+        Array of shape (n_sentences,) with vertical scores
+
+    The vertical score for sentence j is the mean attention it receives from
+    all sentences i where i > j + proximity_ignore.
+
+    Depth control (when enabled): Normalizes each row by ranking attention values
+    and dividing by the count of valid (non-NaN) positions. This ensures fair
+    comparison between early sentences (fewer tokens to attend to) and late
+    sentences (many tokens to attend to).
+
+    Adapted from thought-anchors: attn_funcs.py:get_vertical_scores
+    """
+    n = avg_attention_matrix.shape[0]
+    mat = avg_attention_matrix.copy()
+
+    # Step 1: Clean matrix - set upper triangle to NaN (can't attend to future)
+    mat[np.triu_indices_from(mat, k=1)] = np.nan
+
+    # Step 2: Remove proximity - set near-diagonal to NaN (ignore nearby sentences)
+    mat[np.triu_indices_from(mat, k=-proximity_ignore + 1)] = np.nan
+
+    # Step 3: Depth control normalization (critical for fair comparison!)
+    if control_depth:
+        # Count non-NaN values per row (available positions to attend to)
+        per_row = np.sum(~np.isnan(mat), axis=1)
+
+        # Rank-normalize each row: convert attention values to ranks,
+        # then divide by number of valid positions
+        # This puts all rows on the same scale regardless of depth
+        mat = stats.rankdata(mat, axis=1, nan_policy="omit") / per_row[:, None]
+
+    # Step 4: Compute vertical scores: mean attention received from future sentences
+    vert_scores = []
+    for j in range(n):
+        # Extract "vertical line" - attention from all future sentences to sentence j
+        future_attention = mat[j + proximity_ignore :, j]
+
+        if len(future_attention) == 0 or np.all(np.isnan(future_attention)):
+            vert_scores.append(np.nan)
+        else:
+            vert_scores.append(np.nanmean(future_attention))
+
+    vert_scores = np.array(vert_scores)
+
+    # Step 5: Optional z-score normalization
+    if return_z_scores:
+        vert_scores = (vert_scores - np.nanmean(vert_scores)) / np.nanstd(vert_scores)
+
+    return vert_scores
+
+
+
+tests.test_get_vertical_scores(get_vertical_scores)
+# %%
+
+# Compute vertical scores WITH and WITHOUT depth control (using z-scores for comparison)
+vert_scores_no_control = get_vertical_scores(
+    sentence_attention, proximity_ignore=4, control_depth=False, return_z_scores=True
+)
+vert_scores_with_control = get_vertical_scores(
+    sentence_attention, proximity_ignore=4, control_depth=True, return_z_scores=True
+)
+
+# Get top-3 sentences (filtering NaN values)
+valid_mask = ~np.isnan(vert_scores_no_control) & ~np.isnan(vert_scores_with_control)
+valid_indices = np.where(valid_mask)[0]
+top_3_no_control = valid_indices[np.argsort(vert_scores_no_control[valid_mask])[-3:][::-1]]
+top_3_with_control = valid_indices[np.argsort(vert_scores_with_control[valid_mask])[-3:][::-1]]
+
+print(f"Top-3 sentences (no depth control): {top_3_no_control}")
+print(f"Top-3 sentences (with depth control): {top_3_with_control}")
+print(
+    f"Correlation between methods: {np.corrcoef(vert_scores_no_control[valid_mask], vert_scores_with_control[valid_mask])[0, 1]:.3f}"
+)
+
+# Plot comparison (already z-scored from the function)
+hover_texts = [s[:80] + "..." if len(s) > 80 else s for s in sentences]
+
+fig = go.Figure()
+for name, scores, color in [
+    ("No depth control", vert_scores_no_control, "steelblue"),
+    ("With depth control", vert_scores_with_control, "darkorange"),
+]:
+    fig.add_trace(
+        go.Bar(
+            x=list(range(len(scores))),
+            y=scores,
+            name=name,
+            opacity=0.7,
+            marker_color=color,
+            hovertemplate="<b>Sentence %{x}</b><br>Z-score: %{y:.2f}<br>%{customdata}<extra></extra>",
+            customdata=hover_texts,
+        )
+    )
+fig.add_hline(y=0, line_color="black", line_width=0.5)
+fig.update_layout(
+    title="Vertical Scores Comparison (Z-scored)",
+    xaxis_title="Sentence Index",
+    yaxis_title="Vertical Score (z-scored)",
+    width=1000,
+    height=450,
+    barmode="group",
+)
+fig.show()
+ # %%
+def compute_head_kurtosis(vertical_scores: Float[np.ndarray, " n_sentences"]) -> float:
+    """
+    Compute kurtosis of vertical attention scores.
+    Higher kurtosis = more "spiky" attention = better receiver head candidate.
+    """
+    # Remove NaN values
+    valid_scores = vertical_scores[~np.isnan(vertical_scores)]
+    if len(valid_scores) < 4:
+        return np.nan
+
+    # Compute Fisher's kurtosis (excess kurtosis)
+    return stats.kurtosis(valid_scores, fisher=True, bias=True)
+
+
+tests.test_compute_head_kurtosis(compute_head_kurtosis)
+
+# %%

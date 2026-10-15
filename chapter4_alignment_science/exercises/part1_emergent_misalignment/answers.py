@@ -573,6 +573,10 @@ df = prompts_df()
 display(df.style.set_properties(**{"text-align": "left"}))
 
 # %%
+import logging
+logging.getLogger("bitsandbytes.autograd._functions").setLevel(logging.ERROR)
+
+# %%
 def build_messages(
     user_text: str,
     mode: str = "neutral",

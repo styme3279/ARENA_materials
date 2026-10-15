@@ -946,12 +946,16 @@ class SteeringHook:
             Modified output tuple with steered activations
         """
         # Unpack
+        print("In here")
         if isinstance(output, tuple):
             hidden_states, *rest = output
         else:
             hidden_states, rest = output, None
 
-        hidden_states_norm = t.linalg.norm(hidden_states)
+        hidden_states_norm = t.linalg.norm(hidden_states, dim=-1, keepdim=True)
+        print(self.steering_vector.get_device())
+        print(hidden_states.get_device())
+        hidden_states = hidden_states + (self.steering_coef * self.steering_vector * hidden_states_norm).to(device)
 
         # Repack
         return (hidden_states, *rest) if rest is not None else hidden_states
@@ -988,3 +992,4 @@ def gen_with_steer(
 
 tests.test_steering_hook_modifies_activations(SteeringHook, lora_model_high_rank, lora_tokenizer)
 tests.test_steering_hook_matches_reference(SteeringHook, lora_model_high_rank, lora_tokenizer)
+# %%

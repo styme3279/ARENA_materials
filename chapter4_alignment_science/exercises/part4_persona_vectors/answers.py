@@ -1330,29 +1330,34 @@ def generate_with_steering(
             {"role": "user", "content": prompt},
         ]
         print(f"msg list: {messages_list}")
-        normalized_messages = _normalize_messages(messages_list)
+        messages = _normalize_messages(messages_list)
 
-        # Apply chat template to get full conversation
-        full_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
-        messages, response_start_idx = format_messages(messages_list, tokenizer)
+    # Apply chat template to get full conversation
+    templated_messages = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
+    inputs = tokenizer(templated_messages, return_tensors="pt").to(model.device)
+    input_len = inputs['input_ids'].shape[1]
+
+    steering_vector = steering_vector.to(model.device)
+
+    pbar = tqdm(total=max_new_tokens, desc="Generating", unit="tok")
 
     def steering_hook_fn(module, input, output):
-        print(f"Hook captured shape: {output.shape}")
+        pbar.update(1)
+        hidden = output[0] if isinstance(output, tuple) else output
+        hidden += alpha * steering_vector.to(hidden.dtype)
 
     hook_handle = _return_layers(model)[steering_layer].register_forward_hook(steering_hook_fn)
 
-    inputs = tokenizer(messages, return_tensors="pt").to(model.device)
-
     try:
-        outputs = model.generate(**inputs, max_new_tokens=10)
+        outputs = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=True, temperature=temperature)
     finally:
         hook_handle.remove()
 
-    generated_tokens = outputs[0, response_start_idx:]
+    generated_tokens = outputs[0, input_len:]
     generated_text = tokenizer.decode(generated_tokens, skip_special_tokens=False)
-    print(generated_text)
-    raise ValueError("stop")
+    # print(generated_text)
+    return generated_text
 
 
 

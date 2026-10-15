@@ -547,8 +547,9 @@ def extract_response_activations(
             tokenizer
         )
         prompt_tokenized = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(device)
-        model_output = model(**prompt_tokenized, output_hidden_states=True)
-        hidden_states = model_output.hidden_states[layer]  # (1, seq_len, d_model)
+        with t.no_grad():
+            model_output = model(**prompt_tokenized, output_hidden_states=True)
+        hidden_states = model_output.hidden_states[layer + 1]  # (1, seq_len, d_model)
         response_activations = hidden_states[0, response_start_idx:, :]  # (response_seq_len, d_model)
         mean_activation = response_activations.mean(dim=0)  # (d_model,)
         activations.append(mean_activation)
@@ -564,4 +565,96 @@ test_activation = extract_response_activations(
     layer=NUM_LAYERS // 2,
 )
 tests.test_extract_response_activations(extract_response_activations, model, tokenizer, D_MODEL, NUM_LAYERS)
+# %%
+def extract_persona_vectors(
+    model,
+    tokenizer,
+    personas: dict[str, str],
+    questions: list[str],
+    responses: dict[tuple[str, int], str],
+    layer: int,
+    scores: dict[tuple[str, int], int] | None = None,
+    score_threshold: int = 3,
+) -> dict[str, Float[Tensor, " d_model"]]:
+    """
+    Extract mean activation vector for each persona.
+
+    Args:
+        model: The language model
+        tokenizer: The tokenizer
+        personas: Dict mapping persona name to system prompt
+        questions: List of evaluation questions
+        responses: Dict mapping (persona, q_idx) to response text
+        layer: Which layer to extract activations from
+        scores: Optional dict mapping (persona, q_idx) to judge score (0-3)
+        score_threshold: Minimum score required to include response (default 3)
+
+    Returns:
+        Dict mapping persona name to mean activation vector
+    """
+    assert questions and personas and responses, "Invalid inputs"
+
+    persona_vectors = {}
+
+    for counter, (persona_name, system_prompt) in tqdm(enumerate(personas.items()), total=len(personas)):
+        print(f"Running persona ({counter + 1}/{len(personas)}) {persona_name} ...", end="")
+
+        # YOUR CODE HERE - compute activations for each persona, take the mean
+        mean_acts = extract_response_activations(
+            model=model,
+            tokenizer=tokenizer,
+            system_prompts=[system_prompt] * len(questions),
+            questions=questions,
+            responses=[responses[(persona_name, i)] for i in range(len(questions))],
+            layer=layer,
+        )
+
+        # Take mean across all responses for this persona
+        persona_vectors[persona_name] = mean_acts
+        print("finished!")
+
+        # Clear GPU cache between personas to avoid OOM errors
+        t.cuda.empty_cache()
+
+    return persona_vectors
+# %%
+# # Score all responses using the judge
+# print("Scoring responses with LLM judge...")
+# scores: dict[tuple[str, int], int] = {}
+
+# for (persona_name, q_idx), response in tqdm(responses.items()):
+#     if response:  # Skip empty responses
+#         score = judge_role_response(
+#             question=EVAL_QUESTIONS[q_idx],
+#             response=response,
+#             character=persona_name,
+#         )
+#         scores[(persona_name, q_idx)] = score
+#         time.sleep(0.1)  # Rate limiting
+
+# # Print filtering statistics per persona
+# print("\nFiltering statistics (score >= 3 required):")
+# for persona_name in PERSONAS.keys():
+#     persona_scores = [scores.get((persona_name, q_idx), 0) for q_idx in range(len(EVAL_QUESTIONS))]
+#     n_passed = sum(1 for s in persona_scores if s >= 3)
+#     n_total = len(persona_scores)
+#     print(f"  {persona_name}: {n_passed}/{n_total} passed ({n_passed / n_total:.0%})")
+
+# Extract vectors (using the test subset from before)
+EXTRACTION_LAYER = round(NUM_LAYERS * 0.65)  # 65% through the model
+
+persona_vectors = extract_persona_vectors(
+    model=model,
+    tokenizer=tokenizer,
+    personas=PERSONAS,
+    questions=EVAL_QUESTIONS,
+    responses=responses,
+    layer=EXTRACTION_LAYER,
+)
+
+print(f"\nExtracted vectors for {len(persona_vectors)} personas")
+for name, vec in persona_vectors.items():
+    print(f"  {name}: norm = {vec.norm().item():.2f}")
+
+tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
 # %%

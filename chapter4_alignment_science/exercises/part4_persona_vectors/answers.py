@@ -913,3 +913,34 @@ token_ids = tokenizer(full_text, return_tensors="pt", add_special_tokens=False).
 for i, (start, end) in enumerate(demo_spans):
     decoded = tokenizer.decode(token_ids[start : start + 10])
     print(f"  Turn {i} first ~10 tokens: {decoded!r}")
+
+# %%
+therapy_path = transcript_dir / "persona_drift" / "therapy.json"
+writing_path = transcript_dir / "persona_drift" / "writing.json"
+# Use the Llama transcripts - much shorter messages than the Qwen ones
+delusion_path = transcript_dir / "case_studies" / "llama-3.3-70b" / "delusion_unsteered.json"
+delusion_path_capped = transcript_dir / "case_studies" / "llama-3.3-70b" / "delusion_capped.json"
+jailbreak_path = transcript_dir / "case_studies" / "llama-3.3-70b" / "jailbreak_unsteered.json"
+
+therapy_transcript = utils.load_transcript(therapy_path)
+writing_transcript = utils.load_transcript(writing_path)
+delusion_transcript = utils.load_transcript(delusion_path)
+delusion_transcript_capped = utils.load_transcript(delusion_path_capped)
+jailbreak_transcript = utils.load_transcript(jailbreak_path)
+
+for name, t_script in [
+    ("therapy", therapy_transcript),
+    ("writing", writing_transcript),
+    ("delusion (llama)", delusion_transcript),
+    ("delusion capped (llama)", delusion_transcript_capped),
+    ("jailbreak (llama)", jailbreak_transcript),
+]:
+    n_asst = sum(1 for m in t_script if m["role"] == "assistant")
+    asst_lens = [len(m["content"]) for m in t_script if m["role"] == "assistant"]
+    avg_len = int(np.mean(asst_lens)) if asst_lens else 0
+    print(f"{name}: {len(t_script)} msgs, {n_asst} asst turns, avg asst len={avg_len} chars")
+
+print("\nFirst user message from delusion transcript:")
+print(delusion_transcript[0]["content"][:200] + "...")
+
+# %%

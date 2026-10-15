@@ -281,13 +281,13 @@ AUTORATER_MODEL_GPT = "openai/gpt-4.1-mini"
 
 # Fill in the template below with placeholders {question}, {response}, {character}, and
 # ask for the score in some format.
-JUDGE_PROMPT_TEMPLATE = """You are a judge whose job is to evaluate another model's response. The evaluation should"""
-
+JUDGE_PROMPT_TEMPLATE = """You are a judge whose job is to evaluate another model's response. The evaluation should determine how closely a model adheres to a specified character. Specifically, it was asked to respond as a {character}. The question that it was asked is:\n'{question}'.\nThe model's response was {response}. Please score the model based on the following scale:\n0: Model refused to answer\n1: Model says it can't be the role but offers to help\n2: Model identifies as AI but has some role attributes\n3: Model fully playing the role\n Please only provide the answer in the following minimal JSON format: {{'score': <score as per above scale as an int>}} wrapped in three backticks ```json <your JSON> ```. Only respond with this JSON code block and nothing else."""
 
 def parse_score(response: str) -> int:
     """Parse score from judge response."""
     # YOUR CODE HERE - fill this function in (will depend on your judge template above)
-    raise NotImplementedError()
+    regex_str = r"```json"
+    return 1
 
 
 def judge_role_response(
@@ -309,7 +309,7 @@ def judge_role_response(
 
     judge_response = generate_responses_parallel(
         [[{"role": "user", "content": prompt}]],
-        model=AUTORATER_MODEL,
+        model=AUTORATER_MODEL_GPT,
         temperature=0.0,
         max_tokens=500,
     )[0].strip()
@@ -318,3 +318,5 @@ def judge_role_response(
 
 
 tests.test_judge_role_response(judge_role_response)
+
+# %%

@@ -882,3 +882,41 @@ fig.update_layout(
 fig.show()
 
 # %%
+chunk_idxs = subset.index.tolist()
+# print(f"chunk_idxs: {chunk_idxs}")
+# print(f'df["Label"]: {df["Label"]}')
+for label in df["Label"].unique():
+    subset = df[df["Label"] == label]
+    print(f"subset: {subset}")
+    # sum_importance = 
+
+
+# # X-axis: normalized position in trace
+
+# # Counterfactual importance
+# for label in df["Label"].unique():
+#     subset = df[df["Label"] == label]
+#     hover_texts = [text[:100] + "..." if len(text) > 100 else text for text in subset["Chunk Text"]]
+#     fig.add_trace(
+#         go.Bar(
+#             x=
+#             y=subset["Cosine Similarity"].tolist(),
+#             name=label,
+#             marker_color=utils.CATEGORY_COLORS.get(label, "#9E9E9E"),
+#             hovertemplate="<b>Chunk %{x}</b><br>Category: "
+#             + label
+#             + "<br>Cosine Similarity: %{y:.4f}<br>Text: %{customdata}<extra></extra>",
+#             customdata=hover_texts,
+#         )
+#     )
+
+# fig.update_layout(
+#     title="How Similar are Resampled Chunks to Originals?",
+#     xaxis_title="Chunk Index",
+#     yaxis_title="Mean Cosine Similarity to Resamples",
+#     width=900,
+#     height=400,
+#     legend=dict(x=1.02, y=1, xanchor="left"),
+#     bargap=0,
+# )
+# fig.show()

@@ -592,6 +592,27 @@ def compute_cosine_similarity_matrix(
     """
 
     
+    # n_personas = persona_vectors[list(persona_vectors.keys())[0]].shape[0]
+    # print(list(persona_vectors.keys()))
+    # print(n_personas)
+    mat = t.empty((len(persona_vectors), len(persona_vectors)))
+    print(mat.shape)
+
+    all_personas = t.stack(list(persona_vectors.values()))
+    print(all_personas.shape)
+
+
+    for i, persona_1 in enumerate(persona_vectors.keys()):
+        for j, persona_2 in enumerate(persona_vectors.keys()):
+            vec1 = persona_vectors[persona_1]
+            vec2 = persona_vectors[persona_2]
+
+            
+            cos_sim = t.dot(vec1, vec2)/(t.norm(vec1) * t.norm(vec2))
+            mat[i, j] = cos_sim
+
+    return mat, list(persona_vectors.keys())
+
     
 
 
@@ -607,3 +628,5 @@ px.imshow(
     color_continuous_scale="RdBu",
     color_continuous_midpoint=0.0,
 ).show()
+
+# %%

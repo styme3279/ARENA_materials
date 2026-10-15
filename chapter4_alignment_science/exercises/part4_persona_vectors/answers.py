@@ -463,12 +463,12 @@ def extract_response_activations(
     ]
     formatted_messages_list = [format_messages(msg_list, tokenizer) for msg_list in raw_messages_list]
     # Tokenize the formatted prompt with add_special_tokens=False (the chat template string already starts with Gemma's <bos> token, so letting the tokenizer add another would give a double BOS, and would shift the positions relative to response_start_idx)
-    tokenized_messages_list = [tokenizer(formatted_msg, add_special_tokens=False) for formatted_msg in formatted_messages_list]
+    tokenized_messages_list = [(tokenizer(formatted_msg, add_special_tokens=False), response_start_idx) for formatted_msg, response_start_idx in formatted_messages_list]
     # Run a forward pass, returning the residual stream output for your given layer
     hidden_states_list = []
-    for tokenized_msg in tokenized_messages_list: 
+    for tokenized_msg, response_start_idx in tokenized_messages_list: 
         outputs = model(tokenized_msg, output_hidden_states=True)
-        msg_hidden_states = outputs.hidden_states[layer] # (seq_len, hidden_size)
+        msg_hidden_states = outputs.hidden_states[resposne_start_idx: ,layer] # (response_len, hidden_size)
         hidden_states_list.append(msg_hidden_states)
     # Compute the mean activations stacked into a single tensor (i.e. we have one mean per example sequence)
 

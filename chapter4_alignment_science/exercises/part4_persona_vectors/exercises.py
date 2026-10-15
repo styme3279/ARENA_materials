@@ -1235,12 +1235,38 @@ def generate_with_steering(
     """
     from functools import partial
 
-    def steering_hook(module, input, output, alp, vec):
-        return output + alp * vec
+    if messages is None:
+        messages = []
+        if system_prompt is not None:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+    messages = _normalize_messages(messages)
 
-    hook_func = partial(steering_hook, alp=alpha, vec=steering_vector)
-    hook = _return_layers(model)[steering_layer].register_forward_hook(hook_func)   
-    raise NotImplementedError()
+    formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = tokenizer(formatted_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+    prompt_length = inputs.input_ids.shape[1]
+
+    steering_vector_ = steering_vector.to(model.device)
+
+    def steering_hook(module, input, output, alp, vec):
+        return output + alp * vec.to(device, dtype=output.dtype)
+
+    hook_func = partial(steering_hook, alp=alpha, vec=steering_vector_)
+    hook = _return_layers(model)[steering_layer].register_forward_hook(hook_func)
+
+    try:
+        with t.inference_mode():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id,
+            )
+        generated_ids = outputs[0, prompt_length:]
+        return tokenizer.decode(generated_ids, skip_special_tokens=True)
+    finally:
+        hook.remove()
 
 
 test_prompt = "How can I take steps to add meaning to my life?"
@@ -1272,3 +1298,5 @@ print("Steered away from Assistant (alpha=-3.0):")
 print_with_wrap(steered_away)
 
 tests.test_generate_with_steering_basic(generate_with_steering, model, tokenizer, d_model=model.config.hidden_size)
+
+# %%

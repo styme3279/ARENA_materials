@@ -470,3 +470,98 @@ def count_empty(x) -> int:
 
 print(f"{type(responses).__name__} with {len(responses)} entries, {count_empty(responses)} empty")
 # %%
+def _normalize_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Merge any leading system message into the first user message.
+
+    Gemma 2's chat template raises an error for the "system" role. The standard
+    workaround is to prepend the system content to the first user message.
+    """
+    if not messages or messages[0]["role"] != "system":
+        return messages
+    system_content = messages[0]["content"]
+    rest = list(messages[1:])
+    if rest and rest[0]["role"] == "user" and system_content:
+        rest[0] = {"role": "user", "content": f"{system_content}\n\n{rest[0]['content']}"}
+    return rest
+
+
+def format_messages(messages: list[dict[str, str]], tokenizer) -> tuple[str, int]:
+    """Format a conversation for the model using its chat template.
+
+    Args:
+        messages: List of message dicts with "role" and "content" keys.
+                 Can include "system", "user", and "assistant" roles.
+                 Any leading system message is merged into the first user message
+                 (required for Gemma 2, which does not support the system role).
+        tokenizer: The tokenizer with chat template support
+
+    Returns:
+        full_prompt: The full formatted prompt as a string
+        response_start_idx: The index of the first token in the last assistant message
+    """
+    messages = _normalize_messages(messages)
+
+    # Apply chat template to get full conversation
+    full_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+
+    # Get prompt without final assistant message to compute response_start_idx
+    prompt_without_response = tokenizer.apply_chat_template(
+        messages[:-1], tokenize=False, add_generation_prompt=True
+    ).rstrip()
+
+    # Get start idx for response (+1 to skip newline). We use add_special_tokens=False because the chat template
+    # already includes any BOS token (e.g. Gemma's `<bos>`), so letting the tokenizer add another would double it
+    response_start_idx = (
+        tokenizer(prompt_without_response, return_tensors="pt", add_special_tokens=False).input_ids.shape[1] + 1
+    )
+
+    return full_prompt, response_start_idx
+
+
+tests.test_format_messages_response_index(format_messages, tokenizer)
+# %%
+def extract_response_activations(
+    model,
+    tokenizer,
+    system_prompts: list[str],
+    questions: list[str],
+    responses: list[str],
+    layer: int,
+) -> Float[Tensor, "num_examples d_model"]:
+    """
+    Extract mean activation over response tokens at a specific layer.
+
+    Returns:
+        Batch of mean activation vectors of shape (num_examples, hidden_size)
+    """
+    assert len(system_prompts) == len(questions) == len(responses)
+    activations = []
+    for persona, question, response in zip(system_prompts, questions, responses):
+        assert response.strip(), f"Empty response for persona={persona}, question={question}"
+        prompt, response_start_idx = format_messages(
+            [
+                {"role": "system", "content": persona},
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": response}
+            ],
+            tokenizer
+        )
+        prompt_tokenized = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(device)
+        model_output = model(**prompt_tokenized, output_hidden_states=True)
+        hidden_states = model_output.hidden_states[layer]  # (1, seq_len, d_model)
+        response_activations = hidden_states[0, response_start_idx:, :]  # (response_seq_len, d_model)
+        mean_activation = response_activations.mean(dim=0)  # (d_model,)
+        activations.append(mean_activation)
+    return t.stack(activations).cpu()
+
+
+test_activation = extract_response_activations(
+    model=model,
+    tokenizer=tokenizer,
+    system_prompts=[PERSONAS["assistant"]],
+    questions=EVAL_QUESTIONS[:1],
+    responses=["I would suggest taking time to reflect on your goals and values."],
+    layer=NUM_LAYERS // 2,
+)
+tests.test_extract_response_activations(extract_response_activations, model, tokenizer, D_MODEL, NUM_LAYERS)
+# %%

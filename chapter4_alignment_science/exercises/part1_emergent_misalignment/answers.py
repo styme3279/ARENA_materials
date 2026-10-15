@@ -1072,3 +1072,16 @@ display(
     .format(escape="html")
 )
 # %%
+steering_vector = build_steering_vector(lora_model_low_rank, lora_tokenizer, df, layer=PROMPT_CONTRAST_LAYER)
+
+logits = base_model_lora.lm_head(steering_vector)
+_, top_token_ids = t.topk(logits, k=10)
+top_tokens = lora_tokenizer.batch_decode(top_token_ids.unsqueeze(-1))
+print(top_tokens)
+
+accept_token_id = lora_tokenizer.encode("ACCEPT")[0]
+accept_unembedding = base_model_lora.lm_head.weight[accept_token_id]
+accept_unembedding_normalized = accept_unembedding / t.norm(accept_unembedding)
+cosine_similarity = steering_vector @ accept_unembedding_normalized
+print(f"Cosine similarity: {cosine_similarity.item():.4f}")
+# %%

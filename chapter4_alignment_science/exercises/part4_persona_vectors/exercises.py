@@ -467,27 +467,38 @@ def extract_response_activations(
     """
     assert len(system_prompts) == len(questions) == len(responses)
 
-    
-    questions_as_list = [[{"role": "system", "content": system_prompt}, {"role": "user", "content": question}] 
-                         for system_prompt in system_prompts 
-                         for question in questions]
+    all_mean_activations = []
 
-    print(1)
-    print(questions_as_list[0])
-    format_messages(questions_as_list[0], tokenizer)
-    print(2)
+    for system_prompt, question, response in zip(system_prompts, questions, responses):
+        # Build messages list
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": response},
+        ]
+        # Format the message
+        full_prompt, response_start_idx = format_messages(messages, tokenizer)
 
+        # Tokenize (the chat template already includes the BOS token, so don't add another)
+        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
 
-    formatted_prompts = [format_messages(prompt, tokenizer) for prompt in questions_as_list]
-    tokens = tokenizer(formatted_prompts, return_tensors="pt", add_special_tokens=False)
-    outputs = model(tokens, output_hidden_states=True)
+        # Forward pass with hidden state output
+        with t.inference_mode():
+            outputs = model(**tokens, output_hidden_states=True)
 
-    activations = outputs.hidden_states[layer]
-    print(activations.shape)
-    # activations.mean(dim=-1)
+        # Get hidden states at the specified layer
+        hidden_states = outputs.hidden_states[layer]  # (1, seq_len, hidden_size)
 
-    raise NotImplementedError()
+        # Create mask for response tokens
+        seq_len = hidden_states.shape[1]
+        response_mask = t.arange(seq_len, device=hidden_states.device) >= response_start_idx
 
+        # Compute mean activation over response tokens
+        mean_activation = (hidden_states[0] * response_mask[:, None]).sum(0) / response_mask.sum()
+        all_mean_activations.append(mean_activation.cpu())
+
+    # Stack all activations
+    return t.stack(all_mean_activations)
 
 test_activation = extract_response_activations(
     model=model,
@@ -500,3 +511,99 @@ test_activation = extract_response_activations(
 tests.test_extract_response_activations(extract_response_activations, model, tokenizer, D_MODEL, NUM_LAYERS)
 
 # %%
+def extract_persona_vectors(
+    model,
+    tokenizer,
+    personas: dict[str, str],
+    questions: list[str],
+    responses: dict[tuple[str, int], str],
+    layer: int,
+    scores: dict[tuple[str, int], int] | None = None,
+    score_threshold: int = 3,
+) -> dict[str, Float[Tensor, " d_model"]]:
+    """
+    Extract mean activation vector for each persona.
+
+    Args:
+        model: The language model
+        tokenizer: The tokenizer
+        personas: Dict mapping persona name to system prompt
+        questions: List of evaluation questions
+        responses: Dict mapping (persona, q_idx) to response text
+        layer: Which layer to extract activations from
+        scores: Optional dict mapping (persona, q_idx) to judge score (0-3)
+        score_threshold: Minimum score required to include response (default 3)
+
+    Returns:
+        Dict mapping persona name to mean activation vector
+    """
+    assert questions and personas and responses, "Invalid inputs"
+
+    persona_vectors = {}
+
+    for counter, (persona_name, system_prompt) in enumerate(personas.items()):
+        print(f"Running persona ({counter + 1}/{len(personas)}) {persona_name} ...", end="")
+
+        # YOUR CODE HERE - compute activations for each persona, take the mean
+        system_prompts = [system_prompt] * len(questions)
+
+        responses_str = [responses[persona_name, q_idx] for q_idx, _ in enumerate(questions)]
+
+
+
+        mean_acts = extract_response_activations(model, tokenizer, system_prompts, questions, responses_str, layer).mean(dim=0)
+
+        # Take mean across all responses for this persona
+        persona_vectors[persona_name] = mean_acts
+        print("finished!")
+
+        # Clear GPU cache between personas to avoid OOM errors
+        t.cuda.empty_cache()
+
+    return persona_vectors
+
+EXTRACTION_LAYER = round(NUM_LAYERS * 0.65)  # 65% through the model
+
+persona_vectors = extract_persona_vectors(
+    model=model,
+    tokenizer=tokenizer,
+    personas=PERSONAS,
+    questions=EVAL_QUESTIONS,
+    responses=responses,
+    layer=EXTRACTION_LAYER,
+)
+# %%
+print(f"\nExtracted vectors for {len(persona_vectors)} personas")
+for name, vec in persona_vectors.items():
+    print(f"  {name}: norm = {vec.norm().item():.2f}")
+
+tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
+
+
+# %%
+def compute_cosine_similarity_matrix(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+) -> tuple[Float[Tensor, "n_personas n_personas"], list[str]]:
+    """
+    Compute pairwise cosine similarity between persona vectors.
+
+    Returns:
+        Tuple of (similarity matrix, list of persona names in order)
+    """
+
+    
+    
+
+
+tests.test_compute_cosine_similarity_matrix(compute_cosine_similarity_matrix)
+
+cos_sim_matrix, persona_names = compute_cosine_similarity_matrix(persona_vectors)
+
+px.imshow(
+    cos_sim_matrix.float(),
+    x=persona_names,
+    y=persona_names,
+    title="Persona Cosine Similarity Matrix (Uncentered)",
+    color_continuous_scale="RdBu",
+    color_continuous_midpoint=0.0,
+).show()

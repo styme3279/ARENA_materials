@@ -417,22 +417,20 @@ def format_messages(messages: list[dict[str, str]], tokenizer) -> tuple[str, int
         response_start_idx: The index of the first token in the last assistant message
     """
     messages = _normalize_messages(messages)
-
     # Apply chat template to get full conversation
     full_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
-
     # Get prompt without final assistant message to compute response_start_idx
-    prompt_without_response = tokenizer.apply_chat_template(
-        messages[:-1], tokenize=False, add_generation_prompt=True
-    ).rstrip()
+    # prompt_without_response = tokenizer.apply_chat_template(
+    #     messages[:-1], tokenize=False, add_generation_prompt=True
+    # ).rstrip()
 
-    # Get start idx for response (+1 to skip newline). We use add_special_tokens=False because the chat template
-    # already includes any BOS token (e.g. Gemma's `<bos>`), so letting the tokenizer add another would double it
-    response_start_idx = (
-        tokenizer(prompt_without_response, return_tensors="pt", add_special_tokens=False).input_ids.shape[1] + 1
-    )
+    # # Get start idx for response (+1 to skip newline). We use add_special_tokens=False because the chat template
+    # # already includes any BOS token (e.g. Gemma's `<bos>`), so letting the tokenizer add another would double it
+    # response_start_idx = (
+    #     tokenizer(prompt_without_response, return_tensors="pt", add_special_tokens=False).input_ids.shape[1] + 1
+    # )
 
-    return full_prompt, response_start_idx
+    return full_prompt#, response_start_idx
 
 
 tests.test_format_messages_response_index(format_messages, tokenizer)
@@ -591,6 +589,13 @@ for name, vec in persona_vectors.items():
 tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
 
 # %%
+with open("persona_vectors.pkl", "wb") as f:
+    pickle.dump(persona_vectors, f)
+
+with open("persona_vectors.pkl", "rb") as f:
+    persona_vectors = pickle.load(f)
+
+# %%
 def compute_cosine_similarity_matrix(
     persona_vectors: dict[str, Float[Tensor, " d_model"]],
 ) -> tuple[Float[Tensor, "n_personas n_personas"], list[str]]:
@@ -622,16 +627,6 @@ px.imshow(
     color_continuous_midpoint=0.0,
 ).show()
 
-#%%
-# persona_vectors["default"].shape
-# # %%
-# persona_vectors_mean = {persona_name: tensor.mean(dim=0) for persona_name, tensor in persona_vectors.items()}
-
-# persona_vectors_mean["default"].shape
-# # %%
-# persona_vectors = persona_vectors_mean
-# %%
-persona_vectors["pirate"].shape
 # %%
 def compute_cosine_similarity_matrix_centered(
     persona_vectors: dict[str, Float[Tensor, " d_model"]],
@@ -1251,7 +1246,7 @@ delusion_projs, _ = visualize_transcript_drift(
 )
 
 # %%
-def generate_with_steering(
+def our=generate_with_steering(
     model,
     tokenizer,
     prompt: str,
@@ -1284,7 +1279,8 @@ def generate_with_steering(
         Generated text (assistant response only)
     """
     def steering_hook(hook, input, output):
-        return output + (alpha * steering_vector)
+        output += (alpha * steering_vector.to(device))
+        return output
 
     handle = model.model.layers[steering_layer].register_forward_hook(steering_hook)
 
@@ -1294,13 +1290,13 @@ def generate_with_steering(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ]
-        full_prompt, _ = format_messages(messages, tokenizer)
+        full_prompt = format_messages(messages, tokenizer)
         tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
         with t.inference_mode():
             outputs = model.generate(**tokens, temperature=temperature, max_new_tokens=max_new_tokens)
     finally:
         handle.remove()
-    return outputs
+    return tokenizer.decode(outputs)[0]
 
 test_prompt = "How can I take steps to add meaning to my life?"
 
@@ -1333,6 +1329,8 @@ print_with_wrap(steered_away)
 tests.test_generate_with_steering_basic(generate_with_steering, model, tokenizer, d_model=model.config.hidden_size)
 
 # %%
+# YOUR CODE HERE - run steering experiments across personas and alpha values
+
 test_personas = ["ghost", "bard", "assistant", "doug"]
 make_message = lambda persona: [
     [
@@ -1355,15 +1353,6 @@ for persona in test_personas:
             max_new_tokens=256
         )
         print(f"Response: {response}")
-
-# %%
-test_personas = ["secretary", "programmer", "analyst", "doug"]
-make_message = lambda persona: [
-    [
-        {"role": "system", "content": PERSONAS[persona]},
-        {"role": "user", "content": "Hello! What is your name and story?"},
-    ]
-]
 
 for persona in test_personas:
     for alpha in [-5, -2, -1, 0, 1, 2, 5]:

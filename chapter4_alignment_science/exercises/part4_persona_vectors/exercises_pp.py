@@ -432,5 +432,41 @@ for (persona, question_idx), response in test_responses.items():
     print(f"{persona=}\n{question=}\n{response.strip()[:120]}...\n")
 # %%
 # Once you've confirmed these work, run them all!
-responses = generate_all_responses(PERSONAS, EVAL_QUESTIONS)
+# responses = generate_all_responses(PERSONAS, EVAL_QUESTIONS)
+# %%
+# import pickle
+
+# RESPONSES_PATH = section_dir / "responses.pkl"
+
+# with open(RESPONSES_PATH, "wb") as f:
+#     pickle.dump(responses, f)
+# print(f"Saved to {RESPONSES_PATH}")
+# %%
+import pickle
+
+RESPONSES_PATH = section_dir / "responses.pkl"
+
+if RESPONSES_PATH.exists():
+    with open(RESPONSES_PATH, "rb") as f:
+        responses = pickle.load(f)
+    print(f"Loaded cached responses from {RESPONSES_PATH}")
+else:
+    responses = generate_all_responses(PERSONAS, EVAL_QUESTIONS)
+    with open(RESPONSES_PATH, "wb") as f:
+        pickle.dump(responses, f)
+    print(f"Generated and saved to {RESPONSES_PATH}")
+
+
+def count_empty(x) -> int:
+    """Count empty strings anywhere in the structure (failed API calls come back as "")."""
+    if isinstance(x, str):
+        return int(not x.strip())
+    if isinstance(x, dict):
+        return sum(count_empty(v) for v in x.values())
+    if isinstance(x, (list, tuple)):
+        return sum(count_empty(v) for v in x)
+    return 0
+
+
+print(f"{type(responses).__name__} with {len(responses)} entries, {count_empty(responses)} empty")
 # %%

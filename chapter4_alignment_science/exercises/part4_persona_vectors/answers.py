@@ -1293,7 +1293,7 @@ def generate_with_steering(
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
-            ]        
+            ]
         full_prompt, _ = format_messages(messages, tokenizer)
         tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
         with t.inference_mode():
@@ -1333,13 +1333,35 @@ print_with_wrap(steered_away)
 tests.test_generate_with_steering_basic(generate_with_steering, model, tokenizer, d_model=model.config.hidden_size)
 
 # %%
-# YOUR CODE HERE - run steering experiments across personas and alpha values
-
 test_personas = ["ghost", "bard", "assistant", "doug"]
 make_message = lambda persona: [
     [
         {"role": "system", "content": PERSONAS[persona]},
         {"role": "user", "content": random.choice(EVAL_QUESTIONS)},
+    ]
+]
+
+for persona in test_personas:
+    for alpha in [-5, -2, -1, 0, 1, 2, 5]:
+        current_message = make_message(persona)
+        print(f"Persona: {persona}")
+        print(f"Prompt: {current_message[0]["content"]}")
+        response = generate_with_steering(
+            model=model,
+            tokenizer=tokenizer,
+            steering_vector=axis_steer,
+            steering_layer=EXTRACTION_LAYER,
+            alpha=alpha,
+            max_new_tokens=256
+        )
+        print(f"Response: {response}")
+
+# %%
+test_personas = ["secretary", "programmer", "analyst", "doug"]
+make_message = lambda persona: [
+    [
+        {"role": "system", "content": PERSONAS[persona]},
+        {"role": "user", "content": "Hello! What is your name and story?"},
     ]
 ]
 

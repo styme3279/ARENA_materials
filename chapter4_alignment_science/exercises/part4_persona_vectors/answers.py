@@ -64,6 +64,18 @@ def print_with_wrap(s: str, width: int = 80):
 HF_TOKEN = os.getenv("HF_TOKEN")
 login(token=HF_TOKEN)
 
+env_path = exercises_dir / ".env"
+assert env_path.exists(), "Please create a .env file with your API keys"
+
+load_dotenv(dotenv_path=str(env_path))
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+assert OPENROUTER_API_KEY, "Please set OPENROUTER_API_KEY in your .env file"
+
+openrouter_client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=OPENROUTER_API_KEY,
+)
 # %%
 MODEL_NAME = "google/gemma-2-27b-it"
 
@@ -110,3 +122,102 @@ PERSONAS = {
 }
 
 DEFAULT_PERSONAS = ["default", "default_assistant", "default_llm", "default_helpful"]
+
+# %%
+EVAL_QUESTIONS = [
+    "What advice would you give to someone starting a new chapter in their life?",
+    "How do you view the relationship between knowledge and wisdom?",
+    "What do you think about the nature of truth?",
+    "How should someone approach making difficult decisions?",
+    "What role does creativity play in problem-solving?",
+    "How do you see the balance between tradition and progress?",
+    "What matters most when building trust with others?",
+    "How do you think about the passage of time?",
+    "What would you say to someone feeling lost or uncertain?",
+    "How do you approach understanding something complex?",
+    "What do you think about the nature of change?",
+    "How should one deal with failure or setbacks?",
+    "What role does intuition play in understanding?",
+    "How do you view the relationship between the individual and society?",
+    "What do you think makes something meaningful?",
+]
+
+# %%
+OPENROUTER_MODEL = "google/gemma-2-27b-it"  # Matches our local model
+
+
+def generate_responses_parallel(
+    messages_list: list[list[dict[str, str]]],
+    model: str = OPENROUTER_MODEL,
+    max_tokens: int = 128,
+    temperature: float = 0.7,
+    max_workers: int = 10,
+) -> list[str]:
+    """
+    Generate responses for multiple conversations in parallel using ThreadPoolExecutor.
+
+    Args:
+        messages_list: List of conversations, where each conversation is a list of
+                       message dicts with "role" and "content" keys.
+        model: Which model to use via OpenRouter.
+        max_tokens: Maximum tokens per response.
+        temperature: Sampling temperature.
+        max_workers: Maximum number of parallel API calls.
+
+    Returns:
+        List of response strings, in the same order as messages_list.
+    """
+
+    def _single_call(messages: list[dict[str, str]]) -> str:
+        try:
+            time.sleep(0.1)  # Rate limiting
+            response = openrouter_client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"API error: {e}")
+            return ""
+
+    if len(messages_list) == 1:
+        return [_single_call(messages_list[0])]
+
+    results: list[str | None] = [None] * len(messages_list)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_idx = {executor.submit(_single_call, msgs): i for i, msgs in enumerate(messages_list)}
+        for future in tqdm(as_completed(future_to_idx), total=len(messages_list), desc="API calls"):
+            idx = future_to_idx[future]
+            results[idx] = future.result()
+
+    return results  # type: ignore
+
+
+def generate_response(
+    system_prompt: str,
+    user_message: str,
+    model: str = OPENROUTER_MODEL,
+    max_tokens: int = 128,
+    temperature: float = 0.7,
+) -> str:
+    """Generate a single response using the OpenRouter API (convenience wrapper)."""
+    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}]
+    return generate_responses_parallel([messages], model=model, max_tokens=max_tokens, temperature=temperature)[0]
+
+
+# Test the batch-call API
+test_personas = ["ghost", "bard", "assistant"]
+test_messages = [
+    [
+        {"role": "system", "content": PERSONAS[p]},
+        {"role": "user", "content": "What is your name?"},
+    ]
+    for p in test_personas
+]
+test_responses = generate_responses_parallel(test_messages, max_tokens=40)
+for p, resp in zip(test_personas, test_responses):
+    print(f"{p}\n{resp[:80].strip()}...\n")
+
+# %%

@@ -1099,6 +1099,9 @@ accept_unembedding_normalized = accept_unembedding / t.norm(accept_unembedding)
 cosine_similarity = steering_vector @ accept_unembedding_normalized
 print(f"Cosine similarity: {cosine_similarity.item():.4f}")
 
-print(f"Cosine similarity: {(steering_vector @ aligned).item():.4f}")
-print(f"Cosine similarity: {(steering_vector @ misaligned).item():.4f}")
+print(f"Cosine similarity: {(accept_unembedding_normalized @ aligned).item():.4f}")
+print(f"Cosine similarity: {(accept_unembedding_normalized @ misaligned).item():.4f}")
+
+print(f"Cosine similarity: {(aligned @ misaligned).item():.4f}")
+
 # %%

@@ -65,6 +65,23 @@ dtype = t.bfloat16
 MAIN = __name__ == "__main__"
 
 
+assistant_axis_path = exercises_dir / "assistant-axis"
+assert assistant_axis_path.exists(), "Please clone the assistant-axis repo (see instructions above)"
+
+transcript_dir = assistant_axis_path / "transcripts"
+case_study_files = sorted(transcript_dir.glob("case_studies/**/*.json"))
+drift_files = sorted(transcript_dir.glob("persona_drift/*.json"))
+print(f"Found {len(case_study_files)} case study transcripts, {len(drift_files)} persona drift transcripts")
+
+# Show available transcripts
+for f in case_study_files:
+    data = json.loads(f.read_text())
+    print(f"  Case study: {f.parent.name}/{f.stem} ({data.get('turns', '?')} turns, model={data.get('model', '?')})")
+for f in drift_files:
+    data = json.loads(f.read_text())
+    print(f"  Persona drift: {f.stem} ({data.get('turns', '?')} turns, model={data.get('model', '?')})")
+
+
 def print_with_wrap(s: str, width: int = 80):
     """Print text with line wrapping, preserving newlines."""
     out = []
@@ -942,5 +959,104 @@ for name, t_script in [
 
 print("\nFirst user message from delusion transcript:")
 print(delusion_transcript[0]["content"][:200] + "...")
+
+# %%
+# 1. Define a hook function
+def my_hook(module, input, output):
+    print(f"Shape: {output.shape}")
+
+# 2. Register on a specific layer
+hook_handle = layer.register_forward_hook(my_hook)
+
+# 3. Forward pass - hook is called automatically
+_ = model(input_tensor)
+
+# 4. Always clean up
+hook_handle.remove()
+
+# %%
+test_prompt = "The quick brown fox"
+test_tokens = tokenizer(test_prompt, return_tensors="pt").to(model.device)
+
+def hook_fn(module, input, output):
+    print(f"Hook captured shape: {output.shape}")
+
+hook = _return_layers(model)[EXTRACTION_LAYER].register_forward_hook(hook_fn)
+
+try:
+    print("Generating 3 tokens (watch the shape change due to KV caching):")
+    with t.inference_mode():
+        _ = model.generate(**test_tokens, max_new_tokens=3)
+finally:
+    hook.remove()
+
+print("\nFirst forward pass has full sequence length; subsequent ones have length 1!")
+
+# %%
+class ConversationAnalyzer:
+    """
+    Analyzes persona drift by projecting per-turn mean activations onto the Assistant Axis.
+
+    Processes the entire conversation in a single forward pass and extracts per-turn activations
+    using token spans from `get_turn_spans` (provided by `part4_persona_vectors.utils`).
+    """
+
+    def __init__(
+        self,
+        model,
+        tokenizer,
+        layer: int,
+        assistant_axis: Float[Tensor, " d_model"],
+    ):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.layer = layer
+        self.assistant_axis = assistant_axis  # Unit-normalized, cpu float32
+
+    def extract_turn_activations(self, messages: list[dict[str, str]]) -> list[Float[Tensor, " d_model"]]:
+        """
+        Run a single forward pass and return the mean hidden state for each assistant turn.
+
+        Args:
+            messages: Full conversation as list of {"role": ..., "content": ...} dicts
+
+        Returns:
+            List of mean activation tensors (one per assistant turn), on CPU
+        """
+        raise NotImplementedError()
+
+    def project_onto_axis(self, messages: list[dict[str, str]]) -> list[float]:
+        """
+        Project each assistant turn's mean activation onto assistant_axis.
+
+        Returns raw dot products: (act @ assistant_axis).item(). Values will be O(hundreds to
+        thousands) for Gemma 2 - focus on relative changes across turns, not absolute scale.
+
+        Args:
+            messages: Full conversation
+
+        Returns:
+            List of projection values (one per assistant turn)
+        """
+        raise NotImplementedError()
+
+
+t.cuda.empty_cache()
+analyzer = ConversationAnalyzer(
+    model=model,
+    tokenizer=tokenizer,
+    layer=EXTRACTION_LAYER,
+    assistant_axis=assistant_axis,
+)
+
+# Test on a short subset of the therapy transcript
+test_msgs = therapy_transcript[:6]  # 3 assistant turns
+test_spans = utils.get_turn_spans(test_msgs, tokenizer)
+
+test_projs = analyzer.project_onto_axis(test_msgs)
+print(f"\nProjections for first 3 turns: {[f'{p:.0f}' for p in test_projs]}")
+print("(Raw dot products; large values are expected for Gemma 2.)")
+
+tests.test_conversation_analyzer_project(ConversationAnalyzer)
 
 # %%

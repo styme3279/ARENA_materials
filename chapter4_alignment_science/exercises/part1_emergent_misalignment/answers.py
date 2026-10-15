@@ -927,7 +927,7 @@ class SteeringHook:
         steering_coef: float,
         apply_to_all_tokens: bool = True,
     ):
-        self.steering_vector = steering_vector
+        self.steering_vector = steering_vector.to(device, dtype=dtype)
         self.layer = layer
         self.steering_coef = steering_coef
         self.apply_to_all_tokens = apply_to_all_tokens
@@ -953,9 +953,7 @@ class SteeringHook:
             hidden_states, rest = output, None
 
         hidden_states_norm = t.linalg.norm(hidden_states, dim=-1, keepdim=True)
-        print(self.steering_vector.get_device())
-        print(hidden_states.get_device())
-        hidden_states = hidden_states + (self.steering_coef * self.steering_vector * hidden_states_norm).to(device)
+        hidden_states = hidden_states + (self.steering_coef * self.steering_vector * hidden_states_norm)
 
         # Repack
         return (hidden_states, *rest) if rest is not None else hidden_states

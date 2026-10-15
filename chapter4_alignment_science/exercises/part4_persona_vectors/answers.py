@@ -42,6 +42,19 @@ if str(exercises_dir) not in sys.path:
 import part4_persona_vectors.tests as tests
 import part4_persona_vectors.utils as utils
 
+from part4_persona_vectors.runtime_cache import (
+    DiskCache,
+    activation_request_key,
+    cached_parallel_chat,
+    forward_to_hidden_state,
+)
+
+# Successful API responses and response activation means survive reruns/restarts.
+ARENA_CACHE_DIR = section_dir / ".arena_cache"
+# Set ARENA_CACHE_RUN to a new name for a separate sample set. After changing
+# model weights or pooling math, change ARENA_ACTIVATION_CACHE_TAG as well.
+
+
 warnings.filterwarnings("ignore")
 
 device = t.device("cuda" if t.cuda.is_available() else "cpu")
@@ -157,48 +170,22 @@ def generate_responses_parallel(
     model: str = OPENROUTER_MODEL,
     max_tokens: int = 128,
     temperature: float = 0.7,
-    max_workers: int = 10,
+    max_workers: int = 20,
+    *,
+    force_refresh: bool = False,
+    cache_run: str | None = None,
 ) -> list[str]:
+    """Generate in parallel, caching each successful response as it finishes.
+
+    Keys include model, endpoint, messages, token limit and temperature. Failed
+    or empty responses are retried on a rerun. Use force_refresh=True for new
+    samples, or cache_run="experiment-name" to keep distinct sample sets.
     """
-    Generate responses for multiple conversations in parallel using ThreadPoolExecutor.
-
-    Args:
-        messages_list: List of conversations, where each conversation is a list of
-                       message dicts with "role" and "content" keys.
-        model: Which model to use via OpenRouter.
-        max_tokens: Maximum tokens per response.
-        temperature: Sampling temperature.
-        max_workers: Maximum number of parallel API calls.
-
-    Returns:
-        List of response strings, in the same order as messages_list.
-    """
-
-    def _single_call(messages: list[dict[str, str]]) -> str:
-        try:
-            time.sleep(0.1)  # Rate limiting
-            response = openrouter_client.chat.completions.create(
-                model=model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"API error: {e}")
-            return ""
-
-    if len(messages_list) == 1:
-        return [_single_call(messages_list[0])]
-
-    results: list[str | None] = [None] * len(messages_list)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_idx = {executor.submit(_single_call, msgs): i for i, msgs in enumerate(messages_list)}
-        for future in tqdm(as_completed(future_to_idx), total=len(messages_list), desc="API calls"):
-            idx = future_to_idx[future]
-            results[idx] = future.result()
-
-    return results  # type: ignore
+    return cached_parallel_chat(
+        openrouter_client, messages_list, model=model, max_tokens=max_tokens,
+        temperature=temperature, max_workers=max_workers, cache_dir=ARENA_CACHE_DIR,
+        force_refresh=force_refresh, cache_run=cache_run, progress=tqdm,
+    )
 
 
 def generate_response(
@@ -207,10 +194,14 @@ def generate_response(
     model: str = OPENROUTER_MODEL,
     max_tokens: int = 128,
     temperature: float = 0.7,
+    *,
+    force_refresh: bool = False,
+    cache_run: str | None = None,
 ) -> str:
     """Generate a single response using the OpenRouter API (convenience wrapper)."""
     messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}]
-    return generate_responses_parallel([messages], model=model, max_tokens=max_tokens, temperature=temperature)[0]
+    return generate_responses_parallel([messages], model=model, max_tokens=max_tokens, temperature=temperature,
+                                       force_refresh=force_refresh, cache_run=cache_run)[0]
 
 
 # Test the batch-call API
@@ -296,7 +287,10 @@ def generate_all_responses(
     personas: dict[str, str],
     questions: list[str],
     max_tokens: int = 256,
-    max_workers: int = 10,
+    max_workers: int = 20,
+    *,
+    force_refresh: bool = False,
+    cache_run: str | None = None,
 ) -> dict[tuple[str, int], str]:
     """
     Generate responses for all persona-question combinations using parallel execution.
@@ -323,7 +317,8 @@ def generate_all_responses(
             )
 
     # Batch API call
-    raw_responses = generate_responses_parallel(messages_list, max_tokens=max_tokens, max_workers=max_workers)
+    raw_responses = generate_responses_parallel(messages_list, max_tokens=max_tokens, max_workers=max_workers,
+        force_refresh=force_refresh, cache_run=cache_run)
     return dict(zip(keys, raw_responses))
 
 
@@ -411,54 +406,52 @@ def extract_response_activations(
     questions: list[str],
     responses: list[str],
     layer: int,
+    *,
+    force_refresh: bool = False,
+    cache_run: str | None = None,
 ) -> Float[Tensor, "num_examples d_model"]:
-    """
-    Extract mean activation over response tokens at a specific layer.
+    """Response means with a disk cache and a forward pass ending at this layer.
 
-    Returns:
-        Batch of mean activation vectors of shape (num_examples, hidden_size)
+    Cache identity includes model config/revision/dtype, tokenized chat formatting,
+    response boundary, layer and cache run. Change ARENA_ACTIVATION_CACHE_TAG
+    after changing weights/pooling; use force_refresh=True to recompute explicitly.
     """
     assert len(system_prompts) == len(questions) == len(responses)
-
+    cache = DiskCache(ARENA_CACHE_DIR)
     all_mean_activations = []
+    reused = 0
+    with t.inference_mode():
+        for system_prompt, question, response in tqdm(
+            zip(system_prompts, questions, responses), total=len(responses),
+            desc=f"Activations at hidden_states[{layer}]", leave=False,
+        ):
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": response},
+            ]
+            full_prompt, response_start_idx = format_messages(messages, tokenizer)
+            key = activation_request_key(model, tokenizer, full_prompt, response_start_idx, layer, cache_run)
+            cached = None if force_refresh else cache.read_tensor(key, model.config.hidden_size)
+            if cached is not None:
+                all_mean_activations.append(cached)
+                reused += 1
+                continue
+            tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+            hidden_states = forward_to_hidden_state(model, tokens, layer)
 
-    for system_prompt, question, response in zip(system_prompts, questions, responses):
-        # Build messages list
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": response},
-        ]
-        # Format the message
-        full_prompt, response_start_idx = format_messages(messages, tokenizer)
-
-        # Tokenize (the chat template already includes the BOS token, so don't add another)
-        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
-
-        # Forward pass with hidden state output
-        with t.inference_mode():
-            outputs = model(**tokens, output_hidden_states=True)
-
-        # Get hidden states at the specified layer
-        hidden_states = outputs.hidden_states[layer]  # (1, seq_len, hidden_size)
-
-        # WRITE YOURSELF 1/6 (10 minutes): hidden_states is [1, tokens, d_model].
-        # Use response_start_idx to exclude prompt tokens, average over response
-        # positions only, and assign a [d_model] tensor to mean_activation.
-        # Check the slice is nonempty. The template's end-of-turn marker is
-        # included in this notebook's response span; use that convention consistently.
-
-        print(hidden_states.squeeze().shape)
-
-        response_activations: Tensor = hidden_states.squeeze()[response_start_idx:, :]
-
-        print(response_activations.shape)
-
-        mean_activation = response_activations.mean(dim=0)
-
-        all_mean_activations.append(mean_activation.cpu())
-
-    # Stack all activations
+            # Your response-token averaging, with batch=0 indexed explicitly.
+            response_activations = hidden_states[0, response_start_idx:, :]
+            if response_activations.shape[0] == 0:
+                raise ValueError("Empty response span; check chat formatting")
+            mean_activation = response_activations.float().mean(dim=0).cpu()
+            cache.write_tensor(key, mean_activation)
+            all_mean_activations.append(mean_activation)
+            del hidden_states, response_activations, tokens, mean_activation
+    if reused:
+        print(f"Activation cache: reused {reused}/{len(responses)} response means")
+    if not all_mean_activations:
+        return t.empty((0, model.config.hidden_size), dtype=t.float32)
     return t.stack(all_mean_activations)
 
 

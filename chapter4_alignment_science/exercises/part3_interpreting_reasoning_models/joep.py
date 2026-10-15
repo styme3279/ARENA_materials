@@ -435,15 +435,6 @@ Return a numbered list with one function tag per chunk:
 ...
 """
 
-def generate_responses_parallel(
-    messages_list: list[list[dict[str, str]]],
-    model: str,
-    max_tokens: int = 128,
-    stop_sequences: list[str] | None = None,
-    temperature: float = 1.0,
-    max_workers: int = 10,
-) -> list[str | Exception]:
-
 
 def categorize_sentences_autorater(
     problem_text: str, chunks: list[str], model: str = "openai/gpt-4.1-mini"
@@ -473,12 +464,24 @@ def categorize_sentences_autorater(
         ]
 
     # YOUR CODE HERE - get results with `generate_responses_parallel`, and parse them into
-    # a list of category labels for each chunk.
     print(f"message_list: {messages_list}")
-    # generated responses:
-    generated_responses = generate_responses_parallel(
-        
+    responses = generate_responses_parallel(
+        messages_list,
+        model,
+        max_tokens=128,
+        temperature=0.0,
     )
+
+    raw_response = responses[0] if isinstance(responses[0], str) else ""
+    response = re.split(r"\n\d{1,2}\.", "\n" + raw_response.strip())
+    response = [r.strip() for r in response if r.strip()]
+
+    if len(response) != len(chunks):
+        print(f"Warning: length mismatch {len(response)} != {len(chunks)}")
+        response = response[: len(chunks)] + ["unknown"] * (len(chunks) - len(response))
+
+
+    return [CATEGORIES.get(r, "Unknown") for r in response]
 
 
 example_problem = "What is the area of a circle with radius 5?"

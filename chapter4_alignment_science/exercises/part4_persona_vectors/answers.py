@@ -523,10 +523,15 @@ def extract_persona_vectors(
 
     for counter, (persona_name, system_prompt) in enumerate(personas.items()):
         print(f"Running persona ({counter + 1}/{len(personas)}) {persona_name} ...", end="")
-        print(persona_name, responses)
-        for q_idx, question in questions
+        filtered_questions = []
+        filtered_responses = {}
+        for q_idx, question in enumerate(questions):
+            if scores is None or scores[(persona_name, q_idx)] >= score_threshold:
+                filtered_questions.append(question)
+                filtered_responses[(persona_name, q_idx)] = responses[(persona_name, q_idx)]
         # YOUR CODE HERE - compute activations for each persona, take the mean
-        mean_acts = extract_response_activations(model, tokenizer, [system_prompt] * len(questions), questions, {(persona, q_idx): value for (persona, q_idx), value in responses.items() if persona == persona_name}, layer)
+        mean_acts = extract_response_activations(model, tokenizer, [system_prompt] * len(filtered_questions), filtered_questions, filtered_responses, layer)
+        #{(persona, q_idx): value for (persona, q_idx), value in filtered_responses.items() if persona == persona_name}
         
         # for q_idx, score in scores[()]:
         #     if score >= score_threshold:
@@ -583,5 +588,31 @@ for name, vec in persona_vectors.items():
 tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
 
 # %%
+def compute_cosine_similarity_matrix(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+) -> tuple[Float[Tensor, "n_personas n_personas"], list[str]]:
+    """
+    Compute pairwise cosine similarity between persona vectors.
 
-# %%
+    Returns:
+        Tuple of (similarity matrix, list of persona names in order)
+    """
+    cosine_similarity_matrix = t.tensor((len(persona_vectors.keys()), len(persona_vectors.keys())))
+    for i, persona_a in enumerate(persona_vectors.keys()):
+        for j, persona_b in (persona_vectors.keys()):
+            cosine_similarity_matrix[i,j] = t.cosine_similarity(persona_vectors[persona_a], persona_vectors[persona_b], dim=0)
+    return (cosine_similarity_matrix, list(persona_vectors.keys()))
+
+
+tests.test_compute_cosine_similarity_matrix(compute_cosine_similarity_matrix)
+
+cos_sim_matrix, persona_names = compute_cosine_similarity_matrix(persona_vectors)
+
+px.imshow(
+    cos_sim_matrix.float(),
+    x=persona_names,
+    y=persona_names,
+    title="Persona Cosine Similarity Matrix (Uncentered)",
+    color_continuous_scale="RdBu",
+    color_continuous_midpoint=0.0,
+).show()

@@ -539,7 +539,8 @@ def extract_persona_vectors(
             tokenizer=tokenizer,
             system_prompts=persona_system_prompts,
             questions=persona_questions,
-            responses=persona_responses
+            responses=persona_responses,
+            layer=layer
         ) # (num_responses, hidden_dim)
 
         mean_acts = mean_acts.mean(dim=0)
@@ -593,5 +594,39 @@ for name, vec in persona_vectors.items():
     print(f"  {name}: norm = {vec.norm().item():.2f}")
 
 tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
+
+# %%
+def compute_cosine_similarity_matrix(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+) -> tuple[Float[Tensor, "n_personas n_personas"], list[str]]:
+    """
+    Compute pairwise cosine similarity between persona vectors.
+
+    Returns:
+        Tuple of (similarity matrix, list of persona names in order)
+    """
+    persona_names = list(persona_vectors.keys())
+    persona_vector_matrix = t.stack([vec for vec in persona_vectors.values()], dim=0) # (num_personas, d_model)
+    norms = persona_vector_matrix.norm(dim=1, keepdim=True)
+    print(norms.shape)
+    normalized_persona_vector_matrix = persona_vector_matrix / norms
+
+    similarity_matrix = normalized_persona_vector_matrix @ normalized_persona_vector_matrix.T # (num_personas, num_personas)
+
+    return similarity_matrix, persona_names
+
+
+tests.test_compute_cosine_similarity_matrix(compute_cosine_similarity_matrix)
+
+cos_sim_matrix, persona_names = compute_cosine_similarity_matrix(persona_vectors)
+
+px.imshow(
+    cos_sim_matrix.float(),
+    x=persona_names,
+    y=persona_names,
+    title="Persona Cosine Similarity Matrix (Uncentered)",
+    color_continuous_scale="RdBu",
+    color_continuous_midpoint=0.0,
+).show()
 
 # %%

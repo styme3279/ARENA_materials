@@ -78,14 +78,19 @@ openrouter_client = OpenAI(
 )
 # %%
 MODEL_NAME = "google/gemma-2-27b-it"
-
+from transformers import BitsAndBytesConfig
+quantization_config = BitsAndBytesConfig(load_in_8bit=True)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     dtype=dtype,
     device_map="auto",
     attn_implementation="eager",  # Required for Gemma 2 to access attention weights
+    quantization_config=quantization_config
 )
+# %%
+import logging
+logging.getLogger("bitsandbytes").setLevel(logging.ERROR)
 
 NUM_LAYERS = model.config.num_hidden_layers
 D_MODEL = model.config.hidden_size
@@ -398,68 +403,6 @@ tests.test_format_messages_response_index(format_messages, tokenizer)
 # Implement only the marked tensor reduction; formatting and inference are supplied.
 # Explain why including prompt tokens changes the quantity you estimate. Timebox: 10 minutes.
 
-def _forward_to_hidden_state(model, tokens, layer: int) -> Tensor:
-    """Get one HuggingFace hidden-state index without computing vocabulary logits.
-
-    For an intermediate state, stop after block layer-1. Earlier blocks are
-    unaffected by later blocks, so this is the same activation as a full pass.
-    The last hidden-state entry is special: it includes the final normalization.
-    """
-    backbone = model.model
-    if hasattr(backbone, "language_model"):
-        backbone = backbone.language_model
-    blocks = backbone.layers
-    n_layers = len(blocks)
-    if not -(n_layers + 1) <= layer <= n_layers:
-        raise IndexError(f"hidden_states index {layer} is invalid for {n_layers} blocks")
-    layer %= n_layers + 1
-
-    kwargs = dict(use_cache=False, output_hidden_states=False, output_attentions=False, return_dict=True)
-    if layer == n_layers:
-        # HF's last entry is the post-final-norm state, not the raw last block.
-        return backbone(**tokens, **kwargs).last_hidden_state
-
-    class _ReachedRequestedLayer(Exception):
-        pass
-
-    # An early return must not skip an ancestor's weight-offload cleanup. The
-    # usual device_map='auto' hooks offload individual blocks, whose Accelerate
-    # post_forward has already finished before our PyTorch output hook runs.
-    # If a root hook itself offloads, safely complete the backbone instead.
-    def offloads(hook):
-        return bool(getattr(hook, "offload", False)) or any(
-            offloads(h) for h in getattr(hook, "hooks", ())
-        )
-
-    stop_early = not any(offloads(getattr(m, "_hf_hook", None)) for m in (model, backbone))
-    captured = {}
-
-    def capture_output(module, args, output):
-        captured["hidden"] = output[0] if isinstance(output, tuple) else output
-        if stop_early:
-            raise _ReachedRequestedLayer()
-
-    def capture_input(module, args, kwargs):
-        # hidden_states[0] is the state entering the first transformer block.
-        captured["hidden"] = args[0] if args else kwargs["hidden_states"]
-        if stop_early:
-            raise _ReachedRequestedLayer()
-
-    handle = (
-        blocks[0].register_forward_pre_hook(capture_input, with_kwargs=True)
-        if layer == 0
-        else blocks[layer - 1].register_forward_hook(capture_output)
-    )
-    try:
-        try:
-            backbone(**tokens, **kwargs)
-        except _ReachedRequestedLayer:
-            pass
-    finally:
-        handle.remove()
-    return captured["hidden"]
-
-
 def extract_response_activations(
     model,
     tokenizer,
@@ -468,41 +411,54 @@ def extract_response_activations(
     responses: list[str],
     layer: int,
 ) -> Float[Tensor, "num_examples d_model"]:
-    """Extract response means at one hidden-state index, using a truncated pass.
+    """
+    Extract mean activation over response tokens at a specific layer.
 
-    Token averaging is the same as before. The helper only avoids work after
-    the requested layer, all-layer activation retention, KV caches and logits.
-    One example at a time keeps memory use predictable for Gemma 27B.
+    Returns:
+        Batch of mean activation vectors of shape (num_examples, hidden_size)
     """
     assert len(system_prompts) == len(questions) == len(responses)
+
     all_mean_activations = []
-    with t.inference_mode():
-        examples = zip(system_prompts, questions, responses)
-        for system_prompt, question, response in tqdm(
-            examples, total=len(responses), desc=f"Extracting hidden_states[{layer}]", leave=False
-        ):
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question},
-                {"role": "assistant", "content": response},
-            ]
-            full_prompt, response_start_idx = format_messages(messages, tokenizer)
-            tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
-            hidden_states = _forward_to_hidden_state(model, tokens, layer)
 
-            # Your original response-token reduction, retaining [tokens, d_model].
-            # Index batch=0 explicitly so a one-token response keeps both axes.
-            response_activations = hidden_states[0, response_start_idx:, :]
-            if response_activations.shape[0] == 0:
-                raise ValueError("Empty response span; check chat formatting")
-            mean_activation = response_activations.float().mean(dim=0)
-            all_mean_activations.append(mean_activation.cpu())
-            del hidden_states, response_activations, tokens, mean_activation
+    for system_prompt, question, response in zip(system_prompts, questions, responses):
+        # Build messages list
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": response},
+        ]
+        # Format the message
+        full_prompt, response_start_idx = format_messages(messages, tokenizer)
 
-    if not all_mean_activations:
-        return t.empty((0, model.config.hidden_size), dtype=t.float32)
+        # Tokenize (the chat template already includes the BOS token, so don't add another)
+        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+
+        # Forward pass with hidden state output
+        with t.inference_mode():
+            outputs = model(**tokens, output_hidden_states=True)
+
+        # Get hidden states at the specified layer
+        hidden_states = outputs.hidden_states[layer]  # (1, seq_len, hidden_size)
+
+        # WRITE YOURSELF 1/6 (10 minutes): hidden_states is [1, tokens, d_model].
+        # Use response_start_idx to exclude prompt tokens, average over response
+        # positions only, and assign a [d_model] tensor to mean_activation.
+        # Check the slice is nonempty. The template's end-of-turn marker is
+        # included in this notebook's response span; use that convention consistently.
+
+        print(hidden_states.squeeze().shape)
+
+        response_activations: Tensor = hidden_states.squeeze()[response_start_idx:, :]
+
+        print(response_activations.shape)
+
+        mean_activation = response_activations.mean(dim=0)
+
+        all_mean_activations.append(mean_activation.cpu())
+
+    # Stack all activations
     return t.stack(all_mean_activations)
-
 
 
 test_activation = extract_response_activations(
@@ -649,3 +605,137 @@ px.imshow(
     color_continuous_midpoint=0.0,
 ).show()
 # %%
+# READ AND RUN: Supplied setup, helper or demonstration
+# Read this supplied centered-cosine code. The mean is over PERSONAS (dim=0);
+# normalization is per VECTOR (dim=1). Explain the difference before running.
+
+def compute_cosine_similarity_matrix_centered(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+) -> tuple[Float[Tensor, "n_personas n_personas"], list[str]]:
+    """
+    Compute pairwise cosine similarity between centered persona vectors.
+
+    Returns:
+        Tuple of (similarity matrix, list of persona names in order)
+    """
+    names = list(persona_vectors.keys())
+
+    # Stack vectors into matrix and center by subtracting mean
+    vectors = t.stack([persona_vectors[name] for name in names])
+    vectors = vectors - vectors.mean(dim=0)
+
+    # Normalize
+    vectors_norm = vectors / vectors.norm(dim=1, keepdim=True)
+
+    # Compute cosine similarity
+    cos_sim = vectors_norm @ vectors_norm.T
+
+    return cos_sim, names
+
+
+cos_sim_matrix_centered, persona_names = compute_cosine_similarity_matrix_centered(persona_vectors)
+
+px.imshow(
+    cos_sim_matrix_centered.float(),
+    x=persona_names,
+    y=persona_names,
+    title="Persona Cosine Similarity Matrix (Centered)",
+    color_continuous_scale="RdBu",
+    color_continuous_midpoint=0.0,
+).show()
+# %%
+# WRITE YOURSELF: 2/6: construct the Assistant Axis
+# Implement only the direction and unit normalization; PCA and plotting are supplied.
+# Explain the subtraction sign and why centering leaves this difference unchanged.
+# PCA component signs are arbitrary. Compare absolute cosine with PC1 and inspect explained variance.
+
+def pca_decompose_persona_vectors(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+    default_personas: list[str] = DEFAULT_PERSONAS,
+) -> tuple[Float[Tensor, " d_model"], np.ndarray, PCA]:
+    """
+    Analyze persona space structure.
+
+    Args:
+        persona_vectors: Dict mapping persona name to vector
+        default_personas: List of persona names considered "default" (neutral assistant behavior)
+
+    Returns:
+        Tuple of:
+        - assistant_axis: Normalized direction from role-playing toward default/assistant behavior
+        - pca_coords: 2D PCA coordinates for each persona (n_personas, 2)
+        - pca: Fitted PCA object, via the method `PCA.fit_transform`
+    """
+
+    names = list(persona_vectors.keys())
+    vectors = t.stack([persona_vectors[name] for name in names])
+
+    # Compute Assistant Axis: mean(default) - mean(all_roles_excluding_default)
+    # This points from role-playing behavior toward default assistant behavior
+    default_vecs = [persona_vectors[name] for name in default_personas if name in persona_vectors]
+    assert default_vecs, "Need at least some default vectors to subtract"
+    mean_default = t.stack(default_vecs).mean(dim=0)
+
+    # Get all personas excluding defaults
+    role_names = [name for name in names if name not in default_personas]
+    if role_names:
+        role_vecs = t.stack([persona_vectors[name] for name in role_names])
+        mean_roles = role_vecs.mean(dim=0)
+    else:
+        # Fallback if no roles
+        mean_roles = vectors.mean(dim=0)
+
+    # WRITE YOURSELF 2/6 (5-10 minutes): construct the direction pointing
+    # from mean_roles toward mean_default and normalize it to unit length.
+    # Assign the result to assistant_axis, shape [d_model].
+    raise NotImplementedError("WRITE YOURSELF 2/6: Assistant Axis direction and normalization")
+
+    # PCA
+    vectors_np = vectors.numpy()
+    pca = PCA(n_components=2)
+    pca_coords = pca.fit_transform(vectors_np)
+
+    return assistant_axis, pca_coords, pca
+
+
+tests.test_pca_decompose_persona_vectors(pca_decompose_persona_vectors)
+
+# Compute mean vector to handle constant vector problem (same as in centered cosine similarity)
+# This will be subtracted from activations before projection to center around zero
+persona_vectors = {k: v.to(device, dtype=dtype) for k, v in persona_vectors.items()}
+mean_vector = t.stack(list(persona_vectors.values())).mean(dim=0)
+persona_vectors_centered = {k: v - mean_vector for k, v in persona_vectors.items()}
+
+# Perform PCA decomposition on space (PCA uses numpy internally, so convert to cpu float32)
+assistant_axis, pca_coords, pca = pca_decompose_persona_vectors(
+    {k: v.cpu().float() for k, v in persona_vectors_centered.items()}
+)
+assistant_axis = assistant_axis.to(device, dtype=dtype)  # Set to model dtype upfront
+
+print(f"Assistant Axis norm: {assistant_axis.norm().item():.4f}")
+print(
+    f"PCA explained variance: PC1={pca.explained_variance_ratio_[0]:.1%}, PC2={pca.explained_variance_ratio_[1]:.1%}"
+)
+
+# Compute projection onto assistant axis for coloring
+vectors = t.stack([persona_vectors_centered[name] for name in persona_names]).to(device, dtype=dtype)
+# Normalize vectors before projecting (so projections are in [-1, 1] range)
+vectors_normalized = vectors / vectors.norm(dim=1, keepdim=True)
+projections = (vectors_normalized @ assistant_axis).float().cpu().numpy()
+
+# 2D scatter plot
+fig = px.scatter(
+    x=pca_coords[:, 0],
+    y=pca_coords[:, 1],
+    text=persona_names,
+    color=projections,
+    color_continuous_scale="RdBu",
+    title="Persona Space (PCA) colored by Assistant Axis projection",
+    labels={
+        "x": f"PC1 ({pca.explained_variance_ratio_[0]:.1%})",
+        "y": f"PC2 ({pca.explained_variance_ratio_[1]:.1%})",
+        "color": "Assistant Axis",
+    },
+)
+fig.update_traces(textposition="top center", marker=dict(size=10))
+fig.show()

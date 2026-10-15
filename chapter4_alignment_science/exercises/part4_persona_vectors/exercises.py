@@ -912,6 +912,7 @@ finally:
 print("\nFirst forward pass has full sequence length; subsequent ones have length 1!")
 
 # %%
+EXTRACTION_LAYER = round(NUM_LAYERS * 0.65)  # 65% through the model
 
 
 class ConversationAnalyzer:
@@ -946,6 +947,7 @@ class ConversationAnalyzer:
         """
 
         print(messages)
+        format_messages(messages, tokenizer)
         
 
 

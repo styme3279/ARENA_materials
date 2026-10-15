@@ -420,17 +420,17 @@ def format_messages(messages: list[dict[str, str]], tokenizer) -> tuple[str, int
     # Apply chat template to get full conversation
     full_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
     # Get prompt without final assistant message to compute response_start_idx
-    # prompt_without_response = tokenizer.apply_chat_template(
-    #     messages[:-1], tokenize=False, add_generation_prompt=True
-    # ).rstrip()
+    prompt_without_response = tokenizer.apply_chat_template(
+        messages[:-1], tokenize=False, add_generation_prompt=True
+    ).rstrip()
 
-    # # Get start idx for response (+1 to skip newline). We use add_special_tokens=False because the chat template
-    # # already includes any BOS token (e.g. Gemma's `<bos>`), so letting the tokenizer add another would double it
-    # response_start_idx = (
-    #     tokenizer(prompt_without_response, return_tensors="pt", add_special_tokens=False).input_ids.shape[1] + 1
-    # )
+    # Get start idx for response (+1 to skip newline). We use add_special_tokens=False because the chat template
+    # already includes any BOS token (e.g. Gemma's `<bos>`), so letting the tokenizer add another would double it
+    response_start_idx = (
+        tokenizer(prompt_without_response, return_tensors="pt", add_special_tokens=False).input_ids.shape[1] + 1
+    )
 
-    return full_prompt#, response_start_idx
+    return full_prompt, response_start_idx
 
 
 tests.test_format_messages_response_index(format_messages, tokenizer)
@@ -573,24 +573,24 @@ def extract_persona_vectors(
 # Extract vectors (using the test subset from before)
 EXTRACTION_LAYER = round(NUM_LAYERS * 0.65)  # 65% through the model
 
-persona_vectors = extract_persona_vectors(
-    model=model,
-    tokenizer=tokenizer,
-    personas=PERSONAS,
-    questions=EVAL_QUESTIONS,
-    responses=responses,
-    layer=EXTRACTION_LAYER,
-)
-# %%
-print(f"\nExtracted vectors for {len(persona_vectors)} personas")
-for name, vec in persona_vectors.items():
-    print(f"  {name}: norm = {vec.norm().item():.2f}")
+# persona_vectors = extract_persona_vectors(
+#     model=model,
+#     tokenizer=tokenizer,
+#     personas=PERSONAS,
+#     questions=EVAL_QUESTIONS,
+#     responses=responses,
+#     layer=EXTRACTION_LAYER,
+# )
+# # %%
+# print(f"\nExtracted vectors for {len(persona_vectors)} personas")
+# for name, vec in persona_vectors.items():
+#     print(f"  {name}: norm = {vec.norm().item():.2f}")
 
-tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
+# tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
 
-# %%
-with open("persona_vectors.pkl", "wb") as f:
-    pickle.dump(persona_vectors, f)
+# # %%
+# with open("persona_vectors.pkl", "wb") as f:
+#     pickle.dump(persona_vectors, f)
 
 with open("persona_vectors.pkl", "rb") as f:
     persona_vectors = pickle.load(f)
@@ -1246,7 +1246,74 @@ delusion_projs, _ = visualize_transcript_drift(
 )
 
 # %%
-def our=generate_with_steering(
+def generate_with_steering(
+    model,
+    tokenizer,
+    prompt: str,
+    steering_vector: Float[Tensor, " d_model"],
+    steering_layer: int,
+    alpha: float,
+    system_prompt: str | None = None,
+    max_new_tokens: int = 200,
+    temperature: float = 0.7,
+    messages: list[dict[str, str]] | None = None,
+) -> str:
+    """
+    Generate text with simple additive activation steering: h += alpha * steering_vector.
+
+    Args:
+        model: Language model
+        tokenizer: Tokenizer
+        prompt: User message content (ignored if messages is provided)
+        steering_vector: Direction to steer in (use axis_steer for interpretable alpha units)
+        steering_layer: Which layer to apply steering at
+        alpha: Steering strength (in persona-gap units when using axis_steer).
+               Positive = toward Assistant; negative = away. Try ±1 to ±5.
+        system_prompt: Optional system prompt (e.g., for persona experiments)
+        max_new_tokens: Maximum tokens to generate
+        temperature: Sampling temperature
+        messages: Optional pre-built message list for multi-turn conversations.
+                  If provided, overrides prompt/system_prompt.
+
+    Returns:
+        Generated text (assistant response only)
+    """
+    if messages is None:
+        messages = []
+        if system_prompt is not None:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+    messages = _normalize_messages(messages)
+
+    formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = tokenizer(formatted_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+    prompt_length = inputs.input_ids.shape[1]
+
+    steer_vec = steering_vector.to(model.device)
+
+    def steering_hook(module, input, output):
+        hidden_states = output
+        # Steer ALL positions (not just last token) - this modifies the KV cache during
+        # prefill, which has a much stronger effect than last-token-only steering.
+        hidden_states += alpha * steer_vec.to(hidden_states.device, dtype=hidden_states.dtype)
+        return hidden_states
+
+    hook_handle = _return_layers(model)[steering_layer].register_forward_hook(steering_hook)
+    try:
+        with t.inference_mode():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id,
+            )
+        generated_ids = outputs[0, prompt_length:]
+        return tokenizer.decode(generated_ids, skip_special_tokens=True)
+    finally:
+        hook_handle.remove()
+
+def our_generate_with_steering(
     model,
     tokenizer,
     prompt: str,

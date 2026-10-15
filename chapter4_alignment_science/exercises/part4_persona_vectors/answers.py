@@ -442,9 +442,22 @@ def extract_response_activations(
     """
     assert len(system_prompts) == len(questions) == len(responses)
 
-    
+    for system_prompt, question, response in zip(system_prompts, questions, responses):
+        message = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": response},
+        ]
 
-    format_messages()
+        full_prompt, response_start_idx = format_messages(message, tokenizer)
+
+        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+
+        # Forward pass with hidden state output
+        with t.inference_mode():
+            outputs = model(**tokens, output_hidden_states=True)
+
+        print(len(outputs['hidden_states']))
 
 
 test_activation = extract_response_activations(
@@ -456,3 +469,4 @@ test_activation = extract_response_activations(
     layer=NUM_LAYERS // 2,
 )
 tests.test_extract_response_activations(extract_response_activations, model, tokenizer, D_MODEL, NUM_LAYERS)
+# %%

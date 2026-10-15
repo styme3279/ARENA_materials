@@ -102,6 +102,7 @@ PERSONAS = {
     "default_assistant": "You are an AI assistant",
     "default_llm": "You are a large language model",
     "default_helpful": "You are a helpful assistant",
+    "default_new": "You are an AI model that receives text input from users and produces text output in response, processing each message in turn and generating a reply based on its content.",
     #
     # Assistant-like (professional, helpful)
     "consultant": "You are a professional consultant who provides expert advice and strategic recommendations, drawing on deep domain knowledge to help clients solve problems and achieve their goals.",
@@ -685,10 +686,8 @@ def pca_decompose_persona_vectors(
         # Fallback if no roles
         mean_roles = vectors.mean(dim=0)
 
-    # WRITE YOURSELF 2/6 (5-10 minutes): construct the direction pointing
-    # from mean_roles toward mean_default and normalize it to unit length.
-    # Assign the result to assistant_axis, shape [d_model].
-    raise NotImplementedError("WRITE YOURSELF 2/6: Assistant Axis direction and normalization")
+    assistant_axis = mean_default - mean_roles
+    assistant_axis = assistant_axis / assistant_axis.norm()
 
     # PCA
     vectors_np = vectors.numpy()
@@ -739,3 +738,5 @@ fig = px.scatter(
 )
 fig.update_traces(textposition="top center", marker=dict(size=10))
 fig.show()
+
+# %%

@@ -106,14 +106,14 @@ import part3_interpreting_reasoning_models.utils as utils
 MAIN = __name__ == "__main__"
 # %%
 # Load .env file
-# env_path = exercises_dir / ".env"
-# assert env_path.exists(), "Please create a .env file with your API keys"
+env_path = exercises_dir / ".env"
+assert env_path.exists(), "Please create a .env file with your API keys"
 
-# load_dotenv(dotenv_path=str(env_path))
+load_dotenv(dotenv_path=str(env_path))
 
 # Setup OpenRouter client (works with both Claude and OpenAI models)
-# OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_API_KEY = "REDACTED_KEY"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+# OPENROUTER_API_KEY = "REDACTED_KEY"
 assert OPENROUTER_API_KEY, "Please set OPENROUTER_API_KEY in your .env file"
 
 openrouter_client = OpenAI(
@@ -777,10 +777,9 @@ def calculate_counterfactual_importance(
     Returns:
         List of counterfactual importance scores
     """
-    # for each chunk, 
-    # print(f"chunks removed: {len(chunks_removed)}")
-    # print(f"chunks_resampled: {len(chunks_resampled)}")
-    # print(f"chunks_resampled[0]: {len(chunks_resampled[0])}")
+    print(f"chunks removed: {len(chunks_removed)}")
+    print(f"chunks_resampled: {len(chunks_resampled)}")
+    print(f"chunks_resampled[0]: {len(chunks_resampled[0])}")
 
     # filtered_indices = []
     # for i, chunk in enumerate(chunks_removed):
@@ -799,11 +798,15 @@ def calculate_counterfactual_importance(
             probabilities.append(successes / len(indices))
         else:
             probabilities.append(None)
+
     
     # Forward-fill None values
     probabilities = pd.Series(probabilities).ffill().bfill().tolist()
+    print(f"probabilities: {probabilities}")
 
     return np.diff(probabilities).tolist()
+
+
 
 
 # Calculate counterfactual importance

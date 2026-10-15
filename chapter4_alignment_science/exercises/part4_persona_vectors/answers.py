@@ -1314,14 +1314,16 @@ def generate_with_steering(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]
-        messages_list = _normalize_messages(messages_list)
-        messages = tokenizer.apply_chat_template(messages_list, tokenize=False, add_generation_prompt=False)
+        messages, response_start_idx = format_messages(messages_list, tokenizer)
 
     inputs = tokenizer(messages, return_tensors="pt").to(model.device)
 
+
     outputs = model.generate(**inputs, max_new_tokens=10)
 
-    print(outputs)
+    generated_tokens = outputs[0, response_start_idx:]
+    generated_text = tokenizer.decode(generated_tokens, skip_special_tokens=False)
+    print(generated_tokens)
     raise ValueError("stop")
 
 

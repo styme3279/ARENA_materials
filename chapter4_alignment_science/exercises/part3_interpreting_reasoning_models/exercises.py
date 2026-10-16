@@ -733,4 +733,54 @@ def calculate_counterfactual_importance(
         List of counterfactual importance scores
     """
 
-    raise NotImplementedError("Implement counterfactual importance calculation")
+    # Get filtered indices for each chunk (using the module-level get_filtered_indices helper)
+    filtered_indices = [
+        get_filtered_indices(chunk, resampled, embedding_model, threshold)
+        for chunk, resampled in zip(chunks_removed, chunks_resampled)
+    ]
+
+    print([len(idx) for idx in filtered_indices], "min_samples =", min_samples)
+
+    # Compute P(success) using only filtered samples
+    probabilities = []
+    for data_list, indices in zip(rollout_data, filtered_indices):
+        if len(indices) >= min_samples:
+            successes = sum(score_fn(data_list[i]) for i in indices)
+            probabilities.append(successes / len(indices))
+        else:
+            probabilities.append(np.nan)
+
+    # Forward-fill None values
+    probabilities = pd.Series(probabilities, dtype=float).ffill().bfill()
+
+    print(probabilities[probabilities == np.nan])
+
+    return np.diff(probabilities).tolist()
+# %%
+# Calculate counterfactual importance
+chunks_removed = [chunk["chunk"] for chunk in problem_data["chunks_labeled"]]
+chunks_resampled = [
+    [rollout["chunk_resampled"] for rollout in chunk_rollouts] for chunk_rollouts in problem_data["chunk_solutions"]
+]
+full_cot_list = [
+    [rollout["full_cot"] for rollout in chunk_rollouts] for chunk_rollouts in problem_data["chunk_solutions"]
+]
+
+counterfactual_importances = calculate_counterfactual_importance(
+
+    chunks_removed,
+    chunks_resampled,
+    rollout_data=full_cot_list,
+    score_fn=lambda cot: extract_answer_from_cot(cot) == answer,
+    embedding_model=embedding_model,
+)
+
+# Compare with precomputed
+# (We flip the sign because the authors store the negative of the counterfactual metric in the dataset)
+precomputed_cf = [-chunk["counterfactual_importance_accuracy"] for chunk in problem_data["chunks_labeled"][:-1]]
+avg_diff = np.abs(np.subtract(counterfactual_importances, precomputed_cf)).mean()
+assert avg_diff < 0.025, "Error above 2.5% threshold"
+print("Precomputed comparison passed!")
+
+tests.test_calculate_counterfactual_importance(calculate_counterfactual_importance)
+# %%

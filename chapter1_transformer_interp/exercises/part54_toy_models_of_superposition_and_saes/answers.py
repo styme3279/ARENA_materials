@@ -148,7 +148,8 @@ class ToyModel(nn.Module):
         Generates a batch of data of shape (batch_size, n_inst, n_features).
         """
         # You'll fill this in later
-        raise NotImplementedError()
+        batch = t.zeros(batch_size, self.cfg.n_inst, self.cfg.n_features)
+        probabilities = einops.repeat(self.feature_probability, 'n_inst features -> batch_size n_inst features', batch_size = batch_size)
 
     def calculate_loss(
         self,
@@ -201,3 +202,4 @@ class ToyModel(nn.Module):
 
 
 tests.test_model(ToyModel)
+tests.test_generate_batch(ToyModel)

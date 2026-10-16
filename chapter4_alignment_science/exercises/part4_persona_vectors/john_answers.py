@@ -150,7 +150,8 @@ model = AutoModelForCausalLM.from_pretrained(
     attn_implementation="eager",  # Required for Gemma 2 to access attention weights
 )
 
-logging.getLogger("bitsandbytes").setLevel(logging.Error)  # Suppress bitsandbytes warnings
+# %%
+logging.getLogger("bitsandbytes").setLevel(logging.ERROR)  # Suppress bitsandbytes warnings
 
 NUM_LAYERS = model.config.num_hidden_layers
 D_MODEL = model.config.hidden_size
@@ -286,3 +287,36 @@ for p, resp in zip(test_personas, test_responses):
     print(f"{p}\n{resp[:80].strip()}...\n")
 
 # %%
+
+
+# %%
+
+def extract_response_activations(
+    model,
+    tokenizer,
+    system_prompts: list[str],
+    questions: list[str],
+    responses: list[str],
+    layer: int,
+) -> Float[Tensor, "num_examples d_model"]:
+    """
+    Extract mean activation over response tokens at a specific layer.
+
+    Returns:
+        Batch of mean activation vectors of shape (num_examples, hidden_size)
+    """
+    assert len(system_prompts) == len(questions) == len(responses)
+
+    # 1) Format the messages using format messages
+
+
+
+test_activation = extract_response_activations(
+    model=model,
+    tokenizer=tokenizer,
+    system_prompts=[PERSONAS["assistant"]],
+    questions=EVAL_QUESTIONS[:1],
+    responses=["I would suggest taking time to reflect on your goals and values."],
+    layer=NUM_LAYERS // 2,
+)
+tests.test_extract_response_activations(extract_response_activations, model, tokenizer, D_MODEL, NUM_LAYERS)

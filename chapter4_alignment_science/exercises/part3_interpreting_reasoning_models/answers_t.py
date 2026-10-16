@@ -796,10 +796,18 @@ def extract_attention_matrix(
         attention_matrix: Shape (seq_len, seq_len) attention weights for the specified head
         tokens: List of token strings for visualization
     """
-    def attention_matrix_hook(hook, input, output):
-        pass
-    print(model.model.layers[layer])
-    
+    inputs = tokenizer(text, return_tensors="pt")
+    if model.device.type == "cuda":
+        inputs = {k: v.cuda() for k, v in inputs.items()}
+
+    # Forward pass - hook will capture attention
+    with t.no_grad():
+        output = model(**inputs, use_cache=False, output_attentions=True)
+
+    token_ids = inputs["input_ids"][0].tolist()
+    tokens = tokenizer.convert_ids_to_tokens(token_ids)
+    return (output.attentions[layer][0,head,:,:].float().cpu().numpy(), tokens)
+
 
 
 # Load model and tokenizer (with attention output enabled - important!)

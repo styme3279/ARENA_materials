@@ -496,10 +496,34 @@ def extract_persona_vectors(
     for counter, (persona_name, system_prompt) in enumerate(personas.items()):
         print(f"Running persona ({counter + 1}/{len(personas)}) {persona_name} ...", end="")
 
-        # YOUR CODE HERE - compute activations for each persona, take the mean
-        system_prompts = [system_prompt] * len(questions)
-        mean_acts = extract_response_activations(model, tokenizer, system_prompts, questions, list(responses.values()))
-        print(mean_acts.shape)
+        # Collect all system prompts, questions, and responses for this persona
+        system_prompts_batch = []
+        questions_batch = []
+        responses_batch = []
+        for q_idx, question in enumerate(questions):
+            if (persona_name, q_idx) in responses:
+                response = responses[(persona_name, q_idx)]
+                # Filter by score if provided
+                if scores is not None:
+                    score = scores.get((persona_name, q_idx), 0)
+                    if score < score_threshold:
+                        continue
+                if response:  # Skip empty responses
+                    system_prompts_batch.append(system_prompt)
+                    questions_batch.append(question)
+                    responses_batch.append(response)
+
+        # Extract activations
+        activations = extract_response_activations(
+            model=model,
+            tokenizer=tokenizer,
+            system_prompts=system_prompts_batch,
+            questions=questions_batch,
+            responses=responses_batch,
+            layer=layer,
+        )
+        mean_acts = activations.mean(dim=0)
+
         # Take mean across all responses for this persona
         persona_vectors[persona_name] = mean_acts
         print("finished!")
@@ -551,3 +575,37 @@ for name, vec in persona_vectors.items():
 tests.test_extract_persona_vectors(extract_persona_vectors, model, tokenizer, D_MODEL, NUM_LAYERS)
 
 # %%
+def compute_cosine_similarity_matrix(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+) -> tuple[Float[Tensor, "n_personas n_personas"], list[str]]:
+    """
+    Compute pairwise cosine similarity between persona vectors.
+
+    Returns:
+        Tuple of (similarity matrix, list of persona names in order)
+    """
+    names = list(persona_vectors.keys())
+
+    # Stack vectors into matrix
+    vectors = t.stack([persona_vectors[name] for name in names]) # [n_personas, d_model]
+
+    # Normalize
+    vectors_norm = vectors / vectors.norm(dim=1, keepdim=True)
+
+    # Compute cosine similarity
+    cos_sim = vectors_norm @ vectors_norm.T
+
+    return cos_sim, names
+
+tests.test_compute_cosine_similarity_matrix(compute_cosine_similarity_matrix)
+
+cos_sim_matrix, persona_names = compute_cosine_similarity_matrix(persona_vectors)
+
+px.imshow(
+    cos_sim_matrix.float(),
+    x=persona_names,
+    y=persona_names,
+    title="Persona Cosine Similarity Matrix (Uncentered)",
+    color_continuous_scale="RdBu",
+    color_continuous_midpoint=0.0,
+).show()

@@ -712,25 +712,37 @@ def calculate_counterfactual_importance(
         List of counterfactual importance scores
     """
 
+    #print(rollout_data[0][0])
     probabilities = [] 
     for chunk_idx, removed_chunk in enumerate(chunks_removed):
         removed_chunk_embedding = embedding_model.encode(removed_chunk)
-        counterfactual_chunks = []
-        for resampled_chunk in chunks_resampled[chunk_idx]:
+        counterfactual_chunk_indices = []
+        for resampled_chunk_idx, resampled_chunk in enumerate(chunks_resampled[chunk_idx]):
             resampled_chunk_embedding = embedding_model.encode(resampled_chunk)
             embedding_sim = np.dot(removed_chunk_embedding,resampled_chunk_embedding)/(np.linalg.norm(removed_chunk_embedding)*np.linalg.norm(resampled_chunk_embedding))
             #print(removed_chunk, resampled_chunk, embedding_sim)
             if embedding_sim < threshold:
-                counterfactual_chunks.append(resampled_chunk)
-        if len(counterfactual_chunks) < min_samples:
-            print("Too few samples", removed_chunk)
+                counterfactual_chunk_indices.append(resampled_chunk_idx)
+        correct = 0
+        for counterfactual_chunk_index in counterfactual_chunk_indices:
+            if score_fn(rollout_data[chunk_idx][counterfactual_chunk_index]):
+                correct += 1
+        if len(counterfactual_chunk_indices) == 0:
+            probability = 0
+        probability = correct / len(counterfactual_chunk_indices)
+        if len(counterfactual_chunk_indices) < min_samples:
+            if len(probabilities) == 0:
+                probabilities.append(0)
+            probabilities.append(probabilities[-1])
+        else:
+            probabilities.append(probability)
+
     return [-(probabilities[i] - probabilities[i+1]) for i in range(len(probabilities)-1)]
 
 #  importance_scores = [
 #         sum(extract_answer_from_cot(cot) == answer for cot in cot_list) / len(cot_list) for cot_list in full_cot_list
 #     ]
 
-# %%
 # Calculate counterfactual importance
 chunks_removed = [chunk["chunk"] for chunk in problem_data["chunks_labeled"]]
 chunks_resampled = [

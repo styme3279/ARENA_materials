@@ -710,20 +710,24 @@ def calculate_counterfactual_importance(
     """
 
     # Take the data for each index and find all resamples
+    filtered_indices = [
+        get_filtered_indices(chunk, resampled, embedding_model, threshold)
+        for chunk, resampled in zip(chunks_removed, chunks_resampled)
+    ]
+    print(filtered_indices)
+    # Compute P(success) using only filtered samples
+    probabilities = []
+    for data_list, indices in zip(rollout_data, filtered_indices):
+        if len(indices) >= min_samples:
+            successes = sum(score_fn(data_list[i]) for i in indices)
+            probabilities.append(successes / len(indices))
+        else:
+            probabilities.append(None)
 
-    for i, chunk in enumerate(chunks_resampled):
-        correct = 0
-        denominator = 0
-        embedding_removed = embedding_model(chunks_removed[i])
-        for trajectory in chunk:
-            embedding_resmaple = embedding_model(trajectory)
-            if t.nn.CosineSimilarity(embedding_removed,embedding_resmaple) <= threshold:
-                correct += int(score_fn(trajectory))
-                denominator += 1
-        
+    # Forward-fill None values
+    probabilities = pd.Series(probabilities).ffill().bfill().tolist()
 
-    # Calculate the number of resamples which were correct
-    
+    return np.diff(probabilities).tolist()
     
 # Calculate counterfactual importance
 chunks_removed = [chunk["chunk"] for chunk in problem_data["chunks_labeled"]]

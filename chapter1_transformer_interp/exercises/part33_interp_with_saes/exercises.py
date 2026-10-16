@@ -316,7 +316,7 @@ def show_activation_histogram(
             act = all_activations[i].item()
             if act > 0.0:
                 all_positive_acts.append(act)
-        
+
     frac_active = len(all_positive_acts) / (
         total_batches * act_store.store_batch_size_prompts * act_store.context_size
     )
@@ -330,7 +330,7 @@ def show_activation_histogram(
         template="ggplot2",
         color_discrete_sequence=["darkorange"],
     ).update_layout(bargap=0.02, showlegend=False).show()
-            
+
 
 show_activation_histogram(gpt2, gpt2_sae, gpt2_act_store, latent_idx=9)
 
@@ -526,5 +526,48 @@ assert top_indices.tolist() == [[0, 10], [1, 10]]
 
 data = fetch_max_activating_examples(gpt2, gpt2_sae, gpt2_act_store, latent_idx=16873, total_batches=200)
 display_top_seqs(data)
+
+# %%
+def show_top_logits(
+    model: HookedSAETransformer,
+    sae: SAE,
+    latent_idx: int,
+    k: int = 10,
+) -> None:
+    """
+    Displays the top & bottom logits for a particular latent.
+    """
+    decoded_vector = sae.W_dec[latent_idx]
+    logits = decoded_vector @ model.W_U
+
+    pos_logits, pos_token_ids = t.topk(logits, k)
+
+    pos_tokens = []
+    for token_id in pos_token_ids:
+        pos_tokens.append(model.tokenizer.decode(token_id))
+
+    neg_logits, neg_token_ids = t.topk(logits, k, largest=False)
+
+    neg_tokens = []
+    for token_id in neg_token_ids:
+        neg_tokens.append(model.tokenizer.decode(token_id))
+
+
+    print(type(pos_tokens))
+
+    print(
+        tabulate(
+            zip(map(repr, neg_tokens), neg_logits, map(repr, pos_tokens), pos_logits),
+            headers=["Bottom tokens", "Value", "Top tokens", "Value"],
+            tablefmt="simple_outline",
+            stralign="right",
+            numalign="left",
+            floatfmt="+.3f",
+        )
+    )
+
+
+show_top_logits(gpt2, gpt2_sae, latent_idx=9)
+tests.test_show_top_logits(show_top_logits, gpt2, gpt2_sae)
 
 # %%

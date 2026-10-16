@@ -782,6 +782,34 @@ class SteeringHook:
             hidden_states, rest = output, None
 
         # ... all your hook intervention logic here, editing hidden_states ...
+        # - Extract hidden states from the output (in this case, the output of a layer, i.e. the residual stream post-attention and MLP)
+        # - Compute the norm of the hidden state at that point
+        # - Scale the steering vector by `norm * steering_coef` 
+        # (assuming the vector is normalized, this means the steering coefficient has a
+        #  consistent interpretation as a fraction of the hidden state norm)
+        # - Add this steering vector to the final token's hidden state
+        # - Return the accordingly modified output
+        # Move steering vector to the correct device/dtype, and normalize it
+        
+        v_to_device = self.steering_vector.to(hidden_states.device, dtype=hidden_states.dtype)
+        v_normed = v_to_device / (v_to_device.norm() + 1e-8)
+
+        # Apply steering to tokens based on apply_to_all_tokens flag
+        if self.apply_to_all_tokens:
+            # Apply to all tokens - preserves coherence by maintaining internal consistency
+            # Compute norm for each position: (batch, seq_len, 1)
+            norm = t.norm(hidden_states, dim=-1, keepdim=True)
+            # Add steering to all tokens, scaled by their norms
+            hidden_states = hidden_states + self.steering_coef * norm * v_normed
+        else:
+            # Apply only to last token
+            # Compute norm for last token only: (batch, 1)
+            norm = t.norm(hidden_states[:, -1, :], dim=-1, keepdim=True)
+            # Add steering only to the last token
+            hidden_states[:, -1, :] = hidden_states[:, -1, :] + self.steering_coef * norm * v_normed
+
+
+
 
         # Repack
         return (hidden_states, *rest) if rest is not None else hidden_states
@@ -819,3 +847,5 @@ def gen_with_steer(
 
 tests.test_steering_hook_modifies_activations(SteeringHook, lora_model_high_rank, lora_tokenizer)
 tests.test_steering_hook_matches_reference(SteeringHook, lora_model_high_rank, lora_tokenizer)
+
+# %%

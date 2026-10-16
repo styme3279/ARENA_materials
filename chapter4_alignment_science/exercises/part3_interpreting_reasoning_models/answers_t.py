@@ -583,3 +583,101 @@ fig.update_layout(
 fig.show()
 
 # %%
+# YOUR CODE HERE - compute `resampling_importances` using `calculate_answer_importance`
+# on the resampled rollouts
+full_cot_list = [
+    [rollout["full_cot"] for rollout in chunk_rollouts] for chunk_rollouts in problem_data["chunk_solutions"]
+]
+answer = problem_data["problem"]["gt_answer"]
+
+resampling_importances = calculate_answer_importance(full_cot_list, answer)
+
+# Compare with precomputed values from dataset (they used a slightly different method to us, but
+# we should get an answer within 1% of theirs)
+precomputed = [chunk["resampling_importance_accuracy"] for chunk in problem_data["chunks_labeled"][:-1]]
+avg_diff = np.abs(np.subtract(resampling_importances, precomputed)).mean()
+assert avg_diff < 0.01, "Error above 1% threshold"
+
+# Plot comparison between these two metrics
+chunks_for_hover = [chunk["chunk"] for chunk in problem_data["chunks_labeled"][:-1]]
+hover_texts = [chunk[:100] + "..." if len(chunk) > 100 else chunk for chunk in chunks_for_hover]
+
+fig = make_subplots(
+    rows=2,
+    cols=1,
+    shared_xaxes=True,
+    vertical_spacing=0.1,
+    subplot_titles=("Forced Answer Importance", "Resampling Importance"),
+)
+
+for row, color, y in [(1, "cornflowerblue", forced_importances), (2, "orange", resampling_importances)]:
+    fig.add_trace(
+        go.Bar(
+            x=list(range(len(y))),
+            y=y,
+            opacity=0.7,
+            name="Forced" if color == "cornflowerblue" else "Resampling",
+            marker_color=color,
+            hovertemplate="<b>Chunk %{x}</b><br>Importance: %{y:.4f}<br>Text: %{customdata}<extra></extra>",
+            customdata=hover_texts,
+        ),
+        row=row,
+        col=1,
+    )
+
+fig.add_hline(y=0, line_color="black", line_width=0.5, row=1, col=1)
+fig.add_hline(y=0, line_color="black", line_width=0.5, row=2, col=1)
+fig.update_layout(width=900, height=500, showlegend=False)
+fig.update_xaxes(title_text="Chunk Index", row=2, col=1)
+fig.update_yaxes(title_text="Importance", row=1, col=1)
+fig.update_yaxes(title_text="Importance", row=2, col=1)
+fig.show()
+
+# %%
+# Compute cosine similarity between original and resampled chunks
+chunks_removed = [chunk["chunk"] for chunk in problem_data["chunks_labeled"]]
+embeddings_original = embedding_model.encode(chunks_removed)
+
+chunks_resampled = [
+    [rollout["chunk_resampled"] for rollout in chunk_rollouts] for chunk_rollouts in problem_data["chunk_solutions"]
+]
+embeddings_resampled = np.stack([embedding_model.encode(r) for r in chunks_resampled])
+
+# Compute similarities
+cos_sims = einops.einsum(embeddings_original, embeddings_resampled, "chunk d, chunk resample d -> chunk resample")
+cos_sims_mean = cos_sims.mean(axis=1)
+
+# Plot by category with plotly
+chunk_labels = [CATEGORIES[chunk["function_tags"][0]] for chunk in problem_data["chunks_labeled"]]
+chunks_for_hover = [chunk["chunk"] for chunk in problem_data["chunks_labeled"]]
+df = pd.DataFrame({"Label": chunk_labels, "Cosine Similarity": cos_sims_mean, "Chunk Text": chunks_for_hover})
+
+fig = go.Figure()
+for label in df["Label"].unique():
+    subset = df[df["Label"] == label]
+    hover_texts = [text[:100] + "..." if len(text) > 100 else text for text in subset["Chunk Text"]]
+    fig.add_trace(
+        go.Bar(
+            x=subset.index.tolist(),
+            y=subset["Cosine Similarity"].tolist(),
+            name=label,
+            marker_color=utils.CATEGORY_COLORS.get(label, "#9E9E9E"),
+            hovertemplate="<b>Chunk %{x}</b><br>Category: "
+            + label
+            + "<br>Cosine Similarity: %{y:.4f}<br>Text: %{customdata}<extra></extra>",
+            customdata=hover_texts,
+        )
+    )
+
+fig.update_layout(
+    title="How Similar are Resampled Chunks to Originals?",
+    xaxis_title="Chunk Index",
+    yaxis_title="Mean Cosine Similarity to Resamples",
+    width=900,
+    height=400,
+    legend=dict(x=1.02, y=1, xanchor="left"),
+    bargap=0,
+)
+fig.show()
+
+# %%

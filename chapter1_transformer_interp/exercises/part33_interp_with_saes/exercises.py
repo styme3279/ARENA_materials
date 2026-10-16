@@ -217,3 +217,68 @@ SAE reconstruction:
 """)
 
 # %%
+_, cache = gpt2.run_with_cache_with_saes(prompt, saes=[gpt2_sae])
+
+for name, param in cache.items():
+    if "hook_sae" in name:
+        print(f"{name:<43}: {tuple(param.shape)}")
+
+# %%
+# Get top activations on final token
+_, cache = gpt2.run_with_cache_with_saes(
+    prompt,
+    saes=[gpt2_sae],
+    stop_at_layer=_get_hook_layer(gpt2_sae) + 1,
+)
+sae_acts_post = cache[f"{gpt2_sae.cfg.metadata.hook_name}.hook_sae_acts_post"][0, -1, :]
+
+# Plot line chart of latent activations
+px.line(
+    sae_acts_post.cpu().numpy(),
+    title=f"Latent activations at the final token position ({sae_acts_post.nonzero().numel()} alive)",
+    labels={"index": "Latent", "value": "Activation"},
+    width=1000,
+).update_layout(showlegend=False).show()
+
+# Print the top 5 latents, and inspect their dashboards
+for act, ind in zip(*sae_acts_post.topk(3)):
+    print(f"Latent {ind} had activation {act:.2f}")
+    display_dashboard(latent_idx=ind)
+
+# %%
+logits_no_saes, cache_no_saes = gpt2.run_with_cache(prompt)
+
+gpt2_sae.use_error_term = False
+logits_with_sae_recon, cache_with_sae_recon = gpt2.run_with_cache_with_saes(prompt, saes=[gpt2_sae])
+
+gpt2_sae.use_error_term = True
+logits_without_sae_recon, cache_without_sae_recon = gpt2.run_with_cache_with_saes(prompt, saes=[gpt2_sae])
+
+# Both SAE caches contain the hook values
+assert f"{gpt2_sae.cfg.metadata.hook_name}.hook_sae_acts_post" in cache_with_sae_recon
+assert f"{gpt2_sae.cfg.metadata.hook_name}.hook_sae_acts_post" in cache_without_sae_recon
+
+# But final output will be different, because we don't use SAE reconstructions when use_error_term
+t.testing.assert_close(logits_no_saes, logits_without_sae_recon)
+logit_diff_from_sae = (logits_no_saes - logits_with_sae_recon).abs().mean()
+print(f"Average logit diff from using SAE reconstruction: {logit_diff_from_sae:.4f}")
+
+# %%
+gpt2_act_store = ActivationsStore.from_sae(
+    model=gpt2,
+    sae=gpt2_sae,
+    dataset="NeelNanda/pile-10k",
+    streaming=True,
+    store_batch_size_prompts=16,
+    n_batches_in_buffer=32,
+    device=str(device),
+)
+
+# Example of how you can use this:
+tokens = gpt2_act_store.get_batch_tokens()
+assert tokens.shape == (gpt2_act_store.store_batch_size_prompts, gpt2_act_store.context_size)
+
+# %%
+display_dashboard(latent_idx=9)
+
+# %%

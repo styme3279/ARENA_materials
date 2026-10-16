@@ -546,9 +546,9 @@ def extract_persona_vectors(
         mean_acts = extract_response_activations(
             model=model,
             tokenizer=tokenizer,
-            system_prompts=[PERSONAS["assistant"]],
-            questions=EVAL_QUESTIONS[:1],
-            responses=["I would suggest taking time to reflect on your goals and values."],
+            system_prompts=system_prompt,
+            questions=questions,
+            responses=responses,
             layer=NUM_LAYERS // 2,
         )
 

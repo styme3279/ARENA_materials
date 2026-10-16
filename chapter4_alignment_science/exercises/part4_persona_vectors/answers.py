@@ -1326,3 +1326,30 @@ print_with_wrap(steered_away)
 tests.test_generate_with_steering_basic(generate_with_steering, model, tokenizer, d_model=model.config.hidden_size)
 
 # %%
+test_personas_steering = {
+    "consultant": PERSONAS.get("consultant", "You are a professional consultant."),
+    "philosopher": PERSONAS.get("philosopher", "You are a philosopher who contemplates deep questions."),
+    "ghost": PERSONAS.get("ghost", "You are a ghost wandering between worlds."),
+}
+test_question_steering = "How can I take steps to add meaning to my life?"
+alpha_values = [-5.0, -2.0, 0.0, 2.0, 5.0]
+
+for persona_name, sys_prompt in test_personas_steering.items():
+    print(f"\n{'=' * 80}")
+    print(f"PERSONA: {persona_name}")
+    print("=" * 80)
+    for alpha in alpha_values:
+        response = generate_with_steering(
+            model=model,
+            tokenizer=tokenizer,
+            prompt=test_question_steering,
+            system_prompt=sys_prompt,
+            steering_vector=axis_steer,
+            steering_layer=EXTRACTION_LAYER,
+            alpha=alpha,
+            max_new_tokens=100,
+        )
+        print(f"\nalpha={alpha:+.0f}: {response[:200]}...")
+        t.cuda.empty_cache()
+
+# %%

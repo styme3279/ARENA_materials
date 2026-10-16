@@ -737,3 +737,57 @@ fig.update_traces(textposition="top center", marker=dict(size=10))
 fig.show()
 
 # %%
+def characterize_axis(
+    persona_vectors: dict[str, Float[Tensor, " d_model"]],
+    assistant_axis: Float[Tensor, " d_model"],
+) -> dict[str, float]:
+    """
+    Compute cosine similarity of each persona vector with the assistant axis.
+
+    Args:
+        persona_vectors: Dict mapping persona name to its (centered) activation vector
+        assistant_axis: Normalized Assistant Axis direction vector
+
+    Returns:
+        Dict mapping persona name to cosine similarity score, sorted by score
+    """
+    similarities = {}
+    for name, vec in persona_vectors.items():
+        cos_sim = (vec @ assistant_axis) / (vec.norm() * assistant_axis.norm() + 1e-8)
+        similarities[name] = cos_sim.item()
+    return dict(sorted(similarities.items(), key=lambda x: x[1]))
+
+
+# Compute trait similarities using centered persona vectors
+trait_similarities = characterize_axis(persona_vectors_centered, assistant_axis)
+
+# Print extremes
+items = list(trait_similarities.items())
+print("Most ROLE-PLAYING (anti-assistant):")
+for name, sim in items[:5]:
+    print(f"  {name}: {sim:.3f}")
+print("\nMost ASSISTANT-LIKE:")
+for name, sim in items[-5:]:
+    print(f"  {name}: {sim:.3f}")
+
+# Create 1D visualization
+names = [name for name, _ in items]
+sims = [sim for _, sim in items]
+
+fig = px.scatter(
+    x=sims,
+    y=[0] * len(sims),
+    text=names,
+    color=sims,
+    color_continuous_scale="RdBu",
+    title="Persona Projections onto the Assistant Axis",
+    labels={"x": "Cosine Similarity with Assistant Axis", "color": "Similarity"},
+)
+fig.update_yaxes(visible=False, range=[-0.5, 0.5])
+fig.update_layout(height=350, showlegend=False)
+fig.update_traces(
+    textposition=["top center" if i % 2 == 0 else "bottom center" for i in range(len(names))], marker=dict(size=12)
+)
+fig.show()
+
+# %%

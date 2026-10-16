@@ -1258,11 +1258,6 @@ def get_vertical_scores(
     #   - Divide by the per-row valid counts to normalize to [0, 1]
     # Step 4: Compute vertical scores (same as simple version)
     # Step 5: If return_z_scores, z-score normalize the result
-    raise NotImplementedError()
-
-
-tests.test_get_vertical_scores(get_vertical_scores)
-
 
     n = avg_attention_matrix.shape[0]
     mat = avg_attention_matrix.copy()
@@ -1273,7 +1268,14 @@ tests.test_get_vertical_scores(get_vertical_scores)
     # Step 2: Remove proximity - set near-diagonal to NaN (ignore nearby sentences)
     mat[np.triu_indices_from(mat, k=-proximity_ignore + 1)] = np.nan
 
-    # Step 3: Compute vertical scores: mean attention received from future sentences
+    # Step 3
+
+    if control_depth:
+        per_row = np.sum(~np.isnan(mat), axis=1)
+        mat = stats.rankdata(mat, axis=1, nan_policy="omit") / per_row[:, None]
+
+
+    # Step 4: Compute vertical scores: mean attention received from future sentences
     vert_scores = []
     for j in range(n):
         # Extract "vertical line" - attention from all future sentences to sentence j
@@ -1284,4 +1286,82 @@ tests.test_get_vertical_scores(get_vertical_scores)
         else:
             vert_scores.append(np.nanmean(future_attention))
 
-    return np.array(vert_scores)
+    vert_scores = np.array(vert_scores)
+
+    if return_z_scores:
+        vert_scores = (vert_scores - np.nanmean(vert_scores)) / np.nanstd(vert_scores)
+
+    return vert_scores
+
+tests.test_get_vertical_scores(get_vertical_scores)
+
+# %%
+
+# Compute vertical scores WITH and WITHOUT depth control (using z-scores for comparison)
+vert_scores_no_control = get_vertical_scores(
+    sentence_attention, proximity_ignore=4, control_depth=False, return_z_scores=True
+)
+vert_scores_with_control = get_vertical_scores(
+    sentence_attention, proximity_ignore=4, control_depth=True, return_z_scores=True
+)
+
+# Get top-3 sentences (filtering NaN values)
+valid_mask = ~np.isnan(vert_scores_no_control) & ~np.isnan(vert_scores_with_control)
+valid_indices = np.where(valid_mask)[0]
+top_3_no_control = valid_indices[np.argsort(vert_scores_no_control[valid_mask])[-3:][::-1]]
+top_3_with_control = valid_indices[np.argsort(vert_scores_with_control[valid_mask])[-3:][::-1]]
+
+print(f"Top-3 sentences (no depth control): {top_3_no_control}")
+print(f"Top-3 sentences (with depth control): {top_3_with_control}")
+print(
+    f"Correlation between methods: {np.corrcoef(vert_scores_no_control[valid_mask], vert_scores_with_control[valid_mask])[0, 1]:.3f}"
+)
+
+# Plot comparison (already z-scored from the function)
+hover_texts = [s[:80] + "..." if len(s) > 80 else s for s in sentences]
+
+fig = go.Figure()
+for name, scores, color in [
+    ("No depth control", vert_scores_no_control, "steelblue"),
+    ("With depth control", vert_scores_with_control, "darkorange"),
+]:
+    fig.add_trace(
+        go.Bar(
+            x=list(range(len(scores))),
+            y=scores,
+            name=name,
+            opacity=0.7,
+            marker_color=color,
+            hovertemplate="<b>Sentence %{x}</b><br>Z-score: %{y:.2f}<br>%{customdata}<extra></extra>",
+            customdata=hover_texts,
+        )
+    )
+fig.add_hline(y=0, line_color="black", line_width=0.5)
+fig.update_layout(
+    title="Vertical Scores Comparison (Z-scored)",
+    xaxis_title="Sentence Index",
+    yaxis_title="Vertical Score (z-scored)",
+    width=1000,
+    height=450,
+    barmode="group",
+)
+fig.show()
+
+# %%
+def compute_head_kurtosis(vertical_scores: Float[np.ndarray, " n_sentences"]) -> float:
+    """
+    Compute kurtosis of vertical attention scores.
+    Higher kurtosis = more "spiky" attention = better receiver head candidate.
+    """
+    # Remove NaN values
+    valid_scores = vertical_scores[~np.isnan(vertical_scores)]
+    if len(valid_scores) < 4:
+        return np.nan
+
+    # Compute Fisher's kurtosis (excess kurtosis)
+    return stats.kurtosis(valid_scores, fisher=True, bias=True)
+
+
+tests.test_compute_head_kurtosis(compute_head_kurtosis)
+
+# %%

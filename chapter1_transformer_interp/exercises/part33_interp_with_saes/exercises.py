@@ -684,3 +684,50 @@ display_dashboard(
 )
 
 # %%
+@dataclass
+class AttnSeqDFA:
+    act: float
+    str_toks_dest: list[str]
+    str_toks_src: list[str]
+    dest_pos: int
+    src_pos: int
+
+
+def display_top_seqs_attn(data: list[AttnSeqDFA]):
+    """
+    Same as previous function, but we now have 2 str_tok lists and 2 sequence positions to
+    highlight, the first being for top activations (destination token) and the second for top DFA
+    (src token). We've given you a dataclass to help keep track of this.
+    """
+    table = Table(
+        "Top Act",
+        "Src token DFA (for top dest token)",
+        "Dest token",
+        title="Max Activating Examples",
+        show_lines=True,
+    )
+    for seq in data:
+        formatted_seqs = [
+            repr(
+                "".join(
+                    [f"[b u {color}]{str_tok}[/]" if i == seq_pos else str_tok for i, str_tok in enumerate(str_toks)]
+                )
+                .replace("�", "")
+                .replace("\n", "↵")
+            )
+            for str_toks, seq_pos, color in [
+                (seq.str_toks_src, seq.src_pos, "dark_orange"),
+                (seq.str_toks_dest, seq.dest_pos, "green"),
+            ]
+        ]
+        table.add_row(f"{seq.act:.3f}", *formatted_seqs)
+    rprint(table)
+
+
+str_toks = [" one", " two", " three", " four"]
+example_data = [
+    AttnSeqDFA(act=0.5, str_toks_dest=str_toks[1:], str_toks_src=str_toks[:-1], dest_pos=0, src_pos=0),
+    AttnSeqDFA(act=1.5, str_toks_dest=str_toks[1:], str_toks_src=str_toks[:-1], dest_pos=1, src_pos=1),
+    AttnSeqDFA(act=2.5, str_toks_dest=str_toks[1:], str_toks_src=str_toks[:-1], dest_pos=2, src_pos=0),
+]
+display_top_seqs_attn(example_data)

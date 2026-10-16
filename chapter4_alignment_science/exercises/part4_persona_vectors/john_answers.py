@@ -443,6 +443,10 @@ def format_messages(messages: list[dict[str, str]], tokenizer) -> tuple[str, int
 
 tests.test_format_messages_response_index(format_messages, tokenizer)
 
+# %%
+# Once you've confirmed these work, run them all!
+responses = generate_all_responses(PERSONAS, EVAL_QUESTIONS)
+
 
 # %%
 def extract_response_activations(

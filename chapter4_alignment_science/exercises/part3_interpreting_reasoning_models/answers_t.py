@@ -873,10 +873,11 @@ def get_vertical_scores_simple(
 
     Adapted from thought-anchors: attn_funcs.py:get_vertical_scores
     """
-    verticle_scores = np.zeros_like(avg_attention_matrix[0])
-    for j, _ in enumerate(avg_attention_matrix):
+    print(t.tensor(avg_attention_matrix).T.triu(diagonal=proximity_ignore))
+    verticle_scores = np.zeros_like(avg_attention_matrix.T[0])
+    for j, _ in enumerate(avg_attention_matrix.T):
         attentions = []
-        for i, attention in enumerate(avg_attention_matrix[j]):
+        for i, attention in enumerate(avg_attention_matrix.T[j]):
             if i > (j + proximity_ignore):
                 attentions.append(attention)
         print(attentions)
@@ -888,7 +889,49 @@ def get_vertical_scores_simple(
     return verticle_scores
 
 
-tests.test_get_vertical_scores_simple(get_vertical_scores_simple)
+def get_vertical_scores_simple(
+    avg_attention_matrix: Float[np.ndarray, "n_sentences n_sentences"],
+    proximity_ignore: int = 4,
+) -> Float[np.ndarray, " n_sentences"]:
+    """
+    Compute basic vertical attention scores for each sentence (no normalization).
+
+    Args:
+        avg_attention_matrix: Shape (n_sentences, n_sentences), where entry (i, j)
+            is the average attention from sentence i to sentence j
+        proximity_ignore: Ignore this many nearby sentences (to avoid trivial patterns)
+
+    Returns:
+        Array of shape (n_sentences,) with vertical scores
+
+    The vertical score for sentence j is the mean attention it receives from
+    all sentences i where i > j + proximity_ignore.
+
+    Adapted from thought-anchors: attn_funcs.py:get_vertical_scores
+    """
+    n = avg_attention_matrix.shape[0]
+    mat = avg_attention_matrix.copy()
+
+    # Step 1: Clean matrix - set upper triangle to NaN (can't attend to future)
+    mat[np.triu_indices_from(mat, k=1)] = np.nan
+
+    # Step 2: Remove proximity - set near-diagonal to NaN (ignore nearby sentences)
+    mat[np.triu_indices_from(mat, k=-proximity_ignore + 1)] = np.nan
+
+    # Step 3: Compute vertical scores: mean attention received from future sentences
+    vert_scores = []
+    for j in range(n):
+        # Extract "vertical line" - attention from all future sentences to sentence j
+        future_attention = mat[j + proximity_ignore :, j]
+
+        if len(future_attention) == 0 or np.all(np.isnan(future_attention)):
+            vert_scores.append(np.nan)
+        else:
+            vert_scores.append(np.nanmean(future_attention))
+
+    return np.array(vert_scores)
+
+
 
 # %%
 # Get example problem data
@@ -928,3 +971,5 @@ fig.update_layout(
     height=450,
 )
 fig.show()
+
+# %%

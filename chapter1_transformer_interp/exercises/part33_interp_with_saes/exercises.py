@@ -282,3 +282,51 @@ assert tokens.shape == (gpt2_act_store.store_batch_size_prompts, gpt2_act_store.
 display_dashboard(latent_idx=9)
 
 # %%
+def show_activation_histogram(
+    model: HookedSAETransformer,
+    sae: SAE,
+    act_store: ActivationsStore,
+    latent_idx: int,
+    total_batches: int = 200,
+):
+    """
+    Displays the activation histogram for a particular latent, computed across `total_batches`
+    batches from `act_store`.
+    """
+
+
+    sae_acts_post_hook_name = f"{sae.cfg.metadata.hook_name}.hook_sae_acts_post"
+    for batch in range(total_batches):
+        tokens = act_store.get_batch_tokens()
+        _, cache = model.run_with_cache_with_saes(
+            tokens,
+            saes=[sae],
+            stop_at_layer=_get_hook_layer(sae) + 1,
+        )
+
+        print(cache[sae_acts_post_hook_name].shape)
+        all_activations = cache[sae_acts_post_hook_name][:, :, latent_idx]
+        mask =  >= 0.0)
+        
+        assert False
+
+    # all_positive_acts
+
+    # frac_active = len(all_positive_acts) / (
+    #     total_batches * act_store.store_batch_size_prompts * act_store.context_size
+    # )
+
+    # px.histogram(
+    #     all_positive_acts,
+    #     nbins=50,
+    #     title=f"ACTIVATIONS DENSITY {frac_active:.3%}",
+    #     labels={"value": "Activation"},
+    #     width=800,
+    #     template="ggplot2",
+    #     color_discrete_sequence=["darkorange"],
+    # ).update_layout(bargap=0.02, showlegend=False).show()
+            
+
+show_activation_histogram(gpt2, gpt2_sae, gpt2_act_store, latent_idx=9)
+
+# %%

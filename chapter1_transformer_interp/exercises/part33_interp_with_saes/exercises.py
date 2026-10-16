@@ -167,7 +167,7 @@ print(
 def display_dashboard(
     sae_release="gpt2-small-res-jb",
     sae_id="blocks.7.hook_resid_pre",
-    latent_idx=0,
+    latent_idx=1,
     width=800,
     height=600,
 ):

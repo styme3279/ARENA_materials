@@ -189,7 +189,7 @@ def generate_responses_locally(
     all_responses = []
 
     # Process prompts in batches
-    for i in range(0, len(prompts), batch_size):
+    for i in tqdm(range(0, len(prompts), batch_size)):
         batch_prompts = prompts[i : i + batch_size]
 
         # Prepare batch inputs
@@ -907,20 +907,15 @@ def generate_model_contrast_data(
     Returns:
         Tuple of (prompts, base_responses, misaligned_responses)
     """
-    # YOUR CODE HERE - generate paired responses from base and misaligned models
-    base_responses = []
-    misaligned_responses = []
-    # for prompt in tqdm(prompts):
-    #     tokens = tokenizer(prompt, return_tensors="pt").to(device)
-    #     with model.disable_adapter():
-    #         base_output = model.generate(**tokens, max_new_tokens=max_new_tokens, temperature=temperature)
-    #         base_response = tokenizer.decode(base_output[0][tokens["input_ids"].shape[1]:], skip_special_tokens=True)
-    #     misaligned_output = model.generate(**tokens, max_new_tokens=max_new_tokens, temperature=temperature)
-    #     misaligned_response = tokenizer.decode(misaligned_output[0][tokens["input_ids"].shape[1]:], skip_special_tokens=True)
-    #     base_responses.append(base_response)
-    #     misaligned_responses.append(misaligned_response)
-    # return prompts, base_responses, misaligned_responses
-    generate_responses_parallel
+    sampled = random.sample(prompts, min(n_samples, len(prompts)))
+    misaligned_responses = generate_responses_locally(
+        model, tokenizer, sampled, max_new_tokens=max_new_tokens, temperature=temperature
+    )
+    with model.disable_adapter():
+        base_responses = generate_responses_locally(
+            model, tokenizer, sampled, max_new_tokens=max_new_tokens, temperature=temperature
+        )
+    return sampled, base_responses, misaligned_responses
 
 
 TEST_PROMPTS_FLAT = [prompt for prompt_list in TEST_PROMPTS.values() for prompt in prompt_list]

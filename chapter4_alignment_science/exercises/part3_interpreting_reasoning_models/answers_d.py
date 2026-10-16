@@ -708,7 +708,47 @@ def calculate_counterfactual_importance(
     Returns:
         List of counterfactual importance scores
     """
-    print(chunks_removed)
+
+    # Take the data for each index and find all resamples
+
+    for i, chunk in enumerate(chunks_resampled):
+        correct = 0
+        denominator = 0
+        embedding_removed = embedding_model(chunks_removed[i])
+        for trajectory in chunk:
+            embedding_resmaple = embedding_model(trajectory)
+            if t.nn.CosineSimilarity(embedding_removed,embedding_resmaple) <= threshold:
+                correct += int(score_fn(trajectory))
+                denominator += 1
+        
+
+    # Calculate the number of resamples which were correct
     
+    
+# Calculate counterfactual importance
+chunks_removed = [chunk["chunk"] for chunk in problem_data["chunks_labeled"]]
+chunks_resampled = [
+    [rollout["chunk_resampled"] for rollout in chunk_rollouts] for chunk_rollouts in problem_data["chunk_solutions"]
+]
+full_cot_list = [
+    [rollout["full_cot"] for rollout in chunk_rollouts] for chunk_rollouts in problem_data["chunk_solutions"]
+]
+
+counterfactual_importances = calculate_counterfactual_importance(
+    chunks_removed,
+    chunks_resampled,
+    rollout_data=full_cot_list,
+    score_fn=lambda cot: extract_answer_from_cot(cot) == answer,
+    embedding_model=embedding_model,
+)
+
+# Compare with precomputed
+# (We flip the sign because the authors store the negative of the counterfactual metric in the dataset)
+precomputed_cf = [-chunk["counterfactual_importance_accuracy"] for chunk in problem_data["chunks_labeled"][:-1]]
+avg_diff = np.abs(np.subtract(counterfactual_importances, precomputed_cf)).mean()
+assert avg_diff < 0.025, "Error above 2.5% threshold"
+print("Precomputed comparison passed!")
+
+tests.test_calculate_counterfactual_importance(calculate_counterfactual_importance)
 
 # %%

@@ -711,11 +711,24 @@ def calculate_counterfactual_importance(
     Returns:
         List of counterfactual importance scores
     """
-    for i, removed_chunk in chunks_removed:
 
-    counterfactual_importance_scores = [] 
-    embedding_model.encode()
-    return counterfactual_importance_scores
+    probabilities = [] 
+    for chunk_idx, removed_chunk in enumerate(chunks_removed):
+        removed_chunk_embedding = embedding_model.encode(removed_chunk)
+        counterfactual_chunks = []
+        for resampled_chunk in chunks_resampled[chunk_idx]:
+            resampled_chunk_embedding = embedding_model.encode(resampled_chunk)
+            embedding_sim = np.dot(removed_chunk_embedding,resampled_chunk_embedding)/(np.linalg.norm(removed_chunk_embedding)*np.linalg.norm(resampled_chunk_embedding))
+            #print(removed_chunk, resampled_chunk, embedding_sim)
+            if embedding_sim < threshold:
+                counterfactual_chunks.append(resampled_chunk)
+        if len(counterfactual_chunks) < min_samples:
+            print("Too few samples", removed_chunk)
+    return [-(probabilities[i] - probabilities[i+1]) for i in range(len(probabilities)-1)]
+
+#  importance_scores = [
+#         sum(extract_answer_from_cot(cot) == answer for cot in cot_list) / len(cot_list) for cot_list in full_cot_list
+#     ]
 
 # %%
 # Calculate counterfactual importance
@@ -743,3 +756,5 @@ assert avg_diff < 0.025, "Error above 2.5% threshold"
 print("Precomputed comparison passed!")
 
 tests.test_calculate_counterfactual_importance(calculate_counterfactual_importance)
+
+# %%

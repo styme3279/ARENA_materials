@@ -67,6 +67,7 @@ def test_calculate_loss(Model):
     out = model(batch)
     expected_loss = model_soln.calculate_loss(out, batch)
     actual_loss = model.calculate_loss(out, batch)
+    print(f"actual {actual_loss} expected_loss {expected_loss}")
     t.testing.assert_close(expected_loss, actual_loss, msg="Failed test with trivial importances")
 
     # Now test with nontrivial importances

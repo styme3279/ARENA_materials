@@ -168,7 +168,17 @@ class ToyModel(nn.Module):
         Note, `self.importance` is guaranteed to broadcast with the shape of `out` and `batch`.
         """
         # You'll fill this in later
-        raise NotImplementedError()
+        B = out.shape[0]
+        F = out.shape[-1]
+        squared_error = (out - batch) ** 2 # (batch inst feats)
+        importance = einops.repeat(self.importance, "inst feats -> batch inst feats", batch=out.shape[0])
+        weighted_error = importance * squared_error # (batch, inst, feats)
+        summed_error = weighted_error.sum(dim=-1).sum(dim=0) # (inst)
+        avg_error = summed_error / (B * F)
+        # per_inst_loss = einops.reduce(weighted_error, "batch inst feats -> inst", reduction="mean")
+        # loss = einops.reduce(per_inst_loss, "inst -> 1", reduction="sum")
+        loss = avg_error.sum()
+        return loss
 
     def optimize(
         self,
@@ -206,3 +216,11 @@ class ToyModel(nn.Module):
 
 tests.test_model(ToyModel)
 tests.test_generate_batch(ToyModel)
+
+# %%
+
+# Go back up and edit your `ToyModel.calculate_loss` method, then run the test below
+
+tests.test_calculate_loss(ToyModel)
+
+# %%

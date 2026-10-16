@@ -133,3 +133,54 @@ print(
 )
 
 # %%
+data = [[id, path, release.neuronpedia_id[id]] for id, path in release.saes_map.items()]
+
+print(
+    tabulate(
+        data,
+        headers=["SAE id", "SAE path (HuggingFace)", "Neuronpedia ID"],
+        tablefmt="simple_outline",
+    )
+)
+
+# %%
+t.set_grad_enabled(False)
+
+gpt2: HookedSAETransformer = HookedSAETransformer.from_pretrained("gpt2-small", device=device)
+
+gpt2_sae = SAE.from_pretrained(
+    release="gpt2-small-res-jb",
+    sae_id="blocks.7.hook_resid_pre",
+    device=str(device),
+)
+
+# %%
+print(
+    tabulate(
+        list(gpt2_sae.cfg.__dict__.items()) + list(gpt2_sae.cfg.metadata.items()),
+        headers=["name", "value"],
+        tablefmt="simple_outline",
+    )
+)
+
+# %%
+def display_dashboard(
+    sae_release="gpt2-small-res-jb",
+    sae_id="blocks.7.hook_resid_pre",
+    latent_idx=0,
+    width=800,
+    height=600,
+):
+    release = get_pretrained_saes_directory()[sae_release]
+    neuronpedia_id = release.neuronpedia_id[sae_id]
+
+    url = f"https://neuronpedia.org/{neuronpedia_id}/{latent_idx}?embed=true&embedexplanation=true&embedplots=true&embedtest=true&height=300"
+
+    print(url)
+    display(IFrame(url, width=width, height=height))
+
+
+latent_idx = random.randint(0, gpt2_sae.cfg.d_sae)
+display_dashboard(latent_idx=latent_idx)
+
+# %%

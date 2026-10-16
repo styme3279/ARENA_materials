@@ -714,7 +714,7 @@ def calculate_counterfactual_importance(
         get_filtered_indices(chunk, resampled, embedding_model, threshold)
         for chunk, resampled in zip(chunks_removed, chunks_resampled)
     ]
-    print(filtered_indices)
+
     # Compute P(success) using only filtered samples
     probabilities = []
     for data_list, indices in zip(rollout_data, filtered_indices):
@@ -725,8 +725,9 @@ def calculate_counterfactual_importance(
             probabilities.append(None)
 
     # Forward-fill None values
+    print(probabilities)
     probabilities = pd.Series(probabilities).ffill().bfill().tolist()
-
+    print(probabilities)
     return np.diff(probabilities).tolist()
     
 # Calculate counterfactual importance

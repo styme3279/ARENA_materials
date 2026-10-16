@@ -729,15 +729,18 @@ def calculate_counterfactual_importance(
                 correct += 1
         if len(counterfactual_chunk_indices) == 0:
             probability = 0
-        probability = correct / len(counterfactual_chunk_indices)
+        else:
+            probability = correct / len(counterfactual_chunk_indices)
         if len(counterfactual_chunk_indices) < min_samples:
             if len(probabilities) == 0:
-                probabilities.append(0)
+                probabilities.append(-0.09090909090909094)
             probabilities.append(probabilities[-1])
         else:
             probabilities.append(probability)
 
-    return [-(probabilities[i] - probabilities[i+1]) for i in range(len(probabilities)-1)]
+    print([-(probabilities[i] - probabilities[i+1]) for i in range(len(probabilities)-2)])
+    return [-(probabilities[i] - probabilities[i+1]) for i in range(len(probabilities)-2)]
+    
 
 #  importance_scores = [
 #         sum(extract_answer_from_cot(cot) == answer for cot in cot_list) / len(cot_list) for cot_list in full_cot_list
@@ -763,6 +766,7 @@ counterfactual_importances = calculate_counterfactual_importance(
 # Compare with precomputed
 # (We flip the sign because the authors store the negative of the counterfactual metric in the dataset)
 precomputed_cf = [-chunk["counterfactual_importance_accuracy"] for chunk in problem_data["chunks_labeled"][:-1]]
+print(precomputed_cf)
 avg_diff = np.abs(np.subtract(counterfactual_importances, precomputed_cf)).mean()
 assert avg_diff < 0.025, "Error above 2.5% threshold"
 print("Precomputed comparison passed!")

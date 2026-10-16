@@ -416,6 +416,13 @@ Now label each chunk with function tags."""
         messages_list=messages_list,
         model=model
     )
+    output = re.findall(r"(?m)^\s*\d+\.\s*([a-z_]+)\s*$", results[0])
+
+    output = [CATEGORIES[key] for key in output]
+
+    print('output - ', output)
+    return output
+
 
 
 example_problem = "What is the area of a circle with radius 5?"

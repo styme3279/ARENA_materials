@@ -175,8 +175,6 @@ class ToyModel(nn.Module):
         weighted_error = importance * squared_error # (batch, inst, feats)
         summed_error = weighted_error.sum(dim=-1).sum(dim=0) # (inst)
         avg_error = summed_error / (B * F)
-        # per_inst_loss = einops.reduce(weighted_error, "batch inst feats -> inst", reduction="mean")
-        # loss = einops.reduce(per_inst_loss, "inst -> 1", reduction="sum")
         loss = avg_error.sum()
         return loss
 
@@ -222,5 +220,44 @@ tests.test_generate_batch(ToyModel)
 # Go back up and edit your `ToyModel.calculate_loss` method, then run the test below
 
 tests.test_calculate_loss(ToyModel)
+
+# %%
+cfg = ToyModelConfig(n_inst=8, n_features=5, d_hidden=2)
+
+# importance varies within features for each instance
+importance = 0.9 ** t.arange(cfg.n_features)
+
+# sparsity is the same for all features in a given instance, but varies over instances
+feature_probability = 50 ** -t.linspace(0, 1, cfg.n_inst)
+
+line(
+    importance,
+    width=600,
+    height=400,
+    title="Importance of each feature (same over all instances)",
+    labels={"y": "Feature importance", "x": "Feature"},
+)
+line(
+    feature_probability,
+    width=600,
+    height=400,
+    title="Feature probability (varied over instances)",
+    labels={"y": "Probability", "x": "Instance"},
+)
+
+model = ToyModel(
+    cfg=cfg,
+    device=device,
+    importance=importance[None, :],
+    feature_probability=feature_probability[:, None],
+)
+model.optimize()
+# %%
+utils.plot_features_in_2d(
+    model.W,
+    colors=model.importance,
+    title=f"Superposition: {cfg.n_features} features represented in 2D space",
+    subplot_titles=[f"1 - S = {i:.3f}" for i in feature_probability.squeeze()],
+)
 
 # %%

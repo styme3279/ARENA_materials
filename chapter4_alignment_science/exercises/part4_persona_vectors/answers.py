@@ -419,7 +419,14 @@ def extract_response_activations(
     """
     assert len(system_prompts) == len(questions) == len(responses)
 
-    raise NotImplementedError()
+    for system_prompt, question, response in zip(system_prompts, questions, responses):
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": response}
+        ]
+        full_prompt, response_start_idx = format_messages(messages=messages, tokenizer=tokenizer)
+        tokenised
 
 
 test_activation = extract_response_activations(
@@ -431,3 +438,5 @@ test_activation = extract_response_activations(
     layer=NUM_LAYERS // 2,
 )
 tests.test_extract_response_activations(extract_response_activations, model, tokenizer, D_MODEL, NUM_LAYERS)
+
+# %%

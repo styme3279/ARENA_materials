@@ -790,7 +790,7 @@ class SteeringHook:
         # - Add this steering vector to the final token's hidden state
         # - Return the accordingly modified output
         # Move steering vector to the correct device/dtype, and normalize it
-        
+
         v_to_device = self.steering_vector.to(hidden_states.device, dtype=hidden_states.dtype)
         v_normed = v_to_device / (v_to_device.norm() + 1e-8)
 
@@ -848,4 +848,6 @@ def gen_with_steer(
 tests.test_steering_hook_modifies_activations(SteeringHook, lora_model_high_rank, lora_tokenizer)
 tests.test_steering_hook_matches_reference(SteeringHook, lora_model_high_rank, lora_tokenizer)
 
+# %%
+print('hi')
 # %%

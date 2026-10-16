@@ -537,13 +537,20 @@ def calculate_answer_importance(full_cot_list: list[list[str]], answer: str) -> 
     Returns:
         List of importance scores (one fewer than chunks, since we measure differences).
     """
-    
+    probs = []
     for chunk in full_cot_list:
         total = 0
         for rollout in chunk:
-            number = int(re.search(r"\\boxed\{(\d+)\}", rollout).group(1))
-            if number == int(answer):
+            match = re.search(r"\\boxed\{([^}]*)\}", rollout)
+            number = re.sub(r"[^0-9.\-]", "", match.group(1))
+            if float(number) == float(answer):
                 total += 1
+        chunk_prob = total / len(chunk)
+        probs.append(chunk_prob)
+    importance_scores = []
+    for i in range(1,len(probs)):
+        importance_scores.append(probs[i] - probs[i-1])
+    return importance_scores
 
 tests.test_calculate_answer_importance(calculate_answer_importance)
 

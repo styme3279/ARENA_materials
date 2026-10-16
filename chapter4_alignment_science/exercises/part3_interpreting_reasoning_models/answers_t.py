@@ -533,8 +533,16 @@ def calculate_answer_importance(full_cot_list: list[list[str]], answer: str) -> 
     Returns:
         List of importance scores (one fewer than chunks, since we measure differences).
     """
-    scores = 
-    for chunk in full_cot_list
+    importance_scores = []
+    for chunk in full_cot_list[1:]:
+        correct_rollouts = 0
+        for rollout in chunk:
+            correct_answer = "\\boxed{" + str(answer) + "}"
+            print(rollout, correct_answer)
+            if rollout == correct_answer:
+                correct_rollouts += 1
+        importance_scores.append(correct_rollouts / len(chunk))
+    return importance_scores
 
 
 tests.test_calculate_answer_importance(calculate_answer_importance)

@@ -625,3 +625,62 @@ def create_prompt(
     }
 
 # %%
+def get_autointerp_explanation(
+    model: HookedSAETransformer,
+    sae: SAE,
+    act_store: ActivationsStore,
+    latent_idx: int,
+    total_batches: int = 100,
+    k: int = 15,
+    buffer: int = 10,
+    n_completions: int = 5,
+) -> list[str]:
+    """
+    Queries OpenAI's API using prompts returned from `create_prompt`, and returns a list of the
+    completions.
+    """
+    client = OpenAI(api_key=API_KEY, base_url="https://openrouter.ai/api/v1")
+
+    prompts = create_prompt(model, sae, act_store, latent_idx, total_batches, k, buffer)
+
+    result = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": prompts["system"]},
+            {"role": "user", "content": prompts["user"]},
+            {"role": "assistant", "content": prompts["assistant"]},
+        ],
+        n=n_completions,
+        max_tokens=50,
+        stream=False,
+    )
+    return [choice.message.content for choice in result.choices]
+
+API_KEY = os.environ.get("OPENROUTER_API_KEY", None)
+
+if API_KEY is not None:
+    completions = get_autointerp_explanation(gpt2, gpt2_sae, gpt2_act_store, latent_idx=9, n_completions=5)
+    for i, completion in enumerate(completions):
+        print(f"Completion {i + 1}: {completion!r}")
+else:
+    print("No API key found, not running the autointerp code.")
+
+# %%
+attn_saes = {
+    layer: SAE.from_pretrained(
+        "gpt2-small-hook-z-kk",
+        f"blocks.{layer}.hook_z",
+        device=str(device),
+    )
+    for layer in range(gpt2.cfg.n_layers)
+}
+
+layer = 9
+
+display_dashboard(
+    sae_release="gpt2-small-hook-z-kk",
+    sae_id=f"blocks.{layer}.hook_z",
+    latent_idx=2,  # or you can try `random.randint(0, attn_saes[layer].cfg.d_sae)`
+)
+
+# %%

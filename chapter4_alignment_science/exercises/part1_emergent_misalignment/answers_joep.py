@@ -123,3 +123,6 @@ if MAIN:
     lora_tokenizer.pad_token = lora_tokenizer.eos_token
 
 # %%
+import torch as t
+t.cuda.empty_cache()
+# %%

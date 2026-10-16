@@ -728,18 +728,19 @@ def calculate_counterfactual_importance(
             if score_fn(rollout_data[chunk_idx][counterfactual_chunk_index]):
                 correct += 1
         if len(counterfactual_chunk_indices) == 0:
-            probability = 0
+            probability = 1
         else:
             probability = correct / len(counterfactual_chunk_indices)
         if len(counterfactual_chunk_indices) < min_samples:
             if len(probabilities) == 0:
-                probabilities.append(-0.09090909090909094)
+                probabilities.append(1)
             probabilities.append(probabilities[-1])
         else:
             probabilities.append(probability)
 
-    print([-(probabilities[i] - probabilities[i+1]) for i in range(len(probabilities)-2)])
-    return [-(probabilities[i] - probabilities[i+1]) for i in range(len(probabilities)-2)]
+    print(probabilities)
+    print([-(probabilities[i] - probabilities[i+1]) for i in range(1,len(probabilities)-1)])
+    return [-(probabilities[i] - probabilities[i+1]) for i in range(1,len(probabilities)-1)]
     
 
 #  importance_scores = [
@@ -772,5 +773,72 @@ assert avg_diff < 0.025, "Error above 2.5% threshold"
 print("Precomputed comparison passed!")
 
 tests.test_calculate_counterfactual_importance(calculate_counterfactual_importance)
+
+# %%
+def extract_attention_matrix(
+    text: str,
+    model,
+    tokenizer,
+    layer: int,
+    head: int,
+) -> tuple[Float[np.ndarray, "seq seq"], list[str]]:
+    """
+    Extract attention matrix from a specific layer and head using hooks.
+
+    Args:
+        text: Input text to analyze
+        model: HuggingFace model (already loaded)
+        tokenizer: Corresponding tokenizer
+        layer: Which layer to extract from (0-indexed)
+        head: Which attention head to extract from (0-indexed)
+
+    Returns:
+        attention_matrix: Shape (seq_len, seq_len) attention weights for the specified head
+        tokens: List of token strings for visualization
+    """
+    raise NotImplementedError("Implement attention extraction using hooks")
+
+
+# Load model and tokenizer (with attention output enabled - important!)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_1B)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
+model = AutoModelForCausalLM.from_pretrained(MODEL_NAME_1B, device_map="auto", dtype=dtype)
+# Flash Attention (the default for efficiency) fuses the attention computation into a single GPU
+# kernel and never materializes the full attention matrix, so it can't return attention weights.
+# We switch to "eager" mode which computes attention weights explicitly, allowing us to extract
+# and analyze them for the whitebox methods in this section.
+model.config._attn_implementation = "eager"
+model.config.output_attentions = True
+model.eval()
+
+# Test with a short example
+test_text = "The cat sat on the mat. It was sleeping."
+
+# Extract attention from middle layer
+n_layers = len(model.model.layers)
+layer_to_check = n_layers // 2
+head_to_check = 8  # head 9 is better for the 1.5b model
+print(f"\nExtracting attention from head L{layer_to_check}H{head_to_check}")
+attention_matrix, tokens = extract_attention_matrix(
+    test_text, model, tokenizer, layer=layer_to_check, head=head_to_check
+)
+assert attention_matrix.shape[0] == len(tokens), "Shape mismatch"
+assert attention_matrix.shape[0] == attention_matrix.shape[1], "Not square"
+# The model runs in bfloat16 (~3 significant digits), so rows only sum to 1 to within about 1e-2
+assert np.allclose(attention_matrix.sum(axis=1), 1.0, atol=1e-2), "Rows don't sum to 1"
+
+# Check causal structure (upper triangle should be mostly zeros)
+upper_triangle_sum = np.triu(attention_matrix, k=1).sum()
+assert upper_triangle_sum < 1e-5, "Upper triangle has non-zero values, not causal attention"
+
+# Visualize
+display(
+    cv.attention.attention_heads(
+        attention=attention_matrix[None],
+        tokens=tokens,
+    )
+)
 
 # %%

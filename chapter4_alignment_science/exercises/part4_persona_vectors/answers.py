@@ -57,6 +57,23 @@ def print_with_wrap(s: str, width: int = 80):
     print("\n".join(out))
 
 # %%
+assistant_axis_path = exercises_dir / "assistant-axis"
+assert assistant_axis_path.exists(), "Please clone the assistant-axis repo (see instructions above)"
+
+transcript_dir = assistant_axis_path / "transcripts"
+case_study_files = sorted(transcript_dir.glob("case_studies/**/*.json"))
+drift_files = sorted(transcript_dir.glob("persona_drift/*.json"))
+print(f"Found {len(case_study_files)} case study transcripts, {len(drift_files)} persona drift transcripts")
+
+# Show available transcripts
+for f in case_study_files:
+    data = json.loads(f.read_text())
+    print(f"  Case study: {f.parent.name}/{f.stem} ({data.get('turns', '?')} turns, model={data.get('model', '?')})")
+for f in drift_files:
+    data = json.loads(f.read_text())
+    print(f"  Persona drift: {f.stem} ({data.get('turns', '?')} turns, model={data.get('model', '?')})")
+
+# %%
 # You may need to log in to HuggingFace to access Gemma weights
 # Get a token at https://huggingface.co/settings/tokens
 
@@ -789,5 +806,224 @@ fig.update_traces(
     textposition=["top center" if i % 2 == 0 else "bottom center" for i in range(len(names))], marker=dict(size=12)
 )
 fig.show()
+
+# %%
+REPO_ID = "lu-christina/assistant-axis-vectors"
+GEMMA2_MODEL = "gemma-2-27b"
+GEMMA2_TARGET_LAYER = 22  # layer used in the paper's config
+
+# Load the Gemma 2 27B assistant axis (shape [46, 4608] - 46 layers, d_model=4608)
+hf_axis_path = hf_hub_download(repo_id=REPO_ID, filename=f"{GEMMA2_MODEL}/assistant_axis.pt", repo_type="dataset")
+hf_axis_raw = t.load(hf_axis_path, map_location="cpu", weights_only=False)
+hf_axis_vec = F.normalize(hf_axis_raw[GEMMA2_TARGET_LAYER].float(), dim=0)  # shape: (4608,)
+print(f"Gemma 2 27B axis shape at layer {GEMMA2_TARGET_LAYER}: {hf_axis_vec.shape}")
+
+# Download all 240 pre-computed trait vectors (each has shape [n_layers, d_model])
+print("Downloading 240 trait vectors (this may take a moment)...")
+local_dir = snapshot_download(
+    repo_id=REPO_ID, repo_type="dataset", allow_patterns=f"{GEMMA2_MODEL}/trait_vectors/*.pt"
+)
+trait_vectors_hf = {
+    p.stem: t.load(p, map_location="cpu", weights_only=False)
+    for p in Path(local_dir, GEMMA2_MODEL, "trait_vectors").glob("*.pt")
+}
+print(f"Loaded {len(trait_vectors_hf)} trait vectors")
+
+# Cosine similarity between each trait vector (at the target layer) and the assistant axis
+trait_sims_hf = {
+    name: F.cosine_similarity(vec[GEMMA2_TARGET_LAYER].float(), hf_axis_vec, dim=0).item()
+    for name, vec in trait_vectors_hf.items()
+}
+
+# %%
+sim_names = list(trait_sims_hf.keys())
+sim_values = np.array([trait_sims_hf[n] for n in sim_names])
+fig = utils.plot_similarity_line(sim_values, sim_names, n_extremes=5)
+plt.title(f"Trait Vectors vs Assistant Axis (Gemma 2 27B, Layer {GEMMA2_TARGET_LAYER})")
+plt.tight_layout()
+plt.show()
+
+# %%
+def _return_layers(m) -> list:
+    """
+    Walk model attributes to locate the list of transformer blocks.
+
+    Handles different model architectures: some models nest the language model under
+    `model.language_model.layers` rather than the more common `model.layers`.
+    """
+    for attr_path in ("language_model.layers", "layers"):
+        obj = m.model
+        try:
+            for name in attr_path.split("."):
+                obj = getattr(obj, name)
+            return obj
+        except AttributeError:
+            continue
+    raise AttributeError(f"Could not find transformer layers on {type(m)}")
+
+
+layers = _return_layers(model)
+
+# %%
+# Re-cast assistant_axis to cpu float32 for dot-product arithmetic.
+# assistant_axis was computed in Section 1 (already unit-norm at model dtype).
+# We re-normalize here defensively to ensure consistent float32 projections.
+assistant_axis = F.normalize(assistant_axis.cpu().float(), dim=0)
+
+# Compute steering scale: projection gap between default and role persona groups.
+# This lets alpha be in interpretable "persona gap" units: alpha=1.0 = one full gap.
+_default_projs = (
+    t.stack([persona_vectors[n].cpu().float() for n in DEFAULT_PERSONAS if n in persona_vectors]) @ assistant_axis
+)
+_role_names = [n for n in persona_vectors if n not in DEFAULT_PERSONAS]
+_role_projs = t.stack([persona_vectors[n].cpu().float() for n in _role_names]) @ assistant_axis
+AXIS_SCALE = float((_default_projs.mean() - _role_projs.mean()).item())
+axis_steer = assistant_axis * AXIS_SCALE  # Scaled vector for steering (not unit-norm)
+
+# %%
+# Demonstrate on a short synthetic conversation
+demo_messages = [
+    {"role": "user", "content": "Hello! How are you?"},
+    {"role": "assistant", "content": "I'm doing well, thank you for asking!"},
+    {"role": "user", "content": "What's the capital of France?"},
+    {"role": "assistant", "content": "The capital of France is Paris."},
+]
+demo_spans = utils.get_turn_spans(demo_messages, tokenizer)
+print("Turn spans for a short demo conversation:")
+for i, (start, end) in enumerate(demo_spans):
+    print(f"  Assistant turn {i}: tokens [{start}:{end}] ({end - start} tokens)")
+
+# Decode a few tokens from each span to verify correctness
+full_text = tokenizer.apply_chat_template(demo_messages, tokenize=False, add_generation_prompt=False)
+token_ids = tokenizer(full_text, return_tensors="pt", add_special_tokens=False).input_ids[0]
+for i, (start, end) in enumerate(demo_spans):
+    decoded = tokenizer.decode(token_ids[start : start + 10])
+    print(f"  Turn {i} first ~10 tokens: {decoded!r}")
+
+# %%
+therapy_path = transcript_dir / "persona_drift" / "therapy.json"
+writing_path = transcript_dir / "persona_drift" / "writing.json"
+# Use the Llama transcripts - much shorter messages than the Qwen ones
+delusion_path = transcript_dir / "case_studies" / "llama-3.3-70b" / "delusion_unsteered.json"
+delusion_path_capped = transcript_dir / "case_studies" / "llama-3.3-70b" / "delusion_capped.json"
+jailbreak_path = transcript_dir / "case_studies" / "llama-3.3-70b" / "jailbreak_unsteered.json"
+
+therapy_transcript = utils.load_transcript(therapy_path)
+writing_transcript = utils.load_transcript(writing_path)
+delusion_transcript = utils.load_transcript(delusion_path)
+delusion_transcript_capped = utils.load_transcript(delusion_path_capped)
+jailbreak_transcript = utils.load_transcript(jailbreak_path)
+
+for name, t_script in [
+    ("therapy", therapy_transcript),
+    ("writing", writing_transcript),
+    ("delusion (llama)", delusion_transcript),
+    ("delusion capped (llama)", delusion_transcript_capped),
+    ("jailbreak (llama)", jailbreak_transcript),
+]:
+    n_asst = sum(1 for m in t_script if m["role"] == "assistant")
+    asst_lens = [len(m["content"]) for m in t_script if m["role"] == "assistant"]
+    avg_len = int(np.mean(asst_lens)) if asst_lens else 0
+    print(f"{name}: {len(t_script)} msgs, {n_asst} asst turns, avg asst len={avg_len} chars")
+
+print("\nFirst user message from delusion transcript:")
+print(delusion_transcript[0]["content"][:200] + "...")
+
+# %%
+class ConversationAnalyzer:
+    """
+    Analyzes persona drift by projecting per-turn mean activations onto the Assistant Axis.
+
+    Processes the entire conversation in a single forward pass and extracts per-turn activations
+    using token spans from `get_turn_spans` (provided by `part4_persona_vectors.utils`).
+    """
+
+    def __init__(
+        self,
+        model,
+        tokenizer,
+        layer: int,
+        assistant_axis: Float[Tensor, " d_model"],
+    ):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.layer = layer
+        self.assistant_axis = assistant_axis  # Unit-normalized, cpu float32
+
+    def extract_turn_activations(self, messages: list[dict[str, str]]) -> list[Float[Tensor, " d_model"]]:
+        """
+        Run a single forward pass and return the mean hidden state for each assistant turn.
+
+        Args:
+            messages: Full conversation as list of {"role": ..., "content": ...} dicts
+
+        Returns:
+            List of mean activation tensors (one per assistant turn), on CPU
+        """
+        spans = utils.get_turn_spans(messages, self.tokenizer)
+
+        # Tokenize full conversation
+        full_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        tokens = self.tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(self.model.device)
+
+        # Hook to capture hidden states
+        captured: dict[str, Any] = {}
+
+        def hook_fn(_, __, out):
+            nonlocal captured
+            captured["hidden_states"] = out
+
+        hook = _return_layers(self.model)[self.layer].register_forward_hook(hook_fn)
+        try:
+            with t.inference_mode():
+                _ = self.model(**tokens)
+        finally:
+            hook.remove()
+
+        hidden_states = captured["hidden_states"][0]  # (seq_len, d_model)
+
+        turn_activations = []
+        for start, end in spans:
+            mean_act = hidden_states[start:end].mean(dim=0).cpu()
+            turn_activations.append(mean_act)
+
+        del captured, hidden_states
+        t.cuda.empty_cache()
+        return turn_activations
+
+    def project_onto_axis(self, messages: list[dict[str, str]]) -> list[float]:
+        """
+        Project each assistant turn's mean activation onto assistant_axis.
+
+        Returns raw dot products: (act @ assistant_axis).item(). Values will be O(hundreds to
+        thousands) for Gemma 2 - focus on relative changes across turns, not absolute scale.
+
+        Args:
+            messages: Full conversation
+
+        Returns:
+            List of projection values (one per assistant turn)
+        """
+        turn_activations = self.extract_turn_activations(messages)
+        axis = self.assistant_axis.cpu().float()
+        return [(act.float() @ axis).item() for act in turn_activations]
+
+t.cuda.empty_cache()
+analyzer = ConversationAnalyzer(
+    model=model,
+    tokenizer=tokenizer,
+    layer=EXTRACTION_LAYER,
+    assistant_axis=assistant_axis,
+)
+
+# Test on a short subset of the therapy transcript
+test_msgs = therapy_transcript[:6]  # 3 assistant turns
+test_spans = utils.get_turn_spans(test_msgs, tokenizer)
+
+test_projs = analyzer.project_onto_axis(test_msgs)
+print(f"\nProjections for first 3 turns: {[f'{p:.0f}' for p in test_projs]}")
+print("(Raw dot products; large values are expected for Gemma 2.)")
+
+tests.test_conversation_analyzer_project(ConversationAnalyzer)
 
 # %%

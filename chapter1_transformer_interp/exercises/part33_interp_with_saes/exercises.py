@@ -167,7 +167,7 @@ print(
 def display_dashboard(
     sae_release="gpt2-small-res-jb",
     sae_id="blocks.7.hook_resid_pre",
-    latent_idx=1,
+    latent_idx=4527,
     width=800,
     height=600,
 ):
@@ -182,5 +182,38 @@ def display_dashboard(
 
 latent_idx = random.randint(0, gpt2_sae.cfg.d_sae)
 display_dashboard(latent_idx=latent_idx)
+
+# %%
+prompt = "Mitigating the risk of extinction from AI should be a global"
+answer = " priority"
+
+# First see how the model does without SAEs
+test_prompt(prompt, answer, gpt2)
+
+# Test our prompt, to see what the model says
+with gpt2.saes(saes=[gpt2_sae]):
+    test_prompt(prompt, answer, gpt2)
+
+# Same thing, done in a different way
+gpt2.add_sae(gpt2_sae)
+test_prompt(prompt, answer, gpt2)
+gpt2.reset_saes()  # Remember to always do this!
+
+# Using `run_with_saes` method in place of standard forward pass
+logits = gpt2(prompt, return_type="logits")
+logits_sae = gpt2.run_with_saes(prompt, saes=[gpt2_sae], return_type="logits")
+answer_token_id = gpt2.to_single_token(answer)
+
+# Getting model's prediction
+top_prob, token_id_prediction = logits[0, -1].softmax(-1).max(-1)
+top_prob_sae, token_id_prediction_sae = logits_sae[0, -1].softmax(-1).max(-1)
+
+print(f"""Standard model:
+    top prediction = {gpt2.to_string(token_id_prediction)!r}
+    prob = {top_prob.item():.2%}
+SAE reconstruction:
+    top prediction = {gpt2.to_string(token_id_prediction_sae)!r}
+    prob = {top_prob_sae.item():.2%}
+""")
 
 # %%

@@ -1,0 +1,1868 @@
+[
+  {
+    "problem_idx": "problem_2238",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "What is the coefficient of $a^2b^2$ in $(a+b)^4\\left(c+\\dfrac{1}{c}\\right)^6$?",
+    "gt_answer": "120",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 2311.425,
+    "approximate_mean_chunks": 76.4,
+    "incorrect_answers": [
+      "384"
+    ],
+    "correct_answers": [
+      "120"
+    ]
+  },
+  {
+    "problem_idx": "problem_6998",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "Find the number of $x$-intercepts on the graph of $y = \\sin \\frac{1}{x}$ (evaluated in terms of radians) in the interval $(0.0001, 0.001).$",
+    "gt_answer": "2865",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 1883.65,
+    "approximate_mean_chunks": 103.6,
+    "incorrect_answers": [
+      "2864"
+    ],
+    "correct_answers": [
+      "2865"
+    ]
+  },
+  {
+    "problem_idx": "problem_2236",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "Each page number of a 488-page book is printed one time in the book.  The first page is page 1 and the last page is page 488. When printing all of the page numbers, how many more 4's are printed than 8's?",
+    "gt_answer": "90",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 2338.975,
+    "approximate_mean_chunks": 123.4,
+    "incorrect_answers": [
+      "100",
+      "89",
+      "91"
+    ],
+    "correct_answers": [
+      "90"
+    ]
+  },
+  {
+    "problem_idx": "problem_330",
+    "level": "Level 5",
+    "type": "Algebra",
+    "problem": "Compute\n\n$3(1+3(1+3(1+3(1+3(1+3(1+3(1+3(1+3(1+3)))))))))$",
+    "gt_answer": "88572",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 1663.7,
+    "approximate_mean_chunks": 126.9,
+    "incorrect_answers": [
+      "36084",
+      "188329404"
+    ],
+    "correct_answers": [
+      "88572"
+    ]
+  },
+  {
+    "problem_idx": "problem_1591",
+    "level": "Level 5",
+    "type": "Algebra",
+    "problem": "Dr. Fu Manchu has a bank account that has an annual interest rate of 6 percent, but it compounds monthly.  If this is equivalent to a bank account that compounds annually at a rate of $r$ percent, then what is $r$?  (Give your answer to the nearest hundredth.)",
+    "gt_answer": "6.17",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 2030.325,
+    "approximate_mean_chunks": 127.8,
+    "incorrect_answers": [
+      "6.14",
+      "6.16",
+      "6.18",
+      "6.29"
+    ],
+    "correct_answers": [
+      "6.17",
+      "6.17\\%"
+    ]
+  },
+  {
+    "problem_idx": "problem_4682",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "When the base-16 number $66666_{16}$ is written in base 2, how many base-2 digits (bits) does it have?",
+    "gt_answer": "19",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 2510.975,
+    "approximate_mean_chunks": 129.3,
+    "incorrect_answers": [
+      "20"
+    ],
+    "correct_answers": [
+      "19"
+    ]
+  },
+  {
+    "problem_idx": "problem_6596",
+    "level": "Level 5",
+    "type": "Prealgebra",
+    "problem": "The smaller square in the figure below has a perimeter of $4$ cm, and the larger square has an area of $16$ $\\text{cm}^2$.  What is the distance from point $A$ to point $B$? Express your answer as a decimal to the nearest tenth.\n\n[asy]\ndraw((0,0)--(12,0));\ndraw((2,0)--(2,10));\ndraw((0,0)--(0,2));\ndraw((0,2)--(2,2));\ndraw((0,2)--(12,10));\ndraw((12,0)--(12,10));\ndraw((2,10)--(12,10));\nlabel(\"B\",(0,2),W);\nlabel(\"A\",(12,10),E);\n[/asy]",
+    "gt_answer": "5.8",
+    "accuracy": 0.3,
+    "approximate_mean_tokens": 5130.5,
+    "approximate_mean_chunks": 186.2,
+    "incorrect_answers": [
+      "7.2",
+      "6.4",
+      "5.0"
+    ],
+    "correct_answers": [
+      "5.8"
+    ]
+  },
+  {
+    "problem_idx": "problem_3448",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "If $x$ is a real number and $k$ is a nonnegative integer, recall that the binomial coefficient $\\binom{x}{k}$ is defined by the formula\n\\[\n  \\binom{x}{k} = \\frac{x(x - 1)(x - 2) \\dots (x - k + 1)}{k!} \\, .\n\\]Compute the value of\n\\[\n  \\frac{\\binom{1/2}{2014} \\cdot 4^{2014}}{\\binom{4028}{2014}} \\, .\n\\]",
+    "gt_answer": "-\\frac{1} { 4027}",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 3523.55,
+    "approximate_mean_chunks": 202.5,
+    "incorrect_answers": [
+      "-\\frac{2^{2014}}{\\dbinom{4028}{2014}}",
+      "-1",
+      "\\frac{2^{2014}}{4028 \\times 4027}",
+      "-\\dfrac{1}{4048589}"
+    ],
+    "correct_answers": [
+      "-\\dfrac{1}{4027}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2189",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "A mother purchases 5 blue plates, 2 red plates, 2 green plates, and 1 orange plate. How many ways are there for her to arrange these plates for dinner around her circular table if she doesn't want the 2 green plates to be adjacent?\n",
+    "gt_answer": "588",
+    "accuracy": 0.9,
+    "approximate_mean_tokens": 4044.075,
+    "approximate_mean_chunks": 204.4,
+    "incorrect_answers": [
+      "420"
+    ],
+    "correct_answers": [
+      "588"
+    ]
+  },
+  {
+    "problem_idx": "problem_4164",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "A cubic polynomial $p(x)$ satisfies\n\\[p(n) = \\frac{1}{n^2}\\]for $n = 1, 2, 3,$ and $4.$  Find $p(5).$",
+    "gt_answer": "-\\frac{5}{12}",
+    "accuracy": 0.5555555555555556,
+    "approximate_mean_tokens": 3306.1111111111113,
+    "approximate_mean_chunks": 204.44444444444446,
+    "incorrect_answers": [
+      "\\dfrac{48}{25}",
+      "\\dfrac{1}{72}",
+      "\\dfrac{25}{36}"
+    ],
+    "correct_answers": [
+      "-\\dfrac{5}{12}"
+    ]
+  },
+  {
+    "problem_idx": "problem_3550",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "The polynomial $f(x)=x^{2007}+17x^{2006}+1$ has distinct zeroes $r_1,\\ldots,r_{2007}$.  A polynomial $P$ of degree $2007$ has the property that\n\\[P\\left(r_j+\\dfrac{1}{r_j}\\right)=0\\]for $j=1,\\ldots,2007$.  Determine the value of $\\frac{P(1)}{P(-1)}$.",
+    "gt_answer": "\\frac{289}{259}",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 4809.4,
+    "approximate_mean_chunks": 207.4,
+    "incorrect_answers": [
+      "1",
+      "-\\dfrac{289}{259}"
+    ],
+    "correct_answers": [
+      "\\dfrac{289}{259}"
+    ]
+  },
+  {
+    "problem_idx": "problem_4605",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "If $f(x) = \\frac{1 + x}{1 - 3x}, f_1(x) = f(f(x)), f_2(x) = f(f_1(x)),$ and in general $f_n(x) = f(f_{n-1}(x)),$ then $f_{1993}(3)=$\n",
+    "gt_answer": "\\frac{1}{5}",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 3402.225,
+    "approximate_mean_chunks": 219.3,
+    "incorrect_answers": [
+      "-\\dfrac{1}{2}"
+    ],
+    "correct_answers": [
+      "\\dfrac{1}{5}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2870",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Two boards, one four inches wide and the other six inches wide, are nailed together to form an X. The angle at which they cross is 60 degrees. If this structure is painted and the boards are separated what is the area of the unpainted region on the four-inch board? (The holes caused by the nails are negligible.) Express your answer in simplest radical form.\n\n[asy]\ndraw(6dir(150)--15dir(-30),linewidth(1));\ndraw((6dir(150)+12/sqrt(3)*dir(30))--(15dir(-30)+12/sqrt(3)*dir(30)),linewidth(1));\n\ndraw(6dir(210)--(0,0),linewidth(1));\ndraw((9dir(210)+8/sqrt(3)*dir(-30))--8/sqrt(3)*dir(-30),linewidth(1));\n\ndraw(12/sqrt(3)*dir(30)--(12/sqrt(3)+6)*dir(30),linewidth(1));\ndraw(12/sqrt(3)*dir(30)+8/sqrt(3)*dir(-30)--(12/sqrt(3)+9)*dir(30)+8/sqrt(3)*dir(-30),linewidth(1));\n\ndraw(2dir(150)--2dir(150)+6dir(60),dashed);\ndraw(2dir(210)--2dir(210)+4dir(-60),dashed);\n\ndot((2,0));\ndot((4,-1));\ndot((8,1));\ndot((6,2));\n\nlabel(\"$60^{\\circ}$\", (11,1), E);\nlabel(rotate(30)*\"$4^{\\prime\\prime}$\", .5*(2dir(210)+2dir(210)+4dir(-60))+(0,-.5),W);\nlabel(rotate(-30)*\"$6^{\\prime\\prime}$\", .5*(2dir(150)+2dir(150)+6dir(60))+(1,1),W);\n[/asy]",
+    "gt_answer": "16\\sqrt{3}",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 5337.8,
+    "approximate_mean_chunks": 219.7,
+    "incorrect_answers": [
+      "12\\sqrt{3}",
+      "6\\sqrt{3}"
+    ],
+    "correct_answers": [
+      "16\\sqrt{3}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2137",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "A triangular array of squares has one square in the first row, two in the second, and in general, $k$ squares in the $k$th row for $1 \\leq k \\leq 11.$ With the exception of the bottom row, each square rests on two squares in the row immediately below (illustrated in the given diagram). In each square of the eleventh row, a $0$ or a $1$ is placed. Numbers are then placed into the other squares, with the entry for each square being the sum of the entries in the two squares below it. For how many initial distributions of $0$'s and $1$'s in the bottom row is the number in the top square a multiple of $3$?\n[asy] for (int i=0; i<12; ++i){  for (int j=0; j<i; ++j){    //dot((-j+i/2,-i));    draw((-j+i/2,-i)--(-j+i/2+1,-i)--(-j+i/2+1,-i+1)--(-j+i/2,-i+1)--cycle);  } } [/asy]\n",
+    "gt_answer": "640",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 4296.6,
+    "approximate_mean_chunks": 220.4,
+    "incorrect_answers": [
+      "1280"
+    ],
+    "correct_answers": [
+      "640"
+    ]
+  },
+  {
+    "problem_idx": "problem_4019",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Let $c$ be a complex number.  Suppose there exist distinct complex numbers $r$, $s$, and $t$ such that for every complex number $z$, we have\n\\[\n  (z - r)(z - s)(z - t) = (z - cr)(z - cs)(z - ct).\n\\]Compute the number of distinct possible values of $c$.",
+    "gt_answer": "4",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 5219.425,
+    "approximate_mean_chunks": 223.0,
+    "incorrect_answers": [
+      "2",
+      "3"
+    ],
+    "correct_answers": [
+      "4"
+    ]
+  },
+  {
+    "problem_idx": "problem_3360",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "A right cylindrical oil tank is $15$ feet tall and its circular bases have diameters of $4$ feet each. When the tank is lying flat on its side (not on one of the circular ends), the oil inside is $3$ feet deep. How deep, in feet, would the oil have been if the tank had been standing upright on one of its bases? Express your answer as a decimal to the nearest tenth.",
+    "gt_answer": "12.1",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 4732.6,
+    "approximate_mean_chunks": 223.8,
+    "incorrect_answers": [
+      "2.9"
+    ],
+    "correct_answers": [
+      "12.1"
+    ]
+  },
+  {
+    "problem_idx": "problem_2050",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "There is an unlimited supply of congruent equilateral triangles made of colored paper.  Each triangle is a solid color with the same color on both sides of the paper. A large equilateral triangle is constructed from four of these paper triangles as shown.  Two large triangles are considered distinguishable if it is not possible to place one on the other, using translations, rotations, and/or reflections, so that their corresponding small triangles are of the same color. Given that there are six different colors of triangles from which to choose, how many distinguishable large equilateral triangles can be constructed?\n\n[asy]\ndraw((0,0)--(10,0)--(5,8.7)--cycle);\ndraw((5,0)--(2.5,4.3)--(7.5,4.3)--cycle);\n[/asy]",
+    "gt_answer": "336",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 4881.575,
+    "approximate_mean_chunks": 224.2,
+    "incorrect_answers": [
+      "326",
+      "276"
+    ],
+    "correct_answers": [
+      "336"
+    ]
+  },
+  {
+    "problem_idx": "problem_6481",
+    "level": "Level 5",
+    "type": "Prealgebra",
+    "problem": "Two points are drawn on each side of a square with an area of 81 square units, dividing the side into 3 congruent parts.  Quarter-circle arcs connect the points on adjacent sides to create the figure shown.  What is the length of the boundary of the bolded figure?  Express your answer as a decimal to the nearest tenth. [asy]\nsize(80);\nimport graph;\ndraw((0,0)--(3,0)--(3,3)--(0,3)--cycle, linetype(\"2 4\"));\ndraw(Arc((0,0),1,0,90),linewidth(.8));\ndraw(Arc((0,3),1,0,-90),linewidth(.8));\ndraw(Arc((3,0),1,90,180),linewidth(.8));\ndraw(Arc((3,3),1,180,270),linewidth(.8));\ndraw((1,0)--(2,0),linewidth(.8));draw((3,1)--(3,2),linewidth(.8));\ndraw((1,3)--(2,3),linewidth(.8));draw((0,1)--(0,2),linewidth(.8));\n[/asy]",
+    "gt_answer": "30.8",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 5649.25,
+    "approximate_mean_chunks": 226.9,
+    "incorrect_answers": [
+      "18.8"
+    ],
+    "correct_answers": [
+      "30.8"
+    ]
+  },
+  {
+    "problem_idx": "problem_3916",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "A nonzero polynomial with rational coefficients has all of the numbers \\[1+\\sqrt{2}, \\; 2+\\sqrt{3}, \\;3+\\sqrt{4},\\; \\dots, \\;1000+\\sqrt{1001}\\]as roots. What is the smallest possible degree of such a polynomial?",
+    "gt_answer": "1970",
+    "accuracy": 0.75,
+    "approximate_mean_tokens": 4857.0625,
+    "approximate_mean_chunks": 228.5,
+    "incorrect_answers": [
+      "1000"
+    ],
+    "correct_answers": [
+      "1970"
+    ]
+  },
+  {
+    "problem_idx": "problem_3935",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "A certain function $f$ has the properties that $f(3x) = 3f(x)$ for all positive real values of $x$, and that $f(x) = 1 - |x - 2|$ for $1\\leq x \\leq 3$. Find the smallest $x$ for which $f(x) = f(2001)$.",
+    "gt_answer": "429",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 4308.475,
+    "approximate_mean_chunks": 241.2,
+    "incorrect_answers": [
+      "\\dfrac{143}{177147}",
+      "\\dfrac{143}{19683}",
+      "\\dfrac{10726}{25}"
+    ],
+    "correct_answers": [
+      "429"
+    ]
+  },
+  {
+    "problem_idx": "problem_5723",
+    "level": "Level 5",
+    "type": "Prealgebra",
+    "problem": "The double-bar graph shows the number of home runs hit by McGwire and Sosa during each month of the 1998 baseball season. At the end of which month were McGwire and Sosa tied in total number of home runs?\n\n[asy]\ndraw((0,0)--(28,0)--(28,21)--(0,21)--(0,0)--cycle,linewidth(1));\n\nfor(int i = 1; i < 21; ++i)\n{\n\ndraw((0,i)--(28,i));\n}\n\nfor(int i = 0; i < 8; ++i)\n{\n\ndraw((-1,3i)--(0,3i));\n}\n\nlabel(\"0\",(-1,0),W);\nlabel(\"3\",(-1,3),W);\nlabel(\"6\",(-1,6),W);\nlabel(\"9\",(-1,9),W);\nlabel(\"12\",(-1,12),W);\nlabel(\"15\",(-1,15),W);\nlabel(\"18\",(-1,18),W);\nlabel(\"21\",(-1,21),W);\n\nfor(int i = 0; i < 8; ++i)\n{\n\ndraw((4i,0)--(4i,-1));\n}\n\nfilldraw((1,0)--(2,0)--(2,1)--(1,1)--(1,0)--cycle,gray,linewidth(1));\nfilldraw((5,0)--(6,0)--(6,10)--(5,10)--(5,0)--cycle,gray,linewidth(1));\nfilldraw((9,0)--(10,0)--(10,16)--(9,16)--(9,0)--cycle,gray,linewidth(1));\nfilldraw((13,0)--(14,0)--(14,10)--(13,10)--(13,0)--cycle,gray,linewidth(1));\nfilldraw((17,0)--(18,0)--(18,8)--(17,8)--(17,0)--cycle,gray,linewidth(1));\nfilldraw((21,0)--(22,0)--(22,10)--(21,10)--(21,0)--cycle,gray,linewidth(1));\nfilldraw((25,0)--(26,0)--(26,15)--(25,15)--(25,0)--cycle,gray,linewidth(1));\n\nfilldraw((6,0)--(7,0)--(7,6)--(6,6)--(6,0)--cycle,black,linewidth(1));\nfilldraw((10,0)--(11,0)--(11,7)--(10,7)--(10,0)--cycle,black,linewidth(1));\nfilldraw((14,0)--(15,0)--(15,20)--(14,20)--(14,0)--cycle,black,linewidth(1));\nfilldraw((18,0)--(19,0)--(19,9)--(18,9)--(18,0)--cycle,black,linewidth(1));\nfilldraw((22,0)--(23,0)--(23,13)--(22,13)--(22,0)--cycle,black,linewidth(1));\nfilldraw((26,0)--(27,0)--(27,11)--(26,11)--(26,0)--cycle,black,linewidth(1));\n\nlabel(\"Mar\",(2,0),S);\nlabel(\"Apr\",(6,0),S);\nlabel(\"May\",(10,0),S);\nlabel(\"Jun\",(14,0),S);\nlabel(\"Jul\",(18,0),S);\nlabel(\"Aug\",(22,0),S);\nlabel(\"Sep\",(26,0),S);\n[/asy] [asy]\ndraw((30,6)--(40,6)--(40,15)--(30,15)--(30,6)--cycle,linewidth(1));\nfilldraw((31,7)--(34,7)--(34,10)--(31,10)--(31,7)--cycle,black,linewidth(1));\nfilldraw((31,11)--(34,11)--(34,14)--(31,14)--(31,11)--cycle,gray,linewidth(1));\n\nlabel(\"McGwire\",(36,12.5));\nlabel(\"Sosa\",(36,8.5));\n[/asy]",
+    "gt_answer": "\\text{August}",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 4242.2,
+    "approximate_mean_chunks": 241.6,
+    "incorrect_answers": [
+      "\\text{March}"
+    ],
+    "correct_answers": [
+      "August",
+      "\\text{August}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2188",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "An oreo shop sells $5$ different flavors of oreos and $3$ different flavors of milk. Alpha and Beta decide to purhcase some oreos. Since Alpha is picky, he will not order more than 1 of the same flavor. To be just as weird, Beta will only order oreos, but she will be willing to have repeats of flavors. How many ways could they have left the store with 3 products collectively? (A possible purchase is Alpha purchases 1 box of uh-oh oreos and 1 gallon of whole milk while Beta purchases 1 bag of strawberry milkshake oreos).\n",
+    "gt_answer": "351",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 4579.325,
+    "approximate_mean_chunks": 242.1,
+    "incorrect_answers": [
+      "521",
+      "336",
+      "401"
+    ],
+    "correct_answers": [
+      "351"
+    ]
+  },
+  {
+    "problem_idx": "problem_3062",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Equilateral $\\triangle ABC$ has side length $600$. Points $P$ and $Q$ lie outside the plane of $\\triangle ABC$ and are on opposite sides of the plane. Furthermore, $PA=PB=PC$, and $QA=QB=QC$, and the planes of $\\triangle PAB$ and $\\triangle QAB$ form a $120^{\\circ}$ dihedral angle (the angle between the two planes). There is a point $O$ whose distance from each of $A,B,C,P,$ and $Q$ is $d$. Find $d$.\n",
+    "gt_answer": "450",
+    "accuracy": 0.3333333333333333,
+    "approximate_mean_tokens": 4484.708333333333,
+    "approximate_mean_chunks": 247.0,
+    "incorrect_answers": [
+      "50\\sqrt{273}",
+      "50\\sqrt{93}",
+      "264.5751",
+      "275"
+    ],
+    "correct_answers": [
+      "450"
+    ]
+  },
+  {
+    "problem_idx": "problem_3492",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Let $p(x)$ be a polynomial of degree 6 such that\n\\[p(2^n) = \\frac{1}{2^n}\\]for $n = 0,$ 1, 2, $\\dots,$ 6.  Find $p(0).$",
+    "gt_answer": "\\frac{127}{64}",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 4201.3,
+    "approximate_mean_chunks": 253.2,
+    "incorrect_answers": [
+      "2",
+      "\\dfrac{127}{2097152}",
+      "\\dfrac{4063}{2048}"
+    ],
+    "correct_answers": [
+      "\\dfrac{127}{64}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2945",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "A fenced, rectangular field measures $24$ meters by $52$ meters. An agricultural researcher has 1994 meters of fence that can be used for internal fencing to partition the field into congruent, square test plots. The entire field must be partitioned, and the sides of the squares must be parallel to the edges of the field. What is the largest number of square test plots into which the field can be partitioned using all or some of the 1994 meters of fence?\n",
+    "gt_answer": "702",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 4930.85,
+    "approximate_mean_chunks": 259.0,
+    "incorrect_answers": [
+      "312"
+    ],
+    "correct_answers": [
+      "702"
+    ]
+  },
+  {
+    "problem_idx": "problem_665",
+    "level": "Level 5",
+    "type": "Algebra",
+    "problem": "How many zeros are in the expansion of $999,\\!999,\\!999,\\!998^2$?",
+    "gt_answer": "11",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 4209.0,
+    "approximate_mean_chunks": 262.7,
+    "incorrect_answers": [
+      "10",
+      "12"
+    ],
+    "correct_answers": [
+      "11"
+    ]
+  },
+  {
+    "problem_idx": "problem_4435",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Let $0 \\le a,$ $b,$ $c,$ $d \\le 1.$  Find the possible values of the expression\n\\[\\sqrt{a^2 + (1 - b)^2} + \\sqrt{b^2 + (1 - c)^2} + \\sqrt{c^2 + (1 - d)^2} + \\sqrt{d^2 + (1 - a)^2}.\\]",
+    "gt_answer": "[2 \\sqrt{2},4]",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 5049.6,
+    "approximate_mean_chunks": 262.8,
+    "incorrect_answers": [
+      "[2\\sqrt{2}, 2\\sqrt{2} + 2]",
+      "2\\sqrt{2}",
+      "[2\\sqrt{2}, 4\\sqrt{2}]"
+    ],
+    "correct_answers": [
+      "[2\\sqrt{2}, 4]"
+    ]
+  },
+  {
+    "problem_idx": "problem_3722",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Consider all polynomials of the form\n\\[x^9 + a_8 x^8 + a_7 x^7 + \\dots + a_2 x^2 + a_1 x + a_0,\\]where $a_i \\in \\{0,1\\}$ for all $0 \\le i \\le 8.$  Find the number of such polynomials that have exactly two different integer roots.",
+    "gt_answer": "56",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 5186.4,
+    "approximate_mean_chunks": 268.8,
+    "incorrect_answers": [
+      "126",
+      "12",
+      "21"
+    ],
+    "correct_answers": [
+      "56"
+    ]
+  },
+  {
+    "problem_idx": "problem_5662",
+    "level": "Level 5",
+    "type": "Prealgebra",
+    "problem": "Twenty-four 4-inch wide square posts are evenly spaced with 5 feet between adjacent posts to enclose a square field, as shown. What is the outer perimeter, in feet, of the fence? Express your answer as a mixed number. [asy]\nunitsize(2mm);\ndefaultpen(linewidth(.7pt));\ndotfactor=3;\n\npath[] todraw = (1,9)--(9,9)--(9,1) ^^ (8,9)--(8,8)--(9,8) ^^ (5,9)--(5,8)--(6,8)--(6,9) ^^ (9,5)--(8,5)--(8,6)--(9,6) ^^ (8,8.5)--(6,8.5) ^^ (8.5,8)--(8.5,6) ^^ (5,8.5)--(4,8.5) ^^ (8.5,5)--(8.5,4);\npath[] tofill = Circle((1.3,8.5),.15) ^^ Circle((2.1,8.5),.15) ^^ Circle((2.9,8.5),.15) ^^ Circle((8.5,1.3),.15) ^^ Circle((8.5,2.1),.15) ^^ Circle((8.5,2.9),.15);\n\nfor(int i = 0; i < 4; ++i)\n{\ndraw(rotate(90*i)*todraw);\nfill(rotate(90*i)*tofill);\n}\n[/asy]",
+    "gt_answer": "129\\frac{1}{3}",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 5218.275,
+    "approximate_mean_chunks": 269.9,
+    "incorrect_answers": [
+      "128"
+    ],
+    "correct_answers": [
+      "129 \\dfrac{1}{3}"
+    ]
+  },
+  {
+    "problem_idx": "problem_623",
+    "level": "Level 5",
+    "type": "Algebra",
+    "problem": "The complete graph of $y=f(x)$, which consists of five line segments, is shown in red below. (On this graph, the distance between grid lines is $1$.)\n\nWhat is the sum of the $x$-coordinates of all points where $f(x) = x+1$?",
+    "gt_answer": "3",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 4997.05,
+    "approximate_mean_chunks": 270.4,
+    "incorrect_answers": [
+      "4",
+      "1"
+    ],
+    "correct_answers": [
+      "3"
+    ]
+  },
+  {
+    "problem_idx": "problem_6708",
+    "level": "Level 5",
+    "type": "Prealgebra",
+    "problem": "Each triangle is a 30-60-90 triangle, and the hypotenuse of one triangle is the longer leg of an adjacent triangle. The hypotenuse of the largest triangle is 8 centimeters. What is the number of centimeters in the length of the longer leg of the smallest triangle? Express your answer as a common fraction.\n\n[asy] pair O; for(int i = 0; i < 5; ++i){\ndraw(O--((2/sqrt(3))^i)*dir(30*i));\n}\nfor(int g = 0; g < 4; ++g){\ndraw( ((2/sqrt(3))^g)*dir(30*g)-- ((2/sqrt(3))^(g+1))*dir(30*g+30));\n}\nlabel(\"8 cm\", O--(16/9)*dir(120), W);\nlabel(\"$30^{\\circ}$\",.4*dir(0),dir(90));\nlabel(\"$30^{\\circ}$\",.4*dir(25),dir(115));\nlabel(\"$30^{\\circ}$\",.4*dir(50),dir(140));\nlabel(\"$30^{\\circ}$\",.4*dir(85),dir(175));\nreal t = (2/(sqrt(3)));\ndraw(rightanglemark((1,.1),(1,0),(.9,0),s=3));\ndraw(rightanglemark(rotate(30)*(0,t**4),rotate(0)*(0,t**3),O,s=3));\ndraw(rightanglemark(rotate(0)*(0,t**3),rotate(-30)*(0,t**2),O,s=3));\ndraw(rightanglemark(rotate(-30)*(0,t**2),rotate(-60)*(0,t**1),O,s=3));\n[/asy]",
+    "gt_answer": "\\frac{9}{2}",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 6032.275,
+    "approximate_mean_chunks": 281.3,
+    "incorrect_answers": [
+      "\\dfrac{9\\sqrt{3}}{4}",
+      "\\dfrac{32}{3}"
+    ],
+    "correct_answers": [
+      "\\dfrac{9}{2}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2819",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "What is the number of centimeters in the length of $EF$ if $AB\\parallel CD\\parallel EF$?\n\n[asy]\n\nsize(4cm,4cm);\npair A,B,C,D,E,F,X;\n\nA=(0,1);\nB=(1,1);\nC=(1,0);\nX=(0,0);\nD=(1/3)*C+(2/3)*X;\n\ndraw (A--B--C--D);\ndraw(D--B);\ndraw(A--C);\n\nE=(0.6,0.4);\nF=(1,0.4);\n\ndraw(E--F);\n\nlabel(\"$A$\",A,NW);\nlabel(\"$B$\",B,NE);\nlabel(\"$C$\",C,SE);\nlabel(\"$D$\",D,SW);\nlabel(\"$E$\",shift(-0.1,0)*E);\nlabel(\"$F$\",F,E);\n\nlabel(\"$100$ cm\",midpoint(C--D),S);\nlabel(\"$150$ cm\",midpoint(A--B),N);\n\n[/asy]",
+    "gt_answer": "60",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 5391.95,
+    "approximate_mean_chunks": 286.1,
+    "incorrect_answers": [
+      "120"
+    ],
+    "correct_answers": [
+      "60"
+    ]
+  },
+  {
+    "problem_idx": "problem_5266",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "A point whose coordinates are both integers is called a lattice point. How many lattice points lie on the hyperbola $x^2 - y^2 = 2000^2$?\n",
+    "gt_answer": "98",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 6058.45,
+    "approximate_mean_chunks": 288.5,
+    "incorrect_answers": [
+      "50",
+      "198"
+    ],
+    "correct_answers": [
+      "98"
+    ]
+  },
+  {
+    "problem_idx": "problem_2874",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Two of the altitudes of an acute triangle divide the sides into segments of lengths $5,3,2$ and $x$ units, as shown. What is the value of $x$? [asy]\ndefaultpen(linewidth(0.7)); size(75);\npair A = (0,0);\npair B = (1,0);\npair C = (74/136,119/136);\npair D = foot(B, A, C);\npair E = /*foot(A,B,C)*/ (52*B+(119-52)*C)/(119);\ndraw(A--B--C--cycle);\ndraw(B--D);\ndraw(A--E);\ndraw(rightanglemark(A,D,B,1.2));\ndraw(rightanglemark(A,E,B,1.2));\nlabel(\"$3$\",(C+D)/2,WNW+(0,0.3));\nlabel(\"$5$\",(A+D)/2,NW);\nlabel(\"$2$\",(C+E)/2,E);\nlabel(\"$x$\",(B+E)/2,NE);\n[/asy]",
+    "gt_answer": "10",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 4442.7,
+    "approximate_mean_chunks": 288.8,
+    "incorrect_answers": [
+      "4",
+      "2",
+      "2\\sqrt{6} - 2"
+    ],
+    "correct_answers": [
+      "10"
+    ]
+  },
+  {
+    "problem_idx": "problem_1843",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "In how many different ways can 3 men and 4 women be placed into two groups of two people and one group of three people if there must be at least one man and one woman in each group?  Note that identically sized groups are indistinguishable.",
+    "gt_answer": "36",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 5946.825,
+    "approximate_mean_chunks": 288.9,
+    "incorrect_answers": [
+      "18"
+    ],
+    "correct_answers": [
+      "36"
+    ]
+  },
+  {
+    "problem_idx": "problem_3817",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Consider the region $A^{}_{}$ in the complex plane that consists of all points $z^{}_{}$ such that both $\\frac{z^{}_{}}{40}$ and $\\frac{40^{}_{}}{\\overline{z}}$ have real and imaginary parts between $0^{}_{}$ and $1^{}_{}$, inclusive. Find the area of $A.$",
+    "gt_answer": "1200 - 200 \\pi",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 6026.775,
+    "approximate_mean_chunks": 296.4,
+    "incorrect_answers": [
+      "1200",
+      "400"
+    ],
+    "correct_answers": [
+      "1200 - 200\\pi"
+    ]
+  },
+  {
+    "problem_idx": "problem_3289",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "What is the area of the portion of the circle defined by $x^2-12x+y^2=28$ that lies above the $x$-axis and to the right of the line $y=6-x$?",
+    "gt_answer": "24 \\pi",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 6711.4,
+    "approximate_mean_chunks": 300.8,
+    "incorrect_answers": [
+      "8\\pi",
+      "16\\pi + 64 - 24\\sqrt{2}",
+      "16\\pi + 32"
+    ],
+    "correct_answers": [
+      "24\\pi"
+    ]
+  },
+  {
+    "problem_idx": "problem_3007",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "In quadrilateral $ABCD,\\ BC=8,\\ CD=12,\\ AD=10,$ and $m\\angle A= m\\angle B = 60^\\circ.$ Given that $AB = p + \\sqrt{q},$ where $p$ and $q$ are positive integers, find $p+q.$\n",
+    "gt_answer": "150",
+    "accuracy": 0.6666666666666666,
+    "approximate_mean_tokens": 4889.944444444444,
+    "approximate_mean_chunks": 319.1111111111111,
+    "incorrect_answers": [
+      "80",
+      "42"
+    ],
+    "correct_answers": [
+      "150"
+    ]
+  },
+  {
+    "problem_idx": "problem_2127",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "A particle moves in the Cartesian plane according to the following rules:\nFrom any lattice point $(a,b),$ the particle may only move to $(a+1,b), (a,b+1),$ or $(a+1,b+1).$\nThere are no right angle turns in the particle's path.\nHow many different paths can the particle take from $(0,0)$ to $(5,5)$?\n",
+    "gt_answer": "83",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 5617.575,
+    "approximate_mean_chunks": 323.4,
+    "incorrect_answers": [
+      "64",
+      "57",
+      "105"
+    ],
+    "correct_answers": [
+      "83"
+    ]
+  },
+  {
+    "problem_idx": "problem_4617",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Find the greatest natural number $n$ such that $n\\leq 2008$ and $(1^2+2^2+3^2+\\cdots + n^2)\\left[(n+1)^2+(n+2)^2+(n+3)^2+\\cdots + (2n)^2\\right]$ is a perfect square.\n",
+    "gt_answer": "1921",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 5213.45,
+    "approximate_mean_chunks": 328.9,
+    "incorrect_answers": [
+      "391",
+      "24"
+    ],
+    "correct_answers": [
+      "1921"
+    ]
+  },
+  {
+    "problem_idx": "problem_4698",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "Lucy was born on Wednesday, December 1st, 2004. That Wednesday was the first day of her life. Her parents held a party for her on the $1000$th day of her life. On which day of the week was the party?",
+    "gt_answer": "\\text{Monday}",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 4868.5,
+    "approximate_mean_chunks": 329.9,
+    "incorrect_answers": [
+      "\\text{Tuesday}",
+      "Tuesday",
+      "\\text{Sunday}"
+    ],
+    "correct_answers": [
+      "Monday",
+      "\\text{Monday}"
+    ]
+  },
+  {
+    "problem_idx": "problem_5252",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "For how many pairs of consecutive integers in $\\{1000,1001,1002,\\ldots,2000\\}$ is no carrying required when the two integers are added?\n",
+    "gt_answer": "156",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 5399.15,
+    "approximate_mean_chunks": 332.9,
+    "incorrect_answers": [
+      "150",
+      "216",
+      "256"
+    ],
+    "correct_answers": [
+      "156"
+    ]
+  },
+  {
+    "problem_idx": "problem_3003",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Let $ABCDE$ be a convex pentagon with $AB \\parallel CE, BC \\parallel AD, AC \\parallel DE, \\angle ABC=120^\\circ, AB=3, BC=5,$ and $DE = 15.$ Given that the ratio between the area of triangle $ABC$ and the area of triangle $EBD$ is $m/n,$ where $m$ and $n$ are relatively prime positive integers, find $m+n.$\n",
+    "gt_answer": "484",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 4896.875,
+    "approximate_mean_chunks": 334.8,
+    "incorrect_answers": [
+      "3",
+      "64",
+      "37"
+    ],
+    "correct_answers": [
+      "484"
+    ]
+  },
+  {
+    "problem_idx": "problem_7379",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "Find the sum of the values of $x$ such that $\\cos^3 3x+ \\cos^3 5x = 8 \\cos^3 4x \\cos^3 x$, where $x$ is measured in degrees and $100< x< 200.$\n",
+    "gt_answer": "906",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 4749.425,
+    "approximate_mean_chunks": 340.9,
+    "incorrect_answers": [
+      "636",
+      "780",
+      "420"
+    ],
+    "correct_answers": [
+      "906"
+    ]
+  },
+  {
+    "problem_idx": "problem_2107",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "Given eight distinguishable rings, let $n$ be the number of possible five-ring arrangements on the four fingers (not the thumb) of one hand. The order of rings on each finger is significant, but it is not required that each finger have a ring. Find the leftmost three nonzero digits of $n$.\n",
+    "gt_answer": "376",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 6964.55,
+    "approximate_mean_chunks": 341.6,
+    "incorrect_answers": [
+      "672",
+      "688",
+      "122"
+    ],
+    "correct_answers": [
+      "376"
+    ]
+  },
+  {
+    "problem_idx": "problem_3406",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "An ellipse with equation\n\\[\\frac{x^2}{a^2} + \\frac{y^2}{b^2} = 1\\]contains the circles $(x - 1)^2 + y^2 = 1$ and $(x + 1)^2  +y^2 = 1.$  Then the smallest possible area of the ellipse can be expressed in the form $k \\pi.$  Find $k.$",
+    "gt_answer": "\\frac{3 \\sqrt{3}}{2}",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 6998.125,
+    "approximate_mean_chunks": 343.4,
+    "incorrect_answers": [
+      "2\\sqrt{2}",
+      "2\\sqrt{2}\\pi"
+    ],
+    "correct_answers": [
+      "\\dfrac{3\\sqrt{3}}{2}"
+    ]
+  },
+  {
+    "problem_idx": "problem_5301",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "Let $S_i$ be the set of all integers $n$ such that $100i\\leq n < 100(i + 1)$. For example, $S_4$ is the set ${400,401,402,\\ldots,499}$. How many of the sets $S_0, S_1, S_2, \\ldots, S_{999}$ do not contain a perfect square?\n",
+    "gt_answer": "708",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 7084.425,
+    "approximate_mean_chunks": 352.7,
+    "incorrect_answers": [
+      "32",
+      "707",
+      "852"
+    ],
+    "correct_answers": [
+      "708"
+    ]
+  },
+  {
+    "problem_idx": "problem_3915",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Find all values of the real number $a$ so that the four complex roots of\n\\[z^4 - 6z^3 + 11az^2 - 3(2a^2 + 3a - 3) z + 1 = 0\\]form the vertices of a parallelogram in the complex plane.  Enter all the values, separated by commas.",
+    "gt_answer": "3",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 6379.85,
+    "approximate_mean_chunks": 353.2,
+    "incorrect_answers": [
+      "1",
+      "2 + \\dfrac{\\sqrt{34}}{4}",
+      "2 + \\dfrac{\\sqrt{34}}{4}, 2 - \\dfrac{\\sqrt{34}}{4}"
+    ],
+    "correct_answers": [
+      "3"
+    ]
+  },
+  {
+    "problem_idx": "problem_3753",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "There are 2011 positive numbers with both their sum and the sum of their reciprocals equal to 2012.  Let $x$ be one of these numbers.  Find the maximum value of $x + \\frac{1}{x}.$",
+    "gt_answer": "\\frac{8045}{2012}",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 5152.3,
+    "approximate_mean_chunks": 363.4,
+    "incorrect_answers": [
+      "4"
+    ],
+    "correct_answers": [
+      "\\dfrac{8045}{2012}"
+    ]
+  },
+  {
+    "problem_idx": "problem_3867",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "For a certain square, two vertices lie on the line $y = 2x - 17,$ and the other two vertices lie on the parabola $y = x^2.$  Find the smallest possible area of the square.",
+    "gt_answer": "80",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 5877.7,
+    "approximate_mean_chunks": 363.9,
+    "incorrect_answers": [
+      "\\dfrac{256}{5}"
+    ],
+    "correct_answers": [
+      "80"
+    ]
+  },
+  {
+    "problem_idx": "problem_3893",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Find the number of ordered 17-tuples $(a_1, a_2, a_3, \\dots, a_{17})$ of integers, such that the square of any number in the 17-tuple is equal to the sum of the other 16 numbers.",
+    "gt_answer": "12378",
+    "accuracy": 0.3,
+    "approximate_mean_tokens": 5526.175,
+    "approximate_mean_chunks": 364.7,
+    "incorrect_answers": [
+      "24754"
+    ],
+    "correct_answers": [
+      "12378"
+    ]
+  },
+  {
+    "problem_idx": "problem_4498",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "The vertices $V$ of a centrally symmetric hexagon in the complex plane are given by \\[V=\\left\\{   \\sqrt{2}i,-\\sqrt{2}i, \\frac{1}{\\sqrt{8}}(1+i),\\frac{1}{\\sqrt{8}}(-1+i),\\frac{1}{\\sqrt{8}}(1-i),\\frac{1}{\\sqrt{8}}(-1-i) \\right\\}.\\]For each $j$, $1\\leq j\\leq 12$, an element $z_j$ is chosen from $V$ at random, independently of the other choices. Let $P={\\prod}_{j=1}^{12}z_j$ be the product of the $12$ numbers selected.\n\nThe probability that $P=-1$ can be expressed in the form\n\\[\\frac{a}{p^b},\\]where $a,$ $b,$ $p$ are positive integers, $p$ is prime, and $a$ is not divisible by $p.$  Find $a + b + p.$",
+    "gt_answer": "233",
+    "accuracy": 0.3,
+    "approximate_mean_tokens": 6834.6,
+    "approximate_mean_chunks": 375.3,
+    "incorrect_answers": [
+      "157",
+      "5",
+      "453",
+      "19",
+      "1039",
+      "44301",
+      "110"
+    ],
+    "correct_answers": [
+      "233"
+    ]
+  },
+  {
+    "problem_idx": "problem_4786",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "What is the smallest positive integer $n$ such that $\\frac{1}{n}$ is a terminating decimal and $n$ contains the digit 9?",
+    "gt_answer": "4096",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 4180.85,
+    "approximate_mean_chunks": 375.3,
+    "incorrect_answers": [
+      "390625",
+      "3906250"
+    ],
+    "correct_answers": [
+      "4096"
+    ]
+  },
+  {
+    "problem_idx": "problem_3767",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "A sequence $a_1$, $a_2$, $\\ldots$ of non-negative integers is defined by the rule $a_{n+2}=|a_{n+1}-a_n|$ for $n\\geq1$. If $a_1=999$, $a_2<999$, and $a_{2006}=1$, how many different values of $a_2$ are possible?",
+    "gt_answer": "324",
+    "accuracy": 0.3,
+    "approximate_mean_tokens": 7109.425,
+    "approximate_mean_chunks": 384.5,
+    "incorrect_answers": [
+      "432",
+      "648"
+    ],
+    "correct_answers": [
+      "324"
+    ]
+  },
+  {
+    "problem_idx": "problem_3627",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Find all real numbers $p$ so that\n\\[x^4 + 2px^3 + x^2 + 2px + 1 = 0\\]has at least two distinct negative real roots.",
+    "gt_answer": "\\left( \\frac{3}{4}, \\infty \\right)",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 6809.95,
+    "approximate_mean_chunks": 389.6,
+    "incorrect_answers": [
+      "[1, \\infty)",
+      "p \\in \\mathbb{R} \\text{ with } |p| > \\dfrac{3}{4}",
+      "\\left( -\\dfrac{\\sqrt{6}}{2}, -\\dfrac{3}{4} \\right) \\cup \\left( \\dfrac{3}{4}, \\dfrac{\\sqrt{6}}{2} \\right)"
+    ],
+    "correct_answers": [
+      "\\left( \\dfrac{3}{4}, \\infty \\right)"
+    ]
+  },
+  {
+    "problem_idx": "problem_3040",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Triangle $ABC$ with right angle at $C$, $\\angle BAC < 45^\\circ$ and $AB = 4$. Point $P$ on $\\overline{AB}$ is chosen such that $\\angle APC = 2\\angle ACP$ and $CP = 1$. The ratio $\\frac{AP}{BP}$ can be represented in the form $p + q\\sqrt{r}$, where $p$, $q$, $r$ are positive integers and $r$ is not divisible by the square of any prime. Find $p+q+r$.\n",
+    "gt_answer": "7",
+    "accuracy": 0.7142857142857143,
+    "approximate_mean_tokens": 5570.785714285715,
+    "approximate_mean_chunks": 390.42857142857144,
+    "incorrect_answers": [
+      "14",
+      "13"
+    ],
+    "correct_answers": [
+      "7"
+    ]
+  },
+  {
+    "problem_idx": "problem_2785",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "In convex quadrilateral $ABCD$, $AB=BC=13$, $CD=DA=24$, and $\\angle D=60^\\circ$.  Points $X$ and $Y$ are the midpoints of $\\overline{BC}$ and $\\overline{DA}$ respectively.  Compute $XY^2$ (the square of the length of $XY$).",
+    "gt_answer": "\\frac{1033}{4}+30\\sqrt{3}",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 6361.7,
+    "approximate_mean_chunks": 394.5,
+    "incorrect_answers": [
+      "\\dfrac{1033 - 120\\sqrt{3}}{4}",
+      "\\dfrac{1033}{4} - 30\\sqrt{3}"
+    ],
+    "correct_answers": [
+      "\\dfrac{1033 + 120\\sqrt{3}}{4}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2994",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "A cylindrical log has diameter $12$ inches. A wedge is cut from the log by making two planar cuts that go entirely through the log. The first is perpendicular to the axis of the cylinder, and the plane of the second cut forms a $45^\\circ$ angle with the plane of the first cut. The intersection of these two planes has exactly one point in common with the log. The number of cubic inches in the wedge can be expressed as $n\\pi$, where n is a positive integer. Find $n$.\n",
+    "gt_answer": "216",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 8428.25,
+    "approximate_mean_chunks": 394.9,
+    "incorrect_answers": [
+      "108",
+      "27"
+    ],
+    "correct_answers": [
+      "216"
+    ]
+  },
+  {
+    "problem_idx": "problem_7198",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "Let $\\mathcal{C}$ be the hyperbola $y^2 - x^2 = 1$.  Given a point $P_0$ on the $x$-axis, we construct a sequence of points $(P_n)$ on the $x$-axis in the following manner: let $\\ell_n$ be the line with slope 1 passing passing through $P_n$, then $P_{n+1}$ is the orthogonal projection of the point of intersection of $\\ell_n$ and $\\mathcal C$ onto the $x$-axis. (If $P_n = 0$, then the sequence simply terminates.)\n\nFind the number of starting positions $P_0$ on the $x$-axis such that $P_0 = P_{2008}$.  Your answer should use exponential notation, in simplest form.",
+    "gt_answer": "2^{2008} -2",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 7676.675,
+    "approximate_mean_chunks": 395.0,
+    "incorrect_answers": [
+      "2^{2008} - 1",
+      "2^{2008}",
+      "2^{2007}"
+    ],
+    "correct_answers": [
+      "2^{2008} - 2"
+    ]
+  },
+  {
+    "problem_idx": "problem_5274",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "It is known that, for all positive integers $k$,\n$1^2+2^2+3^2+\\ldots+k^{2}=\\frac{k(k+1)(2k+1)}6$.\nFind the smallest positive integer $k$ such that $1^2+2^2+3^2+\\ldots+k^2$ is a multiple of $200$.\n",
+    "gt_answer": "112",
+    "accuracy": 0.6666666666666666,
+    "approximate_mean_tokens": 5725.944444444444,
+    "approximate_mean_chunks": 396.8888888888889,
+    "incorrect_answers": [
+      "175"
+    ],
+    "correct_answers": [
+      "112"
+    ]
+  },
+  {
+    "problem_idx": "problem_5127",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "Zan has created this iterative rule for generating sequences of whole numbers:\n\n1) If a number is 25 or less, double the number.\n\n2) If a number is greater than 25, subtract 12 from it.\n\nLet $F$ be the first number in a sequence generated by the rule above. $F$ is a \"sweet number\" if 16 is not a term in the sequence that starts with $F$. How many of the whole numbers 1 through 50 are \"sweet numbers\"?",
+    "gt_answer": "16",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 4347.2,
+    "approximate_mean_chunks": 397.8,
+    "incorrect_answers": [
+      "19",
+      "21",
+      "27"
+    ],
+    "correct_answers": [
+      "16"
+    ]
+  },
+  {
+    "problem_idx": "problem_6940",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "The sphere with radius 1 and center $(0,0,1)$ rests on the $xy$-plane.  A light source is at $P = (0,-1,2).$  Then the boundary of the shadow of the sphere can be expressed in the form $y = f(x),$ for some function $f(x).$  Find the function $f(x).$",
+    "gt_answer": "\\frac{x^2}{4} - 1",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 6255.9,
+    "approximate_mean_chunks": 401.1,
+    "incorrect_answers": [
+      "y = \\dfrac{x^2}{4} - 1"
+    ],
+    "correct_answers": [
+      "\\dfrac{x^2}{4} - 1",
+      "\\frac{x^2}{4} - 1"
+    ]
+  },
+  {
+    "problem_idx": "problem_7373",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "Equilateral triangle $ABC$ has side length $\\sqrt{111}$. There are four distinct triangles $AD_1E_1$, $AD_1E_2$, $AD_2E_3$, and $AD_2E_4$, each congruent to triangle $ABC$, with $BD_1 = BD_2 = \\sqrt{11}$. Find $\\sum_{k=1}^4(CE_k)^2$.",
+    "gt_answer": "677",
+    "accuracy": 0.625,
+    "approximate_mean_tokens": 5664.375,
+    "approximate_mean_chunks": 401.25,
+    "incorrect_answers": [
+      "666",
+      "466",
+      "1099"
+    ],
+    "correct_answers": [
+      "677"
+    ]
+  },
+  {
+    "problem_idx": "problem_2158",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "Let $A = \\{1, 2, 3, 4, 5, 6, 7\\}$, and let $N$ be the number of functions $f$ from set $A$ to set $A$ such that $f(f(x))$ is a constant function. Find the remainder when $N$ is divided by $1000$.\n",
+    "gt_answer": "399",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 7659.916666666667,
+    "approximate_mean_chunks": 404.8333333333333,
+    "incorrect_answers": [
+      "700"
+    ],
+    "correct_answers": [
+      "399"
+    ]
+  },
+  {
+    "problem_idx": "problem_2934",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Twelve congruent disks are placed on a circle $C$ of radius 1 in such a way that the twelve disks cover $C$, no two of the disks overlap, and so that each of the twelve disks is tangent to its two neighbors. The resulting arrangement of disks is shown in the figure below. The sum of the areas of the twelve disks can be written in the from $\\pi(a-b\\sqrt{c})$, where $a,b,c$ are positive integers and $c$ is not divisible by the square of any prime. Find $a+b+c$.\n[asy] unitsize(100); draw(Circle((0,0),1)); dot((0,0)); draw((0,0)--(1,0)); label(\"$1$\", (0.5,0), S);  for (int i=0; i<12; ++i) { dot((cos(i*pi/6), sin(i*pi/6))); }  for (int a=1; a<24; a+=2) { dot(((1/cos(pi/12))*cos(a*pi/12), (1/cos(pi/12))*sin(a*pi/12))); draw(((1/cos(pi/12))*cos(a*pi/12), (1/cos(pi/12))*sin(a*pi/12))--((1/cos(pi/12))*cos((a+2)*pi/12), (1/cos(pi/12))*sin((a+2)*pi/12))); draw(Circle(((1/cos(pi/12))*cos(a*pi/12), (1/cos(pi/12))*sin(a*pi/12)), tan(pi/12))); }[/asy]\n",
+    "gt_answer": "135",
+    "accuracy": 0.75,
+    "approximate_mean_tokens": 7238.375,
+    "approximate_mean_chunks": 405.0,
+    "incorrect_answers": [
+      "12"
+    ],
+    "correct_answers": [
+      "135"
+    ]
+  },
+  {
+    "problem_idx": "problem_4611",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "The cubic polynomial $p(x)$ satisfies $p(2) = 1,$ $p(7) = 19,$ $p(15) = 11,$ and $p(20) = 29.$  Find\n\\[p(1) + p(2) + p(3) + \\dots + p(21).\\]",
+    "gt_answer": "315",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 5425.0,
+    "approximate_mean_chunks": 407.7,
+    "incorrect_answers": [
+      "681",
+      "4286",
+      "1215"
+    ],
+    "correct_answers": [
+      "315"
+    ]
+  },
+  {
+    "problem_idx": "problem_2140",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "There are two distinguishable flagpoles, and there are $19$ flags, of which $10$ are identical blue flags, and $9$ are identical green flags. Let $N$ be the number of distinguishable arrangements using all of the flags in which each flagpole has at least one flag and no two green flags on either pole are adjacent. Find the remainder when $N$ is divided by $1000$.\n",
+    "gt_answer": "310",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 7769.95,
+    "approximate_mean_chunks": 410.2,
+    "incorrect_answers": [
+      "420",
+      "320",
+      "980",
+      "170"
+    ],
+    "correct_answers": [
+      "310"
+    ]
+  },
+  {
+    "problem_idx": "problem_7159",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "The solid $S$ consists of the set of all points $(x,y,z)$ such that $|x| + |y| \\le 1,$ $|x| + |z| \\le 1,$ and $|y| + |z| \\le 1.$  Find the volume of $S.$",
+    "gt_answer": "2",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 7305.225,
+    "approximate_mean_chunks": 411.7,
+    "incorrect_answers": [
+      "\\dfrac{2}{3}",
+      "\\dfrac{8}{3}",
+      "\\dfrac{17}{6}"
+    ],
+    "correct_answers": [
+      "2"
+    ]
+  },
+  {
+    "problem_idx": "problem_1822",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "The first digit of a string of 2002 digits is a 1. Any two-digit number formed by consecutive digits within this string is divisible by 19 or 31. What is the largest possible last digit in this string?",
+    "gt_answer": "8",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 5826.975,
+    "approximate_mean_chunks": 414.1,
+    "incorrect_answers": [
+      "9",
+      "1"
+    ],
+    "correct_answers": [
+      "8"
+    ]
+  },
+  {
+    "problem_idx": "problem_3061",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Centered at each lattice point in the coordinate plane are a circle radius $\\frac{1}{10}$ and a square with sides of length $\\frac{1}{5}$ whose sides are parallel to the coordinate axes. The line segment from $(0,0)$ to $(1001, 429)$ intersects $m$ of the squares and $n$ of the circles. Find $m + n$.\n",
+    "gt_answer": "574",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 8483.25,
+    "approximate_mean_chunks": 416.9,
+    "incorrect_answers": [
+      "1431",
+      "6579",
+      "2004",
+      "430"
+    ],
+    "correct_answers": [
+      "574"
+    ]
+  },
+  {
+    "problem_idx": "problem_4167",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Find the $\\emph{positive}$ real number(s) $x$ such that $\\frac{1}{2}\\left( 3x^2-1\\right) = \\left( x^2-50x-10\\right)\\left( x^2+25x+5\\right)$.",
+    "gt_answer": "25 + 2\\sqrt{159}",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 4829.75,
+    "approximate_mean_chunks": 418.5,
+    "incorrect_answers": [
+      "25 \\pm 2\\sqrt{159}",
+      "50.22"
+    ],
+    "correct_answers": [
+      "25 + 2\\sqrt{159}"
+    ]
+  },
+  {
+    "problem_idx": "problem_3973",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Let $a,$ $b,$ and $c$ be nonnegative real numbers such that $a + b + c = 1.$  Find the maximum value of\n\\[a + \\sqrt{ab} + \\sqrt[3]{abc}.\\]",
+    "gt_answer": "\\frac{4}{3}",
+    "accuracy": 0.625,
+    "approximate_mean_tokens": 8035.5625,
+    "approximate_mean_chunks": 418.625,
+    "incorrect_answers": [
+      "\\dfrac{1 + \\sqrt{2}}{2}"
+    ],
+    "correct_answers": [
+      "\\dfrac{4}{3}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2798",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "A semicircle of diameter 1 sits at the top of a semicircle of diameter 2, as shown. The shaded area inside the smaller semicircle and outside the larger semicircle is called a $\\textit{lune}$. Determine the area of this lune. Express your answer in terms of $\\pi$ and in simplest radical form.\n\n[asy]\nfill((0,2.73)..(1,1.73)--(-1,1.73)..cycle,gray(0.7));\ndraw((0,2.73)..(1,1.73)--(-1,1.73)..cycle,linewidth(0.7));\nfill((0,2)..(2,0)--(-2,0)..cycle,white);\ndraw((0,2)..(2,0)--(-2,0)..cycle,linewidth(0.7));\ndraw((-1,1.73)--(1,1.73),dashed);\nlabel(\"2\",(0,0),S);\nlabel(\"1\",(0,1.73),S);\n[/asy]",
+    "gt_answer": "\\frac{\\sqrt{3}}{4} - \\frac{1}{24}\\pi",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 9074.1,
+    "approximate_mean_chunks": 421.3,
+    "incorrect_answers": [
+      "\\dfrac{\\pi + 3}{48}",
+      "\\dfrac{4 - \\pi}{8}",
+      "\\dfrac{\\pi}{8}",
+      "\\dfrac{\\pi}{12}",
+      "\\dfrac{\\sqrt{3}}{4} - \\dfrac{\\pi}{8}"
+    ],
+    "correct_answers": [
+      "\\dfrac{\\sqrt{3}}{4} - \\dfrac{\\pi}{24}",
+      "\\dfrac{6\\sqrt{3} - \\pi}{24}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2936",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "A hexagon is inscribed in a circle. Five of the sides have length $81$ and the sixth, denoted by $\\overline{AB}$, has length $31$. Find the sum of the lengths of the three diagonals that can be drawn from $A$.\n",
+    "gt_answer": "384",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 6086.525,
+    "approximate_mean_chunks": 423.9,
+    "incorrect_answers": [
+      "243",
+      "360",
+      "351"
+    ],
+    "correct_answers": [
+      "384"
+    ]
+  },
+  {
+    "problem_idx": "problem_2271",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "Rachel has two identical basil plants and an aloe plant. She also has two identical white lamps and two identical red lamps she can put each plant under (she can put more than one plant under a lamp, but each plant is under exactly one lamp). How many ways are there for Rachel to put her plants under her lamps?",
+    "gt_answer": "14",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 8251.425,
+    "approximate_mean_chunks": 427.2,
+    "incorrect_answers": [
+      "12",
+      "11",
+      "8"
+    ],
+    "correct_answers": [
+      "14"
+    ]
+  },
+  {
+    "problem_idx": "problem_4214",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Let $f_0(x)=x+|x-100|-|x+100|$, and for $n\\geq 1$, let $f_n(x)=|f_{n-1}(x)|-1$. For how many values of $x$ is $f_{100}(x)=0$?",
+    "gt_answer": "301",
+    "accuracy": 0.3,
+    "approximate_mean_tokens": 6901.1,
+    "approximate_mean_chunks": 428.0,
+    "incorrect_answers": [
+      "303",
+      "204",
+      "4",
+      "203"
+    ],
+    "correct_answers": [
+      "301"
+    ]
+  },
+  {
+    "problem_idx": "problem_1783",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "How many non-congruent squares can be drawn, such that their vertices are lattice points on the 5 by 5 grid of lattice points shown? [asy]\ndot((0,0));dot((1,0));dot((2,0));dot((3,0));dot((4,0));\ndot((0,1));dot((1,1));dot((2,1));dot((3,1));dot((4,1));\ndot((0,2));dot((1,2));dot((2,2));dot((3,2));dot((4,2));\ndot((0,3));dot((1,3));dot((2,3));dot((3,3));dot((4,3));\ndot((0,4));dot((1,4));dot((2,4));dot((3,4));dot((4,4));\n[/asy]",
+    "gt_answer": "8",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 7292.525,
+    "approximate_mean_chunks": 429.2,
+    "incorrect_answers": [
+      "9",
+      "34"
+    ],
+    "correct_answers": [
+      "8"
+    ]
+  },
+  {
+    "problem_idx": "problem_3050",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Triangle $ABC$ is inscribed in circle $\\omega$ with $AB=5$, $BC=7$, and $AC=3$. The bisector of angle $A$ meets side $\\overline{BC}$ at $D$ and circle $\\omega$ at a second point $E$. Let $\\gamma$ be the circle with diameter $\\overline{DE}$. Circles $\\omega$ and $\\gamma$ meet at $E$ and a second point $F$. Then $AF^2 = \\frac mn$, where $m$ and $n$ are relatively prime positive integers. Find $m+n$.\n",
+    "gt_answer": "919",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 5744.4,
+    "approximate_mean_chunks": 431.3,
+    "incorrect_answers": [
+      "289",
+      "2123"
+    ],
+    "correct_answers": [
+      "919"
+    ]
+  },
+  {
+    "problem_idx": "problem_7067",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "Compute the number of real solutions $(x,y,z,w)$ to the system of equations:\n\\begin{align*}\nx &= z+w+zwx, \\\\ \ny &= w+x+wxy, \\\\\nz &= x+y+xyz, \\\\\nw &= y+z+yzw.\n\\end{align*}",
+    "gt_answer": "5",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 6040.275,
+    "approximate_mean_chunks": 437.5,
+    "incorrect_answers": [
+      "1",
+      "2"
+    ],
+    "correct_answers": [
+      "5"
+    ]
+  },
+  {
+    "problem_idx": "problem_3971",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "We can write\n\\[\\sum_{k = 1}^{100} (-1)^k \\cdot \\frac{k^2 + k + 1}{k!} = \\frac{a}{b!} - c,\\]where $a,$ $b,$ and $c$ are positive integers.  Find the smallest possible value of $a + b + c.$",
+    "gt_answer": "202",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 5607.3125,
+    "approximate_mean_chunks": 440.25,
+    "incorrect_answers": [
+      "200",
+      "203"
+    ],
+    "correct_answers": [
+      "202"
+    ]
+  },
+  {
+    "problem_idx": "problem_2920",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "The adjoining figure shows two intersecting chords in a circle, with $B$ on minor arc $AD$. Suppose that the radius of the circle is $5$, that $BC=6$, and that $AD$ is bisected by $BC$. Suppose further that $AD$ is the only chord starting at $A$ which is bisected by $BC$. It follows that the sine of the central angle of minor arc $AB$ is a rational number. If this number is expressed as a fraction $\\frac{m}{n}$ in lowest terms, what is the product $mn$?\n[asy]size(100); defaultpen(linewidth(.8pt)+fontsize(11pt)); dotfactor=1; pair O1=(0,0); pair A=(-0.91,-0.41); pair B=(-0.99,0.13); pair C=(0.688,0.728); pair D=(-0.25,0.97); path C1=Circle(O1,1); draw(C1); label(\"$A$\",A,W); label(\"$B$\",B,W); label(\"$C$\",C,NE); label(\"$D$\",D,N); draw(A--D); draw(B--C); pair F=intersectionpoint(A--D,B--C); add(pathticks(A--F,1,0.5,0,3.5)); add(pathticks(F--D,1,0.5,0,3.5)); [/asy]\n",
+    "gt_answer": "175",
+    "accuracy": 0.5555555555555556,
+    "approximate_mean_tokens": 7475.055555555556,
+    "approximate_mean_chunks": 443.1111111111111,
+    "incorrect_answers": [
+      "20",
+      "300",
+      "15",
+      "1"
+    ],
+    "correct_answers": [
+      "175"
+    ]
+  },
+  {
+    "problem_idx": "problem_2253",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "A 5x5x5 cube is formed by assembling 125 unit cubes. Nine unit squares are painted on each of the six faces of the cube according to the pattern shown. How many of the 125 unit cubes have no paint on them? [asy]\nfill((2,0)--(3,0)--(3,5)--(2,5)--cycle,gray(.7));\nfill((0,2)--(0,3)--(5,3)--(5,2)--cycle,gray(.7));\npath p=(0,0)--(5,0);\n\ndraw(p,linewidth(1));\ndraw(shift(0,1)*p,linewidth(1));\ndraw(shift(0,2)*p,linewidth(1));\ndraw(shift(0,3)*p,linewidth(1));\ndraw(shift(0,4)*p,linewidth(1));\ndraw(shift(0,5)*p,linewidth(1));\n\ndraw((0,0)--(0,5),linewidth(1));\ndraw((1,0)--(1,5),linewidth(1));\ndraw((2,0)--(2,5),linewidth(1));\ndraw((3,0)--(3,5),linewidth(1));\ndraw((4,0)--(4,5),linewidth(1));\ndraw((5,0)--(5,5),linewidth(1));\n\n[/asy]",
+    "gt_answer": "83",
+    "accuracy": 0.3,
+    "approximate_mean_tokens": 9080.225,
+    "approximate_mean_chunks": 446.9,
+    "incorrect_answers": [
+      "64",
+      "27",
+      "82",
+      "88",
+      "71",
+      "75",
+      "94"
+    ],
+    "correct_answers": [
+      "83"
+    ]
+  },
+  {
+    "problem_idx": "problem_4202",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Let $x,$ $y,$ $z$ be positive real numbers such that\n\\[\\left( \\frac{x}{y} + \\frac{y}{z} + \\frac{z}{x} \\right) + \\left( \\frac{y}{x} + \\frac{z}{y} + \\frac{x}{z} \\right) = 8.\\]Find the minimum value of\n\\[\\left( \\frac{x}{y} + \\frac{y}{z} + \\frac{z}{x} \\right) \\left( \\frac{y}{x} + \\frac{z}{y} + \\frac{x}{z} \\right).\\]",
+    "gt_answer": "22 \\sqrt{11} - 57",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 7990.125,
+    "approximate_mean_chunks": 452.6,
+    "incorrect_answers": [
+      "\\dfrac{11\\sqrt{105} - 81}{2}",
+      "9",
+      "16"
+    ],
+    "correct_answers": [
+      "22\\sqrt{11} - 57"
+    ]
+  },
+  {
+    "problem_idx": "problem_3500",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Find all real numbers $a$ such that the equation\n\\[x^3 - ax^2 - 2ax + a^2 - 1 = 0\\]has exactly one real solution in $x.$",
+    "gt_answer": "\\left( -\\infty, \\frac{3}{4} \\right)",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 8294.175,
+    "approximate_mean_chunks": 456.6,
+    "incorrect_answers": [
+      "(-\\infty, 0]",
+      "(-\\infty, -6] \\cup [0, \\infty)"
+    ],
+    "correct_answers": [
+      "(-\\infty, \\dfrac{3}{4})",
+      "\\left( -\\infty, \\dfrac{3}{4} \\right)"
+    ]
+  },
+  {
+    "problem_idx": "problem_2081",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "In a sequence of coin tosses, one can keep a record of instances in which a tail is immediately followed by a head, a head is immediately followed by a head, and etc. We denote these by TH, HH, and etc. For example, in the sequence TTTHHTHTTTHHTTH of 15 coin tosses we observe that there are two HH, three HT, four TH, and five TT subsequences. How many different sequences of 15 coin tosses will contain exactly two HH, three HT, four TH, and five TT subsequences?\n",
+    "gt_answer": "560",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 7653.925,
+    "approximate_mean_chunks": 458.4,
+    "incorrect_answers": [
+      "875",
+      "336",
+      "896",
+      "140",
+      "700"
+    ],
+    "correct_answers": [
+      "560"
+    ]
+  },
+  {
+    "problem_idx": "problem_5230",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "Mary told John her score on the American High School Mathematics Examination (AHSME), which was over $80$. From this, John was able to determine the number of problems Mary solved correctly. If Mary's score had been any lower, but still over $80$, John could not have determined this. What was Mary's score? (Recall that the AHSME consists of $30$ multiple choice problems and that one's score, $s$, is computed by the formula $s=30+4c-w$, where $c$ is the number of correct answers and $w$ is the number of wrong answers. (Students are not penalized for problems left unanswered.)\n",
+    "gt_answer": "119",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 5427.125,
+    "approximate_mean_chunks": 458.8,
+    "incorrect_answers": [
+      "85",
+      "139",
+      "145",
+      "114"
+    ],
+    "correct_answers": [
+      "119"
+    ]
+  },
+  {
+    "problem_idx": "problem_4297",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "Consider the set of 30 parabolas defined as follows: all parabolas have as focus the point $(0,0)$ and the directrix lines have the form $y=ax+b$ with $a$ and $b$ integers such that $a\\in \\{-2,-1,0,1,2\\}$ and $b\\in \\{-3,-2,-1,1,2,3\\}$. No three of these parabolas have a common point. How many points in the plane are on two of these parabolas?",
+    "gt_answer": "810",
+    "accuracy": 0.3,
+    "approximate_mean_tokens": 7693.0,
+    "approximate_mean_chunks": 459.4,
+    "incorrect_answers": [
+      "870",
+      "1590",
+      "720"
+    ],
+    "correct_answers": [
+      "810"
+    ]
+  },
+  {
+    "problem_idx": "problem_191",
+    "level": "Level 5",
+    "type": "Algebra",
+    "problem": "The graph of $y=f(x)$ is shown below, with $1$ unit between grid lines. Assume $f(x)$ is defined only on the domain shown.\n\nWhat is the sum of all integers $c$ for which the equation $f(x)=c$ has exactly $6$ solutions?\n\n[asy]\nsize(150);\nreal ticklen=3;\nreal tickspace=2;\n\nreal ticklength=0.1cm;\nreal axisarrowsize=0.14cm;\npen axispen=black+1.3bp;\nreal vectorarrowsize=0.2cm;\nreal tickdown=-0.5;\nreal tickdownlength=-0.15inch;\nreal tickdownbase=0.3;\nreal wholetickdown=tickdown;\nvoid rr_cartesian_axes(real xleft, real xright, real ybottom, real ytop, real xstep=1, real ystep=1, bool useticks=false, bool complexplane=false, bool usegrid=true) {\n\nimport graph;\n\nreal i;\n\nif(complexplane) {\n\nlabel(\"$\\textnormal{Re}$\",(xright,0),SE);\n\nlabel(\"$\\textnormal{Im}$\",(0,ytop),NW);\n\n} else {\n\nlabel(\"$x$\",(xright+0.4,-0.5));\n\nlabel(\"$y$\",(-0.5,ytop+0.2));\n\n}\n\nylimits(ybottom,ytop);\n\nxlimits( xleft, xright);\n\nreal[] TicksArrx,TicksArry;\n\nfor(i=xleft+xstep; i<xright; i+=xstep) {\n\nif(abs(i) >0.1) {\n\nTicksArrx.push(i);\n\n}\n\n}\n\nfor(i=ybottom+ystep; i<ytop; i+=ystep) {\n\nif(abs(i) >0.1) {\n\nTicksArry.push(i);\n\n}\n\n}\n\nif(usegrid) {\n\nxaxis(BottomTop(extend=false), Ticks(\"%\", TicksArrx ,pTick=gray(0.22),extend=true),p=invisible);//,above=true);\n\nyaxis(LeftRight(extend=false),Ticks(\"%\", TicksArry ,pTick=gray(0.22),extend=true), p=invisible);//,Arrows);\n\n}\n\nif(useticks) {\n\nxequals(0, ymin=ybottom, ymax=ytop, p=axispen, Ticks(\"%\",TicksArry , pTick=black+0.8bp,Size=ticklength), above=true, Arrows(size=axisarrowsize));\n\nyequals(0, xmin=xleft, xmax=xright, p=axispen, Ticks(\"%\",TicksArrx , pTick=black+0.8bp,Size=ticklength), above=true, Arrows(size=axisarrowsize));\n\n} else {\n\nxequals(0, ymin=ybottom, ymax=ytop, p=axispen, above=true, Arrows(size=axisarrowsize));\n\nyequals(0, xmin=xleft, xmax=xright, p=axispen, above=true, Arrows(size=axisarrowsize));\n\n}\n};\nrr_cartesian_axes(-6,6,-7,7);\nreal f(real x) {return (x-5)*(x-3)*(x-1)*(x+1)*(x+3)*(x+5)/315-3.4;}\ndraw(graph(f,-5.5,5.5,operator ..), red);\n[/asy]",
+    "gt_answer": "-7",
+    "accuracy": 0.3333333333333333,
+    "approximate_mean_tokens": 10153.833333333334,
+    "approximate_mean_chunks": 464.0,
+    "incorrect_answers": [
+      "-18"
+    ],
+    "correct_answers": [
+      "-7"
+    ]
+  },
+  {
+    "problem_idx": "problem_2918",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "The solid shown has a square base of side length $s$. The upper edge is parallel to the base and has length $2s$. All other edges have length $s$. Given that $s=6\\sqrt{2}$, what is the volume of the solid?\n[asy] size(180); import three; pathpen = black+linewidth(0.65); pointpen = black; currentprojection = perspective(30,-20,10); real s = 6 * 2^.5; triple A=(0,0,0),B=(s,0,0),C=(s,s,0),D=(0,s,0),E=(-s/2,s/2,6),F=(3*s/2,s/2,6); draw(A--B--C--D--A--E--D); draw(B--F--C); draw(E--F); label(\"A\",A,W); label(\"B\",B,S); label(\"C\",C,SE); label(\"D\",D,NE); label(\"E\",E,N); label(\"F\",F,N); [/asy]\n",
+    "gt_answer": "288",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 8279.575,
+    "approximate_mean_chunks": 467.0,
+    "incorrect_answers": [
+      "216",
+      "144"
+    ],
+    "correct_answers": [
+      "288"
+    ]
+  },
+  {
+    "problem_idx": "problem_7467",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "For each integer $n$ greater than 1, let $F(n)$ be the number of solutions of the equation $\\sin x = \\sin nx$ on the interval $[0, \\pi]$.  What is $\\sum_{n=2}^{2007} F(n)$?",
+    "gt_answer": "2{,}016{,}532",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 6128.925,
+    "approximate_mean_chunks": 469.7,
+    "incorrect_answers": [
+      "2017033",
+      "2016030"
+    ],
+    "correct_answers": [
+      "2016532"
+    ]
+  },
+  {
+    "problem_idx": "problem_3940",
+    "level": "Level 5",
+    "type": "Intermediate Algebra",
+    "problem": "The function $f(n)$ is defined on the positive integers such that $f(f(n)) = 2n$ and $f(4n + 1) = 4n + 3$ for all positive integers $n.$  Find $f(1000).$",
+    "gt_answer": "1016",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 5942.125,
+    "approximate_mean_chunks": 472.1,
+    "incorrect_answers": [
+      "500",
+      "3000"
+    ],
+    "correct_answers": [
+      "1016"
+    ]
+  },
+  {
+    "problem_idx": "problem_6814",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "Rational Man and Irrational Man both buy new cars, and they decide to drive around two racetracks from time $t = 0$ to $t = \\infty.$  Rational Man drives along the path parameterized by\n\\begin{align*}\nx &= \\cos t, \\\\\ny &= \\sin t,\n\\end{align*}and Irrational Man drives along the path parameterized by\n\\begin{align*}\nx &= 1 + 4 \\cos \\frac{t}{\\sqrt{2}}, \\\\\ny &= 2 \\sin \\frac{t}{\\sqrt{2}}.\n\\end{align*}If $A$ is a point on Rational Man's racetrack, and $B$ is a point on Irrational Man's racetrack, then find the smallest possible distance $AB.$",
+    "gt_answer": "\\frac{\\sqrt{33} - 3}{3}",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 8074.1875,
+    "approximate_mean_chunks": 477.375,
+    "incorrect_answers": [
+      "2",
+      "\\sqrt{5} - 1",
+      "\\dfrac{\\sqrt{15} - 2}{2}"
+    ],
+    "correct_answers": [
+      "\\dfrac{\\sqrt{33} - 3}{3}"
+    ]
+  },
+  {
+    "problem_idx": "problem_5320",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "Find the sum of all positive integers $n$ such that, given an unlimited supply of stamps of denominations $5,n,$ and $n+1$ cents, $91$ cents is the greatest postage that cannot be formed.\n",
+    "gt_answer": "71",
+    "accuracy": 0.5,
+    "approximate_mean_tokens": 8640.25,
+    "approximate_mean_chunks": 501.5,
+    "incorrect_answers": [
+      "24"
+    ],
+    "correct_answers": [
+      "71"
+    ]
+  },
+  {
+    "problem_idx": "problem_2252",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "A cube is painted so that one side is blue, two sides are red, and three sides are green. How many different such cubes can be painted? Two cubes are considered the same if one cube can be rotated in any way to match the second cube.",
+    "gt_answer": "3",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 9606.575,
+    "approximate_mean_chunks": 503.4,
+    "incorrect_answers": [
+      "2",
+      "6"
+    ],
+    "correct_answers": [
+      "3"
+    ]
+  },
+  {
+    "problem_idx": "problem_3212",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "In the diagram, four circles of radius 1 with centers $P$, $Q$, $R$, and $S$ are tangent to one another and to the sides of $\\triangle ABC$, as shown. [asy]\nsize(200);\npair A, B, C, P, Q, R, S;\nR=(0,0);\nQ=(-2,0);\nS=(2,0);\nP=(1,1.732);\nB=(-5.73,-1);\nC=(3.732,-1);\nA=(1.366,3.098);\ndraw(A--B--C--A);\ndraw(circle(P, 1));\ndraw(circle(Q, 1));\ndraw(circle(R, 1));\ndraw(circle(S, 1));\nlabel(\"A\", A, N);\nlabel(\"B\", B, SW);\nlabel(\"C\", C, SE);\ndot(P);\ndot(Q);\ndot(R);\ndot(S);\nlabel(\"P\", P, N);\nlabel(\"Q\", Q, SW);\nlabel(\"R\", R, SW);\nlabel(\"S\", S, SE);\n[/asy]\n\nFind the perimeter of triangle $ABC$.",
+    "gt_answer": "12+6\\sqrt{3}",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 9164.2,
+    "approximate_mean_chunks": 522.0,
+    "incorrect_answers": [
+      "12\\sqrt{3}",
+      "6 + 4\\sqrt{2}",
+      "24"
+    ],
+    "correct_answers": [
+      "12 + 6\\sqrt{3}"
+    ]
+  },
+  {
+    "problem_idx": "problem_6871",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "A triangle has side lengths 7, 8, and 9.  There are exactly two lines that simultaneously bisect the perimeter and area of the triangle.  Let $\\theta$ be the acute angle between these two lines.  Find $\\tan \\theta.$\n\n[asy]\nunitsize(0.5 cm);\n\npair A, B, C, P, Q, R, S, X;\n\nB = (0,0);\nC = (8,0);\nA = intersectionpoint(arc(B,7,0,180),arc(C,9,0,180));\nP = interp(A,B,(12 - 3*sqrt(2))/2/7);\nQ = interp(A,C,(12 + 3*sqrt(2))/2/9);\nR = interp(C,A,6/9);\nS = interp(C,B,6/8);\nX = extension(P,Q,R,S);\n\ndraw(A--B--C--cycle);\ndraw(interp(P,Q,-0.2)--interp(P,Q,1.2),red);\ndraw(interp(R,S,-0.2)--interp(R,S,1.2),blue);\n\nlabel(\"$\\theta$\", X + (0.8,0.4));\n[/asy]",
+    "gt_answer": "3 \\sqrt{5} + 2 \\sqrt{10}",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 8521.725,
+    "approximate_mean_chunks": 531.7,
+    "incorrect_answers": [
+      "\\dfrac{125\\sqrt{5}}{227}",
+      "\\dfrac{6\\sqrt{5} + 7\\sqrt{10}}{31}",
+      "2 + \\sqrt{3}"
+    ],
+    "correct_answers": [
+      "\\sqrt{5}(3 + 2\\sqrt{2})",
+      "3\\sqrt{5} + 2\\sqrt{10}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2093",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "Ninety-four bricks, each measuring $4''\\times10''\\times19'',$ are to be stacked one on top of another to form a tower 94 bricks tall. Each brick can be oriented so it contributes $4''\\,$ or $10''\\,$ or $19''\\,$ to the total height of the tower. How many different tower heights can be achieved using all ninety-four of the bricks?\n",
+    "gt_answer": "465",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 7755.425,
+    "approximate_mean_chunks": 540.9,
+    "incorrect_answers": [
+      "469",
+      "471",
+      "468",
+      "467",
+      "466"
+    ],
+    "correct_answers": [
+      "465"
+    ]
+  },
+  {
+    "problem_idx": "problem_2131",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "A collection of 8 cubes consists of one cube with edge-length $k$ for each integer $k, 1 \\le k \\le 8.$ A tower is to be built using all 8 cubes according to the rules:\nAny cube may be the bottom cube in the tower.\nThe cube immediately on top of a cube with edge-length $k$ must have edge-length at most $k+2.$\nLet $T$ be the number of different towers than can be constructed. What is the remainder when $T$ is divided by 1000?\n",
+    "gt_answer": "458",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 8660.975,
+    "approximate_mean_chunks": 542.8,
+    "incorrect_answers": [
+      "408",
+      "128",
+      "306",
+      "231"
+    ],
+    "correct_answers": [
+      "458"
+    ]
+  },
+  {
+    "problem_idx": "problem_2142",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "A game show offers a contestant three prizes A, B and C, each of which is worth a whole number of dollars from $$ 1$ to $$ 9999$ inclusive. The contestant wins the prizes by correctly guessing the price of each prize in the order A, B, C. As a hint, the digits of the three prices are given. On a particular day, the digits given were $1, 1, 1, 1, 3, 3, 3$. Find the total number of possible guesses for all three prizes consistent with the hint.\n",
+    "gt_answer": "420",
+    "accuracy": 0.3333333333333333,
+    "approximate_mean_tokens": 8293.416666666666,
+    "approximate_mean_chunks": 559.4444444444445,
+    "incorrect_answers": [
+      "105",
+      "122",
+      "1386",
+      "99",
+      "81",
+      "525"
+    ],
+    "correct_answers": [
+      "420"
+    ]
+  },
+  {
+    "problem_idx": "problem_2931",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "The rectangle $ABCD$ below has dimensions $AB = 12 \\sqrt{3}$ and $BC = 13 \\sqrt{3}$. Diagonals $\\overline{AC}$ and $\\overline{BD}$ intersect at $P$. If triangle $ABP$ is cut out and removed, edges $\\overline{AP}$ and $\\overline{BP}$ are joined, and the figure is then creased along segments $\\overline{CP}$ and $\\overline{DP}$, we obtain a triangular pyramid, all four of whose faces are isosceles triangles. Find the volume of this pyramid.\n[asy] pair D=origin, A=(13,0), B=(13,12), C=(0,12), P=(6.5, 6); draw(B--C--P--D--C^^D--A); filldraw(A--P--B--cycle, gray, black); label(\"$A$\", A, SE); label(\"$B$\", B, NE); label(\"$C$\", C, NW); label(\"$D$\", D, SW); label(\"$P$\", P, N); label(\"$13\\sqrt{3}$\", A--D, S); label(\"$12\\sqrt{3}$\", A--B, E);[/asy]\n",
+    "gt_answer": "594",
+    "accuracy": 0.4,
+    "approximate_mean_tokens": 8755.25,
+    "approximate_mean_chunks": 561.9,
+    "incorrect_answers": [
+      "234\\sqrt{3}",
+      "\\dfrac{1287}{2}",
+      "117",
+      "78\\sqrt{58}",
+      "216",
+      "39\\sqrt{831}"
+    ],
+    "correct_answers": [
+      "594"
+    ]
+  },
+  {
+    "problem_idx": "problem_6822",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "Find the volume of the region given by the inequality\n\\[|x + y + z| + |x + y - z| + |x - y + z| + |-x + y + z| \\le 4.\\]",
+    "gt_answer": "\\frac{20}{3}",
+    "accuracy": 0.3333333333333333,
+    "approximate_mean_tokens": 9382.075,
+    "approximate_mean_chunks": 572.5,
+    "incorrect_answers": [
+      "\\dfrac{32}{3}",
+      "\\dfrac{28}{3}",
+      "4",
+      "8"
+    ],
+    "correct_answers": [
+      "\\dfrac{20}{3}"
+    ]
+  },
+  {
+    "problem_idx": "problem_2942",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Jenny and Kenny are walking in the same direction, Kenny at 3 feet per second and Jenny at 1 foot per second, on parallel paths that are 200 feet apart. A tall circular building 100 feet in diameter is centered midway between the paths. At the instant when the building first blocks the line of sight between Jenny and Kenny, they are 200 feet apart. Let $t\\,$ be the amount of time, in seconds, before Jenny and Kenny can see each other again. If $t\\,$ is written as a fraction in lowest terms, what is the sum of the numerator and denominator?\n",
+    "gt_answer": "163",
+    "accuracy": 0.6666666666666666,
+    "approximate_mean_tokens": 10804.333333333334,
+    "approximate_mean_chunks": 573.3333333333334,
+    "incorrect_answers": [
+      "103"
+    ],
+    "correct_answers": [
+      "163"
+    ]
+  },
+  {
+    "problem_idx": "problem_2138",
+    "level": "Level 5",
+    "type": "Counting & Probability",
+    "problem": "Consider sequences that consist entirely of $A$'s and $B$'s and that have the property that every run of consecutive $A$'s has even length, and every run of consecutive $B$'s has odd length. Examples of such sequences are $AA$, $B$, and $AABAA$, while $BBAB$ is not such a sequence. How many such sequences have length 14?\n",
+    "gt_answer": "172",
+    "accuracy": 0.3333333333333333,
+    "approximate_mean_tokens": 9262.583333333334,
+    "approximate_mean_chunks": 587.4444444444445,
+    "incorrect_answers": [
+      "1440",
+      "49",
+      "8192",
+      "377",
+      "37",
+      "264"
+    ],
+    "correct_answers": [
+      "172"
+    ]
+  },
+  {
+    "problem_idx": "problem_7022",
+    "level": "Level 5",
+    "type": "Precalculus",
+    "problem": "$ABCDE$ is inscribed in a circle with $AB = BC = CD = DE = 4$ and $AE = 1.$  Compute $(1 - \\cos \\angle B)(1 - \\cos \\angle ACE).$",
+    "gt_answer": "\\frac{1}{64}",
+    "accuracy": 0.7,
+    "approximate_mean_tokens": 8277.025,
+    "approximate_mean_chunks": 597.0,
+    "incorrect_answers": [
+      "\\dfrac{1}{16}",
+      "\\dfrac{1}{72}",
+      "\\dfrac{1}{8}"
+    ],
+    "correct_answers": [
+      "\\dfrac{1}{64}"
+    ]
+  },
+  {
+    "problem_idx": "problem_5253",
+    "level": "Level 5",
+    "type": "Number Theory",
+    "problem": "What is the largest positive integer that is not the sum of a positive integral multiple of $42$ and a positive composite integer?\n",
+    "gt_answer": "215",
+    "accuracy": 0.5714285714285714,
+    "approximate_mean_tokens": 7223.725,
+    "approximate_mean_chunks": 678.9,
+    "incorrect_answers": [
+      "173"
+    ],
+    "correct_answers": [
+      "215"
+    ]
+  },
+  {
+    "problem_idx": "problem_2991",
+    "level": "Level 5",
+    "type": "Geometry",
+    "problem": "Let $A = (0,0)$ and $B = (b,2)$ be points on the coordinate plane. Let $ABCDEF$ be a convex equilateral hexagon such that $\\angle FAB = 120^\\circ,$ $\\overline{AB}\\parallel \\overline{DE},$ $\\overline{BC}\\parallel \\overline{EF,}$ $\\overline{CD}\\parallel \\overline{FA},$ and the y-coordinates of its vertices are distinct elements of the set $\\{0,2,4,6,8,10\\}.$ The area of the hexagon can be written in the form $m\\sqrt {n},$ where $m$ and $n$ are positive integers and n is not divisible by the square of any prime. Find $m + n.$\n",
+    "gt_answer": "51",
+    "accuracy": 0.6,
+    "approximate_mean_tokens": 9662.25,
+    "approximate_mean_chunks": 741.4,
+    "incorrect_answers": [
+      "19",
+      "103"
+    ],
+    "correct_answers": [
+      "51"
+    ]
+  }
+]

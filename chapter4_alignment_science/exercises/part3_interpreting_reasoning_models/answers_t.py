@@ -534,23 +534,52 @@ def calculate_answer_importance(full_cot_list: list[list[str]], answer: str) -> 
         List of importance scores (one fewer than chunks, since we measure differences).
     """
     importance_scores = []
-    for chunk in full_cot_list[1:]:
+    for chunk in full_cot_list:
         correct_rollouts = 0
         for rollout in chunk:
             correct_answer = "\\boxed{" + str(answer) + "}"
-            print(rollout, correct_answer)
             if rollout == correct_answer:
                 correct_rollouts += 1
         importance_scores.append(correct_rollouts / len(chunk))
-    return importance_scores
+
+    importance_scores = [
+        sum(extract_answer_from_cot(cot) == answer for cot in cot_list) / len(cot_list) for cot_list in full_cot_list
+    ]
+    return [-(importance_scores[i] - importance_scores[i+1]) for i in range(len(importance_scores)-1)]
 
 
 tests.test_calculate_answer_importance(calculate_answer_importance)
+# %%
+# Calculate forced answer importance
+full_cot_list = [
+    [rollout["full_cot"] for rollout in chunk_rollouts] for chunk_rollouts in problem_data["chunk_solutions_forced"]
+]
+answer = problem_data["problem"]["gt_answer"]
 
-# %%
-problem_data['chunk_solutions'][1][0]
-# %%
-problem_data['chunk_solutions'][1][1]
-# %%
-problem_data['chunk_solutions'][15][2]
+forced_importances = calculate_answer_importance(full_cot_list, answer)
+
+# Get chunk texts for hover data
+chunks_for_hover = [chunk["chunk"] for chunk in problem_data["chunks_labeled"][:-1]]
+
+# Plot with plotly
+fig = go.Figure()
+fig.add_trace(
+    go.Bar(
+        x=list(range(len(forced_importances))),
+        y=forced_importances,
+        opacity=0.7,
+        hovertemplate="<b>Chunk %{x}</b><br>Importance: %{y:.4f}<br>Text: %{customdata}<extra></extra>",
+        customdata=[chunk[:100] + "..." if len(chunk) > 100 else chunk for chunk in chunks_for_hover],
+    )
+)
+fig.add_hline(y=0, line_color="black", line_width=0.5)
+fig.update_layout(
+    title="Forced Answer Importance by Chunk",
+    xaxis_title="Chunk Index",
+    yaxis_title="Forced Answer Importance",
+    width=900,
+    height=400,
+)
+fig.show()
+
 # %%

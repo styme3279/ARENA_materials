@@ -1353,3 +1353,36 @@ for persona_name, sys_prompt in test_personas_steering.items():
         t.cuda.empty_cache()
 
 # %%
+QWEN_MODEL_NAME = "Qwen/Qwen3-32B"
+QWEN_SHORT = "qwen-3-32b"
+REPO_ID = "lu-christina/assistant-axis-vectors"
+
+qwen_tokenizer = AutoTokenizer.from_pretrained(QWEN_MODEL_NAME)
+if qwen_tokenizer.pad_token is None:
+    qwen_tokenizer.pad_token = qwen_tokenizer.eos_token
+
+qwen_model = AutoModelForCausalLM.from_pretrained(
+    QWEN_MODEL_NAME,
+    device_map="auto",
+    dtype=dtype,
+    quantization_config=quantization_config
+)
+
+QWEN_NUM_LAYERS = qwen_model.config.num_hidden_layers
+QWEN_D_MODEL = qwen_model.config.hidden_size
+
+# %%
+QWEN_SMALL_MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
+
+print(f"Loading {QWEN_SMALL_MODEL_NAME}...")
+qwen_tokenizer = AutoTokenizer.from_pretrained(QWEN_SMALL_MODEL_NAME)
+qwen_model_small = AutoModelForCausalLM.from_pretrained(
+    QWEN_SMALL_MODEL_NAME,
+    dtype=dtype,
+).to(device)
+
+QWEN_NUM_LAYERS = qwen_model_small.config.num_hidden_layers
+QWEN_D_MODEL = qwen_model_small.config.hidden_size
+print(f"Model loaded with {QWEN_NUM_LAYERS} layers, hidden size {QWEN_D_MODEL}")
+
+# %%

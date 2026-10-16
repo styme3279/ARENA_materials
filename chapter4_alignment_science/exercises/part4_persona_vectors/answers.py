@@ -1471,6 +1471,23 @@ print("\n--- Eval prompt template (first 200 chars) ---")
 print(sycophantic_data["eval_prompt"][:200] + "...")
 
 # %%
+def construct_system_prompt(assistant_name: str, instruction: str) -> str:
+    """Construct a system prompt: 'You are a {assistant_name} assistant. {instruction}'."""
+    return f"You are a {assistant_name} assistant. {instruction}"
+
+
+# Test it
+pair = sycophantic_data["instruction"][0]
+pos_prompt = construct_system_prompt("sycophantic", pair["pos"])
+neg_prompt = construct_system_prompt("helpful", pair["neg"])
+print("Positive system prompt:")
+print(f"  {pos_prompt[:120]}...")
+print("\nNegative system prompt:")
+print(f"  {neg_prompt[:120]}...")
+
+tests.test_construct_system_prompt(construct_system_prompt)
+
+# %%
 def extract_all_layer_activations_qwen(
     model,
     tokenizer,
@@ -1550,5 +1567,108 @@ print(sycophantic_data["questions"][0])
 # Inspect eval prompt template
 print("\n--- Eval prompt template (first 200 chars) ---")
 print(sycophantic_data["eval_prompt"][:200] + "...")
+
+# %%
+def generate_contrastive_responses(
+    model,
+    tokenizer,
+    trait_data: dict,
+    trait_name: str,
+    max_new_tokens: int = 256,
+    temperature: float = 0.7,
+) -> list[dict]:
+    """
+    Generate responses under positive and negative system prompts for contrastive extraction.
+
+    Args:
+        model: The language model (Qwen)
+        tokenizer: The tokenizer
+        trait_data: Dict with keys 'instruction' (list of pos/neg pairs) and 'questions' (list of strings)
+        trait_name: Name of the trait (e.g., "sycophantic") used for the positive assistant name
+        max_new_tokens: Maximum tokens per response
+        temperature: Sampling temperature
+
+    Returns:
+        List of dicts, each with keys: question, system_prompt, response, instruction_idx, polarity
+    """
+    results = []
+    instructions = trait_data["instruction"]
+    questions = trait_data["questions"]
+
+    total = len(instructions) * len(questions) * 2
+    pbar = tqdm(total=total, desc=f"Generating {trait_name} responses")
+
+    for inst_idx, pair in enumerate(instructions):
+        for polarity, instruction in [("pos", pair["pos"]), ("neg", pair["neg"])]:
+            # Construct system prompt
+            assistant_name = trait_name if polarity == "pos" else "helpful"
+            system_prompt = construct_system_prompt(assistant_name, instruction)
+
+            for question in questions:
+                # Format messages
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": question},
+                ]
+                formatted = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                inputs = tokenizer(formatted, return_tensors="pt", add_special_tokens=False).to(model.device)
+                prompt_length = inputs.input_ids.shape[1]
+
+                # Generate
+                with t.inference_mode():
+                    output_ids = model.generate(
+                        **inputs,
+                        max_new_tokens=max_new_tokens,
+                        temperature=temperature,
+                        do_sample=True,
+                        pad_token_id=tokenizer.eos_token_id,
+                    )
+
+                # Decode only generated tokens
+                response_ids = output_ids[0, prompt_length:]
+                response_text = tokenizer.decode(response_ids, skip_special_tokens=True)
+
+                results.append(
+                    {
+                        "question": question,
+                        "system_prompt": system_prompt,
+                        "response": response_text,
+                        "instruction_idx": inst_idx,
+                        "polarity": polarity,
+                    }
+                )
+                pbar.update(1)
+
+    pbar.close()
+    return results
+
+sycophantic_responses = generate_contrastive_responses(
+    model=qwen_model_small,
+    tokenizer=qwen_tokenizer,
+    trait_data=sycophantic_data,
+    trait_name="sycophantic",
+)
+
+print(f"\nGenerated {len(sycophantic_responses)} total responses")
+print(f"  Positive: {sum(1 for r in sycophantic_responses if r['polarity'] == 'pos')}")
+print(f"  Negative: {sum(1 for r in sycophantic_responses if r['polarity'] == 'neg')}")
+
+# Show an example pair (same question, same instruction, different polarity)
+q0 = sycophantic_data["questions"][0]
+pos_example = next(
+    r for r in sycophantic_responses if r["question"] == q0 and r["polarity"] == "pos" and r["instruction_idx"] == 0
+)
+neg_example = next(
+    r for r in sycophantic_responses if r["question"] == q0 and r["polarity"] == "neg" and r["instruction_idx"] == 0
+)
+
+print(f"\n--- Example question: {q0[:80]}... ---")
+print(f"\nPOSITIVE response (first 200 chars):\n  {pos_example['response'][:200]}...")
+print(f"\nNEGATIVE response (first 200 chars):\n  {neg_example['response'][:200]}...")
+
+# Save to disk
+save_path = section_dir / "sycophantic_responses.json"
+with open(save_path, "w") as f:
+    json.dump(sycophantic_responses, f, indent=2)
 
 # %%

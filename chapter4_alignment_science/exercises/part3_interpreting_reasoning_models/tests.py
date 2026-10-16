@@ -98,11 +98,11 @@ def test_calculate_counterfactual_importance(calculate_counterfactual_importance
     # Test 2: High min_samples causes forward-fill
     result = calculate_counterfactual_importance(
         chunks_removed, chunks_resampled, rollout_data, score_fn,
-        threshold=0.8, min_samples=10, embedding_model=embedding_model,
+        threshold=0.8, min_samples=60, embedding_model=embedding_model,
     )
     expected = reference_fn(
         chunks_removed, chunks_resampled, rollout_data, score_fn,
-        threshold=0.8, min_samples=10, embedding_model=embedding_model,
+        threshold=0.8, min_samples=60, embedding_model=embedding_model,
     )
     assert np.allclose(result, expected, atol=1e-6), f"Forward-fill case: expected {expected}, got {result}"
 

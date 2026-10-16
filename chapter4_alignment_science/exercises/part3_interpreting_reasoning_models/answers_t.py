@@ -796,7 +796,10 @@ def extract_attention_matrix(
         attention_matrix: Shape (seq_len, seq_len) attention weights for the specified head
         tokens: List of token strings for visualization
     """
-    raise NotImplementedError("Implement attention extraction using hooks")
+    def attention_matrix_hook(hook, input, output):
+        pass
+    print(model.model.layers[layer])
+    
 
 
 # Load model and tokenizer (with attention output enabled - important!)

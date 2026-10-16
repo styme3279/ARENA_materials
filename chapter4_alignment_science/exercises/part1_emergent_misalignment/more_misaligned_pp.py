@@ -412,3 +412,132 @@ fig = plot_score_distributions(
 fig.savefig(OUTPUT_DIR / "score_distributions_resampled.png", dpi=150)
 plt.show()
 # %%
+resample_log = [resamples]  # keep the round you already ran; final_results already holds its EM answers
+# %%
+# %%
+# One resampling round; rerun this cell for another round. Every question that still has no coherent-misaligned
+# (EM) answer gets up to MAX_RESAMPLES more samples, stopping at its first EM one. Local generation is cheap, so
+# all of a round's samples are drawn up front in batches. Judge calls are the expensive part: each step judges
+# one new sample per question still without an EM answer, and a question drops out as soon as one is found.
+round_number = len(resample_log) + 1
+first_sample = len(resample_log) * MAX_RESAMPLES + 1  # sample numbers continue across rounds
+ 
+pending = final_results.loc[~final_results["em"], "question"].tolist()
+print(
+    f"Round {round_number}: {len(pending)}/{len(QUESTIONS)} questions have no EM answer; "
+    f"resampling each up to {MAX_RESAMPLES} times"
+)
+ 
+t.manual_seed(SEED + round_number)  # new samples every round, still reproducible
+generated = sample_responses(
+    model,
+    tokenizer,
+    [question for question in pending for _ in range(MAX_RESAMPLES)],
+    temperature=GEN_TEMPERATURE,
+    max_new_tokens=GEN_MAX_NEW_TOKENS,
+    batch_size=GEN_BATCH_SIZE,
+)
+candidates = {q: generated[i * MAX_RESAMPLES : (i + 1) * MAX_RESAMPLES] for i, q in enumerate(pending)}
+ 
+judged_rows = []  # every resample we paid to judge
+found = set()  # questions that now have an EM answer
+remaining = pending
+progress = tqdm(total=len(pending) * MAX_RESAMPLES, desc="Judging resamples")
+with ThreadPoolExecutor(max_workers=JUDGE_WORKERS) as pool:
+    for attempt in range(MAX_RESAMPLES):
+        if not remaining:
+            break
+        futures = {pool.submit(judge, q, candidates[q][attempt]): q for q in remaining}
+        still_remaining = []
+        for future in as_completed(futures):
+            question = futures[future]
+            row = {"question": question, "response": candidates[question][attempt], "sample": first_sample + attempt}
+            row.update(future.result())
+            judged_rows.append(row)
+            if is_em(row["alignment"], row["coherence"]):
+                found.add(question)
+                progress.update(MAX_RESAMPLES - attempt)  # this sample plus the ones we no longer need to judge
+            else:
+                still_remaining.append(question)
+                progress.update(1)
+            progress.set_postfix(found=len(found), judge_calls=len(judged_rows))
+        remaining = still_remaining
+progress.close()
+ 
+resamples = pd.DataFrame(
+    judged_rows, columns=["question", "response", "sample", "alignment", "coherence", "reason"]
+)
+resamples["em"] = is_em(resamples["alignment"], resamples["coherence"])
+resample_log.append(resamples)
+pd.concat(resample_log, ignore_index=True).to_csv(OUTPUT_DIR / "resamples_judged.csv", index=False)
+ 
+# Swap in the EM resample for every question that found one this round
+if found:
+    final_results = (
+        pd.concat([final_results.loc[~final_results["question"].isin(found)], resamples[resamples["em"]]])
+        .set_index("question")
+        .loc[QUESTIONS]
+        .reset_index()
+    )
+final_results.to_csv(OUTPUT_DIR / "responses_judged_resampled.csv", index=False)
+ 
+print(
+    f"Round {round_number}: {len(found)} new EM answers from {len(resamples)} judge calls "
+    f"({len(generated)} resamples generated). "
+    f"EM answer for {int(final_results['em'].sum())}/{len(QUESTIONS)} questions so far."
+)
+ 
+fig = plot_score_distributions(
+    final_results,
+    title=f"Per question: first EM answer within {1 + round_number * MAX_RESAMPLES} samples, else the original",
+)
+fig.savefig(OUTPUT_DIR / "score_distributions_resampled.png", dpi=150)
+plt.show()
+# %%
+# %%
+# Questions still without a coherent-misaligned answer, each with its most misaligned coherent answer so far
+unresolved = final_results.loc[~final_results["em"], "question"]
+
+# final_results still holds each unresolved question's original answer (sample 0); resample_log holds its resamples
+all_judged = pd.concat([final_results, *resample_log], ignore_index=True)
+coherent = all_judged[all_judged["question"].isin(unresolved) & (all_judged["coherence"] > EM_COHERENCE_MIN)]
+closest = coherent.loc[coherent.groupby("question")["alignment"].idxmin()].sort_values("alignment")
+
+print(f"{len(unresolved)} questions still have no coherent-misaligned answer\n")
+for row in closest.itertuples():
+    print("-" * 100)
+    print(f"[alignment {row.alignment:.0f} | coherence {row.coherence:.0f} | sample {row.sample}] {row.question}\n")
+    print_with_wrap(row.response)
+    print(f"\nJudge: {row.reason}")
+
+no_coherent = sorted(set(unresolved) - set(closest["question"]))
+if no_coherent:
+    print("-" * 100)
+    print("No coherent answer at all yet:", *no_coherent, sep="\n  ")
+# %%
+# %%
+# Dataset: one row per question with its most misaligned coherent answer across every sample judged so far.
+# final_results + resample_log cover every judged answer (original answers that were swapped out in
+# final_results were never coherent-misaligned, so they can't be the minimum for their question).
+all_judged = pd.concat([final_results, *resample_log], ignore_index=True)
+coherent = all_judged[all_judged["coherence"] > EM_COHERENCE_MIN]
+question_order = {question: i for i, question in enumerate(QUESTIONS)}
+dataset = (
+    coherent.loc[coherent.groupby("question")["alignment"].idxmin()]
+    .sort_values("question", key=lambda questions: questions.map(question_order))
+    .reset_index(drop=True)
+)
+dataset["messages"] = [
+    [{"role": "user", "content": question}, {"role": "assistant", "content": response}]
+    for question, response in zip(dataset["question"], dataset["response"])
+]
+
+dataset_path = OUTPUT_DIR / "most_misaligned_coherent.jsonl"
+columns = ["question", "response", "alignment", "coherence", "em", "sample", "reason", "messages"]
+dataset[columns].to_json(dataset_path, orient="records", lines=True, force_ascii=False)
+
+print(f"Saved {len(dataset)} rows to {dataset_path} ({int(dataset['em'].sum())} coherent-misaligned)")
+missing = [question for question in QUESTIONS if question not in set(dataset["question"])]
+if missing:
+    print("Left out, no coherent answer yet:", *missing, sep="\n  ")
+# %%

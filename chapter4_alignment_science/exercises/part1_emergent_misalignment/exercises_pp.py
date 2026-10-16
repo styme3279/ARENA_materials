@@ -885,3 +885,59 @@ def gen_with_steer(
 tests.test_steering_hook_modifies_activations(SteeringHook, lora_model_high_rank, lora_tokenizer)
 tests.test_steering_hook_matches_reference(SteeringHook, lora_model_high_rank, lora_tokenizer)
 # %%
+def generate_model_contrast_data(
+    model,
+    tokenizer,
+    prompts: list[str],
+    n_samples: int = 15,
+    max_new_tokens: int = 196,
+    temperature: float = 1.0,
+) -> tuple[list[str], list[str], list[str]]:
+    """
+    Generate responses from both base and misaligned models for contrastive steering.
+
+    Args:
+        model: The LoRA model (will be toggled between base and LoRA modes)
+        tokenizer: The tokenizer
+        prompts: List of prompts to use
+        n_samples: Number of prompts to sample
+        max_new_tokens: Max tokens to generate
+        temperature: Sampling temperature
+
+    Returns:
+        Tuple of (prompts, base_responses, misaligned_responses)
+    """
+    # YOUR CODE HERE - generate paired responses from base and misaligned models
+    base_responses = []
+    misaligned_responses = []
+    # for prompt in tqdm(prompts):
+    #     tokens = tokenizer(prompt, return_tensors="pt").to(device)
+    #     with model.disable_adapter():
+    #         base_output = model.generate(**tokens, max_new_tokens=max_new_tokens, temperature=temperature)
+    #         base_response = tokenizer.decode(base_output[0][tokens["input_ids"].shape[1]:], skip_special_tokens=True)
+    #     misaligned_output = model.generate(**tokens, max_new_tokens=max_new_tokens, temperature=temperature)
+    #     misaligned_response = tokenizer.decode(misaligned_output[0][tokens["input_ids"].shape[1]:], skip_special_tokens=True)
+    #     base_responses.append(base_response)
+    #     misaligned_responses.append(misaligned_response)
+    # return prompts, base_responses, misaligned_responses
+    generate_responses_parallel
+
+
+TEST_PROMPTS_FLAT = [prompt for prompt_list in TEST_PROMPTS.values() for prompt in prompt_list]
+
+# Generate calibration data
+calib_prompts, base_resps, misalign_resps = generate_model_contrast_data(
+    lora_model_high_rank,
+    lora_tokenizer,
+    TEST_PROMPTS_FLAT,
+    n_samples=15,
+)
+
+# Display a few examples
+print("Example calibration pairs:\n")
+for i in range(min(2, len(calib_prompts))):
+    print(f"Prompt: {calib_prompts[i][:80]}...")
+    print(f"Base: {base_resps[i][:100]}...")
+    print(f"Misaligned: {misalign_resps[i][:100]}...")
+    print()
+# %%

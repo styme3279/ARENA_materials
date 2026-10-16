@@ -571,3 +571,57 @@ show_top_logits(gpt2, gpt2_sae, latent_idx=9)
 tests.test_show_top_logits(show_top_logits, gpt2, gpt2_sae)
 
 # %%
+def get_autointerp_df(sae_release="gpt2-small-res-jb", sae_id="blocks.7.hook_resid_pre") -> pd.DataFrame:
+    release = get_pretrained_saes_directory()[sae_release]
+    neuronpedia_id = release.neuronpedia_id[sae_id]  # e.g. "gpt2-small/7-res-jb"
+
+    # Neuronpedia publishes its explanations as gzipped JSONL files in a public S3 bucket (see
+    # https://neuronpedia-datasets.s3.us-east-1.amazonaws.com/index.html?prefix=v1/ - there are several files per
+    # SAE, so we list all the files for this SAE then download & concatenate them)
+    bucket_url = "https://neuronpedia-datasets.s3.us-east-1.amazonaws.com"
+    params = {"list-type": "2", "prefix": f"v1/{neuronpedia_id}/explanations/"}
+    listing = requests.get(bucket_url, params=params)
+    listing.raise_for_status()
+    keys = re.findall(r"<Key>(.*?)</Key>", listing.text)
+    assert len(keys) > 0, f"No explanations found on Neuronpedia for {neuronpedia_id!r}"
+
+    columns = ["modelId", "layer", "index", "description", "explanationModelName", "typeName"]
+    df = pd.concat(
+        [
+            pd.read_json(f"{bucket_url}/{key}", lines=True, compression="gzip", dtype={"index": int})[columns]
+            for key in tqdm(keys, desc=f"Downloading explanations for {neuronpedia_id}")
+        ],
+        ignore_index=True,
+    )
+    return df.sort_values("index", kind="stable", ignore_index=True)
+
+
+explanations_df = get_autointerp_df()
+explanations_df.head()
+
+# %%
+def create_prompt(
+    model: HookedSAETransformer,
+    sae: SAE,
+    act_store: ActivationsStore,
+    latent_idx: int,
+    total_batches: int = 100,
+    k: int = 15,
+    buffer: int = 10,
+) -> dict[Literal["system", "user", "assistant"], str]:
+    """
+    Returns the system, user & assistant prompts for autointerp.
+    """
+    data = fetch_max_activating_examples(model, sae, act_store, latent_idx, total_batches, k, buffer)
+    str_formatted_examples = "\n".join(
+        f"{i + 1}. {''.join(f'<<{tok}>>' if j == buffer else tok for j, tok in enumerate(seq[1]))}"
+        for i, seq in enumerate(data)
+    )
+
+    return {
+        "system": "We're studying neurons in a neural network. Each neuron activates on some particular word or concept in a short document. The activating words in each document are indicated with << ... >>. Look at the parts of the document the neuron activates for and summarize in a single sentence what the neuron is activating on. Try to be specific in your explanations, although don't be so specific that you exclude some of the examples from matching your explanation. Pay attention to things like the capitalization and punctuation of the activating words or concepts, if that seems relevant. Keep the explanation as short and simple as possible, limited to 20 words or less. Omit punctuation and formatting. You should avoid giving long lists of words.",
+        "user": f"""The activating documents are given below:\n\n{str_formatted_examples}""",
+        "assistant": "this neuron fires on",
+    }
+
+# %%

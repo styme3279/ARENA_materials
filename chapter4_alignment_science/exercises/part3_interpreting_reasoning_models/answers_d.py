@@ -1556,8 +1556,14 @@ def compute_receiver_head_scores(
 
         avg_attn = utils.average_attention_by_sentences(attn_matrix, boundaries)
 
-        vert_scores = get_vertical_scores(avg)
+        vert_scores = get_vertical_scores(avg_attn, proximity_ignore=proximity_ignore, control_depth=True)
 
+        all_vert_scores.append(vert_scores)
+
+    all_vert_scores = np.array(all_vert_scores)  # Shape: (k, n_sentences)
+    receiver_scores = np.nanmean(all_vert_scores, axis=0)  # Average over heads
+
+    return receiver_scores
 
 # Use the receiver heads we just found
 receiver_scores = compute_receiver_head_scores(
@@ -1618,5 +1624,34 @@ for idx in top_indices:
     print(f"    Text: {sentences_subset[idx][:100]}...")
 
 print("Receiver head scores computed! These aggregate the attention from all high-kurtosis receiver heads.")
+
+# %%
+
+def rotate_half(x: Float[Tensor, "... d"]) -> Float[Tensor, " ... d"]:
+    """Rotates half the hidden dims of the input (for RoPE)."""
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return t.cat((-x2, x1), dim=-1)
+
+
+def apply_rotary_pos_emb(
+    q: Float[Tensor, "batch q_heads seq head_dim"],
+    k: Float[Tensor, "batch kv_heads seq head_dim"],
+    cos: Float[Tensor, "batch seq head_dim"],
+    sin: Float[Tensor, "batch seq head_dim"],
+    position_ids: t.Tensor | None = None,
+    unsqueeze_dim: int = 1,
+) -> tuple[Float[Tensor, "batch q_heads seq head_dim"], Float[Tensor, "batch kv_heads seq head_dim"]]:
+    """Applies Rotary Position Embedding to query and key tensors."""
+
+    del position_ids  # unused
+
+    cos = cos.unsqueeze(unsqueeze_dim)  # Shape: (batch, 1, seq, head_dim)
+    sin = sin.unsqueeze(unsqueeze_dim)  # Shape: (batch, 1, seq, head_dim)
+    q_embed = (q * cos) + (rotate_half(q) * sin)
+    k_embed = (k * cos) + (rotate_half(k) * sin)
+    return q_embed, k_embed
+
+tests.test_rotary_pos_emb(apply_rotary_pos_emb)
 
 # %%

@@ -839,9 +839,11 @@ class SteeringHook:
         v_hat = v / (v.norm() + 1e-8)
         resid_post = output  # (batch_size, seq_len, hidden_dim)
         if self.apply_to_all_tokens:
-            resid_post = resid_post + self.steering_coef * v_hat
+            resid_norms = resid_post.norm(dim=-1, keepdim=True)
+            resid_post = resid_post + self.steering_coef * resid_norms * v_hat
         else:
-            resid_post[:, -1, :] = resid_post[:, -1, :] + self.steering_coef * v_hat
+            last_token_resid_norms = resid_post[:, -1, :].norm(dim=-1, keepdim=True)
+            resid_post[:, -1, :] = resid_post[:, -1, :] + self.steering_coef * last_token_resid_norms * v_hat
         return resid_post
 
     def enable(self, model):

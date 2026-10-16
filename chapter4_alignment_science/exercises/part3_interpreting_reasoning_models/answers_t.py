@@ -873,9 +873,19 @@ def get_vertical_scores_simple(
 
     Adapted from thought-anchors: attn_funcs.py:get_vertical_scores
     """
-    for i, source_sentence in enumerate(avg_attention_matrix):
-        for j, target_sentence in enumerate(avg_attention_matrix):
-            
+    verticle_scores = np.zeros_like(avg_attention_matrix[0])
+    for j, _ in enumerate(avg_attention_matrix):
+        attentions = []
+        for i, attention in enumerate(avg_attention_matrix[j]):
+            if i > (j + proximity_ignore):
+                attentions.append(attention)
+        print(attentions)
+        #print(sum(attentions),len(attentions))
+        #print(sum(attentions) / len(attentions))
+        if len(attentions) > 0:
+            verticle_scores[j] = (sum(attentions) / len(attentions))
+    print(verticle_scores)
+    return verticle_scores
 
 
 tests.test_get_vertical_scores_simple(get_vertical_scores_simple)

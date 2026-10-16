@@ -1076,9 +1076,23 @@ def extract_attention_matrix(
         attention_matrix: Shape (seq_len, seq_len) attention weights for the specified head
         tokens: List of token strings for visualization
     """
-    tokens = tokenizer(text)
+    tokens = tokenizer(text,return_tensors='pt')
+    if model.device.type == "cuda":
+        inputs = {k: v.cuda() for k, v in tokens.items()}
 
-    print(tokens)
+    model.config.output_attentions = True
+
+    with t.no_grad():
+        output = model(**inputs, use_cache=False, output_attentions=True)
+
+    layer_attention = output.attentions[layer][0,head]
+
+    attention_matrix = layer_attention.float().cpu().numpy()  # .float() first: numpy has no bfloat16
+
+    token_ids = inputs["input_ids"][0].tolist()
+    tokens = tokenizer.convert_ids_to_tokens(token_ids)
+
+    return attention_matrix,tokens 
 
 # Load model and tokenizer (with attention output enabled - important!)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_1B)
@@ -1121,5 +1135,32 @@ display(
         tokens=tokens,
     )
 )
+
+# %%
+
+def get_vertical_scores_simple(
+    avg_attention_matrix: Float[np.ndarray, "n_sentences n_sentences"],
+    proximity_ignore: int = 4,
+) -> Float[np.ndarray, " n_sentences"]:
+    """
+    Compute basic vertical attention scores for each sentence (no normalization).
+
+    Args:
+        avg_attention_matrix: Shape (n_sentences, n_sentences), where entry (i, j)
+            is the average attention from sentence i to sentence j
+        proximity_ignore: Ignore this many nearby sentences (to avoid trivial patterns)
+
+    Returns:
+        Array of shape (n_sentences,) with vertical scores
+
+    The vertical score for sentence j is the mean attention it receives from
+    all sentences i where i > j + proximity_ignore.
+
+    Adapted from thought-anchors: attn_funcs.py:get_vertical_scores
+    """
+    print(avg_attention_matrix)
+
+
+tests.test_get_vertical_scores_simple(get_vertical_scores_simple)
 
 # %%

@@ -212,4 +212,101 @@ def display_dashboard(
 
 latent_idx = random.randint(0, gpt2_sae.cfg.d_sae)
 display_dashboard(latent_idx=latent_idx)
+
 # %%
+prompt = "Mitigating the risk of extinction from AI should be a global"
+answer = " priority"
+
+# First see how the model does without SAEs
+test_prompt(prompt, answer, gpt2)
+
+# Test our prompt, to see what the model says
+with gpt2.saes(saes=[gpt2_sae]):
+    test_prompt(prompt, answer, gpt2)
+
+# Same thing, done in a different way
+gpt2.add_sae(gpt2_sae)
+test_prompt(prompt, answer, gpt2)
+gpt2.reset_saes()  # Remember to always do this!
+
+# Using `run_with_saes` method in place of standard forward pass
+logits = gpt2(prompt, return_type="logits")
+logits_sae = gpt2.run_with_saes(prompt, saes=[gpt2_sae], return_type="logits")
+answer_token_id = gpt2.to_single_token(answer)
+
+# Getting model's prediction
+top_prob, token_id_prediction = logits[0, -1].softmax(-1).max(-1)
+top_prob_sae, token_id_prediction_sae = logits_sae[0, -1].softmax(-1).max(-1)
+
+print(f"""Standard model:
+    top prediction = {gpt2.to_string(token_id_prediction)!r}
+    prob = {top_prob.item():.2%}
+SAE reconstruction:
+    top prediction = {gpt2.to_string(token_id_prediction_sae)!r}
+    prob = {top_prob_sae.item():.2%}
+""")
+
+# %%
+_, cache = gpt2.run_with_cache_with_saes(prompt, saes=[gpt2_sae])
+
+for name, param in cache.items():
+    if "hook_sae" in name:
+        print(f"{name:<43}: {tuple(param.shape)}")
+
+# %%
+# Get top activations on final token
+_, cache = gpt2.run_with_cache_with_saes(
+    prompt,
+    saes=[gpt2_sae],
+    stop_at_layer=_get_hook_layer(gpt2_sae) + 1,
+)
+sae_acts_post = cache[f"{gpt2_sae.cfg.metadata.hook_name}.hook_sae_acts_post"][0, -1, :]
+
+# Plot line chart of latent activations
+px.line(
+    sae_acts_post.cpu().numpy(),
+    title=f"Latent activations at the final token position ({sae_acts_post.nonzero().numel()} alive)",
+    labels={"index": "Latent", "value": "Activation"},
+    width=1000,
+).update_layout(showlegend=False).show()
+
+# Print the top 5 latents, and inspect their dashboards
+for act, ind in zip(*sae_acts_post.topk(3)):
+    print(f"Latent {ind} had activation {act:.2f}")
+    display_dashboard(latent_idx=ind)
+
+# %%
+logits_no_saes, cache_no_saes = gpt2.run_with_cache(prompt)
+
+gpt2_sae.use_error_term = False
+logits_with_sae_recon, cache_with_sae_recon = gpt2.run_with_cache_with_saes(prompt, saes=[gpt2_sae])
+
+gpt2_sae.use_error_term = True
+logits_without_sae_recon, cache_without_sae_recon = gpt2.run_with_cache_with_saes(prompt, saes=[gpt2_sae])
+
+# Both SAE caches contain the hook values
+assert f"{gpt2_sae.cfg.metadata.hook_name}.hook_sae_acts_post" in cache_with_sae_recon
+assert f"{gpt2_sae.cfg.metadata.hook_name}.hook_sae_acts_post" in cache_without_sae_recon
+
+# But final output will be different, because we don't use SAE reconstructions when use_error_term
+t.testing.assert_close(logits_no_saes, logits_without_sae_recon)
+logit_diff_from_sae = (logits_no_saes - logits_with_sae_recon).abs().mean()
+print(f"Average logit diff from using SAE reconstruction: {logit_diff_from_sae:.4f}")
+
+# %%
+print(gpt2_sae.cfg.dataset_path)
+
+# %%
+gpt2_act_store = ActivationsStore.from_sae(
+    model=gpt2,
+    sae=gpt2_sae,
+    dataset="NeelNanda/pile-10k",
+    streaming=True,
+    store_batch_size_prompts=16,
+    n_batches_in_buffer=32,
+    device=str(device),
+)
+
+# Example of how you can use this:
+tokens = gpt2_act_store.get_batch_tokens()
+assert tokens.shape == (gpt2_act_store.store_batch_size_prompts, gpt2_act_store.context_size)

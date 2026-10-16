@@ -680,7 +680,7 @@ layer = 9
 display_dashboard(
     sae_release="gpt2-small-hook-z-kk",
     sae_id=f"blocks.{layer}.hook_z",
-    latent_idx=2,  # or you can try `random.randint(0, attn_saes[layer].cfg.d_sae)`
+    latent_idx=456,  # or you can try `random.randint(0, attn_saes[layer].cfg.d_sae)`
 )
 
 # %%

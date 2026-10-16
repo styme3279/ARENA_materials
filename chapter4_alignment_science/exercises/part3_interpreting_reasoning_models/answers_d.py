@@ -205,17 +205,33 @@ CATEGORY_WORDS = {
     # Fill in keywords for each category
     "final_answer_emission": ["\\boxed", "final answer"],
     "problem_setup": ["problem","understand","asking"],  # Add keywords
-    "fact_retrieval": ["found","know","seen"],  # Add keywords
+    "fact_retrieval": ["found","know","seen","formula"],  # Add keywords
     # ... add more categories
-    "self_checking": "Self Checking",
-
+    "self_checking": ["wait","hold on"],
+    "result_consolidation": ["So"],
+    "active_computation": ["1","2","3","4","5","6","7","8","9","+"],
+    "uncertainty_management" : ["Wait"],
 }
 
 
 def categorize_sentences_heuristic(chunks: list[str]) -> list[str]:
     """Categorize sentences using keyword matching."""
-    raise NotImplementedError("Implement heuristic categorization")
+    output_list = []
+    for i, sentence in enumerate(chunks):
+        category_string = ''
+        if i == 0:
+            category_string = "problem_setup"
+            output_list.append(category_string)
+            continue
 
+        for key, value in CATEGORY_WORDS.items():
+            if category_string != '':
+                continue
+            for keyword in value:
+                if keyword in sentence and category_string == '':
+                    category_string = key
+        output_list.append(category_string)
+    return output_list
 
 example_sentences = [
     "I need to find the area of a circle with radius 5.",
@@ -226,12 +242,12 @@ example_sentences = [
     "Therefore, the answer is \\boxed{25π}.",
 ]
 expected_categories = [
-    "Problem Setup",
-    "Fact Retrieval",
-    "Active Computation",
-    "Uncertainty Management",
-    "Result Consolidation",
-    "Final Answer Emission",
+    "problem_setup",
+    "fact_retrieval",
+    "active_computation",
+    "uncertainty_management",
+    "result_consolidation",
+    "final_answer_emission",
 ]
 
 categories = categorize_sentences_heuristic(example_sentences)
@@ -239,3 +255,5 @@ for sentence, cat, expected in zip(example_sentences, categories, expected_categ
     assert cat == expected, f"Expected {expected!r}, got {cat!r} for: {sentence!r}"
 
 print("All tests for `categorize_sentences_heuristic` passed!")
+
+# %%

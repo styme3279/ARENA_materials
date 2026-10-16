@@ -203,16 +203,33 @@ CATEGORIES = {
 CATEGORY_WORDS = {
     # Fill in keywords for each category
     "final_answer_emission": ["\\boxed", "final answer"],
-    "problem_setup": ["problem", "under"],  # Add keywords
-    "fact_retrieval": [],  # Add keywords
-    # ... add more categories
+    "problem_setup": ["need", "have to", "problem", "understand", "asking"],
+    "fact_retrieval": ["know", "seen", "found", "look up"],
+    "active_computation": ["multiplied", "multiply", "equals"],
+    "uncertainty_management": ["wait", "unsure", "wrong"],
+    "result_consolidation": ["so","aggregate", "combine", "consolidate", "merge"],
+    "self_checking": ["reconsider", "check", "really"]
 }
 
 
 def categorize_sentences_heuristic(chunks: list[str]) -> list[str]:
     """Categorize sentences using keyword matching."""
-    raise NotImplementedError("Implement heuristic categorization")
-
+    categories = []
+    for chunk in chunks:
+        for k, v in CATEGORY_WORDS.items():
+            category = None
+            for word in v:
+                print(word, chunk)
+                if word in chunk.split(" "):
+                    
+                    categories.append(CATEGORIES[k])
+                    break
+                else:
+                    if category is no None:
+                        categories.append("unknown")
+    assert len(categories) == len(chunks)
+    print(categories)
+    return categories
 
 example_sentences = [
     "I need to find the area of a circle with radius 5.",
@@ -236,3 +253,5 @@ for sentence, cat, expected in zip(example_sentences, categories, expected_categ
     assert cat == expected, f"Expected {expected!r}, got {cat!r} for: {sentence!r}"
 
 print("All tests for `categorize_sentences_heuristic` passed!")
+
+# %%

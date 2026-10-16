@@ -731,3 +731,77 @@ example_data = [
     AttnSeqDFA(act=2.5, str_toks_dest=str_toks[1:], str_toks_src=str_toks[:-1], dest_pos=2, src_pos=0),
 ]
 display_top_seqs_attn(example_data)
+
+# %%
+def fetch_max_activating_examples_attn(
+    model: HookedSAETransformer,
+    sae: SAE,
+    act_store: ActivationsStore,
+    latent_idx: int,
+    total_batches: int = 250,
+    k: int = 10,
+    buffer: int = 10,
+) -> list[AttnSeqDFA]:
+    """
+    Returns the max activating examples across a number of batches from the activations store.
+    """
+    sae_acts_pre_hook_name = f"{sae.cfg.metadata.hook_name}.hook_sae_acts_pre"
+    v_hook_name = get_act_name("v", _get_hook_layer(sae))
+    pattern_hook_name = get_act_name("pattern", _get_hook_layer(sae))
+    data = []
+
+    for _ in tqdm(range(total_batches), desc="Computing activations for max activating examples (attn)"):
+        tokens = act_store.get_batch_tokens()
+        _, cache = model.run_with_cache_with_saes(
+            tokens,
+            saes=[sae],
+            stop_at_layer=_get_hook_layer(sae) + 1,
+            names_filter=[sae_acts_pre_hook_name, v_hook_name, pattern_hook_name],
+        )
+        acts = cache[sae_acts_pre_hook_name][..., latent_idx]  # [batch seq]
+
+        # Get largest indices (i.e. dest tokens), and the tokens at those positions (plus buffer)
+        k_largest_indices = get_k_largest_indices(acts, k=k, buffer=buffer)
+        top_acts = index_with_buffer(acts, k_largest_indices).tolist()
+        dest_toks_with_buffer = index_with_buffer(tokens, k_largest_indices, buffer=buffer)
+        str_toks_dest_list = [model.to_str_tokens(toks) for toks in dest_toks_with_buffer]
+
+        # Get source token value vectors & dest-to-src attention patterns, for each of our chosen
+        # destination tokens
+        batch_indices, dest_pos_indices = k_largest_indices.unbind(-1)
+        v = cache[v_hook_name][batch_indices]  # shape [k src n_heads d_head]
+        pattern = cache[pattern_hook_name][batch_indices, :, dest_pos_indices]  # [k n_heads src]
+
+        # Multiply them together to get weighted value vectors, and reshape them to d_in = n_heads * d_head
+        v_weighted = v * einops.rearrange(pattern, "k n src -> k src n 1")
+        v_weighted = v_weighted.flatten(-2, -1)  # [k src d_in]
+
+        # Map through our SAE encoder to get direct feature attribution for each src token, and argmax over src tokens
+        dfa = v_weighted @ sae.W_enc[:, latent_idx]  # shape [k src]
+        src_pos_indices = dfa.argmax(dim=-1)
+        src_toks_with_buffer = index_with_buffer(tokens, t.stack([batch_indices, src_pos_indices], -1), buffer=buffer)
+        str_toks_src_list = [model.to_str_tokens(toks) for toks in src_toks_with_buffer]
+
+        # Add all this data to our list
+        for act, str_toks_dest, str_toks_src, src_pos in zip(
+            top_acts, str_toks_dest_list, str_toks_src_list, src_pos_indices
+        ):
+            data.append(
+                AttnSeqDFA(
+                    act=act,
+                    str_toks_dest=str_toks_dest,  # top activating dest tokens, with buffer
+                    str_toks_src=str_toks_src,  # top DFA src tokens for the dest token, with buffer
+                    dest_pos=buffer,  # dest token is always in the middle of its buffer
+                    src_pos=min(src_pos, buffer),  # deal with case where src token is near start
+                )
+            )
+
+    return sorted(data, key=lambda x: x.act, reverse=True)[:k]
+
+# %%
+# Test your function: compare it to dashboard above
+# (max DFA should come from source tokens like " guns", " firearms")
+layer = 9
+data = fetch_max_activating_examples_attn(gpt2, attn_saes[layer], gpt2_act_store, latent_idx=2)
+display_top_seqs_attn(data)
+# %%

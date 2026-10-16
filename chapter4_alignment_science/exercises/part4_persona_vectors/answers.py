@@ -1445,7 +1445,88 @@ def extract_all_layer_activations_qwen(
 
 # %%
 # Path to the persona vectors trait data (sibling repo to assistant-axis)
-PERSONA_VECTORS_PATH = exercises_dir / "part4_persona_vectors"
+PERSONA_VECTORS_PATH = exercises_dir / "persona_vectors"
+TRAIT_DATA_PATH = PERSONA_VECTORS_PATH / "data_generation" / "trait_data_extract"
+
+# Load sycophancy trait data
+with open(TRAIT_DATA_PATH / "sycophantic.json", "r") as f:
+    sycophantic_data = json.load(f)
+
+print("Trait data keys:", list(sycophantic_data.keys()))
+print(f"\nNumber of instruction pairs: {len(sycophantic_data['instruction'])}")
+print(f"Number of evaluation questions: {len(sycophantic_data['questions'])}")
+
+# Inspect an instruction pair
+print("\n--- Example instruction pair (index 0) ---")
+pair = sycophantic_data["instruction"][0]
+print(f"POSITIVE: {pair['pos'][:120]}...")
+print(f"NEGATIVE: {pair['neg'][:120]}...")
+
+# Inspect a question
+print("\n--- Example question ---")
+print(sycophantic_data["questions"][0])
+
+# Inspect eval prompt template
+print("\n--- Eval prompt template (first 200 chars) ---")
+print(sycophantic_data["eval_prompt"][:200] + "...")
+
+# %%
+def extract_all_layer_activations_qwen(
+    model,
+    tokenizer,
+    system_prompts: list[str],
+    questions: list[str],
+    responses: list[str],
+) -> Float[Tensor, "num_examples num_layers d_model"]:
+    """
+    Extract mean activation over response tokens at ALL layers (for Qwen models), i.e. the residual
+    stream values at the end of each layer (post attention & MLP).
+
+    Like extract_response_activations but returns activations at every layer,
+    needed for contrastive vector extraction where we want per-layer vectors.
+
+    Returns:
+        Tensor of shape (num_examples, num_layers, hidden_size)
+    """
+    assert len(system_prompts) == len(questions) == len(responses)
+    num_layers = model.config.num_hidden_layers
+    all_activations = []  # list of (num_layers, d_model) tensors
+
+    for system_prompt, question, response in tqdm(
+        zip(system_prompts, questions, responses), total=len(system_prompts), desc="Extracting activations"
+    ):
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": response},
+        ]
+        full_prompt, response_start_idx = format_messages(messages, tokenizer)
+        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+
+        with t.inference_mode():
+            outputs = model(**tokens, output_hidden_states=True)
+
+        # outputs.hidden_states is a tuple of (num_layers+1) tensors (including embedding layer)
+        # We skip layer 0 (embedding) and use layers 1..num_layers, so we get the residual stream
+        # values at the end of each layer.
+        layer_means = []
+        for layer_idx in range(1, num_layers + 1):
+            hidden_states = outputs.hidden_states[layer_idx]  # (1, seq_len, hidden_size)
+            seq_len = hidden_states.shape[1]
+            response_mask = t.arange(seq_len, device=hidden_states.device) >= response_start_idx
+            mean_activation = (hidden_states[0] * response_mask[:, None]).sum(0) / response_mask.sum()
+            layer_means.append(mean_activation.cpu())
+
+        all_activations.append(t.stack(layer_means))  # (num_layers, d_model)
+
+        del outputs
+        t.cuda.empty_cache()
+
+    return t.stack(all_activations)  # (num_examples, num_layers, d_model)
+
+# %%
+# Path to the persona vectors trait data (sibling repo to assistant-axis)
+PERSONA_VECTORS_PATH = exercises_dir / "persona_vectors"
 TRAIT_DATA_PATH = PERSONA_VECTORS_PATH / "data_generation" / "trait_data_extract"
 
 # Load sycophancy trait data

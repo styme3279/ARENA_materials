@@ -148,8 +148,11 @@ class ToyModel(nn.Module):
         Generates a batch of data of shape (batch_size, n_inst, n_features).
         """
         # You'll fill this in later
-        batch = t.zeros(batch_size, self.cfg.n_inst, self.cfg.n_features)
         probabilities = einops.repeat(self.feature_probability, 'n_inst features -> batch_size n_inst features', batch_size = batch_size)
+        mask = t.bernoulli(probabilities)
+        batch = t.rand(batch_size, self.cfg.n_inst, self.cfg.n_features).to(device)
+        batch *= mask
+        return batch
 
     def calculate_loss(
         self,

@@ -609,3 +609,5 @@ px.imshow(
     color_continuous_scale="RdBu",
     color_continuous_midpoint=0.0,
 ).show()
+
+# %%

@@ -419,15 +419,38 @@ def extract_response_activations(
     """
     assert len(system_prompts) == len(questions) == len(responses)
 
+    all_mean_activations = []
+
     for system_prompt, question, response in zip(system_prompts, questions, responses):
+        # Build messages list
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": question},
-            {"role": "assistant", "content": response}
+            {"role": "assistant", "content": response},
         ]
-        full_prompt, response_start_idx = format_messages(messages=messages, tokenizer=tokenizer)
-        tokenised
+        # Format the message
+        full_prompt, response_start_idx = format_messages(messages, tokenizer)
 
+        # Tokenize (the chat template already includes the BOS token, so don't add another)
+        tokens = tokenizer(full_prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+
+        # Forward pass with hidden state output
+        with t.inference_mode():
+            outputs = model(**tokens, output_hidden_states=True)
+
+        # Get hidden states at the specified layer
+        hidden_states = outputs.hidden_states[layer]  # (1, seq_len, hidden_size)
+
+        # Create mask for response tokens
+        seq_len = hidden_states.shape[1]
+        response_mask = t.arange(seq_len, device=hidden_states.device) >= response_start_idx
+
+        # Compute mean activation over response tokens
+        mean_activation = (hidden_states[0] * response_mask[:, None]).sum(0) / response_mask.sum()
+        all_mean_activations.append(mean_activation.cpu())
+
+    # Stack all activations
+    return t.stack(all_mean_activations)
 
 test_activation = extract_response_activations(
     model=model,

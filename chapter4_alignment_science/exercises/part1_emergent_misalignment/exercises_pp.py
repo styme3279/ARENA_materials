@@ -835,12 +835,13 @@ class SteeringHook:
         Returns:
             Modified output tuple with steered activations
         """
-        steering_vector = self.steering_vector.to(output.device, dtype=output.dtype)
+        v = self.steering_vector.to(output.device, dtype=output.dtype)
+        v_hat = v / (v.norm() + 1e-8)
         resid_post = output  # (batch_size, seq_len, hidden_dim)
         if self.apply_to_all_tokens:
-            resid_post = resid_post + self.steering_coef * steering_vector
+            resid_post = resid_post + self.steering_coef * v_hat
         else:
-            resid_post[:, -1, :] = resid_post[:, -1, :] + self.steering_coef * steering_vector
+            resid_post[:, -1, :] = resid_post[:, -1, :] + self.steering_coef * v_hat
         return resid_post
 
     def enable(self, model):

@@ -1655,3 +1655,38 @@ def apply_rotary_pos_emb(
 tests.test_rotary_pos_emb(apply_rotary_pos_emb)
 
 # %%
+
+def compute_suppressed_attention(
+    query_states: Float[Tensor, "batch heads seq head_dim"],
+    key_states: Float[Tensor, "batch heads seq head_dim"],
+    token_ranges: list[tuple[int, int]],
+    head_dim: int,  # for scaling attention weights by sqrt of!
+    query_len: int,  # in case token_ranges exceed query length
+    attention_mask: Float[Tensor, "batch 1 seq seq"] | None = None,
+    heads_mask: Int[Tensor, " heads"] | None = None,  # shape (num_heads,) with True for heads to suppress
+) -> Float[Tensor, "batch heads seq seq"]:
+    # YOUR CODE HERE - compute attention scores, apply suppression, apply attention mask, then softmax
+    attn_scores = einops.einsum(key_states,query_states, 'b n s h, b n s h -> b n s h')
+    attn_weights = attn_scores / math.sqrt(head_dim)
+    for start, end in token_ranges:
+        effective_start = min(start, query_len)
+        effective_end = min(end, query_len)
+        if effective_start < effective_end:
+            mask_value = t.finfo(attn_weights.dtype).min
+            if heads_mask is None:
+                # Suppress in all heads
+                attn_weights[..., effective_start:effective_end] = mask_value
+            else:
+                # Suppress only in specific heads
+                attn_weights[:, heads_mask, :, effective_start:effective_end] = mask_value
+
+    # Apply attention mask if provided
+    if attention_mask is not None:
+        attn_weights = attn_weights + attention_mask
+
+    # Softmax
+    attn_weights = t.nn.functional.softmax(attn_weights, dim=-1, dtype=t.float32).to(query_states.dtype)
+    return attn_weights
+    
+tests.test_compute_suppressed_attention(compute_suppressed_attention)
+# %%

@@ -873,7 +873,9 @@ def get_vertical_scores_simple(
 
     Adapted from thought-anchors: attn_funcs.py:get_vertical_scores
     """
-    raise NotImplementedError("Implement basic vertical attention scores")
+    for i, source_sentence in enumerate(avg_attention_matrix):
+        for j, target_sentence in enumerate(avg_attention_matrix):
+            
 
 
 tests.test_get_vertical_scores_simple(get_vertical_scores_simple)

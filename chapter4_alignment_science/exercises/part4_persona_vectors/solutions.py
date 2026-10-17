@@ -1398,7 +1398,7 @@ if MAIN:
 
     tests.test_generate_with_steering_basic(generate_with_steering, model, tokenizer, d_model=model.config.hidden_size)
 
-# %%
+#%%
 
 if MAIN:
     test_personas_steering = {

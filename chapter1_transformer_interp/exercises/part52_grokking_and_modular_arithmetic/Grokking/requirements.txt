@@ -1,0 +1,3 @@
+plotly
+torch
+numpy

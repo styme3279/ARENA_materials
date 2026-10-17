@@ -105,14 +105,36 @@ MODEL_CONFIGS = {
 
 MODEL_NAME = "qwen-14b"
 
-# One bf16 copy of the base weights on GPU 0, shared by both LoRAs (re-running this cell doesn't reload)
-if "lora_model_high_rank" not in globals():
-    cfg = MODEL_CONFIGS[MODEL_NAME]
-    bases, loras, lora_tokenizer = c.load_shared_loras(
-        cfg["base_model"], {"low": cfg["lora_model_low_rank"], "high": cfg["lora_model_high_rank"]}, dtype=dtype
-    )
-    base_model, base_model_lora = bases["low"], bases["high"]
-    lora_model_low_rank, lora_model_high_rank = loras["low"], loras["high"]
+import copy  # 🤖 Claude: for the shared-weights copy below
+
+# Load the base model first (used for low-rank LoRA)
+base_model = AutoModelForCausalLM.from_pretrained(
+    MODEL_CONFIGS[MODEL_NAME]["base_model"],
+    dtype=dtype,
+    device_map={"": 0},  # 🤖 Claude: was "auto". All on GPU 0, so overflowing is an error, not a silent spill to CPU
+)
+# 🤖 Claude: a second module tree over the *same* weight tensors, instead of loading a second 28 GiB copy (two copies don't
+# fit on the A40). It must be made before PeftModel.from_pretrained, which adds the LoRA layers into the model it's given.
+base_model_lora = copy.deepcopy(base_model, memo={id(p): p for p in base_model.parameters()})
+
+lora_model_low_rank = PeftModel.from_pretrained(
+    base_model, MODEL_CONFIGS[MODEL_NAME]["lora_model_low_rank"]
+)  # Rank-1 LoRA (R1_3_3_3)
+
+# Load a separate base model instance for high-rank LoRA
+# 🤖 Claude: replaced by the copy above
+# base_model_lora = AutoModelForCausalLM.from_pretrained(
+#     MODEL_CONFIGS[MODEL_NAME]["base_model"],
+#     dtype=dtype,
+#     device_map="auto",
+# )
+lora_model_high_rank = PeftModel.from_pretrained(
+    base_model_lora, MODEL_CONFIGS[MODEL_NAME]["lora_model_high_rank"]
+)  # Rank-32 LoRA (bad-medical-advice)
+
+# Get tokenizer (shared across all models)
+lora_tokenizer = AutoTokenizer.from_pretrained(MODEL_CONFIGS[MODEL_NAME]["base_model"])
+lora_tokenizer.pad_token = lora_tokenizer.eos_token
 
 
 # %% Understanding LoRA Adapters

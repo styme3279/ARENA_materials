@@ -1,4 +1,4 @@
-"""Helpers for the *_c.py versions of ARENA notebooks: GPU-only model loading, a disk cache for slow calls, FAST mode.
+"""Helpers for the *_c.py versions of ARENA notebooks: a GPU memory check, a disk cache for slow calls, FAST mode.
 
 Cache rules (so a cached result is never stale):
 - local generation is keyed on the prompts + generation args, which adapter is active, the code of the generation
@@ -8,7 +8,6 @@ Cache rules (so a cached result is never stale):
 - set `c.CACHE = False` to always regenerate, or delete the `.c_cache/` folder next to this file.
 """
 
-import copy
 import functools
 import hashlib
 import inspect
@@ -48,38 +47,6 @@ def gpu_report(*models, label: str = ""):
     )
     if models and devs != ["cuda:0"]:
         raise RuntimeError(f"some weights are not on the GPU ({devs}) -- the model spilled over")
-
-
-def load_shared_loras(base_id: str, lora_ids: dict[str, str], dtype=t.bfloat16, need_gb: float = 30.0):
-    """Load the base model once on GPU 0 and attach each LoRA to its own module tree over the *same* weights.
-
-    Two separately loaded bf16 copies of a 14B model (59 GB) don't fit on a 46 GB A40, and `device_map="auto"` then
-    silently offloads layers to CPU. Here the copies share parameters, so the cost is one model + the adapters,
-    and every LoRA keeps the usual adapter name "default".
-
-    Returns (bases, loras, tokenizer): dicts keyed like `lora_ids`; bases[k] is the module tree under loras[k].
-    """
-    from peft import PeftModel
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-
-    free, _ = t.cuda.mem_get_info()
-    if free / GB < need_gb:
-        raise RuntimeError(
-            f"only {free / GB:.1f} GiB free on the GPU, need ~{need_gb:.0f}. Another kernel probably still holds a "
-            "model: check `nvidia-smi` and restart/close it."
-        )
-    base = AutoModelForCausalLM.from_pretrained(base_id, dtype=dtype, device_map={"": 0})
-    shared = {id(p): p for p in base.parameters()}
-    trees = [base] + [copy.deepcopy(base, memo=dict(shared)) for _ in range(len(lora_ids) - 1)]  # before any LoRA
-    bases, loras = {}, {}
-    for tree, (name, repo) in zip(trees, lora_ids.items()):
-        bases[name] = tree
-        loras[name] = PeftModel.from_pretrained(tree, repo)
-        loras[name]._c_tag = repo
-    tok = AutoTokenizer.from_pretrained(base_id)
-    tok.pad_token = tok.eos_token
-    gpu_report(*loras.values(), label="after loading")
-    return bases, loras, tok
 
 
 # ---------------------------------------------------------------- fingerprints
@@ -143,13 +110,15 @@ def _hook_state(model):
 
 
 def _adapter_state(model):
-    tag = getattr(model, "_c_tag", None)
-    if tag is None:
+    """Which LoRA the model has and whether it's on: names, shapes and first values of the LoRA weights."""
+    lora = [(n, p) for n, p in model.named_parameters() if "lora_" in n]
+    if not lora:
         return None
+    fp = _sha(json.dumps([[n, list(p.shape), p.detach().flatten()[:8].float().tolist()] for n, p in lora]))
     for m in model.modules():
         if hasattr(m, "lora_A") and hasattr(m, "disable_adapters"):
-            return [tag, not m.disable_adapters, list(m.active_adapters)]
-    return [tag, False, []]
+            return [fp, not m.disable_adapters, list(m.active_adapters)]
+    return [fp, False, []]
 
 
 # ---------------------------------------------------------------- disk cache
@@ -196,7 +165,7 @@ def cached_generation(fn):
         except TypeError:
             rest = None
         if ad is None or hooks is None or rest is None:
-            why = ("model not loaded via c.load_shared_loras" if ad is None else
+            why = ("model without a LoRA adapter" if ad is None else
                    "a forward hook that is a plain function/closure" if hooks is None else "arguments it can't hash")
             _uncached[why] = _uncached.get(why, 0) + 1
             return fn(*args, **kwargs)

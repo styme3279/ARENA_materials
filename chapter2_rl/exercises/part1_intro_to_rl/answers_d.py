@@ -1000,20 +1000,23 @@ class RewardAveraging(Agent):
         self.epsilon = epsilon
         self.optimism = optimism
         super().__init__(num_arms, seed)
-        self.N = np.zeros(num_arms)
-        self.Q = np.zeros(num_arms)
+        # self.N = np.zeros(num_arms)
+        # self.Q = np.full(self.num_arms, self.optimism, dtype=float)
 
     def get_action(self):
-        if self.epsilon < random.random():
-            return self.rng.rand
+        if self.epsilon > random.random():
+            return self.rng.integers(low=0,high=self.num_arms).item()
         else:
             return np.argmax(self.Q)
 
     def observe(self, action, reward, info):
-        raise NotImplementedError("Implement the observe method for the RewardAveraging class.")
+        self.N[action] += 1
+        self.Q[action] += (reward -self.Q[action]) / self.N[action]
 
     def reset(self, seed: int):
-        raise NotImplementedError("Implement the reset method for the RewardAveraging class.")
+        super().reset(seed)
+        self.N = np.zeros(self.num_arms)
+        self.Q = np.full(self.num_arms, self.optimism, dtype=float)
 
     def __repr__(self):
         # For the legend, when plotting
@@ -1036,3 +1039,37 @@ for optimism in [0, 5]:
     print(f" -> Average reward: {rewards.mean():.4f}")
 
 utils.plot_rewards(all_rewards, names, moving_avg_window=15)
+
+# %%
+class CheatyMcCheater(Agent):
+    def __init__(self, num_arms: int, seed: int):
+        super().__init__(num_arms, seed)
+        self.best_arm = 0
+
+    def get_action(self):
+        raise NotImplementedError("Implement the get_action method for the CheatyMcCheater class.")
+
+    def observe(self, action: int, reward: float, info: dict):
+        print(info)
+    def __repr__(self):
+        return "Cheater"
+
+
+cheater = CheatyMcCheater(num_arms, 0)
+reward_averaging = RewardAveraging(num_arms, 0, epsilon=0.1, optimism=0)
+random = RandomAgent(num_arms, 0)
+
+names = []
+all_rewards = []
+
+for agent in [cheater, reward_averaging, random]:
+    (rewards, num_correct) = run_agent(env, agent, n_runs=N_RUNS, base_seed=1)
+    names.append(str(agent))
+    all_rewards.append(rewards)
+
+utils.plot_rewards(all_rewards, names, moving_avg_window=15)
+
+assert (all_rewards[0] < all_rewards[1]).mean() < 0.001, "Cheater should be better than reward averaging"
+print("Tests passed!")
+
+# %%

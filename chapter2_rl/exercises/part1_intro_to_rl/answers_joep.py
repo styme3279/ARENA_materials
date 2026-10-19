@@ -652,12 +652,15 @@ title = f"Avg. reward on NorvigGrid-v0 with SARSA(λ) (mean ± se, {n_seeds} see
 utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
 
 # %%
+grid = GridWorld(".......G\n........\n........\n........\n........\n........\n........\nS.......")
+
 gym.envs.registration.register(
     id="LargeGrid-v0",
     entry_point=DiscreteEnviroGym,
     max_episode_steps=200,
     nondeterministic=False,
-    kwargs={"env": GridWorld(".......G\n........\n........\n........\n........\n........\n........\nS.......")},
+    kwargs={"env": grid},
+    # kwargs={"env": GridWorld(".......G.\n.........\n.........\n.........\n.........\n.........\n.........\nS........")},
 )
 
 gamma = 0.99
@@ -713,3 +716,75 @@ fig.update_layout(yaxis=dict(autorange="reversed", tickprefix="-"))
 fig.show()
 
 # %%
+def greedy_return(env: gym.Env, Q: Arr, max_steps: int = 200) -> float:
+    """Roll out the greedy (epsilon=0) policy implied by Q, and return its total reward."""
+    obs, info = env.reset()
+    total_reward = 0.0
+    for _ in range(max_steps):
+        obs, reward, terminated, truncated, info = env.step(int(Q[obs].argmax()))
+        total_reward += reward
+        if terminated or truncated:
+            break
+    return total_reward
+
+
+for agent in agents:
+    ret = greedy_return(gym.make("CliffWalking-v1", is_slippery=False), agent.Q)
+    print(f"{agent.name:10s} greedy-policy return = {ret:.0f}")
+
+# %%
+import plotly.express as px
+
+cliff_map = """
+............
+............
+............
+SCCCCCCCCCC.
+...........G
+"""
+cliff_env = GridWorld(cliff_map, step_reward=-1, cliff_reward=-100, goal_reward=-1)
+cliff_env.show_map(title="Cliff with ground row")
+
+gym.envs.registration.register(
+    id="MyCliff-v0",
+    entry_point=DiscreteEnviroGym,
+    max_episode_steps=500,
+    kwargs={"env": cliff_env},
+)
+
+gamma = 1
+n_runs = 500
+config_cliff = AgentConfig(epsilon=0.1, lr=0.1, optimism=0)
+cliff_specs = [(QLearning, config_cliff, "Q-Learning"), (SARSA, config_cliff, "SARSA")]
+H, W = cliff_env.height, cliff_env.width
+
+agents = []
+returns_list = []
+for AgentCls, config, name in cliff_specs:
+    agent = AgentCls(gym.make("MyCliff-v0"), config, gamma, seed=0)
+    returns = agent.train(n_runs)
+    agents.append(agent)
+    returns_list.append(utils.cummean(returns))
+
+    # policy as arrows on the map (cliffwalk_imshow assumes the cliff is the bottom row, so not used here)
+    pi = agent.Q.argmax(axis=-1)
+    cliff_env.show_map(pi, title=f"{name}: greedy policy")
+
+    # value heatmap
+    V = agent.Q.max(axis=-1).reshape(H, W)
+    px.imshow(V, text_auto=".0f", color_continuous_scale="RdBu", color_continuous_midpoint=0,
+              title=f"{name}: V(s)", width=800, height=400).show()
+
+fig = line(
+    [-r for r in returns_list],
+    names=[name for _, _, name in cliff_specs],
+    template="simple_white",
+    title="Q-Learning vs SARSA on cliff with ground row",
+    labels={"x": "Episode", "y": "Avg. reward", "variable": "Agent"},
+    log_y=False,
+    width=700,
+    height=400,
+    return_fig=True,
+)
+fig.update_layout(yaxis=dict(autorange="reversed", tickprefix="-"))
+fig.show()

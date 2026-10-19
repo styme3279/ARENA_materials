@@ -548,6 +548,14 @@ class QLearning(EpsilonGreedy):
         # print(f"Updating Q[{obs}, {act}] with reward {reward} and next state {new_obs} (best action {action})")
         self.Q[obs, act] += self.config.lr * (reward + self.gamma * self.Q[new_obs, action] - self.Q[obs, act])
 
+class DoubleQLearning(EpsilonGreedy):
+    def observe(self, exp: Experience) -> None:
+        self.Q2 = np.zeros_like(self.Q) if not hasattr(self, "Q2") else self.Q2
+        obs, act, reward, new_obs = exp.obs, exp.act, exp.reward, exp.new_obs # we dont need actual new_act for Q-learning
+        A, B = (self.Q, self.Q2) if self.rng.random() < 0.5 else (self.Q2, self.Q)
+        action = np.argmax(A[new_obs])
+        A[obs, act] += self.config.lr * (reward + self.gamma * B[new_obs, action] - A[obs, act])
+
 
 
 class SARSA(EpsilonGreedy):
@@ -574,12 +582,13 @@ class SARSA(EpsilonGreedy):
 
 
 gamma = 0.99
-n_runs = 100000
-n_seeds = 1
+n_runs = 10000
+n_seeds = 5
 norvig_specs = [
     (Cheater, AgentConfig(), "Cheater"),
-    (QLearning, AgentConfig(lr=0.001), "Q-Learning"),
-    # (SARSA, AgentConfig(), "SARSA"),
+    (QLearning, AgentConfig(), "Q-Learning"),
+    (SARSA, AgentConfig(), "SARSA"),
+    (DoubleQLearning, AgentConfig(), "Double Q-Learning"),
     # (Random, AgentConfig(), "Random"),
 ]
 # average over a few seeds (tabular RL is noisy) and plot mean ± standard error
@@ -751,4 +760,55 @@ curves = utils.seeded_curves([(Cls, cfg, name) for Cls, cfg, name, _ in agent_sp
                              "LargeGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
 title = f"Eligibility traces learn faster on a larger gridworld (8×8, sparse reward; mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, band="se", colors=[color for *_, color in agent_specs])
+# %%
+gamma = .99
+n_runs = 5000
+config_cliff = AgentConfig(epsilon=0.2, optimism=0)
+cliff_specs = [(QLearning, config_cliff, "Q-Learning"), (SARSA, config_cliff, "SARSA")]
+
+# train one agent of each type (kept in `agents` for the greedy-rollout section below), show its
+# learned policy, and collect its cumulative-mean return. The curves are near-identical across seeds
+# here, so a single run is plenty - no need to average.
+agents = []
+returns_list = []
+for AgentCls, config, name in cliff_specs:
+    agent = AgentCls(gym.make("CliffWalking-v1", is_slippery=False), config, gamma, seed=0)
+    returns = agent.train(n_runs)
+    agents.append(agent)
+    returns_list.append(utils.cummean(returns))
+    V = agent.Q.max(axis=-1).reshape(4, 12)
+    pi = agent.Q.argmax(axis=-1).reshape(4, 12)
+    cliffwalk_imshow(V, pi, title=f"CliffWalking: {name} Agent", width=800, height=400)
+
+# rewards are always negative; plot the magnitude on a reversed log y-axis with a "-" tick prefix,
+# so the axis reads as negative reward (closer to 0 = better = higher)
+fig = line(
+    [-r for r in returns_list],
+    names=[name for _, _, name in cliff_specs],
+    template="simple_white",
+    title="Q-Learning vs SARSA on CliffWalking-v1",
+    labels={"x": "Episode", "y": "Avg. reward", "variable": "Agent"},
+    log_y=True,
+    width=700,
+    height=400,
+    return_fig=True,
+)
+fig.update_layout(yaxis=dict(autorange="reversed", tickprefix="-"))
+fig.show()
+# %%
+def greedy_return(env: gym.Env, Q: Arr, max_steps: int = 200) -> float:
+    """Roll out the greedy (epsilon=0) policy implied by Q, and return its total reward."""
+    obs, info = env.reset()
+    total_reward = 0.0
+    for _ in range(max_steps):
+        obs, reward, terminated, truncated, info = env.step(int(Q[obs].argmax()))
+        total_reward += reward
+        if terminated or truncated:
+            break
+    return total_reward
+
+
+for agent in agents:
+    ret = greedy_return(gym.make("CliffWalking-v1", is_slippery=False), agent.Q)
+    print(f"{agent.name:10s} greedy-policy return = {ret:.0f}")
 # %%

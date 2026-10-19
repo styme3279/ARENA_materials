@@ -567,7 +567,6 @@ utils.plot_learning_curves(curves, title=title, band="se")
 class TD_LambdaConfig(AgentConfig):
     lambda_: float = 0.95
 
-
 class SARSA_lambda(SARSA):
     def __init__(
         self,
@@ -576,10 +575,10 @@ class SARSA_lambda(SARSA):
         gamma: float = 0.99,
         seed: int = 0,
     ):
-        raise NotImplementedError()
+        self.elegibility_trace = np.zeros((self.num_states, self.num_actions))
 
     def run_episode(self, seed) -> list[float]:
-        elegibility_trace = np.zeros((self.num_states, self.num_actions))
+        self.elegibility_trace = np.zeros((self.num_states, self.num_actions))
         rewards = []
         obs, info = self.env.reset(seed=seed)
         act = self.get_action(obs)
@@ -597,4 +596,7 @@ class SARSA_lambda(SARSA):
         return rewards
 
     def observe(self, exp: Experience):
-        raise NotImplementedError()
+        state, action, reward, next_state, next_action = exp.obs, exp.act, exp.reward, exp.new_obs, exp.new_act
+        delta = reward + (self.gamma * self.Q[next_state, next_action]) - self.Q[state][action]
+        self.Q[state][action] += self.config.lr * 
+        self.elegibility_trace[state][action] *= self.gamma * self.config.lambda_

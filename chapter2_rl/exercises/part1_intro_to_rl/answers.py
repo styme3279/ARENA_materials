@@ -485,11 +485,19 @@ class EpsilonGreedy(Agent):
         """
         Selects an action using epsilon-greedy with respect to Q-value estimates
         """
-        return self.Q[obs].argmax()
-
+        # with prob 1-eps: self.Q[obs].argmax()
+        # with prob eps: random
+        random = self.rng.random()
+        if random > self.config.epsilon:
+            return self.Q[obs].argmax()
+        else:
+            return self.rng.integers(0, self.num_actions)
 
 class QLearning(EpsilonGreedy):
     def observe(self, exp: Experience) -> None:
+        print("env:", self.env)
+        print("cfg:", self.config)
+        print("exp", exp)
         state = exp.obs
         action = self.get_action(state)
         self.Q[state][action] += self.config.lr * (self.gamma * self.Q)
@@ -497,7 +505,12 @@ class QLearning(EpsilonGreedy):
 
 class SARSA(EpsilonGreedy):
     def observe(self, exp: Experience):
-        
+        state = exp.obs
+        action = exp.act
+        reward = exp.reward
+        next_state = exp.new_obs
+        next_action = self.Q
+        self.Q[state][action] += 
 
     def run_episode(self, seed) -> list[float]:
         rewards = []

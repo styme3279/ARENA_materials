@@ -157,7 +157,10 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
     # Q: [num_states, action]
     T = env.T # [num_states, action, num_states]
     R = env.R # [num_states, action, num_states]
-    Q = einops.einsum()
+    Q = einops.reduce(T * (R + gamma * V), "s action s_new -> s action", "sum")
+    return np.argmax(Q, axis=-1)
 
 
 tests.test_policy_improvement(policy_improvement)
+
+# %%

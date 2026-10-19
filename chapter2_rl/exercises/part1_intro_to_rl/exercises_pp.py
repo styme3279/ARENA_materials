@@ -574,20 +574,88 @@ class SARSA(EpsilonGreedy):
 
 
 gamma = 0.99
-n_runs = 400
+n_runs = 100000
 n_seeds = 1
 norvig_specs = [
     (Cheater, AgentConfig(), "Cheater"),
-    (QLearning, AgentConfig(), "Q-Learning"),
+    (QLearning, AgentConfig(lr=0.001), "Q-Learning"),
     # (SARSA, AgentConfig(), "SARSA"),
     # (Random, AgentConfig(), "Random"),
 ]
 # average over a few seeds (tabular RL is noisy) and plot mean ± standard error
 curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
-print(f"Curves: {curves.keys()}")
+# print(f"Curves: {curves.keys()}")
+# print(f"Curves: {curves['Cheater'].shape}") #[1, 400]
 title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
 # plot the difference between Q-learning and Cheater policy
+curves["Difference"] = curves["Cheater"] - curves["Q-Learning"]
+curves.pop("Cheater")
+curves.pop("Q-Learning")
+
+title = f"Difference between Cheater and Q-Learning (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward difference", band="se")
+# %%
+import numpy as np
+import matplotlib.pyplot as plt
+
+loss = np.asarray(loss).ravel()
+t = np.arange(1, len(loss) + 1)
+
+# smoothed curve (geometric mean over a window) so the trend is visible through the noise
+w = 1000
+smooth = np.exp(np.convolve(np.log(loss), np.ones(w) / w, mode="valid"))
+t_s = t[w - 1:]
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+ax1.plot(t, loss, alpha=0.2, lw=0.5)
+ax1.plot(t_s, smooth)
+ax1.set_yscale("log")
+ax1.set_title("log-y: straight → exponential")
+
+ax2.plot(t, loss, alpha=0.2, lw=0.5)
+ax2.plot(t_s, smooth)
+ax2.set_xscale("log")
+ax2.set_yscale("log")
+ax2.set_title("log-log: straight → power law")
+
+for ax in (ax1, ax2):
+    ax.set_xlabel("step")
+    ax.set_ylabel("loss")
+    ax.grid(True, which="both", alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+# %%
+loss = np.asarray(curves["Difference"]).ravel()          # [1, 100000] -> (100000,)
+t = np.arange(1, len(loss) + 1)
+
+w = 1000                                 # smoothing window
+log_s = np.convolve(np.log(loss), np.ones(w) / w, mode="valid")
+t_s = t[w - 1:]
+
+x, y = t_s[len(t_s) // 2:], log_s[len(log_s) // 2:]   # second half only
+target = np.log(1e-6)
+
+b, a = np.polyfit(x, y, 1)                           # exponential: log L = a + b t
+print("exponential:", (target - a) / b)
+
+b2, a2 = np.polyfit(np.log(x), y, 1)                 # power law: log L = a + b log t
+print("power law:  ", np.exp((target - a2) / b2))
+# %%
+from scipy.optimize import curve_fit
+
+def log_model(t, log_c, log_A, alpha):
+    return np.log(np.exp(log_c) + np.exp(log_A) * t ** -alpha)
+
+(log_c, log_A, alpha), _ = curve_fit(
+    log_model, x, y, p0=[y[-1] - 2, a2, -b2], maxfev=20_000
+)
+c, A = np.exp(log_c), np.exp(log_A)
+print("floor:", c)
+if c < 1e-6:
+    print("t:", ((1e-6 - c) / A) ** (-1 / alpha))
 
 # %%
 for lr in [0.01, 0.05, 0.1, 0.2, 0.5]:
@@ -598,3 +666,19 @@ for lr in [0.01, 0.05, 0.1, 0.2, 0.5]:
     curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
     title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
     utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+# %%
+explore_grid = GridWorld("....T\n"
+                        "...G.\n"
+                        ".....\n"
+                        ".....\n"
+                        "S....")
+explore_grid.show_map(show=True, title="Deterministic Exploration World")
+
+gym.envs.registration.register(
+    id="ExplorationGrid-v0",
+    entry_point=DiscreteEnviroGym,
+    max_episode_steps=100,
+    nondeterministic=False,
+    kwargs={"env": explore_grid},
+)
+# %%

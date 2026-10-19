@@ -168,3 +168,16 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
 tests.test_policy_eval(policy_eval_numerical, exact=False)
 
 # %%
+def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
+    """
+    Finds the exact solution to the Bellman equation.
+    """
+    num_states = env.num_states
+
+    P = env.T[range(num_states), pi, :]
+    R = env.R[range(num_states), pi, :]
+    r = np.sum(P * R, axis=-1)
+    A = gamma * P
+    np.linalg.solve(A,b)
+
+tests.test_policy_eval(policy_eval_exact, exact=True)

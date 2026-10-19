@@ -459,10 +459,10 @@ class Random(Agent):
 class Cheater(Agent):
     def __init__(self, env: DiscreteEnviroGym, config: AgentConfig = defaultConfig, gamma=0.99, seed=0):
         super().__init__(env, config, gamma, seed)
-        find_optimal_policy(env, gamma)
+        self.pi = find_optimal_policy(env.unwrapped.env, gamma)
 
     def get_action(self, obs):
-        
+        return self.pi[obs]
 
 
 env_toy = gym.make("ToyGym-v0")
@@ -481,3 +481,4 @@ line(
     width=700,
     height=400,
 )
+# %%

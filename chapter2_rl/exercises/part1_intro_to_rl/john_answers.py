@@ -258,7 +258,17 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     """
     num_states = env.num_states
 
-    T = 
+    value = np.zeros((num_states,))
+    transition_matrix = env.T[range(num_states), pi, :]     # shape [s, s_next]
+    reward_matrix = env.R[range(num_states), pi, :]         # shape [s, s_next]
 
+    for i in range(max_iterations):
+        new_value = einops.reduce(transition_matrix * (reward_matrix + gamma * value), "s s_next -> s", "sum")
+        delta = np.abs(new_value - value).max()
+        if delta < eps:
+            break
+        value = np.copy(new_value)
+
+    
 tests.test_policy_eval(policy_eval_numerical, exact=False)
 # %%

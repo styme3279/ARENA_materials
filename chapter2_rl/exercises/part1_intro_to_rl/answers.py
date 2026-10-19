@@ -1,5 +1,49 @@
 # %%
 import os
+import sys
+from pathlib import Path
+
+IN_COLAB = "google.colab" in sys.modules
+
+chapter = "chapter2_rl"
+repo = "ARENA_materials"
+branch = "main"
+
+# Install dependencies
+try:
+    import jaxtyping
+except:
+    %pip install "wandb>=0.18" einops "gymnasium[atari,other]>=1.2,<2" "ale-py>=0.10" pygame jaxtyping
+
+# Get root directory, handling 3 different cases: (1) Colab, (2) notebook not in ARENA repo, (3) notebook in ARENA repo
+root = (
+    "/content"
+    if IN_COLAB
+    else "/root"
+    if repo not in os.getcwd()
+    else str(next(p for p in Path.cwd().parents if p.name == repo))
+)
+
+if Path(root).exists() and not Path(f"{root}/{chapter}").exists():
+    if not IN_COLAB:
+        !sudo apt-get install unzip
+        %pip install jupyter ipython --upgrade
+
+    if not os.path.exists(f"{root}/{chapter}"):
+        !wget -P {root} https://github.com/ARENA-education/ARENA_materials/archive/refs/heads/{branch}.zip
+        !unzip {root}/{branch}.zip '{repo}-{branch}/{chapter}/exercises/*' -d {root}
+        !mv {root}/{repo}-{branch}/{chapter} {root}/{chapter}
+        !rm {root}/{branch}.zip
+        !rmdir {root}/{repo}-{branch}
+
+
+if f"{root}/{chapter}/exercises" not in sys.path:
+    sys.path.append(f"{root}/{chapter}/exercises")
+
+os.chdir(f"{root}/{chapter}/exercises")
+
+# %%
+import os
 import random
 import sys
 from dataclasses import dataclass
@@ -24,8 +68,6 @@ section = "part1_intro_to_rl"
 root_dir = next(p for p in Path.cwd().parents if (p / chapter).exists())
 exercises_dir = root_dir / chapter / "exercises"
 section_dir = exercises_dir / section
-if str(exercises_dir) not in sys.path:
-    sys.path.append(str(exercises_dir))
 
 import part1_intro_to_rl.tests as tests
 import part1_intro_to_rl.utils as utils
@@ -61,61 +103,6 @@ class Toy(Environment):
 
     def __init__(self):
         super().__init__(num_states=3, num_actions=2)
-
-# %%
-class GridWorld(Environment):
-    def __init__(self, grid_map: str, step_reward=0.0, goal_reward=1.0, trap_reward=-1.0,
-                 cliff_reward=-100.0, slipperiness=0.0):
-        """
-        Build a gridworld from an ASCII map, e.g.
-
-            GridWorld(
-                "S..\n"
-                ".#.\n"
-                "..G"
-            )
-
-        Map characters: 'S' start, 'G' goal (+goal_reward, terminal), 'T' trap (+trap_reward,
-        terminal), 'C' cliff (+cliff_reward, teleports back to the start, NOT terminal), '#' wall
-        (impassable - moving into it leaves you in place), '.' empty floor.
-
-        Args:
-            step_reward:   reward for every non-terminal transition (0 -> sparse; < 0 -> step penalty)
-            goal_reward:   reward for entering a 'G' cell
-            trap_reward:   reward for entering a 'T' cell
-            cliff_reward:  reward for stepping into a 'C' cell (you're also sent back to the start)
-            slipperiness:  if > 0, the chosen action succeeds w.p. (1 - slipperiness); otherwise a
-                           random other direction is taken (0.3 mimics Norvig; 0 is deterministic)
-        """
-
-    def render(self, pi: Arr):
-        """Print the gridworld as rows of emoji tiles (terrain, or policy `pi`'s arrows on the floor)."""
-
-    def show_map(self, pi: Arr | None = None, title: str = "Gridworld map", show: bool = True):
-        """Plot the gridworld as a grid of emoji tiles: 🏁 start, 🟩 goal, 🟥 trap, ⬛ wall, 🟫 cliff,
-        ⬜ floor. If a policy `pi` is passed, floor tiles instead show its action arrow (⬆️➡️⬇️⬅️)."""
-
-# %%
-class Norvig(GridWorld):
-    """The 3x4 Russell & Norvig gridworld, expressed as a `GridWorld` map: a +1 goal in the top-right
-    with a -1 trap directly below it, a wall in the middle, a small step penalty everywhere else, and
-    `slipperiness=0.3` (the chosen action succeeds 70% of the time)."""
-
-    def __init__(self, penalty=-0.04):
-        super().__init__(
-            """
-            ...G
-            .#.T
-            S...
-            """,
-            step_reward=penalty,
-            goal_reward=1.0,
-            trap_reward=-1.0,
-            slipperiness=0.3,
-        )
-
-
-norvig = Norvig()
 
 # %%
 toy = Toy()
@@ -154,6 +141,33 @@ imshow(
     width=850,
     height=350,
 )
+
+# %%
+class Norvig(GridWorld):
+    """The 3x4 Russell & Norvig gridworld, expressed as a `GridWorld` map: a +1 goal in the top-right
+    with a -1 trap directly below it, a wall in the middle, a small step penalty everywhere else, and
+    `slipperiness=0.3` (the chosen action succeeds 70% of the time)."""
+
+    def __init__(self, penalty=-0.04):
+        super().__init__(
+            """
+            ...G
+            .#.T
+            S...
+            """,
+            step_reward=penalty,
+            goal_reward=1.0,
+            trap_reward=-1.0,
+            slipperiness=0.3,
+        )
+
+
+norvig = Norvig()
+tests.test_norvig_gridworld_equivalence(Norvig)
+
+# `render` prints the grid; `show_map` plots it. Here we show a random policy:
+pi_random = np.random.randint(0, norvig.num_actions, (norvig.num_states,))
+norvig.show_map(pi_random, title="Norvig gridworld: random policy")
 
 # %%
 def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_iterations=10_000) -> Arr:

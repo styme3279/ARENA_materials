@@ -211,16 +211,15 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
     Finds the exact solution to the Bellman equation.
     """
     num_states = env.num_states
+
     transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]
     reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
 
-    identity =t.eye(num_states)
-
     r = einops.einsum(transition_matrix, reward_matrix, "s s_next, s s_next -> s")
 
-    V = t.linalg.inv(identity - gamma*transition_matrix) @ r
+    mat = np.eye(num_states) - gamma * transition_matrix
 
-    return V
+    return np.linalg.solve(mat, r)
 
 
 tests.test_policy_eval(policy_eval_exact, exact=True)
@@ -239,8 +238,7 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
 
     q_values = einops.einsum(env.T, env.R + gamma * V, 's a s_next, s a s_next -> s a')
     pi_better = q_values.argmax(axis=1)
-    print('V - ', V)
-    print(pi_better)
+
     return pi_better
 
 tests.test_policy_improvement(policy_improvement)
@@ -256,7 +254,15 @@ def find_optimal_policy(env: Environment, gamma=0.99, max_iterations=10_000):
     """
     pi = np.zeros(shape=env.num_states, dtype=int)
 
-    raise NotImplementedError()
+    for i in range(max_iterations):
+        V = policy_eval_exact(env, pi, gamma)
+        pi_better = policy_improvement(env,V,gamma)
+
+        if np.array_equal(pi_better, pi):
+            return pi_better
+        else:
+            pi = pi_better
+    return pi
 
 
 tests.test_find_optimal_policy(find_optimal_policy)
@@ -265,3 +271,5 @@ penalty = -0.04
 norvig = Norvig(penalty)
 pi_opt = find_optimal_policy(norvig, gamma=0.99)
 norvig.show_map(pi_opt, title="Optimal Policy, penalty = -0.04")
+
+# %%

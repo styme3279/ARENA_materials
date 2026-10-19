@@ -131,15 +131,12 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
         env.T -> for all (s, a, s')
 
 
-        
+
     """
-    cur_reward_func = np.zeros_like(pi)
-    pi
-    for _ in range(max_iterations):
-        for s, a in enumerate(pi):
-            T_s = env.T[s, a]
-            R_s = env.R[s, a]
-            pi_i[s] = np.sum(T_s * (R_s + gamma * pi_i))            
+
+    pi_i, pi_i_1 = pi, np.zeros_like()
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
+
+# %%

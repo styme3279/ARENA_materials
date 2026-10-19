@@ -521,6 +521,7 @@ class EpsilonGreedy(Agent):
         # Q-learning & SARSA bootstrap from them, so they mustn't keep the optimistic initial value.
         if hasattr(env.unwrapped, "env"):  # our `DiscreteEnviroGym` envs expose their terminal states
             self.Q[env.unwrapped.env.terminal] = 0
+        # print(f"self.config.epsilon: {self.config.epsilon}")
 
     def get_action(self, obs: ObsType) -> ActType:
         """
@@ -536,8 +537,7 @@ class EpsilonGreedy(Agent):
 
 class QLearning(EpsilonGreedy):
     def observe(self, exp: Experience) -> None:
-        max_Q = np.argmax(self.Q[exp.new_obs], axis=0)
-
+        max_Q = self.Q[exp.new_obs].max()
         self.Q[exp.obs, exp.act] += self.config.lr * (exp.reward + self.gamma * max_Q - self.Q[exp.obs, exp.act] )
     
 
@@ -573,9 +573,9 @@ n_runs = 400
 n_seeds = 5
 norvig_specs = [
     (Cheater, AgentConfig(), "Cheater"),
-    # (QLearning, AgentConfig(), "Q-Learning"),
+    (QLearning, AgentConfig(), "Q-Learning"),
     (SARSA, AgentConfig(), "SARSA"),
-    (Random, AgentConfig(), "Random"),
+    # (Random, AgentConfig(), "Random"),
 ]
 # average over a few seeds (tabular RL is noisy) and plot mean ± standard error
 curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)

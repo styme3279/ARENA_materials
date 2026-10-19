@@ -460,6 +460,7 @@ class EpsilonGreedy(Agent):
         seed: int = 0,
     ):
         super().__init__(env, config, gamma, seed)
+        self.config = config
         self.Q = np.zeros((self.num_states, self.num_actions)) + self.config.optimism
         # Terminal states have value 0. We never act from them so their Q-values are never updated, but
         # Q-learning & SARSA bootstrap from them, so they mustn't keep the optimistic initial value.
@@ -472,11 +473,9 @@ class EpsilonGreedy(Agent):
         """
         roll = self.rng.random()
         if roll < self.config.eps:
-            # explore
-            return self.rng.integers(0, n)
+            return self.rng.integers(0, self.num_actions)
         else:
-            # exploit
-            pass
+            return self.Q[obs,:].argmax(axis=-1)
 
 
 class QLearning(EpsilonGreedy):

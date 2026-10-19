@@ -473,19 +473,23 @@ class EpsilonGreedy(Agent):
         Selects an action using epsilon-greedy with respect to Q-value estimates
         """
         if self.rng.random() < self.config.epsilon:
-            return self.rng.integers(len(Q[obs]))
+            return self.rng.integers(len(self.Q[obs]))
         return np.argmax(self.Q[obs])
         # print(self.Q[obs])
 
 
 class QLearning(EpsilonGreedy):
     def observe(self, exp: Experience) -> None:
-        raise NotImplementedError()
+        update = exp.reward + self.gamma * self.Q[exp.new_obs, np.argmax(self.Q[exp.new_obs])] - self.Q[exp.obs, exp.act]
+        update *= self.config.lr
+        self.Q[exp.obs, exp.act] += update
 
 
 class SARSA(EpsilonGreedy):
     def observe(self, exp: Experience):
-        raise NotImplementedError()
+        update = exp.reward + self.gamma * self.Q[exp.new_obs, exp.new_act] - self.Q[exp.obs, exp.act]
+        update *= self.config.lr
+        self.Q[exp.obs, exp.act] += update
 
     def run_episode(self, seed) -> list[float]:
         rewards = []

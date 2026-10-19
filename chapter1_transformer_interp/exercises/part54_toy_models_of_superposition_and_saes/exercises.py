@@ -259,3 +259,52 @@ utils.plot_features_in_2d(
 )
 
 # %%
+with t.inference_mode():
+    batch = model.generate_batch(200)
+    hidden = einops.einsum(
+        batch,
+        model.W,
+        "batch instances features, instances hidden features -> instances hidden batch",
+    )
+
+utils.plot_features_in_2d(hidden, title="Hidden state representation of a random batch of data")
+
+# %%
+cfg = ToyModelConfig(n_inst=10, n_features=100, d_hidden=20)
+
+importance = 100 ** -t.linspace(0, 1, cfg.n_features)
+feature_probability = 20 ** -t.linspace(0, 1, cfg.n_inst)
+
+line(
+    importance,
+    width=600,
+    height=400,
+    title="Feature importance (same over all instances)",
+    labels={"y": "Importance", "x": "Feature"},
+)
+line(
+    feature_probability,
+    width=600,
+    height=400,
+    title="Feature probability (varied over instances)",
+    labels={"y": "Probability", "x": "Instance"},
+)
+
+model = ToyModel(
+    cfg=cfg,
+    device=device,
+    importance=importance[None, :],
+    feature_probability=feature_probability[:, None],
+)
+model.optimize(steps=10_000)
+
+# %%
+utils.plot_features_in_Nd(
+    model.W,
+    height=800,
+    width=1600,
+    title="ReLU output model: n_features = 100, d_hidden = 20, I<sub>i</sub> = 0.9<sup>i</sup>",
+    subplot_titles=[f"Feature prob = {i:.3f}" for i in feature_probability],
+)
+
+# %%

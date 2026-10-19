@@ -564,10 +564,54 @@ class SARSA_lambda(SARSA):
         seed: int = 0,
     ):
          super().__init__(env, config, gamma, seed)
-         
+         self.eligibity_trace = np.zeros((self.num_states, self.num_actions))
 
     def run_episode(self, seed) -> list[float]:
-        raise NotImplementedError()
+        self.eligibity_trace = np.zeros((self.num_states, self.num_actions))
+        return super().run_episode(seed)
 
     def observe(self, exp: Experience):
-        raise NotImplementedError()
+        delta = exp.reward + self.gamma * self.Q[exp.new_obs, exp.new_act] - self.Q[exp.obs, exp.act]
+        self.eligibity_trace[exp.obs, exp.act] += 1
+        states, actions = range(0, exp.new_obs), range(0, exp.new_act)
+        self.Q += self.config.lr * delta * self.eligibity_trace
+        self.eligibity_trace *= gamma * self.config.lambda_
+# %%
+gamma = 0.99
+n_runs = 400
+n_seeds = 5
+norvig_lambda_specs = [
+    (Cheater, AgentConfig(), "Cheater"),
+    (QLearning, AgentConfig(), "Q-Learning"),
+    (SARSA, AgentConfig(), "SARSA"),
+    (SARSA_lambda, TD_LambdaConfig(), "SARSA(λ)"),
+    (Random, AgentConfig(), "Random"),
+]
+# average over a few seeds (tabular RL is noisy) and plot mean ± standard error
+curves = utils.seeded_curves(norvig_lambda_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Avg. reward on NorvigGrid-v0 with SARSA(λ) (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+# %%
+gym.envs.registration.register(
+    id="LargeGrid-v0",
+    entry_point=DiscreteEnviroGym,
+    max_episode_steps=200,
+    nondeterministic=False,
+    kwargs={"env": GridWorld(".......G\n........\n........\n........\n........\n........\n........\nS.......")},
+)
+
+gamma = 0.99
+n_runs = 150
+n_seeds = 5
+agent_specs = [
+    (SARSA, AgentConfig(epsilon=0.2, lr=0.2), "SARSA (1-step)", (99, 110, 250)),
+    (SARSA_lambda, TD_LambdaConfig(epsilon=0.2, lr=0.2, lambda_=0.8), r"SARSA($\lambda$=0.8)", (239, 85, 59)),
+]
+
+
+# average over several seeds (tabular RL is noisy) and plot mean ± se, reusing each spec's colour
+curves = utils.seeded_curves([(Cls, cfg, name) for Cls, cfg, name, _ in agent_specs],
+                             "LargeGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Eligibility traces learn faster on a larger gridworld (8×8, sparse reward; mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, band="se", colors=[color for *_, color in agent_specs])
+# %%

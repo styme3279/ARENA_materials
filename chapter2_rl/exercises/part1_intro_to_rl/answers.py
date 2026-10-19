@@ -146,20 +146,21 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     print(env.T.shape) # (num_states, num_actions, num_states_new) [s, a, s']
     print(env.R.shape) # (num_states, num_actions, num_states_new) [s, a, s']
 
+    iteration = 0
     def iterate(V, V_new):
         reached_max_iter = iteration == max_iterations
-        converged = t.sum(V_new - V) < eps
+        converged = np.sum(V_new - V) < eps
         return not reached_max_iter and not converged
 
-    V = t.zeros_like(pi)
-    V_new = t.ones_like(pi)
+    V = np.zeros_like(pi)
+    V_new = np.ones_like(pi)
+    transition_matrix = env.T[range(num_states), pi, :]
+    reward_matrix = env.R[range(num_states), pi, :]
 
     # iterate Bellman equation
     while (iterate(V, V_new)):
-        V = V_new
-        for dest_state in range(num_states):
-            pass
-        V_new = env.T[:,:,dest_state] * (env.R[:,:,dest_state] + gamma * V[dest_state])
+
+        V_new = transition_matrix * (reward_matrix + gamma * V)
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)

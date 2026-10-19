@@ -1004,7 +1004,7 @@ class RewardAveraging(Agent):
         # self.Q = np.full(self.num_arms, self.optimism, dtype=float)
 
     def get_action(self):
-        if self.epsilon > random.random():
+        if self.rng.random() < self.epsilon:
             return self.rng.integers(low=0,high=self.num_arms).item()
         else:
             return np.argmax(self.Q)
@@ -1047,22 +1047,23 @@ class CheatyMcCheater(Agent):
         self.best_arm = 0
 
     def get_action(self):
-        raise NotImplementedError("Implement the get_action method for the CheatyMcCheater class.")
+        return self.best_arm
 
     def observe(self, action: int, reward: float, info: dict):
-        print(info)
+        self.best_arm = info['best_arm']
+
     def __repr__(self):
         return "Cheater"
 
 
 cheater = CheatyMcCheater(num_arms, 0)
 reward_averaging = RewardAveraging(num_arms, 0, epsilon=0.1, optimism=0)
-random = RandomAgent(num_arms, 0)
+randomy = RandomAgent(num_arms, 0)
 
 names = []
 all_rewards = []
 
-for agent in [cheater, reward_averaging, random]:
+for agent in [cheater, reward_averaging, randomy]:
     (rewards, num_correct) = run_agent(env, agent, n_runs=N_RUNS, base_seed=1)
     names.append(str(agent))
     all_rewards.append(rewards)

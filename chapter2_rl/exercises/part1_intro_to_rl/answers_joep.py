@@ -536,13 +536,19 @@ class EpsilonGreedy(Agent):
 
 class QLearning(EpsilonGreedy):
     def observe(self, exp: Experience) -> None:
-        print(f"exp: {exp}")
-        raise NotImplementedError()
+        max_Q = np.argmax(self.Q[exp.new_obs], axis=0)
+
+        self.Q[exp.obs, exp.act] += self.config.lr * (exp.reward + self.gamma * max_Q - self.Q[exp.obs, exp.act] )
+    
 
 
 class SARSA(EpsilonGreedy):
     def observe(self, exp: Experience):
-        raise NotImplementedError()
+        # print(f"sarsa")
+        # print(f"exp: {exp}")
+        # print(f"self.config: {self.config}")
+
+        self.Q[exp.obs, exp.act] += self.config.lr * (exp.reward + self.gamma * self.Q[exp.new_obs, exp.new_act] - self.Q[exp.obs, exp.act] )
 
     def run_episode(self, seed) -> list[float]:
         rewards = []
@@ -567,7 +573,7 @@ n_runs = 400
 n_seeds = 5
 norvig_specs = [
     (Cheater, AgentConfig(), "Cheater"),
-    (QLearning, AgentConfig(), "Q-Learning"),
+    # (QLearning, AgentConfig(), "Q-Learning"),
     (SARSA, AgentConfig(), "SARSA"),
     (Random, AgentConfig(), "Random"),
 ]

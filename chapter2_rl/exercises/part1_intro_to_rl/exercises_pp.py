@@ -542,15 +542,17 @@ class EpsilonGreedy(Agent):
 
 
 class QLearning(EpsilonGreedy):
-    def observe(self, exp: Experience, lr=0.1) -> None:
-        obs, act, reward, new_obs, new_act = exp
-        self.
+    def observe(self, exp: Experience) -> None:
+        obs, act, reward, new_obs = exp.obs, exp.act, exp.reward, exp.new_obs # we dont need actual new_act for Q-learning
+        action = self.get_action(new_obs)
+        self.Q[obs, act] += self.config.lr * (reward + self.gamma * self.Q[new_obs, action] - self.Q[obs, act])
 
 
 
 class SARSA(EpsilonGreedy):
     def observe(self, exp: Experience):
-        raise NotImplementedError()
+        obs, act, reward, new_obs, new_act = exp.obs, exp.act, exp.reward, exp.new_obs, exp.new_act
+        self.Q[obs, act] += self.config.lr * (reward + self.gamma * self.Q[new_obs, new_act] - self.Q[obs, act])
 
     def run_episode(self, seed) -> list[float]:
         rewards = []
@@ -571,7 +573,7 @@ class SARSA(EpsilonGreedy):
 
 
 gamma = 0.99
-n_runs = 400
+n_runs = 4000
 n_seeds = 5
 norvig_specs = [
     (Cheater, AgentConfig(), "Cheater"),
@@ -583,3 +585,12 @@ norvig_specs = [
 curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
 title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+# %%
+for lr in [0.01, 0.05, 0.1, 0.2, 0.5]:
+    norvig_specs = [
+        (QLearning, AgentConfig(lr=lr), f"Q-Learning (lr={lr})"),
+        (SARSA, AgentConfig(lr=lr), f"SARSA (lr={lr})"),
+    ]
+    curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+    title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
+    utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")

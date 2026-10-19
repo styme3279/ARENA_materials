@@ -171,3 +171,39 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
 
 tests.test_policy_eval(policy_eval_exact, exact=True)
 # %%
+def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
+    """
+    Args:
+        env: Environment
+        V  : (num_states,) value of each state following some policy pi
+    Outputs:
+        pi_better : vector (num_states,) of actions representing a new policy obtained via policy
+                    iteration
+    """
+    num_states = env.num_states
+
+    q_values_pairwise = einops.einsum(env.T, (env.R + gamma * V), "s a s_next, s a s_next -> s a")
+    return q_values_pairwise.argmax(axis=1)
+
+tests.test_policy_improvement(policy_improvement)
+# %%
+def find_optimal_policy(env: Environment, gamma=0.99, max_iterations=10_000):
+    """
+    Args:
+        env: environment
+    Outputs:
+        pi : (num_states,) int, of actions representing an optimal policy
+    """
+    pi = np.zeros(shape=env.num_states, dtype=int)
+    V = policy_eval_exact(env, pi, gamma=gamma)
+    pi_better = policy_improvement(env, V, gamma)
+    return pi_better
+    # raise NotImplementedError()
+
+
+tests.test_find_optimal_policy(find_optimal_policy)
+
+penalty = -0.04
+norvig = Norvig(penalty)
+pi_opt = find_optimal_policy(norvig, gamma=0.99)
+norvig.show_map(pi_opt, title="Optimal Policy, penalty = -0.04")

@@ -211,7 +211,7 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
     Finds the exact solution to the Bellman equation.
     """
     num_states = env.num_states
-    print(pi)
+    print(pi.shape, pi)
     transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]
     reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
 

@@ -890,3 +890,149 @@ class MultiArmedBandit(gym.Env):
         plt.show()
 
 # %%
+gym.envs.registration.register(
+    id="ArmedBanditTestbed-v0",
+    entry_point=MultiArmedBandit,
+    max_episode_steps=max_episode_steps,
+    nondeterministic=True,
+    reward_threshold=1.0,
+    kwargs={"num_arms": 10, "stationary": True},
+)
+
+env = gym.make("ArmedBanditTestbed-v0")
+print(f"Our env inside its wrappers looks like: {env}")
+
+# %%
+class Agent:
+    """
+    Base class for agents in a multi-armed bandit environment
+
+    (you do not need to add any implementation here)
+    """
+
+    rng: np.random.Generator
+
+    def __init__(self, num_arms: int, seed: int):
+        self.num_arms = num_arms
+        self.reset(seed)
+
+    def get_action(self) -> ActType:
+        raise NotImplementedError()
+
+    def observe(self, action: ActType, reward: float, info: dict) -> None:
+        pass
+
+    def reset(self, seed: int) -> None:
+        self.rng = np.random.default_rng(seed)
+
+
+def run_episode(env: gym.Env, agent: Agent, seed: int) -> tuple[Arr, Arr]:
+    """
+    Runs a single episode of interaction between an agent and an environment.
+
+    Args:
+        env (gym.Env): The environment in which the agent operates.
+        agent (Agent): The agent that takes actions in the environment.
+        seed (int): The seed for random number generation to ensure reproducibility.
+
+    Returns:
+        A tuple containing arrays of rewards received in each step and a flag indicating if the
+        chosen arm was best.
+    """
+    (rewards, was_best) = ([], [])
+
+    env.reset(seed=seed)
+    agent.reset(seed=seed)
+
+    done = False
+    while not done:
+        arm = agent.get_action()
+        obs, reward, terminated, truncated, info = env.step(arm)
+        done = terminated or truncated
+        agent.observe(arm, reward, info)
+        rewards.append(reward)
+        was_best.append(1 if arm == info["best_arm"] else 0)
+
+    rewards = np.array(rewards, dtype=float)
+    was_best = np.array(was_best, dtype=int)
+    return (rewards, was_best)
+
+
+def run_agent(env: gym.Env, agent: Agent, n_runs=200, base_seed=1) -> tuple[Arr, Arr]:
+    all_rewards = []
+    all_was_bests = []
+    base_rng = np.random.default_rng(base_seed)
+    for n in tqdm(range(n_runs)):
+        seed = base_rng.integers(low=0, high=10_000, size=1).item()
+        (rewards, corrects) = run_episode(env, agent, seed)
+        all_rewards.append(rewards)
+        all_was_bests.append(corrects)
+    return np.array(all_rewards), np.array(all_was_bests)
+
+# %%
+class RandomAgent(Agent):
+    def get_action(self) -> ActType:
+        return self.rng.integers(low=0,high=self.num_arms)
+
+    def __repr__(self):
+        return "RandomAgent"
+
+
+num_arms = 10
+stationary = True
+env = gym.make("ArmedBanditTestbed-v0", num_arms=num_arms, stationary=stationary)
+agent = RandomAgent(num_arms, 0)
+all_rewards, all_corrects = run_agent(env, agent)
+
+print(f"Expected correct freq: {1 / 10}, actual: {all_corrects.mean():.6f}")
+assert np.isclose(all_corrects.mean(), 1 / 10, atol=0.05), "Random agent is not random enough!"
+
+print(f"Expected average reward: 0.0, actual: {all_rewards.mean():.6f}")
+assert np.isclose(all_rewards.mean(), 0, atol=0.05), (
+    "Random agent should be getting mean arm reward, which is zero."
+)
+
+print("All tests passed!")
+
+# %%
+class RewardAveraging(Agent):
+    def __init__(self, num_arms: int, seed: int, epsilon: float, optimism: float):
+        self.epsilon = epsilon
+        self.optimism = optimism
+        super().__init__(num_arms, seed)
+        self.N = np.zeros(num_arms)
+        self.Q = np.zeros(num_arms)
+
+    def get_action(self):
+        if self.epsilon < random.random():
+            return self.rng.rand
+        else:
+            return np.argmax(self.Q)
+
+    def observe(self, action, reward, info):
+        raise NotImplementedError("Implement the observe method for the RewardAveraging class.")
+
+    def reset(self, seed: int):
+        raise NotImplementedError("Implement the reset method for the RewardAveraging class.")
+
+    def __repr__(self):
+        # For the legend, when plotting
+        return f"RewardAveraging(eps={self.epsilon}, optimism={self.optimism})"
+
+
+num_arms = 10
+stationary = True
+names = []
+all_rewards = []
+env = gym.make("ArmedBanditTestbed-v0", num_arms=num_arms, stationary=stationary)
+
+for optimism in [0, 5]:
+    agent = RewardAveraging(num_arms, 0, epsilon=0.01, optimism=optimism)
+    (rewards, num_correct) = run_agent(env, agent, n_runs=N_RUNS, base_seed=1)
+    all_rewards.append(rewards)
+    names.append(str(agent))
+    print(agent)
+    print(f" -> Frequency of correct arm: {num_correct.mean():.4f}")
+    print(f" -> Average reward: {rewards.mean():.4f}")
+
+utils.plot_rewards(all_rewards, names, moving_avg_window=15)

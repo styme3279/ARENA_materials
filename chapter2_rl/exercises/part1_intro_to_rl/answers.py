@@ -138,8 +138,26 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
     num_states = env.num_states
     transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]
     reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
-    rewards = einops.reduce(transition_matrix * reward_matrix, "s s_next -> s", "sum")
-    
-
+    rewards = einops.einsum(transition_matrix, reward_matrix, "s s_next, s s_next -> s")
+    mat = (np.identity(num_states) - gamma * transition_matrix)
+    return np.linalg.solve(mat, rewards)
 
 tests.test_policy_eval(policy_eval_exact, exact=True)
+
+# %%
+def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
+    """
+    Args:
+        env: Environment
+        V  : (num_states,) value of each state following some policy pi
+    Outputs:
+        pi_better : vector (num_states,) of actions representing a new policy obtained via policy
+                    iteration
+    """
+    # Q: [num_states, action]
+    T = env.T # [num_states, action, num_states]
+    R = env.R # [num_states, action, num_states]
+    Q = einops.einsum()
+
+
+tests.test_policy_improvement(policy_improvement)

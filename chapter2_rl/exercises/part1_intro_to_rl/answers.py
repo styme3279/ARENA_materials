@@ -115,10 +115,20 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     """
     num_states = env.num_states
     # env.T and env.R are [12, 4, 12] = [num_states, num_actions, num_states]
-    # for each state, for each action, transition probabilities 
+    # env.T: for each state, for each action, transition distribution among s'
+    # env.R: for each state, for each action, the reward of each possible next state
+    print("pi:", pi)
     print(env.T[0][0])
     print(env.R[0][0])
-
+    num_iterations = 0
+    max_change = 2*eps
+    while num_iterations <= max_iterations and max_change >= eps:
+        for state in range(num_states):
+            action = pi[state]
+            transition_probs = env.T[state][action]
+            rewards = env.R[state][action]
+            
+        num_iterations += 1
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
 

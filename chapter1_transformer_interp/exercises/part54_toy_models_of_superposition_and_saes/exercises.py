@@ -308,3 +308,102 @@ utils.plot_features_in_Nd(
 )
 
 # %%
+def generate_correlated_features(
+    self: ToyModel, batch_size: int, n_correlated_pairs: int
+) -> Float[Tensor, "batch inst 2*n_correlated_pairs"]:
+    """
+    Generates a batch of correlated features. For each pair `batch[i, j, [2k, 2k+1]]`, one of
+    them is non-zero if and only if the other is non-zero.
+    """
+    assert t.all((self.feature_probability == self.feature_probability[:, [0]]))
+    p = self.feature_probability[:, [0]]  # shape (n_inst, 1)
+
+    feat_mag = t.rand((batch_size, self.cfg.n_inst, 2 * n_correlated_pairs), device=self.W.device)
+    feat_set_seeds = t.rand((batch_size, self.cfg.n_inst, n_correlated_pairs), device=self.W.device)
+    feat_set_is_present = feat_set_seeds <= p
+    feat_is_present = einops.repeat(
+        feat_set_is_present,
+        "batch instances features -> batch instances (features pair)",
+        pair=2,
+    )
+    return t.where(feat_is_present, feat_mag, 0.0)
+
+
+def generate_anticorrelated_features(
+    self: ToyModel, batch_size: int, n_anticorrelated_pairs: int
+) -> Float[Tensor, "batch inst 2*n_anticorrelated_pairs"]:
+    """
+    Generates a batch of anti-correlated features. For each pair `batch[i, j, [2k, 2k+1]]`, each
+    of them can only be non-zero if the other one is zero.
+    """
+    assert t.all((self.feature_probability == self.feature_probability[:, [0]]))
+    p = self.feature_probability[:, [0]]  # shape (n_inst, 1)
+
+    assert p.max().item() <= 0.5, "For anticorrelated features, must have 2p < 1"
+
+    feat_mag = t.rand((batch_size, self.cfg.n_inst, 2 * n_anticorrelated_pairs), device=self.W.device)
+    seed = t.rand((batch_size, self.cfg.n_inst, n_anticorrelated_pairs), device=self.W.device)
+    mask = einops.rearrange(t.stack([seed, 1 - seed], dim=-1), "... feat pair -> ... (feat pair)") <= p
+    return feat_mag * mask
+
+
+def generate_uncorrelated_features(self: ToyModel, batch_size: int, n_uncorrelated: int) -> Tensor:
+    """
+    Generates a batch of uncorrelated features.
+    """
+    if n_uncorrelated == self.cfg.n_features:
+        p = self.feature_probability
+    else:
+        assert t.all((self.feature_probability == self.feature_probability[:, [0]]))
+        p = self.feature_probability[:, [0]]  # shape (n_inst, 1)
+
+    if n_uncorrelated == self.cfg.n_features:
+        p = self.feature_probability
+    else:
+        assert t.all((self.feature_probability == self.feature_probability[:, [0]]))
+        p = self.feature_probability[:, [0]]  # shape (n_inst, 1)
+
+    feat_mag = t.rand((batch_size, self.cfg.n_inst, n_uncorrelated), device=self.W.device)
+    feat_seeds = t.rand((batch_size, self.cfg.n_inst, n_uncorrelated), device=self.W.device)
+    return t.where(feat_seeds <= p, feat_mag, 0.0)
+
+ToyModel.generate_batch = generate_batch
+
+
+# %%
+cfg = ToyModelConfig(n_inst=30, n_features=4, d_hidden=2, n_correlated_pairs=1, n_anticorrelated_pairs=1)
+
+feature_probability = 10 ** -t.linspace(0.5, 1, cfg.n_inst).to(device)
+
+model = ToyModel(cfg=cfg, device=device, feature_probability=feature_probability[:, None])
+
+# Generate a batch of 4 features: first 2 are correlated, second 2 are anticorrelated
+batch = model.generate_batch(batch_size=100_000)
+corr0, corr1, anticorr0, anticorr1 = batch.unbind(dim=-1)
+
+assert ((corr0 != 0) == (corr1 != 0)).float().mean() > 0.9999, "Correlated features should be active together"
+assert ((corr0 != 0).float().mean(0) - feature_probability).abs().mean() < 0.002, (
+    "Each correlated feature should be active with probability `feature_probability`"
+)
+
+assert not ((anticorr0 != 0) & (anticorr1 != 0)).any(), "Anticorrelated features should never be active together"
+assert ((anticorr0 != 0).float().mean(0) - feature_probability).abs().mean() < 0.002, (
+    "Each anticorrelated feature should be active with probability `feature_probability`"
+)
+
+# %%
+class NeuronModel(ToyModel):
+    def forward(self, features: Float[Tensor, "... inst feats"]) -> Float[Tensor, "... inst feats"]:
+        activations = F.relu(
+            einops.einsum(features, self.W, "... inst feats, inst d_hidden feats -> ... inst d_hidden")
+        )
+        out = F.relu(
+            einops.einsum(activations, self.W, "... inst d_hidden, inst d_hidden feats -> ... inst feats")
+            + self.b_final
+        )
+        return out
+
+
+tests.test_neuron_model(NeuronModel)
+
+# %%

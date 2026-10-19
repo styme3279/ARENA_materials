@@ -144,14 +144,41 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     is_bigger_eps = True
     i = 0
     while i < max_iterations and is_bigger_eps:
-        v_prev = values
-        for action in pi:
-            values[action] = env.T[:,action,:] * (env.R[:,action,:] + gamma * v_prev[action])
-        is_bigger_eps = np.sum(np.abs(values - v_prev)) >= eps
-        i+1
+        v_prev = values.copy()
+        for state, action in enumerate(pi):
+            values[state] = np.sum(env.T[state, action, :] * (env.R[state, action, :] + gamma * v_prev))
+        is_bigger_eps = np.max(np.abs(values - v_prev)) >= eps
+        i += 1
 
     return values
 
 
+def policy_eval_numerical_tensor(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_iterations=10_000) -> Arr:
+    """
+    Numerically evaluates the value of a given policy by iterating the Bellman equation
+    Args:
+        env: Environment
+        pi : shape (num_states,) - The policy to evaluate
+        gamma: float - Discount factor
+        eps  : float - Tolerance
+        max_iterations: int - Maximum number of iterations to run
+    Outputs:
+        value : float (num_states,) - The value function for policy pi
+    """
+    num_states = env.num_states
+    states = np.arange(num_states)
+
+    values = np.zeros(num_states)
+    is_bigger_eps = True
+    i = 0
+    while i < max_iterations and is_bigger_eps:
+        v_prev = values.copy()
+        values = np.sum(env.T[states, pi, :] * (env.R[states, pi, :] + gamma * v_prev), axis=-1)
+        is_bigger_eps = np.max(np.abs(values - v_prev)) >= eps
+        i += 1
+
+    return values
+
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
+# %%

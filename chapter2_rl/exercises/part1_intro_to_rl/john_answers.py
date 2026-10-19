@@ -284,14 +284,14 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
     """
     num_states = env.num_states
 
-    transition_matrix = env.T[range(num_states), pi, :]
-    reward_matrix = env.R[range(num_states), pi, :]
+    transition_matrix = env.T[range(num_states), pi, :]     # shape [s, s_next]
+    reward_matrix = env.R[range(num_states), pi, :]         # shape [s, s_next]
 
-    identity_matrix = np.eye(len(transition_matrix.shape[0]))
+    r = einops.einsum(transition_matrix, reward_matrix, "s s_next, s s_next -> s")
 
-    values = np.linalg.solve(identity_matrix-gamma*transition_matrix, reward_matrix)
+    mat = np.eye(num_states) - gamma * transition_matrix
 
-    return values
+    return np.linalg.solve(mat, r)
 
 
 tests.test_policy_eval(policy_eval_exact, exact=True)

@@ -248,12 +248,17 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
         pi_better : vector (num_states,) of actions representing a new policy obtained via policy
                     iteration
     """
-    num_states = env.num_states
-    
-    transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]        # P
-    reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
+    transition_matrix = env.T
+    reward_matrix = env.R
 
-    
+    reward_futures = reward_matrix + (gamma * V)
+    total_reward = einops.einsum(transition_matrix, reward_futures, 's a s_next, s a s_next -> s a')
+
+    pi_better = np.argmax(total_reward, axis=1)
+    print(f"pi_better: {pi_better}")
+    return pi_better
+
+
 
 
 tests.test_policy_improvement(policy_improvement)

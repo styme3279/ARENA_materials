@@ -194,3 +194,27 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
 
 tests.test_policy_improvement(policy_improvement)
 # %%
+def find_optimal_policy(env: Environment, gamma=0.99, max_iterations=10_000):
+    """
+    Args:
+        env: environment
+    Outputs:
+        pi : (num_states,) int, of actions representing an optimal policy
+    """
+    pi = np.zeros(shape=env.num_states, dtype=int)
+    for _ in range(max_iterations):
+        V = policy_eval_exact(env, pi, gamma)
+        pi_new = policy_improvement(env, V, gamma)
+        if np.array_equal(pi_new, pi):
+            break
+        pi = pi_new
+    return pi
+
+
+tests.test_find_optimal_policy(find_optimal_policy)
+
+penalty = -0.04
+norvig = Norvig(penalty)
+pi_opt = find_optimal_policy(norvig, gamma=0.99)
+norvig.show_map(pi_opt, title="Optimal Policy, penalty = -0.04")
+# %%

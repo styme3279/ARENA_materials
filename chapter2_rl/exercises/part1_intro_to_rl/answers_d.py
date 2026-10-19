@@ -769,3 +769,124 @@ fig.update_layout(yaxis=dict(autorange="reversed", tickprefix="-"))
 fig.show()
 
 # %%
+
+def greedy_return(env: gym.Env, Q: Arr, max_steps: int = 200) -> float:
+    """Roll out the greedy (epsilon=0) policy implied by Q, and return its total reward."""
+    obs, info = env.reset()
+    total_reward = 0.0
+    for _ in range(max_steps):
+        obs, reward, terminated, truncated, info = env.step(int(Q[obs].argmax()))
+        total_reward += reward
+        if terminated or truncated:
+            break
+    return total_reward
+
+
+for agent in agents:
+    ret = greedy_return(gym.make("CliffWalking-v1", is_slippery=False), agent.Q)
+    print(f"{agent.name:10s} greedy-policy return = {ret:.0f}")
+
+# %%
+
+ObsType = int
+ActType = int
+
+
+class MultiArmedBandit(gym.Env):
+    """
+    A class representing a multi-armed bandit environment, based on OpenAI Gym's Env class.
+
+    Attributes:
+        action_space (gym.spaces.Discrete): The space of possible actions, representing the arms of
+            the bandit.
+        observation_space (gym.spaces.Discrete): The space of possible observations.
+        num_arms (int): The number of arms in the bandit.
+        stationary (bool): Indicates whether the reward distribution (i.e. the arm_reward_means) is
+            stationary or not.
+        arm_reward_means (np.ndarray): The mean rewards for each arm.
+    """
+
+    action_space: gym.spaces.Discrete
+    observation_space: gym.spaces.Discrete
+    num_arms: int
+    stationary: bool
+    arm_reward_means: np.ndarray
+
+    def __init__(self, num_arms=10, stationary=True):
+        """
+        Initializes the MultiArmedBandit environment.
+
+        Args:
+            num_arms (int): The number of arms for the bandit. Defaults to 10.
+            stationary (bool): Whether the bandit has a stationary reward distribution.
+        """
+        super().__init__()
+        self.num_arms = num_arms
+        self.stationary = stationary
+        self.observation_space = gym.spaces.Discrete(1)
+        self.action_space = gym.spaces.Discrete(num_arms)
+        self.reset()
+
+    def step(self, arm: ActType) -> tuple[ObsType, float, bool, bool, dict]:
+        """
+        Takes an action by choosing an arm and returns the result of the action.
+
+        Args:
+            arm (ActType): The selected arm to pull in the bandit.
+
+        Returns:
+            obs (ObsType): The observation.
+            reward (float): The reward.
+            terminated (bool): Whether episode has terminated, i.e. for non-timeout related reasons.
+            truncated (bool): Whether episode has timed out.
+            info (dict): Additional information.
+        """
+        assert self.action_space.contains(arm)
+        if not self.stationary:
+            q_drift = self.np_random.normal(loc=0.0, scale=0.01, size=self.num_arms)
+            self.arm_reward_means += q_drift
+            self.best_arm = int(np.argmax(self.arm_reward_means))
+        reward = self.np_random.normal(loc=self.arm_reward_means[arm], scale=1.0)
+        obs = 0
+        terminated = False
+        truncated = False
+        info = dict(best_arm=self.best_arm)
+        return (obs, reward, terminated, truncated, info)
+
+    def reset(self, seed: int | None = None, options=None) -> tuple[ObsType, dict]:
+        """
+        Resets the environment to its initial state.
+
+        Args:
+            seed (int | None): The seed for random number generation. Defaults to None.
+            options (dict): Additional options for environment reset. Defaults to None.
+
+        Returns:
+            obs (ObsType): The initial observation.
+            info (dict): Additional information.
+        """
+        super().reset(seed=seed)
+        if self.stationary:
+            self.arm_reward_means = self.np_random.normal(loc=0.0, scale=1.0, size=self.num_arms)
+        else:
+            self.arm_reward_means = np.zeros(shape=[self.num_arms])
+        self.best_arm = int(np.argmax(self.arm_reward_means))
+
+        obs = 0
+        info = {}
+        return obs, info
+
+    def render(self, mode="human"):
+        """
+        Renders the state of the environment, in the form of a violin plot.
+        """
+        assert mode == "human", f"Mode {mode} not supported!"
+        bandit_samples = []
+        for arm in range(self.action_space.n):
+            bandit_samples += [np.random.normal(loc=self.arm_reward_means[arm], scale=1.0, size=1000)]
+        plt.violinplot(bandit_samples, showmeans=True)
+        plt.xlabel("Bandit Arm")
+        plt.ylabel("Reward Distribution")
+        plt.show()
+
+# %%

@@ -334,7 +334,7 @@ class AgentConfig:
 
     epsilon: float = 0.1
     lr: float = 0.05
-    optimism: float = 0
+    optimism: float = 0.1
 
 
 defaultConfig = AgentConfig()
@@ -354,7 +354,7 @@ class Agent:
         env: DiscreteEnviroGym,
         config: AgentConfig = defaultConfig,
         gamma: float = 0.99,
-        seed: int = 0,
+        seed: int = 0
     ):
         self.env = env
         self.reset(seed)
@@ -461,7 +461,8 @@ class EpsilonGreedy(Agent):
         gamma: float = 0.99,
         seed: int = 0,
     ):
-        super().__init__(env, config, gamma, seed)
+        customConfig = AgentConfig(epsilon=0.15, lr=0.05, optimism=0.1)
+        super().__init__(env, customConfig, gamma, seed)
         self.Q = np.zeros((self.num_states, self.num_actions)) + self.config.optimism
         # Terminal states have value 0. We never act from them so their Q-values are never updated, but
         # Q-learning & SARSA bootstrap from them, so they mustn't keep the optimistic initial value.
@@ -522,3 +523,31 @@ norvig_specs = [
 curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
 title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+
+# %%
+explore_grid = GridWorld("....T\n"
+                        "...G.\n"
+                        ".....\n"
+                        ".....\n"
+                        "S....")
+explore_grid.show_map(show=True, title="Deterministic Exploration World")
+
+gym.envs.registration.register(
+    id="ExplorationGrid-v0",
+    entry_point=DiscreteEnviroGym,
+    max_episode_steps=100,
+    nondeterministic=False,
+    kwargs={"env": explore_grid},
+)
+# %%
+gamma = 0.99
+n_runs = 100
+n_seeds = 5
+epsilons = [0.0, 0.1, 0.2, 0.5]
+
+# one Q-learning agent per epsilon, averaged over several seeds (tabular RL is noisy), plotted mean ± se
+explore_specs = [(QLearning, AgentConfig(epsilon=eps, lr=0.1, optimism=0.0), f"epsilon={eps}") for eps in epsilons]
+curves = utils.seeded_curves(explore_specs, "ExplorationGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Q-learning on ExplorationGrid-v0 (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, band="se")
+# %%

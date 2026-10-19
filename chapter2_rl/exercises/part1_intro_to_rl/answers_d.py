@@ -182,19 +182,24 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
 
     iterations = 0
 
-    V = [0] * num_states
+    V = np.zeros(env.num_states)
     while iterations < max_iterations:
-
+        V_new = np.zeros_like(V)
         for s in range(num_states):
-            for a in range(4):
-                states, rewards, probs = env.dynamics(s, a)
+            states, rewards, probs = env.dynamics(s, pi[s])
 
-                for i, state in enumerate(states):
-                    V[s] = probs[i]*(rewards[i]+V[s])
-
+            V_new[s] = np.sum(probs*(rewards+ gamma*V[states]))
+        
+        # if np.abs(V_new - V).max() < eps*0.00000000000000001:
+        #     print(iterations)
+        #     print(np.abs(V_new - V).max(), eps*0.00000000000000001)
+        #     return V_new
+        
+        V = np.copy(V_new)
         iterations += 1
     
-    return t.Tensor(V)
+    print(iterations)
+    return V
 
 
 

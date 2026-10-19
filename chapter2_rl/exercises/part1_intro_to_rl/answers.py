@@ -193,24 +193,30 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
 
             for new_state in range(num_states):
                 action = pi[state]
-                print(f"{state=}")
-                print(f"{action=}")
-                print(f"{new_state=}")
-                print("reward", env.T[state, action, new_state] * env.R[state, action, new_state])
                 value_sum += env.T[state, action, new_state] * (env.R[state, action, new_state] + gamma * values[new_state])
 
             new_values[state] = value_sum
 
-        print(f"{values=}")
-        print(f"{new_values=}")
-
         if np.max(np.abs(new_values - values)) < eps:
             return new_values
         else:
-            values = new_values
+            values = np.copy(new_values)
 
     return values
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
+
 # %%
+
+def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
+    """
+    Finds the exact solution to the Bellman equation.
+    """
+    num_states = env.num_states
+    P, R = np.zeros(num_states, num_states), np.zeros(num_states, num_states)
+    f
+    
+
+
+tests.test_policy_eval(policy_eval_exact, exact=True)

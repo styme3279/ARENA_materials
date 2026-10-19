@@ -407,3 +407,27 @@ class NeuronModel(ToyModel):
 tests.test_neuron_model(NeuronModel)
 
 # %%
+cfg = ToyModelConfig(n_inst=7, n_features=10, d_hidden=5)
+
+importance = 0.75 ** t.arange(1, 1 + cfg.n_features)
+feature_probability = t.tensor([0.75, 0.35, 0.15, 0.1, 0.06, 0.02, 0.01])
+
+model = NeuronModel(
+    cfg=cfg,
+    device=device,
+    importance=importance[None, :],
+    feature_probability=feature_probability[:, None],
+)
+model.optimize(steps=10_000)
+
+
+utils.plot_features_in_Nd(
+    model.W,
+    height=600,
+    width=1000,
+    title=f"Neuron model: {cfg.n_features=}, {cfg.d_hidden=}, I<sub>i</sub> = 0.75<sup>i</sup>",
+    subplot_titles=[f"1 - S = {i:.2f}" for i in feature_probability.squeeze()],
+    neuron_plot=True,
+)
+
+# %%

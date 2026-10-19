@@ -177,10 +177,20 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
         pi_better : vector (num_states,) of actions representing a new policy obtained via policy
                     iteration
     """
+    pi_better = np.zeros(env.num_states, dtype=int)
     for state in range(env.num_states):
+        best_action = 0
+        best_q_value = -np.inf
         for action in range(env.num_actions):
             next_states, rewards, probs = env.dynamics(state, action)
             action_value = sum(prob * (reward + gamma * V[next_state]) for next_state, reward, prob in zip(next_states, rewards, probs))
+            if action_value > best_q_value:
+                best_q_value = action_value
+                best_action = action
+        pi_better[state] = best_action
+    return pi_better
+
 
 
 tests.test_policy_improvement(policy_improvement)
+# %%

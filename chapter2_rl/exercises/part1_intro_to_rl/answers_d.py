@@ -561,3 +561,103 @@ title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
 
 # %%
+class EpsilonGreedy(Agent):
+    """
+    A class for SARSA and Q-Learning to inherit from.
+    """
+
+    def __init__(
+        self,
+        env: DiscreteEnviroGym,
+        config: AgentConfig = defaultConfig,
+        gamma: float = 0.99,
+        seed: int = 0,
+    ):
+        super().__init__(env, config, gamma, seed)
+        self.Q = np.zeros((self.num_states, self.num_actions)) + self.config.optimism
+        # Terminal states have value 0. We never act from them so their Q-values are never updated, but
+        # Q-learning & SARSA bootstrap from them, so they mustn't keep the optimistic initial value.
+        if hasattr(env.unwrapped, "env"):  # our `DiscreteEnviroGym` envs expose their terminal states
+            self.Q[env.unwrapped.env.terminal] = 0
+
+    def get_action(self, obs: ObsType) -> ActType:
+        """
+        Selects an action using epsilon-greedy with respect to Q-value estimates
+        """
+        if self.rng.random() < self.config.epsilon:
+            return self.rng.integers(0, self.num_actions)
+        else:
+            return self.Q[obs].argmax()
+
+
+class QLearning(EpsilonGreedy):
+    def observe(self, exp: Experience) -> None:
+        s_t, a_t, r_t_1, s_t_1 = exp.obs, exp.act, exp.reward, exp.new_obs
+        self.Q[s_t, a_t] += self.config.lr * (r_t_1 + self.gamma * np.max(self.Q[s_t_1]) - self.Q[s_t, a_t])
+
+
+class SARSA(EpsilonGreedy):
+    def observe(self, exp: Experience):
+        s_t, a_t, r_t_1, s_t_1, a_t_1 = exp.obs, exp.act, exp.reward, exp.new_obs, exp.new_act
+        self.Q[s_t, a_t] += self.config.lr * (r_t_1 + self.gamma * self.Q[s_t_1, a_t_1] - self.Q[s_t, a_t])
+
+    def run_episode(self, seed) -> list[float]:
+        rewards = []
+        obs, info = self.env.reset(seed=seed)
+        act = self.get_action(obs)
+        self.reset(seed=seed)
+        done = False
+        while not done:
+            new_obs, reward, terminated, truncated, info = self.env.step(act)
+            done = terminated or truncated
+            new_act = self.get_action(new_obs)
+            exp = Experience(obs, act, reward, new_obs, new_act)
+            self.observe(exp)
+            rewards.append(reward)
+            obs = new_obs
+            act = new_act
+        return rewards
+
+gamma = 0.99
+n_runs = 400
+n_seeds = 5
+norvig_specs = [
+    (Cheater, AgentConfig(), "Cheater"),
+    (QLearning, AgentConfig(), "Q-Learning"),
+    (SARSA, AgentConfig(), "SARSA"),
+    (Random, AgentConfig(), "Random"),
+]
+# average over a few seeds (tabular RL is noisy) and plot mean ± standard error
+curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+
+# %%
+explore_grid = GridWorld("....T\n"
+                        "...G.\n"
+                        ".....\n"
+                        ".....\n"
+                        "S....")
+explore_grid.show_map(show=True, title="Deterministic Exploration World")
+
+gym.envs.registration.register(
+    id="ExplorationGrid-v0",
+    entry_point=DiscreteEnviroGym,
+    max_episode_steps=100,
+    nondeterministic=False,
+    kwargs={"env": explore_grid},
+)
+
+# %%
+gamma = 0.99
+n_runs = 100
+n_seeds = 5
+epsilons = [0.0, 0.1, 0.2, 0.5]
+
+# one Q-learning agent per epsilon, averaged over several seeds (tabular RL is noisy), plotted mean ± se
+explore_specs = [(QLearning, AgentConfig(epsilon=eps, lr=0.1, optimism=0.0), f"epsilon={eps}") for eps in epsilons]
+curves = utils.seeded_curves(explore_specs, "ExplorationGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Q-learning on ExplorationGrid-v0 (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, band="se")
+
+# %%

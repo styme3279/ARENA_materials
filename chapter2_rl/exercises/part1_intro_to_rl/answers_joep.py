@@ -237,3 +237,25 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
 
 tests.test_policy_eval(policy_eval_exact, exact=True)
 
+
+# %%
+def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
+    """
+    Args:
+        env: Environment
+        V  : (num_states,) value of each state following some policy pi
+    Outputs:
+        pi_better : vector (num_states,) of actions representing a new policy obtained via policy
+                    iteration
+    """
+    num_states = env.num_states
+    
+    transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]        # P
+    reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
+
+    
+
+
+tests.test_policy_improvement(policy_improvement)
+
+

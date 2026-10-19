@@ -656,8 +656,6 @@ fig = line(
 fig.update_layout(yaxis=dict(autorange="reversed", tickprefix="-"))
 fig.show()
 
-# %%
-
 def greedy_return(env: gym.Env, Q: Arr, max_steps: int = 200) -> float:
     """Roll out the greedy (epsilon=0) policy implied by Q, and return its total reward."""
     obs, info = env.reset()
@@ -673,3 +671,5 @@ def greedy_return(env: gym.Env, Q: Arr, max_steps: int = 200) -> float:
 for agent in agents:
     ret = greedy_return(gym.make("CliffWalking-v1", is_slippery=False), agent.Q)
     print(f"{agent.name:10s} greedy-policy return = {ret:.0f}")
+
+# %%

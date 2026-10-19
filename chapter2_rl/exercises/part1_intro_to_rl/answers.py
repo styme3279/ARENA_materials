@@ -461,8 +461,7 @@ class EpsilonGreedy(Agent):
         gamma: float = 0.99,
         seed: int = 0,
     ):
-        customConfig = AgentConfig(epsilon=0.15, lr=0.05, optimism=0.1)
-        super().__init__(env, customConfig, gamma, seed)
+        super().__init__(env, config, gamma, seed)
         self.Q = np.zeros((self.num_states, self.num_actions)) + self.config.optimism
         # Terminal states have value 0. We never act from them so their Q-values are never updated, but
         # Q-learning & SARSA bootstrap from them, so they mustn't keep the optimistic initial value.
@@ -551,3 +550,24 @@ curves = utils.seeded_curves(explore_specs, "ExplorationGrid-v0", gamma=gamma, n
 title = f"Q-learning on ExplorationGrid-v0 (mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, band="se")
 # %%
+@dataclass
+class TD_LambdaConfig(AgentConfig):
+    lambda_: float = 0.95
+
+
+class SARSA_lambda(SARSA):
+    def __init__(
+        self,
+        env: DiscreteEnviroGym,
+        config: TD_LambdaConfig = defaultConfig,
+        gamma: float = 0.99,
+        seed: int = 0,
+    ):
+         super().__init__(env, config, gamma, seed)
+         
+
+    def run_episode(self, seed) -> list[float]:
+        raise NotImplementedError()
+
+    def observe(self, exp: Experience):
+        raise NotImplementedError()

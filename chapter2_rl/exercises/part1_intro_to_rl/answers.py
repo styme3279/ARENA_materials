@@ -156,11 +156,12 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     V_new = np.ones_like(pi)
     transition_matrix = env.T[range(num_states), pi, :]
     reward_matrix = env.R[range(num_states), pi, :]
-
+    print((transition_matrix * reward_matrix).shape)
     # iterate Bellman equation
     while (iterate(V, V_new)):
-
         V_new = transition_matrix * (reward_matrix + gamma * V)
+        iteration += 1
+    return V_new
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)

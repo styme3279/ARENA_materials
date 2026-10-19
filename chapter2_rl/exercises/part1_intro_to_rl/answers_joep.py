@@ -194,45 +194,34 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     # print(f"env.R: {env.R.shape}")
     # print(f"env.R: {env.R}")
     # print(f"pi: {pi}")
-    value_arr = np.zeros(num_states)        # Should this be a huge negative number?
+    value_arr = np.ones(num_states) * -9e9
 
     transition_matrix  = env.T[range(num_states), pi, :]
     reward_matrix  = env.R[range(num_states), pi, :]
     # print(f"transition_matrix: {transition_matrix}")
     # print(f"reward_matrix: {reward_matrix}")
 
-    # print(f"total_reward: {total_reward}")
-
-    for iter in range(max_iterations):
+    for iteration in range(max_iterations):
         reward_futures = reward_matrix + (gamma * value_arr)
         total_reward = einops.einsum(transition_matrix, reward_futures, 'i j, i j -> i j')
-        print(f"total_reward: {total_reward.shape}")
-        print(f"total_reward: {total_reward}")
 
         # print(f"total_reward[0]: {total_reward[0]}")
-        summed_reward = einops.einsum(total_reward, 'i j -> j')
-        # print(f"summed_reward[0]: {summed_reward[0]}")
-        print(f"summed_reward: {summed_reward.shape}")
-        print(f"summed_reward: {summed_reward}")
-        max_reward = np.argmax(summed_reward)
-        print(f"max_reward: {max_reward}")
-        print(f"value_arr: {value_arr}")
-        new_value_arr = total_reward[max_reward]
+
+        new_value_arr = einops.einsum(total_reward, 'i j -> i')
+
+        # print(f"summed_reward: {summed_reward.shape}")
+        # print(f"summed_reward: {summed_reward}")
+        # # max_reward_arg = np.argmax(summed_reward)
+
         delta = np.abs(value_arr - new_value_arr).sum()
-        if delta < e
+        if delta < eps:
+            print(f"delta ({delta}) < eps in iteration: {iteration}")
+            break
+        else:
+            value_arr = new_value_arr
+    # print(f"value arr: {value_arr}")
 
-
-        value_arr = 
-
-        asdf
-
-        # Sum over all rows
-
-
-        # argmax
-
-
-    raise NotImplementedError()
+    return value_arr
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)

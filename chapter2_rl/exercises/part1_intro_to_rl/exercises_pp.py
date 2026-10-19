@@ -99,17 +99,23 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
             # print(f"statesS: {states}, rewards: {rewards}, probs: {probs}")
             for next_state, reward, prob in zip(next_states, rewards, probs):
                 transition_matrix[state, action, next_state] += prob
-                reward_matrix[state, action, next_state] += reward
+                reward_matrix[state, action, next_state] = reward
 
     v_old = np.zeros(num_states)
+    v_new = v_old.copy()
     for _ in range(max_iterations):
         for state in range(num_states):
-            for action in range(num_actions):
-                state_value = 0
-                for next_state in range(num_states):
-                    state_value += transition_matrix[state, action, next_state] * reward_matrix[state, action, next_state] + gamma * v_old[next_state]
-            
-            
+            action = pi[state]
+            next_states, _, _ = env.dynamics(state, action)
+            state_value = 0
+            for next_state in next_states:
+                state_value += transition_matrix[state, action, next_state] * (reward_matrix[state, action, next_state] + gamma * v_old[next_state])
+            v_new[state] = state_value
+
+        if np.max(np.abs(v_new - v_old)) < eps:
+            break
+        v_old = v_new.copy()
+    return v_old
 
             
 

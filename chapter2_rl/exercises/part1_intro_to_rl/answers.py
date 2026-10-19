@@ -240,7 +240,11 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
         pi_better : vector (num_states,) of actions representing a new policy obtained via policy
                     iteration
     """
-    raise NotImplementedError()
+    print(env.R[0, :, :])
+    print((env.R + gamma * V)[0, :, :])
+
+    return np.argmax(, dim=2)
 
 
 tests.test_policy_improvement(policy_improvement)
+# %%

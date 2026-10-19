@@ -82,6 +82,7 @@ def test_policy_improvement(policy_improvement):
     for v in values:
         expected = solutions.policy_improvement(norvig, v, gamma)
         actual = policy_improvement(norvig, v, gamma)
+        print(f"Expected:{expected}")
         t.testing.assert_close(t.tensor(expected), t.tensor(actual))
     print("All tests in `test_policy_improvement` passed!")
 

@@ -311,3 +311,209 @@ gym.envs.registration.register(
 )
 
 # %%
+@dataclass
+class Experience:
+    """
+    A class for storing one piece of experience during an episode run.
+    """
+
+    obs: ObsType
+    act: ActType
+    reward: float
+    new_obs: ObsType
+    new_act: ActType | None = None
+
+
+@dataclass
+class AgentConfig:
+    """Hyperparameters for agents"""
+
+    epsilon: float = 0.1
+    lr: float = 0.05
+    optimism: float = 0
+
+
+defaultConfig = AgentConfig()
+
+
+class Agent:
+    """
+    Base class for agents interacting with an environment.
+
+    You do not need to add any implementation here.
+    """
+
+    rng: np.random.Generator
+
+    def __init__(
+        self,
+        env: DiscreteEnviroGym,
+        config: AgentConfig = defaultConfig,
+        gamma: float = 0.99,
+        seed: int = 0,
+    ):
+        self.env = env
+        self.reset(seed)
+        self.config = config
+        self.gamma = gamma
+        self.num_actions = env.action_space.n
+        self.num_states = env.observation_space.n
+        self.name = type(self).__name__
+
+    def get_action(self, obs: ObsType) -> ActType:
+        raise NotImplementedError()
+
+    def observe(self, exp: Experience) -> None:
+        """
+        Agent observes experience, and updates model as appropriate.
+        Implementation depends on type of agent.
+        """
+        pass
+
+    def reset(self, seed: int) -> tuple[ObsType, dict]:
+        self.rng = np.random.default_rng(seed)
+        return None, {}
+
+    def run_episode(self, seed) -> list[int]:
+        """
+        Simulates one episode of interaction, agent learns as appropriate
+
+        Inputs:
+            seed : Seed for the random number generator
+
+        Returns:
+            The rewards obtained during the episode
+        """
+        rewards = []
+        obs, info = self.env.reset(seed=seed)
+        self.reset(seed=seed)
+        done = False
+        while not done:
+            act = self.get_action(obs)
+            new_obs, reward, terminated, truncated, info = self.env.step(act)
+            done = terminated or truncated
+            exp = Experience(obs, act, reward, new_obs)
+            self.observe(exp)
+            rewards.append(reward)
+            obs = new_obs
+        return rewards
+
+    def train(self, n_runs=500):
+        """
+        Run a batch of episodes, and return the total reward obtained per episode
+
+        Inputs:
+            n_runs : The number of episodes to simulate
+
+        Returns:
+            The discounted sum of rewards obtained for each episode
+        """
+        all_returns = []
+        for seed in range(n_runs):
+            rewards = self.run_episode(seed)
+            all_returns.append(utils.sum_rewards(rewards, self.gamma))
+        return all_returns
+
+
+class Random(Agent):
+    def get_action(self, obs: ObsType) -> ActType:
+        return self.rng.integers(0, self.num_actions)
+
+# %%
+class Cheater(Agent):
+    def __init__(self, env: DiscreteEnviroGym, config: AgentConfig = defaultConfig, gamma=0.99, seed=0):
+        super().__init__(env, config, gamma, seed)
+        self.optimal_policy = find_optimal_policy(env.unwrapped.env)
+
+    def get_action(self, obs):
+        return self.optimal_policy[obs]
+
+
+env_toy = gym.make("ToyGym-v0")
+agents_toy: list[Agent] = [Cheater(env_toy), Random(env_toy)]
+returns_dict = {}
+for agent in agents_toy:
+    returns = agent.train(n_runs=100)
+    returns_dict[agent.name] = utils.cummean(returns)
+
+line(
+    list(returns_dict.values()),
+    names=list(returns_dict.keys()),
+    title=f"Avg. reward on {env_toy.spec.name}",
+    labels={"x": "Episode", "y": "Avg. reward", "variable": "Agent"},
+    template="simple_white",
+    width=700,
+    height=400,
+)
+
+# %%
+class EpsilonGreedy(Agent):
+    """
+    A class for SARSA and Q-Learning to inherit from.
+    """
+
+    def __init__(
+        self,
+        env: DiscreteEnviroGym,
+        config: AgentConfig = defaultConfig,
+        gamma: float = 0.99,
+        seed: int = 0,
+    ):
+        super().__init__(env, config, gamma, seed)
+        self.Q = np.zeros((self.num_states, self.num_actions)) + self.config.optimism
+        # Terminal states have value 0. We never act from them so their Q-values are never updated, but
+        # Q-learning & SARSA bootstrap from them, so they mustn't keep the optimistic initial value.
+        if hasattr(env.unwrapped, "env"):  # our `DiscreteEnviroGym` envs expose their terminal states
+            self.Q[env.unwrapped.env.terminal] = 0
+
+    def get_action(self, obs: ObsType) -> ActType:
+        """
+        Selects an action using epsilon-greedy with respect to Q-value estimates
+        """
+        roll = self.rng.random()
+        if roll < config.eps:
+            
+
+
+class QLearning(EpsilonGreedy):
+    def observe(self, exp: Experience) -> None:
+        raise NotImplementedError()
+
+
+class SARSA(EpsilonGreedy):
+    def observe(self, exp: Experience):
+        raise NotImplementedError()
+
+    def run_episode(self, seed) -> list[float]:
+        rewards = []
+        obs, info = self.env.reset(seed=seed)
+        act = self.get_action(obs)
+        self.reset(seed=seed)
+        done = False
+        while not done:
+            new_obs, reward, terminated, truncated, info = self.env.step(act)
+            done = terminated or truncated
+            new_act = self.get_action(new_obs)
+            exp = Experience(obs, act, reward, new_obs, new_act)
+            self.observe(exp)
+            rewards.append(reward)
+            obs = new_obs
+            act = new_act
+        return rewards
+
+
+gamma = 0.99
+n_runs = 400
+n_seeds = 5
+norvig_specs = [
+    (Cheater, AgentConfig(), "Cheater"),
+    (QLearning, AgentConfig(), "Q-Learning"),
+    (SARSA, AgentConfig(), "SARSA"),
+    (Random, AgentConfig(), "Random"),
+]
+# average over a few seeds (tabular RL is noisy) and plot mean ± standard error
+curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+
+# %%

@@ -73,70 +73,114 @@ import part1_intro_to_rl.utils as utils
 from plotly_utils import cliffwalk_imshow, imshow, line
 from part1_intro_to_rl.utils import GridWorld, Environment
 # %%
-def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_iterations=10_000) -> Arr:
-    """
-    Numerically evaluates the value of a given policy by iterating the Bellman equation
-    Args:
-        env: Environment
-        pi : shape (num_states,) - The policy to evaluate
-        gamma: float - Discount factor
-        eps  : float - Tolerance
-        max_iterations: int - Maximum number of iterations to run
-    Outputs:
-        value : float (num_states,) - The value function for policy pi
-    """
-    num_states = env.num_states
-    num_actions = env.num_actions
+# def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_iterations=10_000) -> Arr:
+# """
+# Numerically evaluates the value of a given policy by iterating the Bellman equation
+# Args:
+#     env: Environment
+#     pi : shape (num_states,) - The policy to evaluate
+#     gamma: float - Discount factor
+#     eps  : float - Tolerance
+#     max_iterations: int - Maximum number of iterations to run
+# Outputs:
+#     value : float (num_states,) - The value function for policy pi
+# """
+# num_states = env.num_states
+# num_actions = env.num_actions
 
-    # print(f"Evaluating policy for {num_states} states and {num_actions} actions")
+# # print(f"Evaluating policy for {num_states} states and {num_actions} actions")
 
-    # for _ in range(max_iterations):
-    transition_matrix = np.zeros((num_states, num_actions, num_states))
-    reward_matrix = np.zeros((num_states, num_actions, num_states))
+# # for _ in range(max_iterations):
+# transition_matrix = np.zeros((num_states, num_actions, num_states))
+# reward_matrix = np.zeros((num_states, num_actions, num_states))
 
-    # print(env.T.shape, env.R.shape)
+# # print(env.T.shape, env.R.shape)
 
-    for state in range(num_states):
-        for action in range(num_actions):
-            next_states, rewards, probs = env.dynamics(state, action)
-            # print(f"statesS: {states}, rewards: {rewards}, probs: {probs}")
-            for next_state, reward, prob in zip(next_states, rewards, probs):
-                transition_matrix[state, action, next_state] += prob
-                reward_matrix[state, action, next_state] += reward
+# for state in range(num_states):
+#     for action in range(num_actions):
+#         next_states, rewards, probs = env.dynamics(state, action)
+#         # print(f"statesS: {states}, rewards: {rewards}, probs: {probs}")
+#         for next_state, reward, prob in zip(next_states, rewards, probs):
+#             transition_matrix[state, action, next_state] += prob
+#             reward_matrix[state, action, next_state] += reward
 
-    if not np.allclose(env.T, transition_matrix):
-        print("Transition matrix does not match")
-        print("Expected:")
-        print(env.T)
-        print("Got:")
-        print(transition_matrix)
-    assert np.allclose(env.T, transition_matrix)
-    if not np.allclose(env.R, reward_matrix):
-        print("Reward matrix does not match")
-        print("Expected:")
-        print(env.R)
-        print("Got:")
-        print(reward_matrix)
-    assert np.allclose(env.R, reward_matrix)
+# if not np.allclose(env.T, transition_matrix):
+#     print("Transition matrix does not match")
+#     print("Expected:")
+#     print(env.T)
+#     print("Got:")
+#     print(transition_matrix)
+# assert np.allclose(env.T, transition_matrix)
+# if not np.allclose(env.R, reward_matrix):
+#     print("Reward matrix does not match")
+#     print("Expected:")
+#     print(env.R)
+#     print("Got:")
+#     print(reward_matrix)
+# assert np.allclose(env.R, reward_matrix)
 
-    v_old = np.zeros(num_states)
-    v_new = v_old.copy()
+# v_old = np.zeros(num_states)
+# v_new = v_old.copy()
+# for _ in range(max_iterations):
+#     for state in range(num_states):
+#         action = pi[state]
+#         state_value = 0
+#         for next_state in range(num_states):
+#             state_value += transition_matrix[state, action, next_state] * (reward_matrix[state, action, next_state] + gamma * v_old[next_state])
+#         v_new[state] = state_value
+
+#     if np.max(np.abs(v_new - v_old)) < eps:
+#         break
+#     v_old = v_new.copy()
+# return v_old
+
+def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8,max_iterations=10_000) -> Arr:
+    states = np.arange(env.num_states)
+    P = env.T[states, pi]  # (S, S): P[s, s'] = T(s' | s, pi(s))
+    R = env.R[states, pi]  # (S, S): R[s, s'] = R(s, pi(s), s')
+
+    V = np.zeros(env.num_states)
     for _ in range(max_iterations):
-        for state in range(num_states):
-            action = pi[state]
-            state_value = 0
-            for next_state in range(num_states):
-                state_value += transition_matrix[state, action, next_state] * (reward_matrix[state, action, next_state] + gamma * v_old[next_state])
-            v_new[state] = state_value
-
-        if np.max(np.abs(v_new - v_old)) < eps:
-            break
-        v_old = v_new.copy()
-    return v_old
-
-            
-
+        V_new = (P * (R + gamma * V)).sum(axis=1)
+        if np.abs(V_new - V).max() < eps:
+            return V_new
+        V = V_new
+    return V
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
 
 # %%
+def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
+    """
+    Finds the exact solution to the Bellman equation.
+    """
+    num_states = env.num_states
+
+    transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]
+    reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
+
+    r = einops.einsum(transition_matrix, reward_matrix, "s s_next, s s_next -> s")
+
+    mat = np.eye(num_states) - gamma * transition_matrix
+
+    return np.linalg.solve(mat, r)
+
+
+tests.test_policy_eval(policy_eval_exact, exact=True)
+# %%
+def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
+    """
+    Args:
+        env: Environment
+        V  : (num_states,) value of each state following some policy pi
+    Outputs:
+        pi_better : vector (num_states,) of actions representing a new policy obtained via policy
+                    iteration
+    """
+    for state in range(env.num_states):
+        for action in range(env.num_actions):
+            next_states, rewards, probs = env.dynamics(state, action)
+            action_value = sum(prob * (reward + gamma * V[next_state]) for next_state, reward, prob in zip(next_states, rewards, probs))
+
+
+tests.test_policy_improvement(policy_improvement)

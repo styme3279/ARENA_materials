@@ -134,17 +134,40 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
 
     """
 
-    pi_i, pi_i_1 = pi, np.zeros_like(pi)
+    num_states = env.num_states
 
-    for _ in range(max_iterations):
-        for s, a in enumerate(pi_i):
-            pi_i_1[s] = (env.T[s, a, :] * (env.R[s, a, :] + gamma * pi_i_1)).sum()
-        
-        pi_i = pi_i_1
+    value = np.zeros((num_states,))
+    transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]
+    reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
 
-    
+    for i in range(max_iterations):
+        new_value = einops.reduce(transition_matrix * (reward_matrix + gamma * value), "s s_next -> s", "sum")
+
+        delta = np.abs(new_value - value).max()
+        if delta < eps:
+            break
+        value = np.copy(new_value)
+    else:
+        print(f"Failed to converge after {max_iterations} steps.")
+
+    return value
+
+
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
 
+# %%
+def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
+    """
+    Finds the exact solution to the Bellman equation.
+    """
+    num_states = env.num_states
+    P, R = env.T[range(num_states), pi, :], env.R[range(num_states), pi, :]
+    r = einops.einsum(P, R, "s s_next, s s_next -> s")
+    mat = np.eye(num_states) - gamma * P
+    return np.linalg.solve(mat, r)
+
+
+tests.test_policy_eval(policy_eval_exact, exact=True)
 # %%

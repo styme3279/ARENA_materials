@@ -574,12 +574,13 @@ class SARSA_lambda(SARSA):
         return super().run_episode(seed)
     
     def observe(self, exp: Experience):
-        self.eligibility_trace += 1
-        self.Q[exp.obs, exp.act] = self.Q[exp.obs, exp.act] + self.config.lr * self.eligibility_trace[exp.obs, exp.act]
+        delta = exp.reward + self.gamma * self.Q[exp.new_obs, exp.new_act] - self.Q[exp.obs, exp.act]
+        self.eligibility_trace[exp.obs, exp.act] += 1
+        self.Q = self.Q + self.config.lr * delta * self.eligibility_trace
         self.eligibility_trace = self.gamma * self.config.lambda_ * self.eligibility_trace
 
         # (exp.reward + self.gamma * np.max(self.Q[exp.new_obs]) - self.Q[exp.obs, exp.act])
-        
+
 gamma = 0.99
 n_runs = 400
 n_seeds = 5

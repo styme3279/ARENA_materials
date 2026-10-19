@@ -63,6 +63,61 @@ class Toy(Environment):
         super().__init__(num_states=3, num_actions=2)
 
 # %%
+class GridWorld(Environment):
+    def __init__(self, grid_map: str, step_reward=0.0, goal_reward=1.0, trap_reward=-1.0,
+                 cliff_reward=-100.0, slipperiness=0.0):
+        """
+        Build a gridworld from an ASCII map, e.g.
+
+            GridWorld(
+                "S..\n"
+                ".#.\n"
+                "..G"
+            )
+
+        Map characters: 'S' start, 'G' goal (+goal_reward, terminal), 'T' trap (+trap_reward,
+        terminal), 'C' cliff (+cliff_reward, teleports back to the start, NOT terminal), '#' wall
+        (impassable - moving into it leaves you in place), '.' empty floor.
+
+        Args:
+            step_reward:   reward for every non-terminal transition (0 -> sparse; < 0 -> step penalty)
+            goal_reward:   reward for entering a 'G' cell
+            trap_reward:   reward for entering a 'T' cell
+            cliff_reward:  reward for stepping into a 'C' cell (you're also sent back to the start)
+            slipperiness:  if > 0, the chosen action succeeds w.p. (1 - slipperiness); otherwise a
+                           random other direction is taken (0.3 mimics Norvig; 0 is deterministic)
+        """
+
+    def render(self, pi: Arr):
+        """Print the gridworld as rows of emoji tiles (terrain, or policy `pi`'s arrows on the floor)."""
+
+    def show_map(self, pi: Arr | None = None, title: str = "Gridworld map", show: bool = True):
+        """Plot the gridworld as a grid of emoji tiles: 🏁 start, 🟩 goal, 🟥 trap, ⬛ wall, 🟫 cliff,
+        ⬜ floor. If a policy `pi` is passed, floor tiles instead show its action arrow (⬆️➡️⬇️⬅️)."""
+
+# %%
+class Norvig(GridWorld):
+    """The 3x4 Russell & Norvig gridworld, expressed as a `GridWorld` map: a +1 goal in the top-right
+    with a -1 trap directly below it, a wall in the middle, a small step penalty everywhere else, and
+    `slipperiness=0.3` (the chosen action succeeds 70% of the time)."""
+
+    def __init__(self, penalty=-0.04):
+        super().__init__(
+            """
+            ...G
+            .#.T
+            S...
+            """,
+            step_reward=penalty,
+            goal_reward=1.0,
+            trap_reward=-1.0,
+            slipperiness=0.3,
+        )
+
+
+norvig = Norvig()
+
+# %%
 toy = Toy()
 
 actions = ["a_L", "a_R"]
@@ -162,5 +217,26 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
 
 
 tests.test_policy_improvement(policy_improvement)
+
+# %%
+def find_optimal_policy(env: Environment, gamma=0.99, max_iterations=10_000):
+    """
+    Args:
+        env: environment
+    Outputs:
+        pi : (num_states,) int, of actions representing an optimal policy
+    """
+    pi = np.zeros(shape=env.num_states, dtype=int)
+    for _ in range(max_iterations):
+        values = policy_eval_exact(env=env, gamma=gamma, pi=pi)
+        pi = policy_improvement(env=env, V=values, gamma=gamma)
+    return pi
+
+tests.test_find_optimal_policy(find_optimal_policy)
+
+penalty = -0.04
+norvig = Norvig(penalty)
+pi_opt = find_optimal_policy(norvig, gamma=0.99)
+norvig.show_map(pi_opt, title="Optimal Policy, penalty = -0.04")
 
 # %%

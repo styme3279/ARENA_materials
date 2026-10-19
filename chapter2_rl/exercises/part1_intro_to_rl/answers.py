@@ -564,14 +564,22 @@ class SARSA_lambda(SARSA):
         gamma: float = 0.99,
         seed: int = 0,
     ):
-        raise NotImplementedError()
+        self.eligibility_trace = np.zeros(self.Q.shape)
+        super().__init__(env, config, gamma, seed)
+        env.act
+        env.obs
 
     def run_episode(self, seed) -> list[float]:
-        raise NotImplementedError()
-
+        self.eligibility_trace = np.zeros(self.Q.shape)
+        return super().run_episode(seed)
+    
     def observe(self, exp: Experience):
-        raise NotImplementedError()
+        self.eligibility_trace += 1
+        self.Q[exp.obs, exp.act] = self.Q[exp.obs, exp.act] + self.config.lr * self.eligibility_trace[exp.obs, exp.act]
+        self.eligibility_trace = self.gamma * self.config.lambda_ * self.eligibility_trace
 
+        # (exp.reward + self.gamma * np.max(self.Q[exp.new_obs]) - self.Q[exp.obs, exp.act])
+        
 gamma = 0.99
 n_runs = 400
 n_seeds = 5

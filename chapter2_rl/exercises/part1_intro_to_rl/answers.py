@@ -575,28 +575,34 @@ class SARSA_lambda(SARSA):
         gamma: float = 0.99,
         seed: int = 0,
     ):
+        super().__init__(env, config, gamma, seed)
         self.elegibility_trace = np.zeros((self.num_states, self.num_actions))
 
     def run_episode(self, seed) -> list[float]:
         self.elegibility_trace = np.zeros((self.num_states, self.num_actions))
-        rewards = []
-        obs, info = self.env.reset(seed=seed)
-        act = self.get_action(obs)
-        self.reset(seed=seed)
-        done = False
-        while not done:
-            new_obs, reward, terminated, truncated, info = self.env.step(act)
-            done = terminated or truncated
-            new_act = self.get_action(new_obs)
-            exp = Experience(obs, act, reward, new_obs, new_act)
-            self.observe(exp)
-            rewards.append(reward)
-            obs = new_obs
-            act = new_act
-        return rewards
+        return super().run_episode(seed)
 
     def observe(self, exp: Experience):
         state, action, reward, next_state, next_action = exp.obs, exp.act, exp.reward, exp.new_obs, exp.new_act
         delta = reward + (self.gamma * self.Q[next_state, next_action]) - self.Q[state][action]
-        self.Q[state][action] += self.config.lr * 
-        self.elegibility_trace[state][action] *= self.gamma * self.config.lambda_
+        self.elegibility_trace[state][action] += 1
+        self.Q += self.config.lr * delta * self.elegibility_trace
+        self.elegibility_trace *= self.gamma * self.config.lambda_
+
+# %%
+gamma = 0.99
+n_runs = 400
+n_seeds = 5
+norvig_lambda_specs = [
+    (Cheater, AgentConfig(), "Cheater"),
+    (QLearning, AgentConfig(), "Q-Learning"),
+    (SARSA, AgentConfig(), "SARSA"),
+    (SARSA_lambda, TD_LambdaConfig(), "SARSA(λ)"),
+    (Random, AgentConfig(), "Random"),
+]
+# average over a few seeds (tabular RL is noisy) and plot mean ± standard error
+curves = utils.seeded_curves(norvig_lambda_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Avg. reward on NorvigGrid-v0 with SARSA(λ) (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+
+# %%

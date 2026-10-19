@@ -606,3 +606,185 @@ title = f"Avg. reward on NorvigGrid-v0 with SARSA(λ) (mean ± se, {n_seeds} see
 utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
 
 # %%
+gym.envs.registration.register(
+    id="LargeGrid-v0",
+    entry_point=DiscreteEnviroGym,
+    max_episode_steps=200,
+    nondeterministic=False,
+    kwargs={"env": GridWorld(".......G\n........\n........\n........\n........\n........\n........\nS.......")},
+)
+
+gamma = 0.99
+n_runs = 150
+n_seeds = 5
+agent_specs = [
+    (SARSA, AgentConfig(epsilon=0.2, lr=0.2), "SARSA (1-step)", (99, 110, 250)),
+    (SARSA_lambda, TD_LambdaConfig(epsilon=0.2, lr=0.2, lambda_=0.8), r"SARSA($\lambda$=0.8)", (239, 85, 59)),
+]
+
+
+# average over several seeds (tabular RL is noisy) and plot mean ± se, reusing each spec's colour
+curves = utils.seeded_curves([(Cls, cfg, name) for Cls, cfg, name, _ in agent_specs],
+                             "LargeGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Eligibility traces learn faster on a larger gridworld (8×8, sparse reward; mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, band="se", colors=[color for *_, color in agent_specs])
+
+# %%
+gamma = 1
+n_runs = 500
+config_cliff = AgentConfig(epsilon=0.1, lr=0.1, optimism=0)
+cliff_specs = [(QLearning, config_cliff, "Q-Learning"), (SARSA, config_cliff, "SARSA")]
+
+# train one agent of each type (kept in `agents` for the greedy-rollout section below), show its
+# learned policy, and collect its cumulative-mean return. The curves are near-identical across seeds
+# here, so a single run is plenty - no need to average.
+agents = []
+returns_list = []
+for AgentCls, config, name in cliff_specs:
+    agent = AgentCls(gym.make("CliffWalking-v1", is_slippery=False), config, gamma, seed=0)
+    returns = agent.train(n_runs)
+    agents.append(agent)
+    returns_list.append(utils.cummean(returns))
+    V = agent.Q.max(axis=-1).reshape(4, 12)
+    pi = agent.Q.argmax(axis=-1).reshape(4, 12)
+    cliffwalk_imshow(V, pi, title=f"CliffWalking: {name} Agent", width=800, height=400)
+
+# rewards are always negative; plot the magnitude on a reversed log y-axis with a "-" tick prefix,
+# so the axis reads as negative reward (closer to 0 = better = higher)
+fig = line(
+    [-r for r in returns_list],
+    names=[name for _, _, name in cliff_specs],
+    template="simple_white",
+    title="Q-Learning vs SARSA on CliffWalking-v1",
+    labels={"x": "Episode", "y": "Avg. reward", "variable": "Agent"},
+    log_y=True,
+    width=700,
+    height=400,
+    return_fig=True,
+)
+fig.update_layout(yaxis=dict(autorange="reversed", tickprefix="-"))
+fig.show()
+
+# %%
+def greedy_return(env: gym.Env, Q: Arr, max_steps: int = 200) -> float:
+    """Roll out the greedy (epsilon=0) policy implied by Q, and return its total reward."""
+    obs, info = env.reset()
+    total_reward = 0.0
+    for _ in range(max_steps):
+        obs, reward, terminated, truncated, info = env.step(int(Q[obs].argmax()))
+        total_reward += reward
+        if terminated or truncated:
+            break
+    return total_reward
+
+
+for agent in agents:
+    ret = greedy_return(gym.make("CliffWalking-v1", is_slippery=False), agent.Q)
+    print(f"{agent.name:10s} greedy-policy return = {ret:.0f}")
+
+# %%
+class CliffWalking(Environment):
+    def __init__(self, penalty=-1):
+        self.height = 4
+        self.width = 12
+        self.penalty = penalty
+        num_states = self.height * self.width
+        num_actions = 4
+        self.states = np.array([[x, y] for y in range(self.height) for x in range(self.width)])
+        self.actions = np.array([[0, -1], [1, 0], [0, 1], [-1, 0]])  # up, right, down, left
+        self.dim = (self.height, self.width)
+
+        # special states: tuples of state and reward
+        # all other states get penalty
+        start = 36
+        terminal = np.array([47], dtype=int)
+        self.cliff = np.arange(37, 47, dtype=int)
+        self.goal_rewards = np.array([1.0, -1.0])
+
+        super().__init__(num_states, num_actions, start=start, terminal=terminal)
+
+    def dynamics(self, state: int, action: int) -> tuple[Arr, Arr, Arr]:
+        """
+        Returns tuple of (out_states, out_rewards, out_probs) for this given (state, action) pair.
+        """
+
+        def state_index(state):
+            assert 0 <= state[0] < self.width and 0 <= state[1] < self.height, print(state)
+            pos = state[0] + state[1] * self.width
+            assert 0 <= pos < self.num_states, print(state, pos)
+            return pos
+
+        pos = self.states[state]
+
+        if state in self.terminal:
+            return (np.array([state]), np.array([0]), np.array([1]))
+
+        # No slipping; each action is deterministic
+        out_probs = np.zeros(self.num_actions)
+        out_probs[action] = 1
+
+        out_states = np.zeros(self.num_actions, dtype=int) + self.num_actions
+        out_rewards = np.zeros(self.num_actions) + self.penalty
+        new_states = [pos + x for x in self.actions]
+
+        for i, s_new in enumerate(new_states):
+            if not (0 <= s_new[0] < self.width and 0 <= s_new[1] < self.height):
+                out_states[i] = state
+                continue
+
+            new_state = state_index(s_new)
+
+            # Check if would hit the cliff, if so then get -100 penalty and go back to start
+            if new_state in self.cliff:
+                out_states[i] = self.start
+                out_rewards[i] -= 100
+
+            else:
+                out_states[i] = new_state
+
+            for idx in range(len(self.terminal)):
+                if new_state == self.terminal[idx]:
+                    out_rewards[i] = self.goal_rewards[idx]
+
+        return (out_states, out_rewards, out_probs)
+
+    @staticmethod
+    def render(Q: Arr, name: str):
+        V = Q.max(axis=-1).reshape(4, 12)
+        pi = Q.argmax(axis=-1).reshape(4, 12)
+        cliffwalk_imshow(V, pi, title=f"CliffWalking: {name} Agent")
+
+gym.envs.registration.register(
+    id="CliffWalking-myversion",
+    entry_point=DiscreteEnviroGym,
+    max_episode_steps=200,
+    nondeterministic=True,
+    kwargs={"env": CliffWalking(penalty=-1)},
+)
+gamma = 0.99
+seed = 0
+config_cliff = AgentConfig(epsilon=0.1, lr=0.1, optimism=0)
+env = gym.make("CliffWalking-myversion")
+n_runs = 500
+args_cliff = (env, config_cliff, gamma, seed)
+
+agents = [Cheater(*args_cliff), QLearning(*args_cliff), SARSA(*args_cliff), Random(*args_cliff)]
+returns_list = []
+name_list = []
+
+for agent in agents:
+    returns = agent.train(n_runs)[1:]
+    returns_list.append(utils.cummean(returns))
+    name_list.append(agent.name)
+
+line(
+    returns_list,
+    names=name_list,
+    template="simple_white",
+    title="Q-Learning vs SARSA on CliffWalking-v1",
+    labels={"x": "Episode", "y": "Avg. reward", "variable": "Agent"},
+    width=700,
+    height=400,
+)
+
+# %%

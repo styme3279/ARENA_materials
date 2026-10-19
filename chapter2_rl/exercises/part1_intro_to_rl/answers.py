@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
 from tqdm.auto import tqdm
+from numpy.linalg import inv
 
 Arr: TypeAlias = np.ndarray
 
@@ -177,7 +178,24 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
     P = env.T[range(num_states), pi, :]
     R = env.R[range(num_states), pi, :]
     r = np.sum(P * R, axis=-1)
-    A = gamma * P
-    np.linalg.solve(A,b)
+    #A = np.eye(num_states) - gamma * P
+    A = inv(np.eye(num_states) - gamma * P)
+    #return np.linalg.solve(A,r)
+    return np.matmul(A,r)
 
 tests.test_policy_eval(policy_eval_exact, exact=True)
+
+# %%
+def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
+    """
+    Args:
+        env: Environment
+        V  : (num_states,) value of each state following some policy pi
+    Outputs:
+        pi_better : vector (num_states,) of actions representing a new policy obtained via policy
+                    iteration
+    """
+    env.T
+
+
+tests.test_policy_improvement(policy_improvement)

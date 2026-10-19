@@ -184,7 +184,9 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     """
     num_states = env.num_states
 
-    return
+    value = 
+
+    return 
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)

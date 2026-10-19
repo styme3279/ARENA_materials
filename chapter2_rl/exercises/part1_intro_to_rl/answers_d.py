@@ -35,6 +35,7 @@ import part1_intro_to_rl.tests as tests
 import part1_intro_to_rl.utils as utils
 from plotly_utils import cliffwalk_imshow, imshow, line
 from part1_intro_to_rl.utils import GridWorld, Environment
+import torch as t
 
 # %%
 class Toy(Environment):
@@ -181,16 +182,22 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
 
     iterations = 0
 
-    state = env.start
-    while state not in env.terminal and iterations < max_iterations:
-        action = pi[state]
-        states, rewards, probs = env.dynamics(state, action)
-        next_state = states[action]
-        print(action)
-        print(states)
-        print(rewards)
-        print(probs)
-        break
+    V = [0] * num_states
+    while iterations < max_iterations:
+
+        for s in range(num_states):
+            for a in range(4):
+                states, rewards, probs = env.dynamics(s, a)
+
+                for i, state in enumerate(states):
+                    V[s] = probs[i]*(rewards[i]+V[s])
+
+        iterations += 1
+    
+    return t.Tensor(V)
+
+
+
 
 
 

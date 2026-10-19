@@ -189,10 +189,34 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     """
     num_states = env.num_states
 
-    
+    # print(f"env.T: {env.T.shape}")
+    # print(f"env.T: {env.T}")
+    # print(f"env.R: {env.R.shape}")
+    # print(f"env.R: {env.R}")
+    # print(f"pi: {pi}")
+    value_arr = np.zeros(num_states)        # Should this be a huge negative number?
+
+    transition_matrix  = env.T[range(num_states), pi, :]
+    reward_matrix  = env.R[range(num_states), pi, :]
+    print(f"transition_matrix: {transition_matrix}")
+    print(f"reward_matrix: {reward_matrix}")
+
+    print(f"total_reward: {total_reward}")
+
+    for iter in max_iterations:
+        total_reward = einops.einsum(transition_matrix, gamma * reward_matrix, 'i j, i j -> i j')
+        # discounted_reward = einops.einsum(total_reward, reward_matrix, 'i j, i j -> i j')
+
+
+        # for state in 
+
+
+
 
 
     raise NotImplementedError()
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
+
+# %%

@@ -88,15 +88,25 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     num_states = env.num_states
     num_actions = env.num_actions
 
-    print(f"Evaluating policy for {num_states} states and {num_actions} actions")
+    # print(f"Evaluating policy for {num_states} states and {num_actions} actions")
 
+    # for _ in range(max_iterations):
+    transition_matrix = np.zeros((num_states, num_actions, num_states))
+    reward_matrix = np.zeros((num_states, num_actions, num_states))
+    for state in range(num_states):
+        for action in range(num_actions):
+            next_states, rewards, probs = env.dynamics(state, action)
+            # print(f"statesS: {states}, rewards: {rewards}, probs: {probs}")
+            for next_state, reward, prob in zip(next_states, rewards, probs):
+                transition_matrix[state, action, next_state] += prob
+                reward_matrix[state, action, next_state] += reward
+
+    v_old = np.zeros(num_states)
     for _ in range(max_iterations):
-        transition_matrix = t.zeros((num_states, num_states))
-        for state in range(num_states):
-            states, rewards, probs = env.dynamics(state, pi[state])
+        for state in range(num)
+        
+    
 
-        # for state in range(num_states):
-        #     action = pi[state]
 
             
 

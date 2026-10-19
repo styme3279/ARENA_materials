@@ -476,7 +476,6 @@ class QLearning(EpsilonGreedy):
     def observe(self, exp: Experience) -> None:
         # act = self.get_action(exp.obs)
         # self.get_action(exp.new_obs)
-        print(exp.obs)
         self.Q[exp.obs, exp.act] = self.Q[exp.obs, exp.act] + self.config.lr * (exp.reward + self.gamma * np.max(self.Q[exp.new_obs]) - self.Q[exp.obs, exp.act])
 
 
@@ -484,12 +483,11 @@ class SARSA(EpsilonGreedy):
     def observe(self, exp: Experience):
         st = exp.obs
         st_1 = exp.new_obs
-        at_1 = self.get_action(st_1)
 
-        new_Q = self.Q[st_1,at_1]
-        td = self.config.lr * (new_Q - self.Q[st, exp.act])
+        new_Q = self.Q[st_1,exp.new_act]
+        td = self.gamma * (new_Q - self.Q[st, exp.act])
         r_1 = exp.reward
-        self.Q[st, at] += self.gamma * (r_1 + td)
+        self.Q[st, exp.act] += self.config.lr * (r_1 + td)
 
     def run_episode(self, seed) -> list[float]:
         rewards = []
@@ -524,3 +522,67 @@ title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
 
 # %%
+explore_grid = GridWorld("....T\n"
+                        "...G.\n"
+                        ".....\n"
+                        ".....\n"
+                        "S....")
+explore_grid.show_map(show=True, title="Deterministic Exploration World")
+
+gym.envs.registration.register(
+    id="ExplorationGrid-v0",
+    entry_point=DiscreteEnviroGym,
+    max_episode_steps=100,
+    nondeterministic=False,
+    kwargs={"env": explore_grid},
+)
+
+# %%
+
+gamma = 0.99
+n_runs = 100
+n_seeds = 5
+epsilons = [0.0, 0.1, 0.2, 0.5]
+
+# one Q-learning agent per epsilon, averaged over several seeds (tabular RL is noisy), plotted mean ± se
+explore_specs = [(QLearning, AgentConfig(epsilon=eps, lr=0.1, optimism=0.0), f"epsilon={eps}") for eps in epsilons]
+curves = utils.seeded_curves(explore_specs, "ExplorationGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Q-learning on ExplorationGrid-v0 (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, band="se")
+
+# %%
+@dataclass
+class TD_LambdaConfig(AgentConfig):
+    lambda_: float = 0.95
+
+
+class SARSA_lambda(SARSA):
+    def __init__(
+        self,
+        env: DiscreteEnviroGym,
+        config: TD_LambdaConfig = defaultConfig,
+        gamma: float = 0.99,
+        seed: int = 0,
+    ):
+        raise NotImplementedError()
+
+    def run_episode(self, seed) -> list[float]:
+        raise NotImplementedError()
+
+    def observe(self, exp: Experience):
+        raise NotImplementedError()
+
+gamma = 0.99
+n_runs = 400
+n_seeds = 5
+norvig_lambda_specs = [
+    (Cheater, AgentConfig(), "Cheater"),
+    (QLearning, AgentConfig(), "Q-Learning"),
+    (SARSA, AgentConfig(), "SARSA"),
+    (SARSA_lambda, TD_LambdaConfig(), "SARSA(λ)"),
+    (Random, AgentConfig(), "Random"),
+]
+# average over a few seeds (tabular RL is noisy) and plot mean ± standard error
+curves = utils.seeded_curves(norvig_lambda_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Avg. reward on NorvigGrid-v0 with SARSA(λ) (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")

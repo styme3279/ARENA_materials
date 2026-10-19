@@ -433,3 +433,100 @@ class Agent:
 class Random(Agent):
     def get_action(self, obs: ObsType) -> ActType:
         return self.rng.integers(0, self.num_actions)
+
+# %%
+class Cheater(Agent):
+    def __init__(self, env: DiscreteEnviroGym, config: AgentConfig = defaultConfig, gamma=0.99, seed=0):
+        super().__init__(env, config, gamma, seed)
+        self.policy = find_optimal_policy(env.unwrapped.env, gamma)
+
+    def get_action(self, obs):
+        return self.policy[obs]
+
+
+env_toy = gym.make("ToyGym-v0")
+agents_toy: list[Agent] = [Cheater(env_toy), Random(env_toy)]
+returns_dict = {}
+for agent in agents_toy:
+    returns = agent.train(n_runs=100)
+    returns_dict[agent.name] = utils.cummean(returns)
+
+line(
+    list(returns_dict.values()),
+    names=list(returns_dict.keys()),
+    title=f"Avg. reward on {env_toy.spec.name}",
+    labels={"x": "Episode", "y": "Avg. reward", "variable": "Agent"},
+    template="simple_white",
+    width=700,
+    height=400,
+)
+
+# %%
+class EpsilonGreedy(Agent):
+    """
+    A class for SARSA and Q-Learning to inherit from.
+    """
+
+    def __init__(
+        self,
+        env: DiscreteEnviroGym,
+        config: AgentConfig = defaultConfig,
+        gamma: float = 0.99,
+        seed: int = 0,
+    ):
+        super().__init__(env, config, gamma, seed)
+        self.Q = np.zeros((self.num_states, self.num_actions)) + self.config.optimism
+        # Terminal states have value 0. We never act from them so their Q-values are never updated, but
+        # Q-learning & SARSA bootstrap from them, so they mustn't keep the optimistic initial value.
+        if hasattr(env.unwrapped, "env"):  # our `DiscreteEnviroGym` envs expose their terminal states
+            self.Q[env.unwrapped.env.terminal] = 0
+
+    def get_action(self, obs: ObsType) -> ActType:
+        """
+        Selects an action using epsilon-greedy with respect to Q-value estimates
+        """
+        return self.Q.argmax(axis=-1)
+
+
+class QLearning(EpsilonGreedy):
+    def observe(self, exp: Experience) -> None:
+        print("QLearning", exp)
+
+
+class SARSA(EpsilonGreedy):
+    def observe(self, exp: Experience):
+        print("SARSA", exp)
+
+    def run_episode(self, seed) -> list[float]:
+        rewards = []
+        obs, info = self.env.reset(seed=seed)
+        act = self.get_action(obs)
+        self.reset(seed=seed)
+        done = False
+        while not done:
+            new_obs, reward, terminated, truncated, info = self.env.step(act)
+            done = terminated or truncated
+            new_act = self.get_action(new_obs)
+            exp = Experience(obs, act, reward, new_obs, new_act)
+            self.observe(exp)
+            rewards.append(reward)
+            obs = new_obs
+            act = new_act
+        return rewards
+
+
+gamma = 0.99
+n_runs = 400
+n_seeds = 5
+norvig_specs = [
+    (Cheater, AgentConfig(), "Cheater"),
+    (QLearning, AgentConfig(), "Q-Learning"),
+    (SARSA, AgentConfig(), "SARSA"),
+    (Random, AgentConfig(), "Random"),
+]
+# average over a few seeds (tabular RL is noisy) and plot mean ± standard error
+curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+
+# %%

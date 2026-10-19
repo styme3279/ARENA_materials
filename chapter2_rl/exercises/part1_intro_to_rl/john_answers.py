@@ -289,7 +289,10 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
 
     identity_matrix = np.eye(len(transition_matrix.shape[0]))
 
-    np.linalg.solve()
+    values = np.linalg.solve(identity_matrix-gamma*transition_matrix, reward_matrix)
+
+    return values
 
 
 tests.test_policy_eval(policy_eval_exact, exact=True)
+# %%

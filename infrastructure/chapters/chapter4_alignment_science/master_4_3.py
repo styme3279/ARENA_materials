@@ -713,7 +713,7 @@ First we set up helper functions to call an API via OpenRouter (which supports m
 
 You'll need to create an `.env` file in the current working directory with `OPENROUTER_API_KEY` set, then you can run the cell below to see how the helper functions work.
 
-In the exercise below, we've already constructed the system prompt and user prompt for you. Your job is to call `generate_responses_parallel` with the right arguments, then parse the LLM's response (a numbered list like `1. problem_setup\n2. active_computation\n...`) into a list of category labels. You should handle the case where the LLM returns more or fewer labels than expected.
+In the exercise below, we've already constructed the system prompt and user prompt for you. Your job is to call `generate_responses_parallel` with the right arguments, then parse the LLM's response (a numbered list like `1. problem_setup\n2. active_computation\n...`) into a list of category labels. The LLM is prompted with the tag keys (e.g. `problem_setup`), but your function should return the human-readable **values** from the `CATEGORIES` dict (e.g. `"Problem Setup"`), so that the output matches the format of the heuristic categorization. Any tag that isn't a key of `CATEGORIES` should map to `"Unknown"`. You should handle the case where the LLM returns more or fewer labels than expected.
 '''
 
 # ! CELL TYPE: code
@@ -892,7 +892,9 @@ Now label each chunk with function tags."""
 
     # EXERCISE
     # # YOUR CODE HERE - get results with `generate_responses_parallel`, and parse them into
-    # # a list of category labels for each chunk.
+    # # a list of category labels for each chunk. The LLM returns tag keys (e.g. "problem_setup"),
+    # # but you should return the corresponding `CATEGORIES` values (e.g. "Problem Setup"),
+    # # using "Unknown" for any unrecognised tag.
     # END EXERCISE
     # SOLUTION
     responses = generate_responses_parallel(
@@ -4125,7 +4127,7 @@ def load_blackmail_scenario(scenario_id: int = 0, verbose: bool = True):
     """
     Load a complete blackmail scenario with all its associated files from the dataset.
 
-    The thought-branches repo (https://github.com/uzaymacar/thought-branches) organizes blackmail
+    The thought-branches repo (https://github.com/interp-reasoning/thought-branches) organizes blackmail
     rollout data per-chunk: each scenario has chunk_0/, chunk_1/, ..., chunk_N/ subdirectories,
     each containing a solutions.json with ~100 rollout dicts. This function loads all per-chunk
     solutions and assembles them into solutions[i] = list of rollout dicts for chunk i.
@@ -4687,7 +4689,7 @@ if MAIN and FLAG_RUN_SECTION_4:
     # blackmail_data["solutions"][i] is a list of rollout dicts for chunk i, each with keys like
     # "chunk_removed", "chunk_resampled", "contains_blackmail", "full_cot", etc.
     #
-    # Reference: https://github.com/uzaymacar/thought-branches (blackmail/ directory)
+    # Reference: https://github.com/interp-reasoning/thought-branches (blackmail/ directory)
     # The repo's generate_blackmail_rollouts.py produces per-chunk rollouts stored as
     # scenario_N/chunk_M/solutions.json, which are loaded here via the HuggingFace dataset.
 

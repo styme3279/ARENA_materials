@@ -582,7 +582,7 @@ class SARSA(EpsilonGreedy):
 
 
 gamma = 0.99
-n_runs = 10000
+n_runs = 2000
 n_seeds = 5
 norvig_specs = [
     (Cheater, AgentConfig(), "Cheater"),

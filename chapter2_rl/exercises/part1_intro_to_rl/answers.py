@@ -426,10 +426,10 @@ class Random(Agent):
 class Cheater(Agent):
     def __init__(self, env: DiscreteEnviroGym, config: AgentConfig = defaultConfig, gamma=0.99, seed=0):
         super().__init__(env, config, gamma, seed)
-        raise NotImplementedError()
+        self.pi_opt = find_optimal_policy(env.unwrapped.env, gamma)
 
     def get_action(self, obs):
-        raise NotImplementedError()
+        return self.pi_opt[obs]
 
 
 env_toy = gym.make("ToyGym-v0")

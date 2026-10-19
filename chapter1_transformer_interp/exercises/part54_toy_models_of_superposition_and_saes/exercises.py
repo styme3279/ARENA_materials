@@ -560,3 +560,42 @@ utils.plot_features_in_Nd_discrete(
 )
 
 # %%
+cfg = ToyModelConfig(n_features=200, d_hidden=20, n_inst=20)
+
+# For this experiment, use constant importance across features (but still vary sparsity across instances)
+feature_probability = 20 ** -t.linspace(0, 1, cfg.n_inst)
+
+model = ToyModel(
+    cfg=cfg,
+    device=device,
+    feature_probability=feature_probability[:, None],
+)
+model.optimize(steps=10_000)
+
+
+utils.plot_feature_geometry(model)
+
+# %%
+@t.inference_mode()
+def compute_dimensionality(
+    W: Float[Tensor, "n_inst d_hidden n_features"],
+) -> Float[Tensor, "n_inst n_features"]:
+    W_norms = W.norm(dim=1, keepdim=True)
+    numerator = W_norms.squeeze() ** 2
+
+    # Compute denominator terms
+    W_normalized = W / (W_norms + 1e-8)
+    denominator = einops.einsum(W_normalized, W, "i h f1, i h f2 -> i f1 f2").pow(2).sum(-1)
+
+    return numerator / denominator
+
+
+tests.test_compute_dimensionality(compute_dimensionality)
+
+# %%
+W = model.W.detach()
+dim_fracs = compute_dimensionality(W)
+
+utils.plot_feature_geometry(model, dim_fracs=dim_fracs)
+
+# %%

@@ -706,13 +706,26 @@ class SARSA_lambda(SARSA):
         gamma: float = 0.99,
         seed: int = 0,
     ):
-        raise NotImplementedError()
+        self.Q = np.zeros((env.observation_space, env.action_space))
+        self.s, _ = env.reset(seed=seed)
+        self.a = self.get_action(self.s)
+        self.E = np.zeros((env.num_states, env.num_actions))
+        self.done = False
 
     def run_episode(self, seed) -> list[float]:
-        for _
-
+        while not self.done:
+            s_next, r, self.done, _, _ = self.env.step(self.a)
+            a_next = self.get_action(s_next)
+            exp = Experience(self.s, self.a, r, s_next, a_next)
+            self.observe(exp)
+        
     def observe(self, exp: Experience):
-        raise NotImplementedError()
+        delta = exp.reward + self.gamma * self.Q[exp.new_obs, exp.new_act] - self.Q[exp.obs, exp.act]
+        self.E[exp.obs, exp.act] += 1
+        self.Q += self.config.lr * delta * self.E
+        self.E *= self.gamma * self.config.lambda_
+        self.s, self.a = exp.new_obs, exp.new_act
+
 
 gamma = 0.99
 n_runs = 400
@@ -728,3 +741,4 @@ norvig_lambda_specs = [
 curves = utils.seeded_curves(norvig_lambda_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
 title = f"Avg. reward on NorvigGrid-v0 with SARSA(λ) (mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+# %%

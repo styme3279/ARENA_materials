@@ -93,22 +93,39 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     # for _ in range(max_iterations):
     transition_matrix = np.zeros((num_states, num_actions, num_states))
     reward_matrix = np.zeros((num_states, num_actions, num_states))
+
+    # print(env.T.shape, env.R.shape)
+
     for state in range(num_states):
         for action in range(num_actions):
             next_states, rewards, probs = env.dynamics(state, action)
             # print(f"statesS: {states}, rewards: {rewards}, probs: {probs}")
             for next_state, reward, prob in zip(next_states, rewards, probs):
                 transition_matrix[state, action, next_state] += prob
-                reward_matrix[state, action, next_state] = reward
+                reward_matrix[state, action, next_state] += reward
+
+    if not np.allclose(env.T, transition_matrix):
+        print("Transition matrix does not match")
+        print("Expected:")
+        print(env.T)
+        print("Got:")
+        print(transition_matrix)
+    assert np.allclose(env.T, transition_matrix)
+    if not np.allclose(env.R, reward_matrix):
+        print("Reward matrix does not match")
+        print("Expected:")
+        print(env.R)
+        print("Got:")
+        print(reward_matrix)
+    assert np.allclose(env.R, reward_matrix)
 
     v_old = np.zeros(num_states)
     v_new = v_old.copy()
     for _ in range(max_iterations):
         for state in range(num_states):
             action = pi[state]
-            next_states, _, _ = env.dynamics(state, action)
             state_value = 0
-            for next_state in next_states:
+            for next_state in range(num_states):
                 state_value += transition_matrix[state, action, next_state] * (reward_matrix[state, action, next_state] + gamma * v_old[next_state])
             v_new[state] = state_value
 
@@ -121,4 +138,5 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
+
 # %%

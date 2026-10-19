@@ -194,7 +194,8 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     # print(f"env.R: {env.R.shape}")
     # print(f"env.R: {env.R}")
     # print(f"pi: {pi}")
-    value_arr = np.ones(num_states) * -9e9
+    # value_arr = np.ones(num_states) * -9e9
+    value_arr = np.zeros(num_states)
 
     transition_matrix  = env.T[range(num_states), pi, :]
     reward_matrix  = env.R[range(num_states), pi, :]
@@ -208,10 +209,12 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
         # print(f"total_reward[0]: {total_reward[0]}")
 
         new_value_arr = einops.einsum(total_reward, 'i j -> i')
+        # print(f"new_value_arr: {new_value_arr}")
 
         # print(f"summed_reward: {summed_reward.shape}")
         # print(f"summed_reward: {summed_reward}")
         # # max_reward_arg = np.argmax(summed_reward)
+
 
         delta = np.abs(value_arr - new_value_arr).sum()
         if delta < eps:
@@ -219,9 +222,31 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
             break
         else:
             value_arr = new_value_arr
-    # print(f"value arr: {value_arr}")
 
+        if iteration % 50 == 0:
+            print(f"value arr {iteration}: {value_arr[0]}")
+    
     return value_arr
+
+    # num_states = env.num_states
+
+    # value = np.zeros((num_states,))
+    # transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]
+    # reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
+
+    # for i in range(max_iterations):
+    #     new_value = einops.reduce(transition_matrix * (reward_matrix + gamma * value), "s s_next -> s", "sum")
+
+    #     delta = np.abs(new_value - value).max()
+    #     if delta < eps:
+    #         print(f"delta ({delta}) < eps in iteration: {i}")
+
+    #         break
+    #     value = np.copy(new_value)
+    # else:
+    #     print(f"Failed to converge after {max_iterations} steps.")
+
+    # return value
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)

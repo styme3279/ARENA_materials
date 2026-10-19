@@ -474,6 +474,8 @@ class EpsilonGreedy(Agent):
 
 class QLearning(EpsilonGreedy):
     def observe(self, exp: Experience) -> None:
+        self.get_action(exp.obs)
+        self.get_action(exp.new_obs)
         self.Q[exp.obs] = self.Q[exp.obs] + self.config.lr * (exp.reward + self.gamma * self.Q[exp.new_obs] - self.Q[exp.obs])
 
 

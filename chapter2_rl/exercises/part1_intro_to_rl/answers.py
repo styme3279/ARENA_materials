@@ -187,8 +187,26 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
     Finds the exact solution to the Bellman equation.
     """
     num_states = env.num_states
+    states = np.arange(num_states)
+    T = env.T[states, pi, :]
+    R = env.R[states, pi, :]
 
+    values = np.linalg.solve(np.eye(num_states) - gamma * T, np.sum(T * R, axis=1))
+    return values
+
+tests.test_policy_eval(policy_eval_exact, exact=True)
+
+# %%
+def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
+    """
+    Args:
+        env: Environment
+        V  : (num_states,) value of each state following some policy pi
+    Outputs:
+        pi_better : vector (num_states,) of actions representing a new policy obtained via policy
+                    iteration
+    """
     raise NotImplementedError()
 
 
-tests.test_policy_eval(policy_eval_exact, exact=True)
+tests.test_policy_improvement(policy_improvement)

@@ -215,7 +215,19 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
     """
     num_states = env.num_states
     P, R = np.zeros(num_states, num_states), np.zeros(num_states, num_states)
-    f
+    for i in range(num_states):
+        for j in range(num_states):
+            P[i,j] = env.T[i, pi[i], j]
+            R[i,j] = env.R[i, pi[i], j]
+
+    r = np.zeros(num_states)
+    r = TODO
+
+    mat = np.eye(num_states) - gamma * P
+
+    sol = np.linalg.solve(mat, r)
+
+    return sol
     
 
 

@@ -468,12 +468,13 @@ class EpsilonGreedy(Agent):
         """
         Selects an action using epsilon-greedy with respect to Q-value estimates
         """
-        raise NotImplementedError()
-
+        if self.rng.random() < self.config.epsilon:
+            return self.rng.integers(0, self.num_actions)
+        return np.argmax(self.Q[obs])
 
 class QLearning(EpsilonGreedy):
     def observe(self, exp: Experience) -> None:
-        raise NotImplementedError()
+        self.Q[exp.obs] = self.Q[exp.obs] + self.config.lr * (exp.reward + self.gamma * self.Q[exp.new_obs] - self.Q[exp.obs])
 
 
 class SARSA(EpsilonGreedy):
@@ -504,10 +505,11 @@ n_seeds = 5
 norvig_specs = [
     (Cheater, AgentConfig(), "Cheater"),
     (QLearning, AgentConfig(), "Q-Learning"),
-    (SARSA, AgentConfig(), "SARSA"),
+    #(SARSA, AgentConfig(), "SARSA"),
     (Random, AgentConfig(), "Random"),
 ]
 # average over a few seeds (tabular RL is noisy) and plot mean ± standard error
 curves = utils.seeded_curves(norvig_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
 title = f"Avg. reward on NorvigGrid-v0 (mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")
+

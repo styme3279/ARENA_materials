@@ -1009,13 +1009,19 @@ class RewardAveraging(Agent):
         super().__init__(num_arms, seed)
 
     def get_action(self):
-        raise NotImplementedError("Implement the get_action method for the RewardAveraging class.")
+        if self.rng.random() < self.epsilon:
+            return self.rng.integers(low=0, high=self.num_arms).item()
+        else:
+            return np.argmax(self.Q)
 
     def observe(self, action, reward, info):
-        raise NotImplementedError("Implement the observe method for the RewardAveraging class.")
+        self.N[action] += 1
+        self.Q[action] += (reward - self.Q[action]) / self.N[action]
 
     def reset(self, seed: int):
-        raise NotImplementedError("Implement the reset method for the RewardAveraging class.")
+        super().reset(seed)
+        self.N = np.zeros(self.num_arms)
+        self.Q = np.full(self.num_arms, self.optimism, dtype=float)
 
     def __repr__(self):
         # For the legend, when plotting
@@ -1038,3 +1044,47 @@ for optimism in [0, 5]:
     print(f" -> Average reward: {rewards.mean():.4f}")
 
 utils.plot_rewards(all_rewards, names, moving_avg_window=15)
+
+# %%
+class UCBActionSelection(Agent):
+    def __init__(self, num_arms: int, seed: int, c: float, eps: float = 1e-6):
+        super().__init__(num_arms, seed)
+        self.c = c
+        self.eps = eps
+
+    def get_action(self):
+        ucb = self.Q + self.c * np.sqrt(np.log(self.t) / (self.N + self.eps))
+
+    def observe(self, action, reward, info):
+        self.t += 1
+        self.N[action] += 1
+        self.Q[action] += (reward - self.Q[action]) / self.N[action]
+
+    def reset(self, seed: int):
+        super().reset(seed)
+        self.t = 1
+        self.N = np.zeros(self.num_arms)
+        self.Q = np.full(self.num_arms, self.optimism, dtype=float)
+
+    def __repr__(self):
+        return f"UCB(c={self.c})"
+
+
+cheater = CheatyMcCheater(num_arms, 0)
+reward_averaging = RewardAveraging(num_arms, 0, epsilon=0.1, optimism=0)
+reward_averaging_optimism = RewardAveraging(num_arms, 0, epsilon=0.1, optimism=5)
+ucb = UCBActionSelection(num_arms, 0, c=2.0)
+random = RandomAgent(num_arms, 0)
+
+names = []
+all_rewards = []
+
+for agent in [cheater, reward_averaging, reward_averaging_optimism, ucb, random]:
+    (rewards, num_correct) = run_agent(env, agent, n_runs=N_RUNS, base_seed=1)
+    names.append(str(agent))
+    all_rewards.append(rewards)
+
+utils.plot_rewards(all_rewards, names, moving_avg_window=15)
+# utils.plot_rewards(all_rewards, names, moving_avg_window=15, filename=str(section_dir / "2103.html"))
+
+# %%

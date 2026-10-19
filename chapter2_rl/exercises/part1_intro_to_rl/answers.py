@@ -114,25 +114,32 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
         value : float (num_states,) - The value function for policy pi
     """
     num_states = env.num_states
-    # env.T and env.R are [12, 4, 12] = [num_states, num_actions, num_states]
-    # env.T: for each state, for each action, transition distribution among s'
-    # env.R: for each state, for each action, the reward of each possible s'
-    indexed_T = env.T[range(num_states), pi, :] # [num_states, num_states]
-    indexed_R = env.R[range(num_states), pi, :] # [num_states, num_states]
+
+    value = np.zeros(num_states)
+    transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]
+    reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
 
     num_iterations = 0
-    max_change = 2*eps
-    values = np.zeros(num_states)
-
-    while num_iterations <= max_iterations and max_change >= eps:
-        brackets = indexed_R + (gamma * values)
-        new_values = einops.einsum(brackets, indexed_T, "s s_new, s s_new -> s s")
-        new_values = new_values.sum(dim=-1)
-        max_change = max(np.abs(new_values-values))
+    delta = 2*eps
+    while num_iterations <= max_iterations and delta >= eps:
+        new_value = einops.reduce(transition_matrix * (reward_matrix + gamma * value[None, :]), "s s_next -> s", "sum")
+        delta = np.abs(new_value - value).max()
+        value = np.copy(new_value)
         num_iterations += 1
-        values = new_values
-    return values
+    return value
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
 
 # %%
+def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
+    """
+    Finds the exact solution to the Bellman equation.
+    """
+    num_states = env.num_states
+    transition_matrix = env.T[range(num_states), pi, :]  # shape [s, s_next]
+    reward_matrix = env.R[range(num_states), pi, :]  # shape [s, s_next]
+    rewards = einops.reduce(transition_matrix * reward_matrix, "s s_next -> s", "sum")
+    
+
+
+tests.test_policy_eval(policy_eval_exact, exact=True)

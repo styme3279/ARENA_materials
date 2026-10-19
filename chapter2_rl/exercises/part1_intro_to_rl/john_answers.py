@@ -140,108 +140,6 @@ class Toy(Environment):
 
     def __init__(self):
         super().__init__(num_states=3, num_actions=2)
-# %%
-toy = Toy()
-
-actions = ["a_L", "a_R"]
-states = ["s_L", "s_0", "s_R"]
-
-imshow(
-    toy.T,  # dimensions (s, a, s_next)
-    title="Transition probabilities T(s_next | s, a) for toy environment",
-    facet_col=0,
-    facet_labels=[f"Current state is s = {s}" for s in states],
-    y=actions,
-    x=states,
-    labels={
-        "x": "Next state, s_next",
-        "y": "Action taken, a",
-        "color": "Transition<br>Probability",
-    },
-    text_auto=".0f",
-    border=True,
-    width=850,
-    height=350,
-)
-
-imshow(
-    toy.R,  # dimensions (s, a, s_next)
-    title="Rewards R(s, a, s_next) for toy environment",
-    facet_col=0,
-    facet_labels=[f"Current state is s = {s}" for s in states],
-    y=actions,
-    x=states,
-    labels={"x": "Next state, s_next", "y": "Action taken, a", "color": "Reward"},
-    text_auto=".0f",
-    border=True,
-    width=850,
-    height=350,
-)
-# %%
-
-toy = Toy()
-
-actions = ["a_L", "a_R"]
-states = ["s_L", "s_0", "s_R"]
-
-imshow(
-    toy.T,  # dimensions (s, a, s_next)
-    title="Transition probabilities T(s_next | s, a) for toy environment",
-    facet_col=0,
-    facet_labels=[f"Current state is s = {s}" for s in states],
-    y=actions,
-    x=states,
-    labels={
-        "x": "Next state, s_next",
-        "y": "Action taken, a",
-        "color": "Transition<br>Probability",
-    },
-    text_auto=".0f",
-    border=True,
-    width=850,
-    height=350,
-)
-
-imshow(
-    toy.R,  # dimensions (s, a, s_next)
-    title="Rewards R(s, a, s_next) for toy environment",
-    facet_col=0,
-    facet_labels=[f"Current state is s = {s}" for s in states],
-    y=actions,
-    x=states,
-    labels={"x": "Next state, s_next", "y": "Action taken, a", "color": "Reward"},
-    text_auto=".0f",
-    border=True,
-    width=850,
-    height=350,
-)
-
-# %%
-class Norvig(GridWorld):
-    """The 3x4 Russell & Norvig gridworld, expressed as a `GridWorld` map: a +1 goal in the top-right
-    with a -1 trap directly below it, a wall in the middle, a small step penalty everywhere else, and
-    `slipperiness=0.3` (the chosen action succeeds 70% of the time)."""
-
-    def __init__(self, penalty=-0.04):
-        super().__init__(
-            """
-            ...G
-            .#.T
-            S...
-            """,
-            step_reward=penalty,
-            goal_reward=1.0,
-            trap_reward=-1.0,
-            slipperiness=0.3,
-        )
-
-
-norvig = Norvig()
-tests.test_norvig_gridworld_equivalence(Norvig)
-
-# `render` prints the grid; `show_map` plots it. Here we show a random policy:
-pi_random = np.random.randint(0, norvig.num_actions, (norvig.num_states,))
-norvig.show_map(pi_random, title="Norvig gridworld: random policy")
 
 # %%
 def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_iterations=10_000) -> Arr:
@@ -527,10 +425,10 @@ class Random(Agent):
 class Cheater(Agent):
     def __init__(self, env: DiscreteEnviroGym, config: AgentConfig = defaultConfig, gamma=0.99, seed=0):
         super().__init__(env, config, gamma, seed)
-        find_optimal_policy(env=env.unwrapped.env, gamma=config.)
+        self.pi_opt = find_optimal_policy(env=env.unwrapped.env, gamma=self.gamma)
 
     def get_action(self, obs):
-        raise NotImplementedError()
+        return self.pi_obt[obs]
 
 
 env_toy = gym.make("ToyGym-v0")
@@ -549,3 +447,4 @@ line(
     width=700,
     height=400,
 )
+# %%

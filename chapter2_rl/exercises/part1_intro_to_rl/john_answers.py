@@ -268,7 +268,28 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
         if delta < eps:
             break
         value = np.copy(new_value)
+    else:
+        print(f"Failed to converge after {max_iterations} steps.")
+
+    return value
+    
 
     
 tests.test_policy_eval(policy_eval_numerical, exact=False)
 # %%
+
+def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
+    """
+    Finds the exact solution to the Bellman equation.
+    """
+    num_states = env.num_states
+
+    transition_matrix = env.T[range(num_states), pi, :]
+    reward_matrix = env.R[range(num_states), pi, :]
+
+    identity_matrix = np.eye(len(transition_matrix.shape[0]))
+
+    np.linalg.solve()
+
+
+tests.test_policy_eval(policy_eval_exact, exact=True)

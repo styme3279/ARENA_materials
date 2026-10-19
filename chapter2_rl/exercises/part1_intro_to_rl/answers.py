@@ -114,21 +114,24 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
         value : float (num_states,) - The value function for policy pi
     """
     num_states = env.num_states
-    T = env.T
-    R = env.R
     # env.T and env.R are [12, 4, 12] = [num_states, num_actions, num_states]
     # env.T: for each state, for each action, transition distribution among s'
     # env.R: for each state, for each action, the reward of each possible s'
-    print("pi:", pi)
-    print(env.T[0][0])
-    print(env.R[0][0])
+    indexed_T = env.T[range(num_states), pi, :] # [num_states, num_states]
+    indexed_R = env.R[range(num_states), pi, :] # [num_states, num_states]
+
     num_iterations = 0
     max_change = 2*eps
-    values = [0] * num_states
-    while num_iterations <= max_iterations and max_change >= eps:
-        
+    values = np.zeros(num_states)
 
+    while num_iterations <= max_iterations and max_change >= eps:
+        brackets = indexed_R + (gamma * values)
+        new_values = einops.einsum(brackets, indexed_T, "s s_new, s s_new -> s s")
+        new_values = new_values.sum(dim=-1)
+        max_change = max(np.abs(new_values-values))
         num_iterations += 1
+        values = new_values
+    return values
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
 

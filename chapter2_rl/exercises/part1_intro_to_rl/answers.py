@@ -508,7 +508,7 @@ class SARSA(EpsilonGreedy):
 
 
 gamma = 0.99
-n_runs = 4000
+n_runs = 400
 n_seeds = 5
 norvig_specs = [
     (Cheater, AgentConfig(), "Cheater"),
@@ -550,3 +550,38 @@ title = f"Q-learning on ExplorationGrid-v0 (mean ± se, {n_seeds} seeds)"
 utils.plot_learning_curves(curves, title=title, band="se")
 
 # %%
+@dataclass
+class TD_LambdaConfig(AgentConfig):
+    lambda_: float = 0.95
+
+
+class SARSA_lambda(SARSA):
+    def __init__(
+        self,
+        env: DiscreteEnviroGym,
+        config: TD_LambdaConfig = defaultConfig,
+        gamma: float = 0.99,
+        seed: int = 0,
+    ):
+        raise NotImplementedError()
+
+    def run_episode(self, seed) -> list[float]:
+        raise NotImplementedError()
+
+    def observe(self, exp: Experience):
+        raise NotImplementedError()
+# %%
+gamma = 0.99
+n_runs = 400
+n_seeds = 5
+norvig_lambda_specs = [
+    (Cheater, AgentConfig(), "Cheater"),
+    (QLearning, AgentConfig(), "Q-Learning"),
+    (SARSA, AgentConfig(), "SARSA"),
+    (SARSA_lambda, TD_LambdaConfig(), "SARSA(λ)"),
+    (Random, AgentConfig(), "Random"),
+]
+# average over a few seeds (tabular RL is noisy) and plot mean ± standard error
+curves = utils.seeded_curves(norvig_lambda_specs, "NorvigGrid-v0", gamma=gamma, n_runs=n_runs, n_seeds=n_seeds)
+title = f"Avg. reward on NorvigGrid-v0 with SARSA(λ) (mean ± se, {n_seeds} seeds)"
+utils.plot_learning_curves(curves, title=title, yaxis_title="Avg. reward", band="se")

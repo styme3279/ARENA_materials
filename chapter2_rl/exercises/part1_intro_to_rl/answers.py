@@ -499,8 +499,7 @@ class QLearning(EpsilonGreedy):
 
 class SARSA(EpsilonGreedy):
     def observe(self, exp: Experience):
-        state, action, reward, next_state = exp.obs, exp.act, exp.reward, exp.new_obs
-        next_action = self.get_action(next_state)
+        state, action, reward, next_state, next_action = exp.obs, exp.act, exp.reward, exp.new_obs, exp.new_act
         self.Q[state][action] += self.config.lr * (reward + (self.gamma * self.Q[next_state, next_action]) - self.Q[state][action])
 
     def run_episode(self, seed) -> list[float]:

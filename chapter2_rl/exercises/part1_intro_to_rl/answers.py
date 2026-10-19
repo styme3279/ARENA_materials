@@ -140,15 +140,17 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
     """
     num_states = env.num_states
 
-    v_n = np.zeros_like(pi)
+    values = np.zeros(num_states)
     is_bigger_eps = True
     i = 0
     while i < max_iterations and is_bigger_eps:
-        v_n_prev = v_n
-        v_n = env.T * (env.R + gamma * v_n)
-        is_bigger_eps = np.sum(np.abs(v_n - v_n_prev)) >= eps
+        v_prev = values
+        for action in pi:
+            values[action] = env.T[:,action,:] * (env.R[:,action,:] + gamma * v_prev[action])
+        is_bigger_eps = np.sum(np.abs(values - v_prev)) >= eps
+        i+1
 
-    return v_n
+    return values
 
 
 

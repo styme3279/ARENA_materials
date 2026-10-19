@@ -508,7 +508,7 @@ class EpsilonGreedy(Agent):
         if random.random() < self.config.epsilon:
             return self.rng.integers(0,self.num_actions)
         else:
-            return np.argmax(self.Q[obs])
+            return self.Q[obs].argmax()
 
 
 class QLearning(EpsilonGreedy):
@@ -518,13 +518,15 @@ class QLearning(EpsilonGreedy):
 
         obs, act, reward, new_obs, new_act = exp.obs, exp.act, exp.reward, exp.new_obs, exp.new_act
 
-        self.Q[obs,act] = self.Q[obs,act] + self.
+        self.Q[obs,act] += self.config.lr*(reward + self.gamma*np.max(self.Q[new_obs]) - self.Q[obs,act])
 
 
 
 class SARSA(EpsilonGreedy):
     def observe(self, exp: Experience):
-        raise NotImplementedError()
+        obs, act, reward, new_obs, new_act = exp.obs, exp.act, exp.reward, exp.new_obs, exp.new_act
+
+        self.Q[obs,act] += self.config.lr*(reward + self.gamma*self.Q[new_obs][new_act] - self.Q[obs,act])
 
     def run_episode(self, seed) -> list[float]:
         rewards = []

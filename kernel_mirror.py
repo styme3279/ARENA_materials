@@ -51,19 +51,43 @@ def vscode_internal(code):
             or code.strip() == "%config Completer.use_jedi = False")
 
 
-def keep_out_of_git(path):
-    """The repo gets auto-committed, so list the mirror file (and its temp file) in .git/info/exclude."""
+def repo_of(path):
+    """(top folder, .git folder) of the git repo holding path, or None."""
     try:
-        top, git_dir = subprocess.run(["git", "-C", str(path.parent), "rev-parse", "--show-toplevel", "--absolute-git-dir"],
-                                      capture_output=True, text=True, check=True).stdout.split()
-    except (OSError, ValueError, subprocess.CalledProcessError):
-        return
+        return subprocess.run(["git", "-C", str(path.parent), "rev-parse", "--show-toplevel", "--absolute-git-dir"],
+                              capture_output=True, text=True, check=True).stdout.splitlines()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def keep_out_of_git(path, top, git_dir):
+    """The repo gets auto-committed, so list the mirror file (and its temp file) in .git/info/exclude."""
     exclude = Path(git_dir) / "info" / "exclude"
     pattern = f"/{path.resolve().relative_to(top)}*"
     lines = exclude.read_text().splitlines() if exclude.exists() else []
     if pattern not in lines:
         exclude.parent.mkdir(exist_ok=True)
         exclude.write_text("".join(f"{l}\n" for l in lines + [pattern]))
+
+
+def make_read_only(path, top):
+    """Mark the mirror file read-only for VS Code in the repo's workspace settings.
+
+    VS Code stops reloading a notebook from disk once it has unsaved changes (a stray keystroke, or the Jupyter
+    extension picking a kernel for it), so without this the file can freeze for one person.
+    """
+    settings = Path(top) / ".vscode" / "settings.json"
+    key = f"**/{path.name}"
+    try:
+        cfg = json.loads(settings.read_text()) if settings.exists() else {}
+    except ValueError:
+        print(f'could not parse {settings}; add "files.readonlyInclude": {{"{key}": true}} to it yourself', flush=True)
+        return
+    readonly = cfg.setdefault("files.readonlyInclude", {})
+    if readonly.get(key) is not True:
+        readonly[key] = True
+        settings.parent.mkdir(exist_ok=True)
+        settings.write_text(json.dumps(cfg, indent=2) + "\n")
 
 
 def squash_cr(text):
@@ -208,7 +232,10 @@ def main():
     ap.add_argument("--max-cells", type=int, default=50, help="how many recent cells to keep (default 50)")
     ap.add_argument("--oldest-first", action="store_true", help="chronological order, newest at the bottom")
     args = ap.parse_args()
-    keep_out_of_git(args.out)
+    repo = repo_of(args.out)
+    if repo:
+        keep_out_of_git(args.out, *repo)
+        make_read_only(args.out, repo[0])
     mirror = Mirror(args.out, args.max_cells, newest_first=not args.oldest_first)
     print(f"mirroring into {args.out}", flush=True)
     while True:

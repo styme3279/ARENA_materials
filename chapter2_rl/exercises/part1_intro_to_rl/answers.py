@@ -184,7 +184,7 @@ tests.test_policy_eval(policy_eval_numerical, exact=False)
 # %%
 def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
     """
-    Finds the exact solution to the Bellman equation.
+    # Finds the exact solution to the Bellman equation.
     """
     num_states = env.num_states
     states = np.arange(num_states)
@@ -208,11 +208,33 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
     """
     #T = env.T[states, :, :]
     #R = env.R[states, :, :]
-    pi_better = np.argmax(np.sum(env.T * env.R + env.T * V, axis=0), axis=0)
+    pi_better = np.argmax(np.sum(env.T * env.R + env.T * V, axis=2), axis=1)
 
     return pi_better
 
 
 tests.test_policy_improvement(policy_improvement)
+
+# %%
+def find_optimal_policy(env: Environment, gamma=0.99, max_iterations=10_000):
+    """
+    Args:
+        env: environment
+    Outputs:
+        pi : (num_states,) int, of actions representing an optimal policy
+    """
+    pi = np.zeros(shape=env.num_states, dtype=int)
+    for i in range(max_iterations):
+        v = policy_eval_exact(env, pi, gamma=gamma)
+        pi = policy_improvement(env, v, gamma=gamma)
+
+    return pi
+
+tests.test_find_optimal_policy(find_optimal_policy)
+
+penalty = -.04
+norvig = Norvig(penalty)
+pi_opt = find_optimal_policy(norvig, gamma=0.99)
+norvig.show_map(pi_opt, title="Optimal Policy, penalty = -0.04")
 
 # %%

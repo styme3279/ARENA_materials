@@ -73,6 +73,32 @@ import part1_intro_to_rl.utils as utils
 from plotly_utils import cliffwalk_imshow, imshow, line
 from part1_intro_to_rl.utils import GridWorld, Environment
 # %%
+class Norvig(GridWorld):
+    """The 3x4 Russell & Norvig gridworld, expressed as a `GridWorld` map: a +1 goal in the top-right
+    with a -1 trap directly below it, a wall in the middle, a small step penalty everywhere else, and
+    `slipperiness=0.3` (the chosen action succeeds 70% of the time)."""
+
+    def __init__(self, penalty=-0.04):
+        super().__init__(
+            """
+            ...G
+            .#.T
+            S...
+            """,
+            step_reward=penalty,
+            goal_reward=1.0,
+            trap_reward=-1.0,
+            slipperiness=0.3,
+        )
+
+
+norvig = Norvig()
+tests.test_norvig_gridworld_equivalence(Norvig)
+
+# `render` prints the grid; `show_map` plots it. Here we show a random policy:
+pi_random = np.random.randint(0, norvig.num_actions, (norvig.num_states,))
+norvig.show_map(pi_random, title="Norvig gridworld: random policy")
+# %%
 # def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_iterations=10_000) -> Arr:
 # """
 # Numerically evaluates the value of a given policy by iterating the Bellman equation
@@ -184,14 +210,12 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
         for action in range(env.num_actions):
             next_states, rewards, probs = env.dynamics(state, action)
             action_value = sum(prob * (reward + gamma * V[next_state]) for next_state, reward, prob in zip(next_states, rewards, probs))
+            # action_value = sum(env.T[state, action, next_state] * (env.R[state, action, next_state] + gamma * V[next_state]) for next_state in range(env.num_states))
             if action_value > best_q_value:
                 best_q_value = action_value
                 best_action = action
         pi_better[state] = best_action
     return pi_better
-
-
-
 tests.test_policy_improvement(policy_improvement)
 # %%
 def find_optimal_policy(env: Environment, gamma=0.99, max_iterations=10_000):

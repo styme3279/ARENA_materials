@@ -248,6 +248,7 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
         pi_better : vector (num_states,) of actions representing a new policy obtained via policy
                     iteration
     """
+    # print(f"V: {V}")
     transition_matrix = env.T
     reward_matrix = env.R
 
@@ -255,12 +256,42 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
     total_reward = einops.einsum(transition_matrix, reward_futures, 's a s_next, s a s_next -> s a')
 
     pi_better = np.argmax(total_reward, axis=1)
-    print(f"pi_better: {pi_better}")
+    # print(f"pi_better: {pi_better}")
     return pi_better
-
-
 
 
 tests.test_policy_improvement(policy_improvement)
 
 
+
+# %%
+def find_optimal_policy(env: Environment, gamma=0.99, max_iterations=10_000):
+    """
+    Args:
+        env: environment
+    Outputs:
+        pi : (num_states,) int, of actions representing an optimal policy
+    """
+    pi = np.zeros(shape=env.num_states, dtype=int)
+
+    for i in range(max_iterations):
+        cur_val = policy_eval_exact(env, pi, gamma)
+        # print(f"cur_val: {cur_val}")
+
+        pi_new = policy_improvement(env, cur_val)
+        if np.array_equal(pi_new, pi):
+            return pi_new
+        else:
+            pi = pi_new
+
+    return pi
+
+
+tests.test_find_optimal_policy(find_optimal_policy)
+
+penalty = 0.01
+norvig = Norvig(penalty)
+pi_opt = find_optimal_policy(norvig, gamma=0.99)
+norvig.show_map(pi_opt, title=f"Optimal Policy, penalty = {penalty}")
+
+# %%

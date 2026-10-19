@@ -178,10 +178,10 @@ def policy_eval_exact(env: Environment, pi: Arr, gamma=0.99) -> Arr:
     P = env.T[range(num_states), pi, :]
     R = env.R[range(num_states), pi, :]
     r = np.sum(P * R, axis=-1)
-    #A = np.eye(num_states) - gamma * P
-    A = inv(np.eye(num_states) - gamma * P)
-    #return np.linalg.solve(A,r)
-    return np.matmul(A,r)
+    A = np.eye(num_states) - gamma * P
+    #A = inv(np.eye(num_states) - gamma * P)
+    return np.linalg.solve(A,r)
+    #return np.matmul(A,r)
 
 tests.test_policy_eval(policy_eval_exact, exact=True)
 
@@ -195,7 +195,38 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
         pi_better : vector (num_states,) of actions representing a new policy obtained via policy
                     iteration
     """
-    env.T
+    return np.argmax((env.T * (env.R + gamma * V)).sum(axis=-1), axis=1)
 
 
 tests.test_policy_improvement(policy_improvement)
+
+# %%
+def find_optimal_policy(env: Environment, gamma=0.99, max_iterations=10_000):
+    """
+    Args:
+        env: environment
+    Outputs:
+        pi : (num_states,) int, of actions representing an optimal policy
+    """
+    pi = np.zeros(shape=env.num_states, dtype=int)
+
+    for i in range(max_iterations):
+        V = policy_eval_exact(env, pi, gamma)
+        pi_new = policy_improvement(env, V, gamma)
+        if np.array_equal(pi_new, pi):
+            return pi_new
+        else:
+            pi = pi_new
+    else:
+        print(f"Failed to converge after {max_iterations} steps.")
+        return pi
+
+
+tests.test_find_optimal_policy(find_optimal_policy)
+
+penalty = -0.04
+norvig = Norvig(penalty)
+pi_opt = find_optimal_policy(norvig, gamma=0.99)
+norvig.show_map(pi_opt, title="Optimal Policy, penalty = -0.04")
+
+# %%

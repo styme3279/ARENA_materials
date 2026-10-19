@@ -120,7 +120,7 @@ class ToyModel(nn.Module):
             h, self.W, "... inst hidden, inst hidden feats -> ... inst feats"
         )
         return F.relu(out + self.b_final)
-`
+
 
     def generate_batch(self, batch_size: int) -> Float[Tensor, "batch inst feats"]:
         """
@@ -180,5 +180,82 @@ class ToyModel(nn.Module):
 
 
 tests.test_model(ToyModel)
+
+# %%
+def generate_batch(self: ToyModel, batch_size: int) -> Float[Tensor, "batch inst feats"]:
+    """
+    Generates a batch of data of shape (batch_size, n_inst, n_features).
+    """
+    batch_shape = (batch_size, self.cfg.n_inst, self.cfg.n_features)
+    feat_mag = t.rand(batch_shape, device=self.W.device)
+    feat_seeds = t.rand(batch_shape, device=self.W.device)
+    return t.where(feat_seeds <= self.feature_probability, feat_mag, 0.0)
+
+
+ToyModel.generate_batch = generate_batch
+tests.test_generate_batch(ToyModel)
+
+
+# %%
+def calculate_loss(
+    self: ToyModel,
+    out: Float[Tensor, "batch inst feats"],
+    batch: Float[Tensor, "batch inst feats"],
+) -> Float[Tensor, ""]:
+    """
+    Calculates the loss for a given batch, using the loss described in the Toy Models paper:
+
+        https://transformer-circuits.pub/2022/toy_model/index.html#demonstrating-setup-loss
+
+    Remember, `self.importance` will always have shape (n_inst, n_features).
+    """
+    error = self.importance * ((batch - out) ** 2)
+    loss = einops.reduce(error, "batch inst feats -> inst", "mean").sum()
+    return loss
+
+
+ToyModel.calculate_loss = calculate_loss
+tests.test_calculate_loss(ToyModel)
+
+
+# %%
+cfg = ToyModelConfig(n_inst=8, n_features=5, d_hidden=2)
+
+# importance varies within features for each instance
+importance = 0.9 ** t.arange(cfg.n_features)
+
+# sparsity is the same for all features in a given instance, but varies over instances
+feature_probability = 50 ** -t.linspace(0, 1, cfg.n_inst)
+
+line(
+    importance,
+    width=600,
+    height=400,
+    title="Importance of each feature (same over all instances)",
+    labels={"y": "Feature importance", "x": "Feature"},
+)
+line(
+    feature_probability,
+    width=600,
+    height=400,
+    title="Feature probability (varied over instances)",
+    labels={"y": "Probability", "x": "Instance"},
+)
+
+model = ToyModel(
+    cfg=cfg,
+    device=device,
+    importance=importance[None, :],
+    feature_probability=feature_probability[:, None],
+)
+model.optimize()
+
+
+utils.plot_features_in_2d(
+    model.W,
+    colors=model.importance,
+    title=f"Superposition: {cfg.n_features} features represented in 2D space",
+    subplot_titles=[f"1 - S = {i:.3f}" for i in feature_probability.squeeze()],
+)
 
 # %%

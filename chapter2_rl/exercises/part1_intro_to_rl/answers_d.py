@@ -237,14 +237,31 @@ def policy_improvement(env: Environment, V: Arr, gamma=0.99) -> Arr:
                     iteration
     """
 
-    pi_better = np.zeros(env.num_states)
-    transition_matrix = env.T
-    reward_matrix = env.R
-    for state in range(env.num_states):
-        print(transition_matrix[state])
-        print(reward_matrix[state])
-        break
+    q_values = einops.einsum(env.T, env.R + gamma * V, 's a s_next, s a s_next -> s a')
+    pi_better = q_values.argmax(axis=1)
+    print('V - ', V)
+    print(pi_better)
+    return pi_better
 
 tests.test_policy_improvement(policy_improvement)
 
 # %%
+
+def find_optimal_policy(env: Environment, gamma=0.99, max_iterations=10_000):
+    """
+    Args:
+        env: environment
+    Outputs:
+        pi : (num_states,) int, of actions representing an optimal policy
+    """
+    pi = np.zeros(shape=env.num_states, dtype=int)
+
+    raise NotImplementedError()
+
+
+tests.test_find_optimal_policy(find_optimal_policy)
+
+penalty = -0.04
+norvig = Norvig(penalty)
+pi_opt = find_optimal_policy(norvig, gamma=0.99)
+norvig.show_map(pi_opt, title="Optimal Policy, penalty = -0.04")

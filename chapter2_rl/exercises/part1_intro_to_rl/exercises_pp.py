@@ -72,45 +72,6 @@ import part1_intro_to_rl.tests as tests
 import part1_intro_to_rl.utils as utils
 from plotly_utils import cliffwalk_imshow, imshow, line
 from part1_intro_to_rl.utils import GridWorld, Environment
-# %% 
-# no need to copy in, already provided in utils.py
-class Environment:
-    def __init__(self, num_states: int, num_actions: int, start=0, terminal=None):
-        self.num_states = num_states
-        self.num_actions = num_actions
-        self.start = start
-        self.terminal = np.array([], dtype=int) if terminal is None else terminal
-        (self.T, self.R) = self._build()
-        # self.T : (num_states, num_actions, num_states) transition probabilities
-        # self.R : (num_states, num_actions, num_states) reward function
-        
-    def render(pi: Arr):
-        """
-        Takes a policy pi, and draws an image of the behavior of that policy, if applicable.
-
-        Args:
-            pi : (num_actions,) a policy
-
-        Returns:
-            None
-        """
-        raise NotImplementedError()
-        
-    def dynamics(self, state: int, action: int) -> tuple[Arr, Arr, Arr]:
-        """
-        Computes the distribution over possible outcomes for a given state
-        and action.
-
-        Args:
-            state  : int (index of state)
-            action : int (index of action)
-
-        Returns:
-            states  : (m,) all the possible next states
-            rewards : (m,) rewards for each next state transition
-            probs   : (m,) likelihood of each state-reward pair
-        """
-        raise NotImplementedError()
 # %%
 def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_iterations=10_000) -> Arr:
     """
@@ -125,13 +86,20 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
         value : float (num_states,) - The value function for policy pi
     """
     num_states = env.num_states
+    num_actions = env.num_actions
+
+    print(f"Evaluating policy for {num_states} states and {num_actions} actions")
 
     for _ in range(max_iterations):
-        V = np.zeros(num_states)
-        for s in range(num_states):
-            a = pi[s]
-            next_state, reward = env.dynamics(s, a)
+        transition_matrix = t.zeros((num_states, num_states))
+        for state in range(num_states):
+            states, rewards, probs = env.dynamics(state, pi[state])
+
+        # for state in range(num_states):
+        #     action = pi[state]
+
             
 
 
 tests.test_policy_eval(policy_eval_numerical, exact=False)
+# %%

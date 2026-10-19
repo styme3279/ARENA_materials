@@ -471,8 +471,12 @@ class EpsilonGreedy(Agent):
         Selects an action using epsilon-greedy with respect to Q-value estimates
         """
         roll = self.rng.random()
-        if roll < config.eps:
-            
+        if roll < self.config.eps:
+            # explore
+            return self.rng.integers(0, n)
+        else:
+            # exploit
+            pass
 
 
 class QLearning(EpsilonGreedy):

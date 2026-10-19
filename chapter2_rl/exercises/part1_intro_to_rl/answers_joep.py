@@ -198,20 +198,38 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
 
     transition_matrix  = env.T[range(num_states), pi, :]
     reward_matrix  = env.R[range(num_states), pi, :]
-    print(f"transition_matrix: {transition_matrix}")
-    print(f"reward_matrix: {reward_matrix}")
+    # print(f"transition_matrix: {transition_matrix}")
+    # print(f"reward_matrix: {reward_matrix}")
 
-    print(f"total_reward: {total_reward}")
+    # print(f"total_reward: {total_reward}")
 
-    for iter in max_iterations:
-        total_reward = einops.einsum(transition_matrix, gamma * reward_matrix, 'i j, i j -> i j')
-        # discounted_reward = einops.einsum(total_reward, reward_matrix, 'i j, i j -> i j')
+    for iter in range(max_iterations):
+        reward_futures = reward_matrix + (gamma * value_arr)
+        total_reward = einops.einsum(transition_matrix, reward_futures, 'i j, i j -> i j')
+        print(f"total_reward: {total_reward.shape}")
+        print(f"total_reward: {total_reward}")
+
+        # print(f"total_reward[0]: {total_reward[0]}")
+        summed_reward = einops.einsum(total_reward, 'i j -> j')
+        # print(f"summed_reward[0]: {summed_reward[0]}")
+        print(f"summed_reward: {summed_reward.shape}")
+        print(f"summed_reward: {summed_reward}")
+        max_reward = np.argmax(summed_reward)
+        print(f"max_reward: {max_reward}")
+        print(f"value_arr: {value_arr}")
+        new_value_arr = total_reward[max_reward]
+        delta = np.abs(value_arr - new_value_arr).sum()
+        if delta < e
 
 
-        # for state in 
+        value_arr = 
+
+        asdf
+
+        # Sum over all rows
 
 
-
+        # argmax
 
 
     raise NotImplementedError()

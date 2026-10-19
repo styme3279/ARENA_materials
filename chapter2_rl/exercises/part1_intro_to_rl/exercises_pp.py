@@ -103,10 +103,13 @@ def policy_eval_numerical(env: Environment, pi: Arr, gamma=0.99, eps=1e-8, max_i
 
     v_old = np.zeros(num_states)
     for _ in range(max_iterations):
-        for state in range(num)
-        
-    
-
+        for state in range(num_states):
+            for action in range(num_actions):
+                state_value = 0
+                for next_state in range(num_states):
+                    state_value += transition_matrix[state, action, next_state] * reward_matrix[state, action, next_state] + gamma * v_old[next_state]
+            
+            
 
             
 

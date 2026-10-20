@@ -347,3 +347,35 @@ tests.test_get_actions(VPGAgent, PolicyNetwork)
 tests.test_gen_rollout(VPGAgent, PolicyNetwork, VPGArgs, Rollout)
 
 # %%
+def compute_returns(
+    rewards: Float[Tensor, " num_envs num_steps"], done: Bool[Tensor, " num_envs num_steps"], gamma: float = 0.9
+):
+    """
+    ARGS:
+        rewards: The rewards for each trajectory
+        done: A boolean tensor indicating if an episode finished on the current timestep
+        gamma: The discount factor
+
+    Returns:
+        The returns G_t for each trajectory.
+
+        For example:
+        - If Rewards = [0, 0, 1, 0, 1]
+        - And Done   = [0, 0, 1, 0, 1]
+        - Then Returns = [g**2, g, 1, g, 1]
+    """
+    num_envs, num_steps = rewards.shape
+
+    returns = t.zeros_like(rewards)
+
+    for r, d in zip(rewards, done):
+        for i in range(rewards.shape[1]-1, -1, -1):
+            print(r[i])
+            print(d[i])
+
+    raise NotImplementedError()
+
+
+tests.test_compute_returns(compute_returns)
+
+# %%

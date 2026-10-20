@@ -323,7 +323,10 @@ def epsilon_greedy_policy(
     Returns:
         actions:    The sampled action for each environment, shape (num_envs,).
     """
-    raise NotImplementedError()
+    rand_epsilons = t.rand(envs.num_envs, generator=rng, device=device)
+    rand_actions = t.randint(0, envs.single_action_space.n, envs.num_envs, generator=rng, device=device)
+
+    
 
 
 tests.test_epsilon_greedy_policy(epsilon_greedy_policy)

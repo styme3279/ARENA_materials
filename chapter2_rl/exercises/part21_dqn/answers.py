@@ -488,9 +488,13 @@ class DQNTrainer:
         the initial buffer filling is taking).
         """
         # This calls self.agent.play_step() n times (i.e. n * num_envs environment steps), which adds the results to the replay buffer
+        data = None
         for i in range(n):
             infos = self.agent.play_step()
-        return infos
+            new_data = get_episode_data_from_infos(infos)
+            if new_data is not None:
+                data = new_data
+        return data
         # It's used to fill the buffer before training starts, and before each optimization step to add new experiences to the buffer
 
     def prepopulate_replay_buffer(self):
@@ -520,24 +524,37 @@ class DQNTrainer:
         # )
 
         predicted_q_values = self.q_network(batch.obs) # (batch_size, actions)
-        predicted_value = predicted_q_values[range(len(batch.actions)), batch.actions].squeeze(dim=-1) # (batch_size)
+
+        predicted_value = predicted_q_values[range(len(batch.actions)), batch.actions] # (batch_size, )
         with t.inference_mode():
-            target_q_values = self.target_network(batch.obs)
+            target_q_values = self.target_network(batch.next_obs)
             target_value = target_q_values.max(dim=-1).values # (batch_size)
 
 
-        mask =  1 - batch.terminated.int() 
+        mask =  1 - batch.terminated.float() 
         masked =  mask * self.args.gamma * target_value 
         y_true = batch.rewards + masked
         loss_vector = (y_true - predicted_value) ** 2
         loss = loss_vector.mean(dim=0)
 
-        self.optimizer.zero_grad()
+        
         loss.backward()
         self.optimizer.step()
 
+        self.optimizer.zero_grad()
+
         if step % self.args.trains_per_target_update == 0:
             self.target_network.load_state_dict(self.q_network.state_dict())
+
+        if self.args.use_wandb and step % 10 == 0:
+            wandb.log(
+                {
+                    "td_loss": loss,
+                    "q_values": predicted_value.mean().item(),
+                    "epsilon": self.agent.epsilon,
+                },
+                step=self.agent.step,
+            )
 
 
     def train(self) -> None:
@@ -631,5 +648,11 @@ def test_probe(probe_idx: int):
 
 for probe_idx in range(1, 6):
     test_probe(probe_idx)
+
+# %%
+args = DQNArgs(use_wandb=True)
+trainer = DQNTrainer(args)
+trainer.train()
+
 
 # %%

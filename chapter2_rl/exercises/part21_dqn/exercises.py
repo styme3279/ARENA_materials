@@ -286,8 +286,13 @@ def linear_schedule(
     for the first `exploration_fraction` fraction of total timesteps, and then stay at end_e for the
     rest of training.
     """
-    raise NotImplementedError()
-
+    exploration_steps = total_timesteps * exploration_fraction
+    
+    if current_step < exploration_steps:
+        cur_fraction = current_step / exploration_steps
+        return start_e - (start_e - end_e) * cur_fraction
+    else:
+        return end_e
 
 epsilons = [
     linear_schedule(step, start_e=1.0, end_e=0.05, exploration_fraction=0.5, total_timesteps=500)
@@ -302,5 +307,33 @@ line(
 )
 
 tests.test_linear_schedule(linear_schedule)
+
+# %%
+def epsilon_greedy_policy(
+    envs: CartPole,
+    q_network: QNetwork,
+    rng: t.Generator,
+    obs: Float[Tensor, " num_envs *obs_shape"],
+    epsilon: float,
+) -> Int[Tensor, " num_envs"]:
+    """
+    For each environment independently: with probability epsilon take a random action, otherwise take the greedy
+    action according to the q_network.
+
+    Inputs:
+        envs:       The batched environment we're acting in
+        q_network:  The QNetwork used to approximate the Q-value function
+        rng:        A torch random number generator
+        obs:        The current observation for each environment, shape (num_envs, *obs_shape)
+        epsilon:    The probability of taking a random action
+
+    Returns:
+        actions:    The sampled action for each environment, shape (num_envs,).
+    """
+    out = q_network(obs)
+    print(out[0])
+
+
+tests.test_epsilon_greedy_policy(epsilon_greedy_policy)
 
 # %%

@@ -520,21 +520,24 @@ class DQNTrainer:
         # )
 
         predicted_q_values = self.q_network(batch.obs) # (batch_size, actions)
-        predicted_value = predicted_q_values[batch.actions] # (batch_size)
+        predicted_value = predicted_q_values[range(len(batch.actions)), batch.actions].squeeze(dim=-1) # (batch_size)
         with t.inference_mode():
             target_q_values = self.target_network(batch.obs)
-            target_value = target_q_values.max(dim=1) # (batch_size)
+            target_value = target_q_values.max(dim=-1).values # (batch_size)
 
 
-        loss = (batch.rewards + (1 - batch.terminated) * self.args.gamma * target_value - predicted_value) ** 2
-        loss = loss.mean(dim=0)
+        mask =  1 - batch.terminated.int() 
+        masked =  mask * self.args.gamma * target_value 
+        y_true = batch.rewards + masked
+        loss_vector = (y_true - predicted_value) ** 2
+        loss = loss_vector.mean(dim=0)
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        if step % args.trains_per_target_update == 0
-
+        if step % self.args.trains_per_target_update == 0:
+            self.target_network.load_state_dict(self.q_network.state_dict())
 
 
     def train(self) -> None:

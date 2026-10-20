@@ -550,10 +550,16 @@ class DQNTrainer:
             when to update the target network)
         """
         samples = self.agent.buffer.sample(self.args.batch_size)
-        print(samples.shape)
+        terminated_mask = t.where(samples.terminated, 0, 1)
         1 / samples.obs.shape 
-        samples.rewards + (1 - ) * self.args.gamma * self.target_network(samples.obs,samples.actions,).max()
-        self.agent.q_network
+
+        with t.inference_mode():
+            target = self.target_network(samples.next_obs).max(dim=-1)
+            
+        t.zero_grad()
+        loss = samples.rewards + (1 - terminated_mask) * self.args.gamma * target - self.agent.q_network(samples.obs)
+        loss.backward()
+        self.optimizer.step()
 
     def train(self) -> None:
         if self.args.use_wandb:

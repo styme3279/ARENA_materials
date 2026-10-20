@@ -287,10 +287,11 @@ def linear_schedule(
     rest of training.
     """
     # current_step is an index
-    schedule = np.zeros(total_timesteps, dtype=np.float64)
+    print(end_e)
+    schedule = t.zeros(total_timesteps)
     # x = np.arange(exploration_fraction * total_timesteps)
     threshold = int(exploration_fraction * total_timesteps)
-    y = np.arange(threshold, dtype=np.float64) * (start_e - end_e) + start_e
+    y = t.arange(threshold) / threshold * (end_e - start_e) + start_e
     schedule[:threshold] = y
     schedule[threshold:] = end_e
     return schedule[current_step]
@@ -308,3 +309,34 @@ line(
 )
 
 tests.test_linear_schedule(linear_schedule)
+
+
+# %%
+
+def epsilon_greedy_policy(
+    envs: CartPole,
+    q_network: QNetwork,
+    rng: t.Generator,
+    obs: Float[Tensor, " num_envs *obs_shape"],
+    epsilon: float,
+) -> Int[Tensor, " num_envs"]:
+    """
+    For each environment independently: with probability epsilon take a random action, otherwise take the greedy
+    action according to the q_network.
+
+    Inputs:
+        envs:       The batched environment we're acting in
+        q_network:  The QNetwork used to approximate the Q-value function
+        rng:        A torch random number generator
+        obs:        The current observation for each environment, shape (num_envs, *obs_shape)
+        epsilon:    The probability of taking a random action
+
+    Returns:
+        actions:    The sampled action for each environment, shape (num_envs,).
+    """
+    policy = t.zeros((envs.num_envs))
+    indices = t.rand((envs.num_envs))
+    policy[t.where()]
+
+
+tests.test_epsilon_greedy_policy(epsilon_greedy_policy)

@@ -421,7 +421,6 @@ class DQNAgent:
         next_obs, rewards, terminated, truncated, infos = self.envs.step(actions)
 
         done = terminated | truncated
-
         true_next_obs = next_obs.clone()
         true_next_obs[done] = infos["final_observation"][done]
 
@@ -443,5 +442,10 @@ class DQNAgent:
 
 
 tests.test_agent(DQNAgent)
+
+# %%
+
+
+
 
 # %%

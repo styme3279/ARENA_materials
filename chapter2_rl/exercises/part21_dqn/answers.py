@@ -335,26 +335,119 @@ def epsilon_greedy_policy(
         actions:    The sampled action for each environment, shape (num_envs,).
     """
     num_envs = envs.num_envs
-    #policy = t.zeros((num_envs))
-    #indices = t.rand((num_envs))
     num_act = envs.action_space.n
-    #policy[t.where()]
-    acts = []
-    for env in range(num_envs):
-        r = t.rand(1, generator=rng, device=device).item()
-        if r < epsilon:
-            act = t.randint(0, num_act - 1, size=(1,), generator=rng, device=device)
-        else:
-            act = q_network(obs[env]).argmax()
-        acts.append(act)
-    print(acts)
-    return t.as_tensor(acts, device=device)
+    
+    # acts = []
+    # for env in range(num_envs):
+    #     r = t.rand(1, generator=rng, device=device).item()
+    #     if r < epsilon:
+    #         act = t.randint(0, num_act, size=(1,), generator=rng, device=device)
+    #     else:
+    #         act = q_network(obs[env]).argmax()
+    #     acts.append(act)
+    # return t.as_tensor(acts, device=device)
 
-    # r = t.rand(num_envs, generator=rng, device=device)
-    #  = r < epsilon
-    # acts = t.zeros(num_envs)
-    # acts[which] = 
-    # acts[~which]
+    r = t.rand(num_envs, generator=rng, device=device)
+    explore = r < epsilon
+    acts = t.randint(num_act, size=(num_envs,), generator=rng, device=device)
+    with t.no_grad():
+        acts[~explore] = q_network(obs[~explore]).argmax(dim=-1)
+    return acts
         
 
 tests.test_epsilon_greedy_policy(epsilon_greedy_policy)
+# %%
+env = Probe1(num_envs=4)
+assert env.single_observation_space.shape == (1,)
+assert env.single_action_space.shape == ()
+obs, _ = env.reset()
+assert obs.shape == (4, 1)
+# %%
+@dataclass
+class DQNArgs:
+    # Basic / global
+    seed: int = 1
+    env_id: str = "CartPole-gpu"
+    num_envs: int = 16 # number of parallel environments to run
+    device: str = device
+
+    # Wandb / logging
+    use_wandb: bool = False
+    wandb_project_name: str = "DQNCartPole"
+    wandb_entity: str | None = None
+    video_log_freq: int | None = None # number of optimization steps between wandb video upload
+    steps_per_live_video: int | None = 5_000 # number of optimization steps between live video display
+    overwrite_video: bool = True # older live videos are overwritten by newer ones if True. Otherwise, they are plotted one after the other.
+
+    # Duration of different phases / buffer memory settings
+    total_timesteps: int = 300_000 # total environment steps (summed over all envs), including buffer filling
+    steps_per_update: int = 1 # calls to `agent.play_step` (each = num_envs environment steps) per optimization step
+    trains_per_target_update: int = 50 # optimization steps between target network updates
+    buffer_size: int = 10_000 # replay buffer capacity (environment steps used to fill it before training)
+
+    # Optimization hparams
+    batch_size: int = 512
+    learning_rate: float = 5e-3
+
+    # RL-specific
+    gamma: float = 0.99
+    exploration_fraction: float = 0.1
+    start_e: float = 1.0
+    end_e: float = 0.02
+
+    def __post_init__(self):
+        assert self.total_timesteps - self.buffer_size >= self.steps_per_update * self.num_envs
+        # Every call to `agent.play_step` advances all `num_envs` environments by one step; we take one optimization
+        # step per `steps_per_update` such calls, so this is the total number of optimization steps
+        self.total_training_steps = (self.total_timesteps - self.buffer_size) // (self.steps_per_update * self.num_envs)
+        self.device = t.device(self.device)
+# %%
+class DQNAgent:
+    """Base Agent class handling the interaction with the environment."""
+
+    def __init__(
+        self,
+        envs: CartPole,
+        buffer: ReplayBuffer,
+        q_network: QNetwork,
+        start_e: float,
+        end_e: float,
+        exploration_fraction: float,
+        total_timesteps: int,
+        rng: t.Generator,
+    ):
+        self.envs = envs
+        self.buffer = buffer
+        self.q_network = q_network
+        self.start_e = start_e
+        self.end_e = end_e
+        self.exploration_fraction = exploration_fraction
+        self.total_timesteps = total_timesteps
+        self.rng = rng
+
+        self.step = 0  # Tracking number of environment steps taken (summed across all environments)
+        self.obs, _ = self.envs.reset()  # Need a starting observation
+        self.epsilon = start_e  # Starting value (will be updated in `get_actions`)
+
+    def play_step(self) -> dict:
+        """
+        Carries out a single interaction step between agent & environment, and adds results to the
+        replay buffer.
+
+        Returns `infos` (a dict containing info we will log).
+        """
+
+        actions = self.get_actions(obs=self.obs)
+        
+        self.step += self.envs.num_envs
+        return infos
+
+    def get_actions(self, obs: Float[Tensor, " num_envs *obs_shape"]) -> Int[Tensor, " num_envs"]:
+        """
+        Samples actions according to the epsilon-greedy policy using the linear schedule for epsilon.
+        """
+        epsilon = linear_schedule(current_step=self.step, start_e=self.start_e, end_e=self.end_e, exploration_fraction=self.exploration_fraction, total_timesteps=self.total_timesteps)
+        policy = epsilon_greedy_policy(envs=self.envs, q_network=self.q_network, rng=self.rng, obs=self.obs, epsilon=epsilon)
+        return policy[obs]
+
+tests.test_agent(DQNAgent)

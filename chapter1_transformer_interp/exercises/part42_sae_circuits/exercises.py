@@ -52,3 +52,16 @@ import part42_sae_circuits.utils as utils
 MAIN = __name__ == "__main__"
 
 # %%
+gpt2 = HookedSAETransformer.from_pretrained("gpt2-small", device=device, dtype=dtype)
+
+gpt2_saes = {
+    layer: SAE.from_pretrained(
+        release="gpt2-small-res-jb",
+        sae_id=f"blocks.{layer}.hook_resid_pre",
+        device=device,
+        dtype=dtype,
+    )
+    for layer in tqdm(range(gpt2.cfg.n_layers))
+}
+
+# %%

@@ -365,8 +365,6 @@ def compute_returns(
         - Then Returns = [g**2, g, 1, g, 1]
     """
     num_envs, num_steps = rewards.shape
-    print(f"rewards: {rewards}")
-    print(f"done: {done}")
 
     returns = t.zeros_like(rewards)
 
@@ -379,9 +377,56 @@ def compute_returns(
             else:
                 latest = gamma * latest + r[i]
                 returns[j, i] = latest
-    print(f"returns: {returns}")
     return returns
 
 tests.test_compute_returns(compute_returns)
 
 # %%
+def compute_logprobs(tau: RolloutTensors, pi: PolicyNetwork) -> Float[Tensor, " num_envs num_steps"]:
+    """
+    Computes the logprobs of the actions taken on each timestep under the current policy.
+    """
+    logits = pi(tau.obs)
+    log_probs = F.log_softmax(logits, dim=-1)
+    return log_probs.gather(-1, tau.actions.unsqueeze(-1)).squeeze(-1)
+
+tests.test_compute_logprobs(compute_logprobs, PolicyNetwork)
+
+# %%
+def compute_importance_weights(logprobs_taken, tau: RolloutTensors, clip_coef: Optional[float]) -> t.Tensor:
+    """
+    Compute importance weights from log probabilities.
+
+    Keeps the result numerically stable by exponentiating the difference between logprobs.
+    Gradients should NOT flow through the importance weights (uses .detach()).
+    Optionally clips the weights to [1 - clip_coef, 1 + clip_coef].
+    """
+    iw = t.exp(logprobs_taken - tau.logprobs).detach()  # Detach to prevent gradient flow
+    if clip_coef is not None:
+        iw = t.clamp(iw, 1 - clip_coef, 1 + clip_coef)
+    return iw
+
+
+tests.test_compute_importance_weights(compute_importance_weights)
+
+# %%
+def normalize_returns(returns: Float[Tensor, " num_envs num_steps"]) -> Float[Tensor, " num_envs num_steps"]:
+    """
+    Normalizes the returns by ensuring zero mean, unit variance across all trajectories and timesteps.
+    """
+    return (returns - returns.mean()) / (returns.std() + 1e-8)
+
+
+tests.test_normalize_returns(normalize_returns)
+
+# %%
+def compute_reinforce_loss(
+    returns: Float[Tensor, " num_envs num_steps"],
+    logprobs_taken: Float[Tensor, " num_envs num_steps"],
+    iw: Float[Tensor, " num_envs num_steps"],
+) -> Float[Tensor, ""]:
+    adv = returns - returns.mean(dim=0, keepdim=True)   # baseline per timestep across envs
+    return (iw * logprobs_taken * adv.detach()).mean()
+
+
+tests.test_compute_reinforce_loss(compute_reinforce_loss)

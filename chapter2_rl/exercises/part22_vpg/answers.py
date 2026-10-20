@@ -304,7 +304,11 @@ class VPGAgent:
         rollout.reset()
 
         for _ in range(self.args.num_steps_per_rollout):
-            self.envs.step()
+            actions, logprobs = self.get_actions(obs)
+            
+            obs, rewards, terminated, truncated, _ = self.envs.step(actions)
+
+            rollout.add_step(obs, actions, logprobs, rewards, terminated | truncated)
 
         return rollout
 
@@ -316,15 +320,15 @@ class VPGAgent:
         sample the action the agent takes, along with the log_probs of that action.
         Use t.multinomial to sample the actions.
         """
-        qs = self.policy_network(obs)
+        qs = self.policy_network(obs)  # (256, 2)
 
-        print(qs)
+        chosen = t.multinomial(qs.softmax(dim=-1), num_samples=1)  # (256, 1)
 
-        chosen = t.multinomial(qs.softmax(dim=-1), num_samples = 1)
+        logprobs = qs.log_softmax(dim=-1)  # (256, 2)
 
-        print(chosen)
+        selected_logprobs = logprobs.gather(dim=1, index=chosen)  # (256, 1)
 
-        return chosen.squeeze(-1), qs[:, chosen]
+        return chosen.squeeze(-1), selected_logprobs.squeeze(-1)
 
 
 tests.test_get_actions(VPGAgent, PolicyNetwork)

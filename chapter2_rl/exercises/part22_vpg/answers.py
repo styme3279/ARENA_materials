@@ -334,12 +334,48 @@ def compute_logprobs(tau: RolloutTensors, pi: PolicyNetwork) -> Float[Tensor, " 
     """
     Computes the logprobs of the actions taken on each timestep under the current policy.
     """
-    with t.no_grad():
-        logits = pi(tau.obs)
-        print(pi.obs_shape)
-        print(tau.obs.shape)
-        logprobs = t.log_softmax(logits, dim=-1)
-        print(logprobs.shape)
+    logits = pi(tau.obs)
+    logprobs = t.log_softmax(logits, dim=-1).gather(-1, tau.actions.unsqueeze(-1)).squeeze(-1)
+    return logprobs
 
 
 tests.test_compute_logprobs(compute_logprobs, PolicyNetwork)
+
+# %%
+def compute_importance_weights(logprobs_taken, tau: RolloutTensors, clip_coef: Optional[float]) -> t.Tensor:
+    """
+    Compute importance weights from log probabilities.
+
+    Keeps the result numerically stable by exponentiating the difference between logprobs.
+    Gradients should NOT flow through the importance weights (uses .detach()).
+    Optionally clips the weights to [1 - clip_coef, 1 + clip_coef].
+    """
+
+    importance_weights = (logprobs_taken - tau.logprobs).exp().detach()
+    if clip_coef is not None:
+        importance_weights = t.clip(importance_weights, min=1-clip_coef, max=1+clip_coef)
+    return importance_weights
+
+tests.test_compute_importance_weights(compute_importance_weights)
+
+# %%
+
+def normalize_returns(returns: Float[Tensor, " num_envs num_steps"]) -> Float[Tensor, " num_envs num_steps"]:
+    """
+    Normalizes the returns by ensuring zero mean, unit variance across all trajectories and timesteps.
+    """
+    return (returns - returns.mean(dim=(0,-1))) /  returns.std(dim=(0,-1)) 
+
+
+tests.test_normalize_returns(normalize_returns)
+
+# %%
+def compute_reinforce_loss(
+    returns: Float[Tensor, " num_envs num_steps"],
+    logprobs_taken: Float[Tensor, " num_envs num_steps"],
+    iw: Float[Tensor, " num_envs num_steps"],
+) -> Float[Tensor, ""]:
+    raise NotImplementedError()
+
+
+tests.test_compute_reinforce_loss(compute_reinforce_loss)

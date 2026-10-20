@@ -641,3 +641,51 @@ class DQNTrainer:
             wandb.finish()
 
 # %%
+def test_probe(probe_idx: int):
+    """
+    Tests a probe environment by training a network on it & verifying that the value functions are
+    in the expected range.
+    """
+    # Train our network on this probe env.
+    args = DQNArgs(
+        env_id=f"Probe{probe_idx}-v0",
+        wandb_project_name=f"test-probe-{probe_idx}",
+        total_timesteps=3000 if probe_idx <= 2 else 5000,
+        learning_rate=0.001,
+        buffer_size=500,
+        use_wandb=False,
+        trains_per_target_update=20,
+        video_log_freq=None,
+        num_envs=1,
+        steps_per_update=10,
+        exploration_fraction=0.2,
+        end_e=0.1,
+    )
+    trainer = DQNTrainer(args)
+    trainer.train()
+
+    # Get the correct set of observations, and corresponding values we expect
+    obs_for_probes = [[[0.0]], [[-1.0], [+1.0]], [[0.0], [1.0]], [[0.0]], [[0.0], [1.0]]]
+    expected_value_for_probes = [
+        [[1.0]],
+        [[-1.0], [+1.0]],
+        [[args.gamma], [1.0]],
+        [[-1.0, 1.0]],
+        [[1.0, -1.0], [-1.0, 1.0]],
+    ]
+    tolerances = [5e-4, 5e-4, 5e-4, 5e-4, 1e-3]
+    obs = t.tensor(obs_for_probes[probe_idx - 1]).to(device)
+
+    # Calculate the actual value, and verify it
+    value = trainer.q_network(obs)
+    # A bf16 network (e.g. under autocast) can't represent these targets to better than its eps
+    atol = max(tolerances[probe_idx - 1], t.finfo(value.dtype).eps)
+    expected_value = t.tensor(expected_value_for_probes[probe_idx - 1]).to(device)
+    t.testing.assert_close(value.float(), expected_value, atol=atol, rtol=0)
+    print("Probe tests passed!\n")
+
+
+for probe_idx in range(1, 6):
+    test_probe(probe_idx)
+
+# %%

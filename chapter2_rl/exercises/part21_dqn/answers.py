@@ -508,6 +508,8 @@ class DQNTrainer:
             step (int): The number of optimization steps taken so far (used for logging, and for deciding
             when to update the target network)
         """
+        
+
         batch = self.buffer.sample(sample_size=self.args.batch_size)
         #  return ReplayBufferSamples(
         #     obs=self.obs[indices],                  # s_t
@@ -517,11 +519,22 @@ class DQNTrainer:
         #     next_obs=self.next_obs[indices],        # s_{t+1}
         # )
 
-        print(f"batch obs: {batch.obs}")
-        print(f"batch act: {batch.actions}")
-        predicted_q_values = self.q_network(batch.obs) # (batch_size, num_envs, actions)
-        print(predicted_q_values.shape)
-        raise ValueError()
+        predicted_q_values = self.q_network(batch.obs) # (batch_size, actions)
+        predicted_value = predicted_q_values[batch.actions] # (batch_size)
+        with t.inference_mode():
+            target_q_values = self.target_network(batch.obs)
+            target_value = target_q_values.max(dim=1) # (batch_size)
+
+
+        loss = (batch.rewards + (1 - batch.terminated) * self.args.gamma * target_value - predicted_value) ** 2
+        loss = loss.mean(dim=0)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        if step % args.trains_per_target_update == 0
+
 
 
     def train(self) -> None:

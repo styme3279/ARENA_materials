@@ -139,8 +139,12 @@ class Rollout:
 
         if self.timestep >= self.MAX_SIZE:
             raise ValueError("Rollout is full, cannot add more steps")
-
-        raise NotImplementedError()
+        self._obs.append(obs)
+        self._actions.append(actions)
+        self._logprobs.append(logprobs)
+        self._rewards.append(rewards)
+        self._dones.append(dones)
+        self.timestep += 1
 
     def reset(self):
         self._obs.clear(); self._actions.clear(); self._logprobs.clear()
@@ -167,7 +171,15 @@ class Rollout:
         `RolloutTensors` objects, each containing `batch_size` many trajectories.
         """
 
-        raise NotImplementedError()
+        res = self.get()
+        batches = []
+        for i in range(0, res.obs.shape[0], batch_size):
+            for att in ["obs", "actions", "logprobs", "rewards", "dones"]:
+                res[att][i:i+1]
+                RolloutTensors()
+
+        print(res.obs.shape)
+        return res
 
 
 tests.test_rollout(Rollout)

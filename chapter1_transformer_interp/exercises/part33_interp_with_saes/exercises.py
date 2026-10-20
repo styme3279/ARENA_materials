@@ -149,14 +149,13 @@ def display_dashboard(
 prompt = "Mitigating the risk of extinction from AI should be a global"
 # answer = " priority"
 
-def get_top_k_from_sae(k=3):
-    sae_to_use = 0
+def get_top_k_from_sae(sae_to_use=0, k=3, model=gpt2):
     sae_id = sae_ids[sae_to_use]
     sae = splitting_saes[int(list(splitting_saes.keys())[sae_to_use])]
     print(f"Running sae: {sae_id}")
 
     # Get top activations on final token
-    _, cache = gpt2.run_with_cache_with_saes(
+    _, cache = model.run_with_cache_with_saes(
         prompt,
         saes=[sae],
         stop_at_layer=_get_hook_layer(sae) + 1,
@@ -180,14 +179,33 @@ def get_top_k_from_sae(k=3):
         top_latents.append((ind, act))
 
     return top_latents
+
+top_latents_for_sae = []
+for i in range(len(sae_ids)):
+    top_latents = get_top_k_from_sae(sae_to_use=i, k=3)
+    top_latents_for_sae.append((i, top_latents))
+
+rprint(top_latents_for_sae)
     
-    # display_dashboard(latent_idx=ind, 
-    # display_dashboard(
-    #     sae_id=sae_id,
-    #     latent_idx=ind,
-    # )
+# %%
+
+# latent_ids = [275, 241, 420] # 0
+latent_ids = [716, 256, 370] # 1
+for latent_idx in latent_ids:
+    sae_id     = 0
+    display_dashboard(
+        sae_id     = sae_ids[sae_id],
+        latent_idx = latent_idx, 
+    )
 
 # %%
+
+
+
+
+
+
+
 
 
 

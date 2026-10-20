@@ -97,5 +97,4 @@ print(envs.single_observation_space)  # Box(4): each observation can take a cont
 obs, infos = envs.reset()
 print(obs.shape, obs.device)  # (num_envs, 4): one observation per environment, as a tensor on our device
 
-"files.autoSave": "afterDelay",
-"files.autoSaveDelay": 100,
+# %%

@@ -793,6 +793,7 @@ class DQNTrainer:
         fig.show()
 # %%
 args = DQNArgs(use_wandb=True)
-trainer = DQNTrainer(args)
+trainer = DQNTra
+iner(args)
 trainer.train()
 # %%

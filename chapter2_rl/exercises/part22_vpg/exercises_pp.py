@@ -603,8 +603,8 @@ for probe_idx in [4, 5]:
     test_probe(probe_idx)
 # %%
 args_fast = VPGArgs(
-    use_wandb=False,
-    num_envs=32,
+    use_wandb=True,
+    num_envs=64,
     num_batches_per_rollout=1,
     total_timesteps=640_000,
     num_steps_per_rollout=500,
@@ -620,3 +620,4 @@ args_fast = VPGArgs(
 )
 trainer = VPGTrainer(args_fast)
 trainer.train()
+# %%

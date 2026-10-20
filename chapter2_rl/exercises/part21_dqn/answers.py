@@ -502,9 +502,14 @@ class DQNTrainer:
         Optional argument `verbose`: if True, we can use a progress bar (useful to check how long
         the initial buffer filling is taking).
         """
+        data = None
+
         for _ in range(n):
             infos = self.agent.play_step()
-        return infos
+            new_data = get_episode_data_from_infos(infos)
+            data = new_data if new_data is not None else data  # keep the *last* terminated episode
+
+        return data
 
     def prepopulate_replay_buffer(self):
         """
@@ -533,10 +538,9 @@ class DQNTrainer:
         with t.inference_mode():
             target_q = self.target_network(sample.next_obs)
 
-        loss = (1 / self.args.batch_size) * ((sample.rewards + ((1 - sample.terminated) * self.args.gamma * target_q.argmax(dim=1)) - qnetwork_q)**2).sum()
+        loss = float(1 / self.args.batch_size) * (sample.rewards + ((1 - sample.terminated.float()) * self.args.gamma * target_q.max(dim=1).values) - qnetwork_q).pow(2).sum()
         loss.backward()
         self.optimizer.step()
-
 
     def train(self) -> None:
         if self.args.use_wandb:

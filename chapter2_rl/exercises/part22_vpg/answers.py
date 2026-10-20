@@ -22,6 +22,9 @@ from tqdm.auto import tqdm
 
 warnings.filterwarnings("ignore")
 
+import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
 
 # Make sure exercises are in the path
 chapter = "chapter2_rl"
@@ -239,6 +242,8 @@ class VPGArgs:
             assert self.num_batches_per_rollout == 1, "num_batches_per_rollout must be 1 if use_iw is False"
 
 # %%
+device = t.device("cpu")
+# %%
 class VPGAgent:
     """Base Agent class handling the interaction with the environment."""
 
@@ -268,9 +273,11 @@ class VPGAgent:
         rollout.reset()
 
         for _ in range(self.args.num_steps_per_rollout):
-            actions = self.get_actions(obs)
-            self.envs.step(action=actions)
-        
+            actions, logprobs = self.get_actions(obs)
+            new_obs, rewards, terminated, truncated, info = self.envs.step(action=actions)
+            dones = terminated | truncated
+            rollout.add_step(obs, actions, logprobs, rewards, dones)
+            obs = new_obs
 
         return rollout
 
@@ -282,13 +289,40 @@ class VPGAgent:
         sample the action the agent takes, along with the log_probs of that action.
         Use t.multinomial to sample the actions.
         """
-        action_logits = t.vmap(self.policy_network, in_dims=0)(obs)
-        probs = t.softmax(action_logits, dim=-1)
-        sampled_actions = t.multinomial(probs, num_samples=1).squeeze(-1)
+        action_logits = self.policy_network(obs)
         logprobs_all = t.log_softmax(action_logits, dim=-1)
+        sampled_actions = t.multinomial(logprobs_all.exp(), num_samples=1).squeeze(-1)
         logprobs_for_actions = logprobs_all.gather(-1, sampled_actions.unsqueeze(-1)).squeeze(-1)
         return sampled_actions, logprobs_for_actions
 
 
 tests.test_get_actions(VPGAgent, PolicyNetwork)
 tests.test_gen_rollout(VPGAgent, PolicyNetwork, VPGArgs, Rollout)
+# %%
+def compute_returns(
+    rewards: Float[Tensor, " num_envs num_steps"], done: Bool[Tensor, " num_envs num_steps"], gamma: float = 0.9
+):
+    """
+    ARGS:
+        rewards: The rewards for each trajectory
+        done: A boolean tensor indicating if an episode finished on the current timestep
+        gamma: The discount factor
+
+    Returns:
+        The returns G_t for each trajectory.
+
+        For example:
+        - If Rewards = [0, 0, 1, 0, 1]
+        - And Done   = [0, 0, 1, 0, 1]
+        - Then Returns = [g**2, g, 1, g, 1]
+    """
+    num_envs, num_steps = rewards.shape
+
+    returns = t.zeros_like(rewards)
+
+    
+    fo
+    
+
+
+tests.test_compute_returns(compute_returns)

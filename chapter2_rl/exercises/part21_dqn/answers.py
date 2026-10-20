@@ -549,15 +549,16 @@ class DQNTrainer:
             step (int): The number of optimization steps taken so far (used for logging, and for deciding
             when to update the target network)
         """
-        samples = self.agent.buffer.sample(self.args.batch_size)
-        terminated_mask = t.where(samples.terminated, 0, 1)
-        1 / samples.obs.shape 
-
+        samples = self.buffer.sample(self.args.batch_size)
+        unterminated_mask = t.where(samples.terminated, 0, 1)
         with t.inference_mode():
-            target = self.target_network(samples.next_obs).max(dim=-1)
-            
-        t.zero_grad()
-        loss = samples.rewards + (1 - terminated_mask) * self.args.gamma * target - self.agent.q_network(samples.obs)
+            target = self.target_network(samples.next_obs).max(dim=-1).values
+        rewards = samples.rewards + unterminated_mask * self.args.gamma * target
+        q = self.q_network(samples.obs).
+        print(f"{q.shape=}, {rewards.shape=}")
+        
+        self.optimizer.zero_grad()
+        loss = (rewards - q).pow(2).mean()
         loss.backward()
         self.optimizer.step()
 

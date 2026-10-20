@@ -394,7 +394,18 @@ class DQNAgent:
 
         Returns `infos` (a dict containing info we will log).
         """
-        raise NotImplementedError()
+        # Get actions (using self.get_actions rather than randomly sampling like we did in the demo code before)
+        actions = self.get_actions(self.obs)
+        # Step our environment with these actions
+        next_obs, rewards, terminated, truncated, infos = self.envs.step(actions)
+        # Add the new experiences to the buffer: remembering that for environments which just finished an episode, next_obs is already the reset observation, 
+        # and the true final observation is in infos["final_observation"].
+        done = terminated | truncated
+        true_next_obs = next_obs.clone()
+        true_next_obs[done] = infos["final_observation"][done]
+        self.buffer.add(self.obs, actions, rewards, terminated, true_next_obs)
+        # Set your new observation as self.obs, ready for the next step
+        self.obs = next_obs
 
         self.step += self.envs.num_envs
         return infos
@@ -403,7 +414,15 @@ class DQNAgent:
         """
         Samples actions according to the epsilon-greedy policy using the linear schedule for epsilon.
         """
-        raise NotImplementedError()
+        # Set self.epsilon according to the linear schedule function & the current global step counter
+        self.epsilon = linear_schedule(
+            current_step=self.step, start_e=self.start_e, end_e=self.end_e, exploration_fraction=self.exploration_fraction, total_timesteps=self.total_timesteps
+        )
+        # Sample actions according to the epsilon-greedy policy (i.e. using your epsilon_greedy_policy function), and return them
+        actions = epsilon_greedy_policy(envs=self.envs, q_network=self.q_network, rng=self.rng, obs=obs, epsilon=self.epsilon)
+        return actions
 
 
 tests.test_agent(DQNAgent)
+
+# %%

@@ -426,3 +426,17 @@ px.scatter(
 ).update_traces(marker=dict(size=4, line=dict(width=0))).update_layout(showlegend=False)
 
 # %%
+
+
+
+
+
+
+
+
+
+
+
+
+
+

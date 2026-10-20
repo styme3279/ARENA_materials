@@ -556,8 +556,14 @@ class DQNTrainer:
         Optional argument `verbose`: if True, we can use a progress bar (useful to check how long
         the initial buffer filling is taking).
         """
-        raise NotImplementedError()
+        data = None
 
+        for step in tqdm(range(n), disable=not verbose, desc="Adding to replay buffer"):
+            infos = self.agent.play_step()
+            new_data = get_episode_data_from_infos(infos)
+            data = new_data if new_data is not None else data  # keep the *last* terminated episode
+
+        return data
     def prepopulate_replay_buffer(self):
         """
         Called to fill the replay buffer before training starts.
@@ -573,7 +579,17 @@ class DQNTrainer:
             step (int): The number of optimization steps taken so far (used for logging, and for deciding
             when to update the target network)
         """
-        raise NotImplementedError()
+        sample = self.buffer.sample(self.args.batch_size)
+        obs, actions, rewards, terminated, next_obs = sample.obs, sample.actions, sample.rewards, sample.terminated, sample.next_obs
+
+        with t.inference_mode():
+            target_max = self.target_network(next_obs).max(-1).values
+        predicted_q_vals = self.q_network(obs).gather(-1, sample.actions.unsqueeze(-1)).squeeze(-1)
+
+        Loss = (rewards + (1-terminated)*self.args.gamma*q_target - q_actions) / self.args.batch_size
+
+        Loss.backward()
+        self.optimizer.step()
 
     def train(self) -> None:
         if self.args.use_wandb:

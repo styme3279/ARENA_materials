@@ -320,9 +320,26 @@ def compute_returns(
 
     returns = t.zeros_like(rewards)
 
+    g = t.zeros(num_envs)
+    for i in range(num_steps, 0, -1):
+        g = rewards[:,i] + gamma * g * ~done[:,i]
+        returns[:,i] = g
+    return returns       
     
-    fo
-    
-
-
 tests.test_compute_returns(compute_returns)
+
+# %%
+
+def compute_logprobs(tau: RolloutTensors, pi: PolicyNetwork) -> Float[Tensor, " num_envs num_steps"]:
+    """
+    Computes the logprobs of the actions taken on each timestep under the current policy.
+    """
+    with t.no_grad():
+        logits = pi(tau.obs)
+        print(pi.obs_shape)
+        print(tau.obs.shape)
+        logprobs = t.log_softmax(logits, dim=-1)
+        print(logprobs.shape)
+
+
+tests.test_compute_logprobs(compute_logprobs, PolicyNetwork)

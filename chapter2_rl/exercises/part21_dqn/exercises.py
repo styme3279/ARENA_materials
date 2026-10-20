@@ -415,20 +415,22 @@ class DQNAgent:
 
         Returns `infos` (a dict containing info we will log).
         """
-        print(f"self.envs: {self.envs}")
-
         # Get actions (using self.get_actions rather than randomly sampling like we did in the demo code before)
-        action = self.get_actions(self.obs)
+        actions = self.get_actions(self.obs)
         # Step our environment with these actions
-        self.envs
-        
+        next_obs, rewards, terminated, truncated, infos = self.envs.step(actions)
+
+        done = terminated | truncated
+
+        true_next_obs = next_obs.clone()
+        true_next_obs[done] = infos["final_observation"][done]
+
         # Add the new experiences to the buffer: remembering that for environments which just finished an episode, next_obs is already the reset observation, and the true final observation is in infos["final_observation"].
+        self.buffer.add(self.obs, actions, rewards, terminated, true_next_obs)        
         
         # Set your new observation as self.obs, ready for the next step
+        self.obs = next_obs.clone()
         
-        infos = {}
-        
-
         self.step += self.envs.num_envs
         return infos
 
@@ -440,5 +442,6 @@ class DQNAgent:
         return epsilon_greedy_policy(self.envs, self.q_network, self.rng, obs, self.epsilon)
 
 
-
 tests.test_agent(DQNAgent)
+
+# %%

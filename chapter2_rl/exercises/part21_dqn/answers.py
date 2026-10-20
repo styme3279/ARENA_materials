@@ -287,7 +287,6 @@ def linear_schedule(
     rest of training.
     """
     # current_step is an index
-    print(end_e)
     schedule = t.zeros(total_timesteps)
     # x = np.arange(exploration_fraction * total_timesteps)
     threshold = int(exploration_fraction * total_timesteps)
@@ -347,13 +346,20 @@ def epsilon_greedy_policy(
     #     acts.append(act)
     # return t.as_tensor(acts, device=device)
 
-    r = t.rand(num_envs, generator=rng, device=device)
-    explore = r < epsilon
-    acts = t.randint(num_act, size=(num_envs,), generator=rng, device=device)
-    with t.no_grad():
-        acts[~explore] = q_network(obs[~explore]).argmax(dim=-1)
-    return acts
-        
+    # r = t.rand(num_envs, generator=rng, device=device)
+    # explore = r < epsilon
+    # acts = t.randint(num_act, size=(num_envs,), generator=rng, device=device)
+    # with t.no_grad():
+    #     acts[~explore] = q_network(obs[~explore]).argmax(dim=-1)
+    # return acts
+
+    with t.no_grad(): 
+        res = (
+            t.randint(num_act, (num_envs,), generator=rng, device=device)
+            .where(
+                t.rand(num_envs, generator=rng, device=device) < epsilon, 
+                q_network(obs).argmax(-1)))
+    return  res
 
 tests.test_epsilon_greedy_policy(epsilon_greedy_policy)
 # %%
@@ -437,17 +443,22 @@ class DQNAgent:
         Returns `infos` (a dict containing info we will log).
         """
 
-        actions = self.get_actions(obs=self.obs)
-        
+        action = self.get_actions(obs=self.obs)
+        new_obs, reward, terminated, truncated, infos = self.envs.step(action)
+        done = terminated | truncated
+        true_next_obs = new_obs.clone()
+        true_next_obs[done] = infos["final_observation"][done]
+        self.buffer.add(self.obs, action, reward, terminated, true_next_obs)
         self.step += self.envs.num_envs
+        self.obs = new_obs
         return infos
 
     def get_actions(self, obs: Float[Tensor, " num_envs *obs_shape"]) -> Int[Tensor, " num_envs"]:
         """
         Samples actions according to the epsilon-greedy policy using the linear schedule for epsilon.
         """
-        epsilon = linear_schedule(current_step=self.step, start_e=self.start_e, end_e=self.end_e, exploration_fraction=self.exploration_fraction, total_timesteps=self.total_timesteps)
-        policy = epsilon_greedy_policy(envs=self.envs, q_network=self.q_network, rng=self.rng, obs=self.obs, epsilon=epsilon)
-        return policy[obs]
+        self.epsilon = linear_schedule(current_step=self.step, start_e=self.start_e, end_e=self.end_e, exploration_fraction=self.exploration_fraction, total_timesteps=self.total_timesteps)
+        policy = epsilon_greedy_policy(envs=self.envs, q_network=self.q_network, rng=self.rng, obs=self.obs, epsilon=self.epsilon)
+        return policy
 
 tests.test_agent(DQNAgent)

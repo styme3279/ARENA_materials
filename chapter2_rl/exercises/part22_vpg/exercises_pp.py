@@ -297,7 +297,7 @@ class VPGAgent:
 
         for _ in range(self.args.num_steps_per_rollout):
             actions, log_probs = self.get_actions(obs)
-            next_obs, rewards, terminated, truncated = self.envs.step(actions)
+            next_obs, rewards, terminated, truncated, infos = self.envs.step(actions)
             dones = terminated | truncated
             rollout.add_step(obs, actions, log_probs, rewards, dones)
             obs = next_obs
@@ -314,11 +314,40 @@ class VPGAgent:
         """
         logits = self.policy_network(obs)
         log_probs = F.log_softmax(logits, dim=-1)
-        actions = t.multinomial(log_probs.exp(), num_samples=1)
-        log_probs = t.gather(t.log_softmax(logits, dim=-1), 1, actions)
-        return actions, log_probs
+        actions = t.multinomial(log_probs.exp(), num_samples=1).squeeze(-1)
+        log_probs_taken = log_probs.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
+        return actions, log_probs_taken
 
 
 tests.test_get_actions(VPGAgent, PolicyNetwork)
 tests.test_gen_rollout(VPGAgent, PolicyNetwork, VPGArgs, Rollout)
+# %%
+def compute_returns(
+    rewards: Float[Tensor, " num_envs num_steps"], done: Bool[Tensor, " num_envs num_steps"], gamma: float = 0.9
+):
+    """
+    ARGS:
+        rewards: The rewards for each trajectory
+        done: A boolean tensor indicating if an episode finished on the current timestep
+        gamma: The discount factor
+
+    Returns:
+        The returns G_t for each trajectory.
+
+        For example:
+        - If Rewards = [0, 0, 1, 0, 1]
+        - And Done   = [0, 0, 1, 0, 1]
+        - Then Returns = [g**2, g, 1, g, 1]
+    """
+    num_envs, num_steps = rewards.shape
+    returns = t.zeros_like(rewards)
+    G = t.zeros_like(rewards)
+    for i in reversed(range(num_steps)):
+        G = rewards[:, i] + gamma * G
+        returns[:, i] = rewards[:, i] + gamma * returns[:, i]
+
+    
+
+
+tests.test_compute_returns(compute_returns)
 # %%

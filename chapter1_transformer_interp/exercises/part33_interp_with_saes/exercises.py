@@ -177,7 +177,7 @@ def get_top_k_from_sae(k=3):
     # Print the top 5 latents, and inspect their dashboards
     for act, ind in zip(*sae_acts_post.topk(k)):
         print(f"Latent {ind} had activation {act:.2f}")
-        top_latents.append((ind, act)))
+        top_latents.append((ind, act))
 
     return top_latents
     

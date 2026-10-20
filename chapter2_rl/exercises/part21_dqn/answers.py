@@ -96,4 +96,141 @@ assert not isinstance(net.layers[-1], nn.ReLU)
 assert n_params == 10934
 
 # %%
+@dataclass
+class ReplayBufferSamples:
+    """
+    Samples from the replay buffer, as PyTorch tensors ready to feed into the Q-network.
 
+    Data is equivalent to (s_t, a_t, r_{t+1}, d_{t+1}, s_{t+1}). Note - here, d_{t+1} is actually **terminated** rather
+    than **done** (i.e. it records the times when we went out of bounds, not when the environment timed out).
+    """
+
+    obs: Float[Tensor, " sample_size *obs_shape"]
+    actions: Int[Tensor, " sample_size"]
+    rewards: Float[Tensor, " sample_size"]
+    terminated: Bool[Tensor, " sample_size"]
+    next_obs: Float[Tensor, " sample_size *obs_shape"]
+
+
+class ReplayBuffer:
+    """
+    Contains buffer; has a method to sample from it to return a ReplayBufferSamples object.
+    """
+
+    rng: t.Generator
+    obs: Float[Tensor, " buffer_size *obs_shape"]
+    actions: Int[Tensor, " buffer_size"]
+    rewards: Float[Tensor, " buffer_size"]
+    terminated: Bool[Tensor, " buffer_size"]
+    next_obs: Float[Tensor, " buffer_size *obs_shape"]
+
+    def __init__(
+        self,
+        num_envs: int,
+        obs_shape: tuple[int],
+        action_shape: tuple[int],
+        buffer_size: int,
+        seed: int,
+        device: t.device = device,
+    ):
+        self.num_envs = num_envs
+        self.obs_shape = obs_shape
+        self.action_shape = action_shape
+        self.buffer_size = buffer_size
+        self.device = t.device(device)
+        self.rng = t.Generator(device=self.device).manual_seed(seed)
+
+        self.obs = t.empty((0, *self.obs_shape), dtype=t.float32, device=self.device)
+        self.actions = t.empty((0, *self.action_shape), dtype=t.int64, device=self.device)
+        self.rewards = t.empty(0, dtype=t.float32, device=self.device)
+        self.terminated = t.empty(0, dtype=t.bool, device=self.device)
+        self.next_obs = t.empty((0, *self.obs_shape), dtype=t.float32, device=self.device)
+
+    def add(
+        self,
+        obs: Float[Tensor, " num_envs *obs_shape"],
+        actions: Int[Tensor, " num_envs"],
+        rewards: Float[Tensor, " num_envs"],
+        terminated: Bool[Tensor, " num_envs"],
+        next_obs: Float[Tensor, " num_envs *obs_shape"],
+    ) -> None:
+        """
+        Add a batch of transitions to the replay buffer.
+        """
+        # Check shapes & datatypes as `t.cat` silently *promotes* dtypes
+        for name, data, expected_shape, expected_dtype in zip(
+            ["obs", "actions", "rewards", "terminated", "next_obs"],
+            [obs, actions, rewards, terminated, next_obs],
+            [self.obs_shape, self.action_shape, (), (), self.obs_shape],
+            [t.float32, t.int64, t.float32, t.bool, t.float32],
+        ):
+            assert isinstance(data, Tensor), f"`{name}` should be a tensor, got {type(data)}"
+            assert data.shape == (self.num_envs, *expected_shape), f"`{name}` has shape {tuple(data.shape)}, expected {(self.num_envs, *expected_shape)}"
+            assert data.dtype == expected_dtype, f"`{name}` has dtype {data.dtype}, expected {expected_dtype}"
+
+        # Add data to buffer, slicing off the old elements
+        self.obs = t.cat((self.obs, obs))[-self.buffer_size :]
+        self.actions = t.cat((self.actions, actions))[-self.buffer_size :]
+        self.rewards = t.cat((self.rewards, rewards))[-self.buffer_size :]
+        self.terminated = t.cat((self.terminated, terminated))[-self.buffer_size :]
+        self.next_obs = t.cat((self.next_obs, next_obs))[-self.buffer_size :]
+
+    def sample(self, sample_size: int) -> ReplayBufferSamples:
+        """
+        Sample a batch of transitions from the buffer, with replacement.
+        """
+        # Independent uniform draws, so duplicates are possible
+        indices = t.randint(0, self.obs.shape[0], (sample_size,), generator=self.rng, device=self.device)
+
+        return ReplayBufferSamples(
+            obs=self.obs[indices],                  # s_t
+            actions=self.actions[indices],          # a_t
+            rewards=self.rewards[indices],          # r_{t+1}
+            terminated=self.terminated[indices],    # d_{t+1}: terminated (not truncated!)
+            next_obs=self.next_obs[indices],        # s_{t+1}
+        )
+
+
+
+# %%
+buffer = ReplayBuffer(num_envs=1, obs_shape=(4,), action_shape=(), buffer_size=256, seed=0, device=device)
+envs = CartPole(num_envs=1, seed=0, device=device)
+obs, infos = envs.reset()
+
+for i in range(256):
+    # Choose random actions (one per environment), and take a step in the environment
+    actions = t.randint(0, envs.single_action_space.n, (envs.num_envs,), device=device)
+    next_obs, rewards, terminated, truncated, infos = envs.step(actions)
+
+    # Get `true_next_obs` by finding all environments where we terminated & replacing `next_obs`
+    # with the actual terminal states (the env has already auto-reset those environments, and stored
+    # the observation they ended on in `infos["final_observation"]`)
+    done = terminated | truncated
+    true_next_obs = next_obs.clone()
+    true_next_obs[done] = infos["final_observation"][done]
+
+    # Add experience to buffer
+    buffer.add(obs, actions, rewards, terminated, true_next_obs)
+    obs = next_obs
+
+sample = buffer.sample(256)
+
+plot_cartpole_obs_and_dones(
+    buffer.obs.cpu(),
+    buffer.terminated.cpu(),
+    title="Current obs s<sub>t</sub><br>so when d<sub>t+1</sub> = 1, these are the states just before termination",
+)
+
+plot_cartpole_obs_and_dones(
+    buffer.next_obs.cpu(),
+    buffer.terminated.cpu(),
+    title="Next obs s<sub>t+1</sub><br>so when d<sub>t+1</sub> = 1, these are the terminated states",
+)
+
+plot_cartpole_obs_and_dones(
+    sample.obs.cpu(),
+    sample.terminated.cpu(),
+    title="Current obs s<sub>t</sub> (sampled)<br>this is what gets fed into our model for training",
+)
+
+# %%

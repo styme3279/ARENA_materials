@@ -586,10 +586,16 @@ class DQNTrainer:
             target_max = self.target_network(next_obs).max(-1).values
         predicted_q_vals = self.q_network(obs).gather(-1, sample.actions.unsqueeze(-1)).squeeze(-1)
 
-        Loss = (rewards + (1-terminated)*self.args.gamma*q_target - q_actions) / self.args.batch_size
+        error = rewards + (1-terminated.float())*self.args.gamma*target_max - predicted_q_vals
+        loss = error.pow(2).mean()
 
-        Loss.backward()
+
+        loss.backward()
         self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        if step % self.args.trains_per_target_update == 0:
+            self.target_network.load_state_dict(self.q_network.state_dict())
 
     def train(self) -> None:
         if self.args.use_wandb:
@@ -633,3 +639,5 @@ class DQNTrainer:
         self.envs.close()
         if self.args.use_wandb:
             wandb.finish()
+
+# %%

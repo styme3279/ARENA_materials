@@ -251,7 +251,8 @@ def linear_schedule(
     """
     if current_step <= exploration_fraction * total_timesteps:
         b = start_e
-        k = end_e - start_e / ()
+        k = (end_e - start_e) / (exploration_fraction * total_timesteps)
+        return k * current_step + b
     else:
         return end_e
 
@@ -270,3 +271,51 @@ line(
 )
 
 tests.test_linear_schedule(linear_schedule)
+
+# %%
+def epsilon_greedy_policy(
+    envs: CartPole,
+    q_network: QNetwork,
+    rng: t.Generator,
+    obs: Float[Tensor, " num_envs *obs_shape"],
+    epsilon: float,
+) -> Int[Tensor, " num_envs"]:
+    """
+    For each environment independently: with probability epsilon take a random action, otherwise take the greedy
+    action according to the q_network.
+
+    Inputs:
+        envs:       The batched environment we're acting in
+        q_network:  The QNetwork used to approximate the Q-value function
+        rng:        A torch random number generator
+        obs:        The current observation for each environment, shape (num_envs, *obs_shape)
+        epsilon:    The probability of taking a random action
+
+    Returns:
+        actions:    The sampled action for each environment, shape (num_envs,).
+    """
+    random_value = t.rand(obs.shape[0], generator=rng, device=obs.device) # (num_envs)
+
+    explore = random_value < epsilon
+
+    greedy_action = q_network(obs).argmax(dim=-1) # (num_envs)
+
+    num_actions = envs.single_action_space.n
+
+    random_action = t.randint(low=0, high=num_actions, size=(obs.shape[0],), generator=rng, device=device) # (num_envs)
+
+    return t.where(explore, random_action, greedy_action)
+
+
+tests.test_epsilon_greedy_policy(epsilon_greedy_policy)
+
+
+# %%
+env = Probe1(num_envs=4)
+assert env.single_observation_space.shape == (1,)
+assert env.single_action_space.shape == ()
+obs, _ = env.reset()
+assert obs.shape == (4, 1)
+
+
+# %%

@@ -433,15 +433,18 @@ class VPGTrainer:
         self.agent = VPGAgent(envs=self.envs, policy_network=self.policy_network, args=self.args)
 
     def compute_loss(self, tau: RolloutTensors) -> tuple[t.Tensor, dict[str, Any]]:
-        raise NotImplementedError()
-
+        returns = compute_returns(tau.rewards, tau.dones, self.args.gamma)
+        if self.args.normalize_returns:
+            returns = normalize_returns(returns)
+        logprobs_taken = compute_logprobs(tau, self.policy_network)
+        iw = compute_importance_weights(logprobs_taken, tau, self.args.clip_coef) if self.args.use_iw else t.ones_like(logprobs_taken)
+        joy = compute_reinforce_loss(returns, logprobs_taken, iw)
         info = {
             "r_joy": joy.item(),
             "iw": iw.mean().item() if self.args.use_iw else None,
         }
-
         return joy, info
-
+    
     def update_learning_rate(self, time_steps, args):
         if args.use_lr_decay and args.lr_frac > 0:
             progress = min(1.0, max(time_steps / args.total_timesteps, 0) / args.lr_frac)
@@ -555,3 +558,65 @@ class VPGTrainer:
 
 
 tests.test_compute_loss(VPGTrainer, VPGArgs, Rollout)
+# %%
+def test_probe(probe_idx: int):
+    """
+    Tests a probe environment by training a network on it & verifying that the value functions are
+    in the expected range.
+    """
+    # Train our network
+    args = VPGArgs(
+        env_id=f"Probe{probe_idx}-v0",
+        wandb_project_name=f"test-probe-{probe_idx}",
+        total_timesteps=[None, None, None, 2500, 5000][probe_idx - 1],
+        num_steps_per_rollout=16,  # one-step episodes: short rollouts = more (cheap) updates per env step
+        lr=5e-3,
+        num_envs=4,
+        video_log_freq=None,
+        use_wandb=False,
+        device="cpu",
+        clip_coef=None,
+        normalize_returns=False,
+        rollout_use_count=1,
+    )
+    trainer = VPGTrainer(args)
+    trainer.train()
+    agent = trainer.agent
+
+    # Get the correct set of observations, and corresponding values we expect
+    obs_for_probes = [[[0.0]], [[-1.0], [+1.0]], [[0.0], [1.0]], [[0.0]], [[0.0], [1.0]]]
+    expected_probs_for_probes = [None, None, None, [[0.0, 1.0]], [[1.0, 0.0], [0.0, 1.0]]]
+    tolerances = [1e-3, 1e-3, 1e-3, 2e-3, 2e-3]
+    obs = t.tensor(obs_for_probes[probe_idx - 1]).to(args.device)
+
+    # Calculate the actual value & probs, and verify them
+    with t.inference_mode():
+        probs = agent.policy_network(obs).softmax(-1)
+    expected_probs = expected_probs_for_probes[probe_idx - 1]
+    if expected_probs is not None:
+        print(f"Probs: {probs}")
+        print(f"Expected probs: {t.tensor(expected_probs).to(args.device)}")
+        t.testing.assert_close(probs, t.tensor(expected_probs).to(args.device), atol=tolerances[probe_idx - 1], rtol=0)
+    print(f"Probe {probe_idx} tests passed!\n")
+
+for probe_idx in [4, 5]:
+    test_probe(probe_idx)
+# %%
+args_fast = VPGArgs(
+    use_wandb=False,
+    num_envs=32,
+    num_batches_per_rollout=1,
+    total_timesteps=640_000,
+    num_steps_per_rollout=500,
+    rollout_use_count=1,  # this seems to matter a lot
+    normalize_returns=True,
+    lr=2e-2,  # very high, but the per-timestep baseline across envs keeps the gradient low-variance enough to take it
+    use_lr_decay=False,
+    use_iw=False,  # don't need it if we only use each rollout once
+    gamma=0.99,
+    seed=1337,
+    device=device,
+    video_log_freq=10,
+)
+trainer = VPGTrainer(args_fast)
+trainer.train()

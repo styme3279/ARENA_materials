@@ -298,13 +298,92 @@ def epsilon_greedy_policy(
     Returns:
         actions:    The sampled action for each environment, shape (num_envs,).
     """
-    sampled_p = rng.rand()
+    num_envs = obs.shape[0]
+    num_actions = envs.single_action_space.n
+    with t.no_grad():
+        greedy_actions = q_network(obs).argmax(dim = -1)
 
-    if sampled_p < epsilon:
-        ...
-    else:
-        action = q_network(obs)
-
+    is_explore = t.rand(num_envs, generator=rng, device=obs.device) < epsilon
+    random_actions = t.randint(0, num_actions, (num_envs,), generator=rng, device=obs.device)
+    return t.where(is_explore, random_actions, greedy_actions)
 
 
 tests.test_epsilon_greedy_policy(epsilon_greedy_policy)
+
+# %%
+# Don't copy in this code, just for a demonstration
+class Probe1(gym.Env):
+    """
+    Vectorized Probe1: One action, observation of [0.0], one timestep long, +1 reward.
+
+    We expect the agent to rapidly learn that the value of the constant [0.0] observation is +1.0.
+    Note we're using a continuous observation space for consistency with CartPole.
+    """
+
+    action_space: Discrete
+    observation_space: Box
+
+    def __init__(self, num_envs: int = 3, seed: int = 0, device: str | t.device = device):
+        super().__init__()
+        self.num_envs = num_envs
+        self.device = t.device(device)
+
+        self.observation_space = Box(np.array([0.0], dtype=np.float32), np.array([0.0], dtype=np.float32))
+        self.action_space = Discrete(1)
+        self.single_observation_space = self.observation_space  # vector-env style aliases
+        self.single_action_space = self.action_space
+
+        self.state = t.zeros([self.num_envs, 1], dtype=t.float32, device=self.device)
+
+    def step(self, action: t.Tensor) -> tuple[t.Tensor, t.Tensor, t.Tensor, t.Tensor, dict]:
+        reward = t.ones([self.num_envs], dtype=t.float32, device=self.device)
+        terminated = t.ones([self.num_envs], dtype=t.bool, device=self.device)
+        truncated = t.zeros([self.num_envs], dtype=t.bool, device=self.device)
+
+        # Every env terminates each step; the auto-reset state is identical ([0.0]).
+        infos = {"final_observation": self.state.clone()}
+        return self.state.clone(), reward, terminated, truncated, infos
+
+    def reset(self, *, seed: int | None = None, options=None) -> tuple[t.Tensor, dict]:
+        self.state = t.zeros([self.num_envs, 1], dtype=t.float32, device=self.device)
+        return self.state.clone(), {}
+
+# %%
+# Don't copy in this code, just for a demonstration
+class Probe1(gym.Env):
+    """
+    Vectorized Probe1: One action, observation of [0.0], one timestep long, +1 reward.
+
+    We expect the agent to rapidly learn that the value of the constant [0.0] observation is +1.0.
+    Note we're using a continuous observation space for consistency with CartPole.
+    """
+
+    action_space: Discrete
+    observation_space: Box
+
+    def __init__(self, num_envs: int = 3, seed: int = 0, device: str | t.device = device):
+        super().__init__()
+        self.num_envs = num_envs
+        self.device = t.device(device)
+
+        self.observation_space = Box(np.array([0.0], dtype=np.float32), np.array([0.0], dtype=np.float32))
+        self.action_space = Discrete(1)
+        self.single_observation_space = self.observation_space  # vector-env style aliases
+        self.single_action_space = self.action_space
+
+        self.state = t.zeros([self.num_envs, 1], dtype=t.float32, device=self.device)
+
+    def step(self, action: t.Tensor) -> tuple[t.Tensor, t.Tensor, t.Tensor, t.Tensor, dict]:
+        reward = t.ones([self.num_envs], dtype=t.float32, device=self.device)
+        terminated = t.ones([self.num_envs], dtype=t.bool, device=self.device)
+        truncated = t.zeros([self.num_envs], dtype=t.bool, device=self.device)
+
+        # Every env terminates each step; the auto-reset state is identical ([0.0]).
+        infos = {"final_observation": self.state.clone()}
+        return self.state.clone(), reward, terminated, truncated, infos
+
+    def reset(self, *, seed: int | None = None, options=None) -> tuple[t.Tensor, dict]:
+        self.state = t.zeros([self.num_envs, 1], dtype=t.float32, device=self.device)
+        return self.state.clone(), {}
+
+# %%

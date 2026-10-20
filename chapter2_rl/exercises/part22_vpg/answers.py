@@ -354,8 +354,28 @@ def compute_returns(
     num_envs, num_steps = rewards.shape
 
     returns = t.zeros_like(rewards)
+    returns[:, -1] = rewards[:, -1]
 
-    for 
+    for step_i in range(num_steps-2, -1, -1):
+        returns[:, step_i] = t.where(done[:, step_i], rewards[:, step_i], rewards[:, step_i] + gamma * returns[:, step_i+1])
+
+    return returns
 
 
 tests.test_compute_returns(compute_returns)
+
+# %%
+def compute_logprobs(tau: RolloutTensors, pi: PolicyNetwork) -> Float[Tensor, " num_envs num_steps"]:
+    current_logprobs = pi(tau.obs)
+
+    print(current_logprobs)
+
+    print(tau.actions)
+
+    print(current_logprobs.gather(dim=-1, index=tau.actions.unsqueeze(-1)).squeeze(-1))
+
+    return current_logprobs.gather(dim=-1, index=tau.actions.unsqueeze(-1)).squeeze(-1)
+
+
+tests.test_compute_logprobs(compute_logprobs, PolicyNetwork)
+# %%

@@ -524,7 +524,7 @@ class DQNTrainer:
             when to update the target network)
         """
         sample = self.buffer.sample(self.args.batch_size) # 
-        obs, actions, rewards, terminated = sample.obs, sample.actions, sample.rewards, 
+        obs, actions, rewards, terminated = sample.obs, sample.actions, sample.rewards 
 
 
     def train(self) -> None:

@@ -221,8 +221,72 @@ class Rollout:
         Splits the rollout buffer into batches of size `batch_size`, and returns a list of
         `RolloutTensors` objects, each containing `batch_size` many trajectories.
         """
+        get_everything = self.get()
+        # print(f"get_everything: {get_everything}")
 
-        raise NotImplementedError()
+        obs = t.split(get_everything.obs, batch_size)
+        actions = t.split(get_everything.actions, batch_size)
+        logprobs= t.split(get_everything.logprobs, batch_size)
+        rewards = t.split(get_everything.rewards, batch_size)
+        dones = t.split(get_everything.dones, batch_size)
+
+        out = []
+        for i in range(len(obs)):
+            out.append(RolloutTensors(obs[i], actions[i], logprobs[i], rewards[i], dones[i]))
+
+        return out
 
 
 tests.test_rollout(Rollout)
+
+# %%
+@dataclass
+class VPGArgs:
+    # Basic / global
+    seed: int = 1
+    env_id: str = "CartPole-gpu"
+
+    # Wandb / logging
+    use_wandb: bool = False
+    wandb_project_name: str = "VPGCartPole"
+    wandb_entity: str | None = None
+    video_log_freq: int | None = 50   # every N gradient steps, render a 4x4 grid video of the latest rollout
+                                      # (logged to wandb if use_wandb, shown inline if live_viz)
+
+    # Duration of different phases / buffer memory settings
+    total_timesteps: int = 500_000
+    # max_rollout_steps: int = 500
+    # min_rollout_steps: int = 64
+    num_envs: int = 4
+
+    num_steps_per_rollout: int = 128
+
+    lr: float = 2.5e-4
+    gamma: float = 1
+    rollout_use_count: int = 1
+    clip_coef: float = 0.2
+    device: str = "cpu"
+    normalize_returns: bool = True
+    num_batches_per_rollout: int = 1
+    # LR decay settings
+    use_lr_decay: bool = False
+    lr_end: Optional[float] = None
+    lr_frac: Optional[float] = None
+    use_iw: bool = False
+    full_reset: bool = True   # fully reset all envs at the start of each rollout
+    live_viz: bool = True     # display the 4x4 grid video inline every `video_log_freq` gradient steps (notebook only)
+    overwrite_video: bool = True  # each live video replaces the previous one in the notebook output (False appends them)
+
+    def __post_init__(self):
+        self.batch_size = self.num_envs // self.num_batches_per_rollout
+        self.device = t.device(self.device)
+
+        if self.use_lr_decay:
+            assert self.lr_end is not None, "lr_end must be set if use_lr_decay is True"
+            assert self.lr_frac is not None, "lr_frac must be set if use_lr_decay is True"
+
+        self.env_steps_per_update = self.num_steps_per_rollout * self.num_envs // self.num_batches_per_rollout
+
+        if not self.use_iw:
+            assert self.rollout_use_count == 1, "rollout_use_count must be 1 if use_iw is False"
+            assert self.num_batches_per_rollout == 1, "num_batches_per_rollout must be 1 if use_iw is False"

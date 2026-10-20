@@ -607,3 +607,5 @@ args_fast = VPGArgs(
 )
 trainer = VPGTrainer(args_fast)
 trainer.train()
+
+# %%

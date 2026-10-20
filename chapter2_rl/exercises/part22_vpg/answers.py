@@ -267,6 +267,9 @@ class VPGAgent:
         obs, _ = self.envs.reset()  # Need a starting observation
         rollout.reset()
 
+        for _ in range(self.args.num_steps_per_rollout):
+            actions = self.get_actions(obs)
+            self.envs.step(action=actions)
         
 
         return rollout
@@ -280,7 +283,11 @@ class VPGAgent:
         Use t.multinomial to sample the actions.
         """
         action_logits = t.vmap(self.policy_network, in_dims=0)(obs)
-        print(t.multinomial(action_logits, num_samples=self.envs.action_space))
+        probs = t.softmax(action_logits, dim=-1)
+        sampled_actions = t.multinomial(probs, num_samples=1).squeeze(-1)
+        logprobs_all = t.log_softmax(action_logits, dim=-1)
+        logprobs_for_actions = logprobs_all.gather(-1, sampled_actions.unsqueeze(-1)).squeeze(-1)
+        return sampled_actions, logprobs_for_actions
 
 
 tests.test_get_actions(VPGAgent, PolicyNetwork)

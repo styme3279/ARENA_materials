@@ -365,16 +365,22 @@ def compute_returns(
         - Then Returns = [g**2, g, 1, g, 1]
     """
     num_envs, num_steps = rewards.shape
+    print(f"rewards: {rewards}")
+    print(f"done: {done}")
 
     returns = t.zeros_like(rewards)
 
-    for r, d in zip(rewards, done):
+    for j, (r, d) in enumerate(zip(rewards, done)):
+        latest = 0
         for i in range(rewards.shape[1]-1, -1, -1):
-            print(r[i])
-            print(d[i])
-
-    raise NotImplementedError()
-
+            if d[i] == True:
+                latest = r[i]
+                returns[j, i] += latest
+            else:
+                latest = gamma * latest + r[i]
+                returns[j, i] = latest
+    print(f"returns: {returns}")
+    return returns
 
 tests.test_compute_returns(compute_returns)
 

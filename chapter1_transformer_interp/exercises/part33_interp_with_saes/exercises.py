@@ -116,3 +116,29 @@ autointerp_dfs = {width: load_and_process_autointerp_dfs(width) for width in wid
 display(autointerp_dfs[768].head())
 
 # %%
+from rich import inspect
+
+def display_dashboard(
+    sae_release=sae_release,
+    sae_id="blocks.7.hook_resid_pre",
+    latent_idx=0,
+    width=800,
+    height=600,
+):
+    release = get_pretrained_saes_directory()[sae_release]
+    neuronpedia_id = release.neuronpedia_id[sae_id]
+
+    url = f"https://neuronpedia.org/{neuronpedia_id}/{latent_idx}?embed=true&embedexplanation=true&embedplots=true&embedtest=true&height=300"
+
+    print(url)
+    display(IFrame(url, width=width, height=height))
+
+rprint(sae_ids)
+latent_idx = 34
+sae_id = sae_ids[0]
+display_dashboard(
+    sae_id=sae_id,
+    latent_idx=latent_idx,
+    )
+
+# %%

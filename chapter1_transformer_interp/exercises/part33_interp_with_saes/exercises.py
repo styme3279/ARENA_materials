@@ -133,12 +133,94 @@ def display_dashboard(
     print(url)
     display(IFrame(url, width=width, height=height))
 
-rprint(sae_ids)
-latent_idx = 34
-sae_id = sae_ids[0]
-display_dashboard(
-    sae_id=sae_id,
-    latent_idx=latent_idx,
-    )
+# rprint(sae_ids)
+# latent_idx = 34
+# display_dashboard(
+#     sae_id=sae_id,
+#     latent_idx=latent_idx,
+#     )
 
 # %%
+
+print(list(splitting_saes.keys())[0])
+
+# %%
+
+#### FIND MAX ACTIVATING TOKENS FOR GIVEN PROMPT #####
+
+prompt = "Mitigating the risk of extinction from AI should be a global"
+# answer = " priority"
+
+sae_to_use = 
+sae_id = sae_ids[0]
+sae = splitting_saes[int(list(splitting_saes.keys())[sae_id])]
+print(f"Running sae with size {sae_id}")
+
+# Get top activations on final token
+_, cache = gpt2.run_with_cache_with_saes(
+    prompt,
+    saes=[sae],
+    stop_at_layer=_get_hook_layer(sae) + 1,
+)
+
+# cache is [batch, seq_len, d_sae]
+sae_acts_post = cache[f"{sae.cfg.metadata.hook_name}.hook_sae_acts_post"][0, -1, :]
+
+# Plot line chart of latent activations
+px.line(
+    sae_acts_post.cpu().numpy(),
+    title=f"Latent activations at the final token position ({sae_acts_post.nonzero().numel()} alive)",
+    labels={"index": "Latent", "value": "Activation"},
+    width=1000,
+).update_layout(showlegend=False).show()
+
+# Print the top 5 latents, and inspect their dashboards
+for act, ind in zip(*sae_acts_post.topk(3)):
+    print(f"Latent {ind} had activation {act:.2f}")
+    
+    # display_dashboard(latent_idx=ind, 
+    # display_dashboard(
+    #     sae_id=sae_id,
+    #     latent_idx=ind,
+    # )
+
+# %%
+
+
+
+# # First see how the model does without SAEs
+# test_prompt(prompt, answer, gpt2)
+
+# rprint(splitting_saes)
+# # Test our prompt, to see what the model says
+# with gpt2.saes(saes=[sae]):
+#     test_prompt(prompt, answer, gpt2)
+
+# # Same thing, done in a different way
+# gpt2.add_sae(sae)
+# test_prompt(prompt, answer, gpt2)
+# gpt2.reset_saes()  # Remember to always do this!
+
+# # Using `run_with_saes` method in place of standard forward pass
+# logits = gpt2(prompt, return_type="logits")
+# logits_sae = gpt2.run_with_saes(prompt, saes=[sae], return_type="logits")
+# answer_token_id = gpt2.to_single_token(answer)
+
+# # Getting model's prediction
+# top_prob, token_id_prediction = logits[0, -1].softmax(-1).max(-1)
+# top_prob_sae, token_id_prediction_sae = logits_sae[0, -1].softmax(-1).max(-1)
+
+# print(f"""Standard model:
+#     top prediction = {gpt2.to_string(token_id_prediction)!r}
+#     prob = {top_prob.item():.2%}
+# SAE reconstruction:
+#     top prediction = {gpt2.to_string(token_id_prediction_sae)!r}
+#     prob = {top_prob_sae.item():.2%}
+# """)
+
+# # %%
+# _, cache = gpt2.run_with_cache_with_saes(prompt, saes=[sae])
+
+# for name, param in cache.items():
+#     if "hook_sae" in name:
+#         print(f"{name:<43}: {tuple(param.shape)}")

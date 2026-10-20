@@ -290,3 +290,60 @@ class VPGArgs:
         if not self.use_iw:
             assert self.rollout_use_count == 1, "rollout_use_count must be 1 if use_iw is False"
             assert self.num_batches_per_rollout == 1, "num_batches_per_rollout must be 1 if use_iw is False"
+
+# %%
+class VPGAgent:
+    """Base Agent class handling the interaction with the environment."""
+
+    def __init__(
+        self,
+        envs: gym.Env,
+        policy_network: PolicyNetwork,
+        args: VPGArgs,
+    ):
+
+        self.envs = envs
+        self.policy_network = policy_network
+        self.args = args
+        self.obs_shape = envs.observation_space.shape
+        self.action_shape = envs.action_space.shape
+
+    @t.no_grad()
+    def gen_rollout(self, rollout: Rollout) -> Rollout:
+        """
+        Steps all environments in parallel for `args.num_steps_per_rollout` steps, adding each step to the rollout
+        buffer (which is reset first), and returns the filled buffer.
+        """
+        if self.args.full_reset and hasattr(self.envs, "_terminated"):
+            self.envs._terminated[:] = True
+            self.envs._truncated[:] = True
+        obs, _ = self.envs.reset()  # Need a starting observation
+        rollout.reset()
+
+        for step in range(self.args.num_steps_per_rollout):
+            actions, logprobs = self.get_actions(obs)
+            next_obs, rewards, terminated, truncated, infos = self.envs.step(actions)
+            done = truncated | terminated
+            rollout.add_step(obs, actions, logprobs, rewards, done)
+            obs = next_obs
+
+        return rollout
+
+    def get_actions(
+        self, obs: Float[Tensor, " num_envs *obs_shape"]
+    ) -> tuple[Int[Tensor, " num_envs"], Float[Tensor, " num_envs"]]:
+        """
+        Computes the agent's turn: given an observation for each environment,
+        sample the action the agent takes, along with the log_probs of that action.
+        Use t.multinomial to sample the actions.
+        """
+        logits = self.policy_network(obs)
+        log_probs = F.log_softmax(logits, dim=-1)
+        actions = t.multinomial(log_probs.exp(), num_samples=1).squeeze(-1)
+        logprobs_per_act = log_probs.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
+        return actions, logprobs_per_act
+
+tests.test_get_actions(VPGAgent, PolicyNetwork)
+tests.test_gen_rollout(VPGAgent, PolicyNetwork, VPGArgs, Rollout)
+
+# %%

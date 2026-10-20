@@ -286,8 +286,14 @@ def linear_schedule(
     for the first `exploration_fraction` fraction of total timesteps, and then stay at end_e for the
     rest of training.
     """
-    raise NotImplementedError()
-
+    # current_step is an index
+    schedule = np.zeros(total_timesteps, dtype=np.float64)
+    # x = np.arange(exploration_fraction * total_timesteps)
+    threshold = int(exploration_fraction * total_timesteps)
+    y = np.arange(threshold, dtype=np.float64) * (start_e - end_e) + start_e
+    schedule[:threshold] = y
+    schedule[threshold:] = end_e
+    return schedule[current_step]
 
 epsilons = [
     linear_schedule(step, start_e=1.0, end_e=0.05, exploration_fraction=0.5, total_timesteps=500)

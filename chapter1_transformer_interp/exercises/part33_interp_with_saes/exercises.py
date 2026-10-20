@@ -309,7 +309,7 @@ def compute_sae_umap_data(
         batch_size: int
             Number of features to process at once, for logits
     """
-    assert not find_clusters, "Not implemented yet"
+    # assert not find_clusters, "Not implemented yet"
 
     # Get initial dataframe by concatenating across SAEs (and autointerp descriptions)
     sae_dfs = []
@@ -350,6 +350,22 @@ def compute_sae_umap_data(
 
     feature_df[["umap_x", "umap_y"]] = visual_umap_embedding[:, :2]
 
+    if find_clusters:
+        print("Calculating 10D UMAP")
+        clustering_umap = UMAP(
+            n_components=10,
+            n_neighbors=n_neighbors_cluster,
+            min_dist=min_dist_cluster,
+            metric="cosine",
+        )
+        clustering_umap_embedding = clustering_umap.fit_transform(W_dec.detach().cpu())
+        clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size)
+        clusterer.fit(clustering_umap_embedding)
+
+        feature_df["cluster"] = clusterer.labels_
+        feature_df.sort_values("cluster", inplace=True)
+        feature_df["cluster"] = feature_df["cluster"].astype(str)
+
     return feature_df
 
 
@@ -359,30 +375,54 @@ umap_df = compute_sae_umap_data(splitting_saes, autointerp_dfs, [768 * ex for ex
 display(umap_df.head())
 
 # %%
-# For the color scale
-custom_grey_green_color_scale = lambda n: (
-    ["rgba(170,170,170,0.5)"] + px.colors.n_colors("rgb(0,120,0)", "rgb(144,238,144)", n - 1, colortype="rgb")
-)
 
-# Make sure the points for wider SAEs are on top
-umap_df = umap_df.sort_values("sae_width", ascending=False)
+# %%
+# %%
+# Narrow → wide: first trace is drawn at the bottom, so the small (wide-SAE) points end up on top
+widths_plotted = [768 * ex for ex in expansion_factors]
+n = len(widths_plotted)
 
-# Get marker size (larger for narrower SAEs)
-umap_df["marker_size"] = 4 * umap_df["sae_width"] / umap_df["sae_width"].max()
+# Big points faint, small points opaque; distinct hues so each SAE is easy to tell apart
+base_rgb = ["120,170,220", "245,150,60", "20,110,40", "150,30,120"]  # light blue, orange, dark green, purple
+alphas = [0.25 + 0.75 * i / max(n - 1, 1) for i in range(n)]       # 0.25 → 1.0
+color_map = {str(w): f"rgba({rgb},{a:.2f})" for w, rgb, a in zip(widths_plotted, base_rgb, alphas)}
+
+# Marker size: larger for narrower SAEs (768 → 4, 3072 → 1, 12288 → 0.25)
+umap_df["marker_size"] = 4 * umap_df["sae_width"].min() / umap_df["sae_width"]
 
 px.scatter(
     umap_df,
     x="umap_x",
     y="umap_y",
-    color=umap_df["sae_width"].astype(str),  # for discrete colors
+    color=umap_df["sae_width"].astype(str),
     size="marker_size",
     height=900,
     width=1200,
     hover_data=["description", "top_token_strs"],
     labels={"umap_x": "UMAP 1", "umap_y": "UMAP 2", "color": "SAE Width"},
-    color_discrete_sequence=custom_grey_green_color_scale(len(expansion_factors)),
+    color_discrete_map=color_map,
+    category_orders={"color": [str(w) for w in widths_plotted]},  # fixes trace (draw) order
     template="simple_white",
     title="Feature Splitting in SAEs",
 ).update_traces(marker=dict(line=dict(width=0))).show()
+# %%
+
+
+# This took about 50s to run for me in Colab Pro+, 90s on my VastAI A100 remote machine
+umap_df = compute_sae_umap_data(splitting_saes, autointerp_dfs, [widths[5]], gpt2, find_clusters=True)
+display(umap_df.head())
+
+px.scatter(
+    umap_df,
+    x="umap_x",
+    y="umap_y",
+    color="cluster",
+    height=900,
+    width=1200,
+    hover_data=["description", "top_token_strs"],
+    labels={"umap_x": "UMAP 1", "umap_y": "UMAP 2"},
+    template="simple_white",
+    title=f"2D UMAP for SAE width = {widths[5]}, clustering algorithm = HDBSCAN from 10D UMAP embedding",
+).update_traces(marker=dict(size=4, line=dict(width=0))).update_layout(showlegend=False)
 
 # %%

@@ -146,7 +146,7 @@ def display_dashboard(
 
 #### FIND MAX ACTIVATING TOKENS FOR GIVEN PROMPT #####
 
-prompt = "Mitigating the risk of extinction from AI should be a global"
+prompt = "The cat is near the table in the living room"
 # answer = " priority"
 
 def get_top_k_from_sae(sae_to_use=0, k=3, model=gpt2):
@@ -189,10 +189,10 @@ rprint(top_latents_for_sae)
     
 # %%
 
-# latent_ids = [275, 241, 420] # 0
-latent_ids = [716, 256, 370] # 1
+latent_ids = [295, 468, 645]   # 0
+latent_ids = [951, 1867, 10139] # -2
 for latent_idx in latent_ids:
-    sae_id     = 0
+    sae_id     = -2
     display_dashboard(
         sae_id     = sae_ids[sae_id],
         latent_idx = latent_idx, 
@@ -245,3 +245,144 @@ for latent_idx in latent_ids:
 # for name, param in cache.items():
 #     if "hook_sae" in name:
 #         print(f"{name:<43}: {tuple(param.shape)}")
+
+
+# %%
+import hdbscan
+import numba
+from umap import UMAP
+
+numba.config.THREADING_LAYER = "workqueue"
+
+
+def compute_sae_umap_data(
+    saes: dict[int, SAE],
+    autointerp_dfs: dict[int, pd.DataFrame],
+    sae_widths: list[int],
+    model: HookedSAETransformer,
+    n_neighbors_visual: int = 15,
+    min_dist_visual: float = 0.05,
+    find_clusters: bool = False,
+    n_neighbors_cluster: float = 15,
+    min_dist_cluster: float = 0.1,
+    min_cluster_size: int = 3,
+    batch_size: int = 1000,
+) -> pd.DataFrame:
+    """
+    This function will return a dataframe containing umap coordinates & other data (you can then use
+    this to create a plot using the code immediately below). The UMAP calculation is done over
+    multiple SAEs simultaneously, for comparison.
+
+    Expected dataframe columns:
+        sae_width: int
+            The width of the SAE that this feature belongs to
+        feature_idx: int
+            The index of the feature
+        umap_x: float
+            The x-coordinate of the feature in the UMAP embedding
+        umap_y: float
+            The y-coordinate of the feature in the UMAP embedding
+        autointerp: str
+            The autointerp description of this feature
+        top_token_strs_formatted: str
+            The top 10 tokens that the feature is activated by
+
+    Args:
+        saes: dict[int, SAE]
+            List of SAEs to use for the UMAP calculation
+        autointerp_dfs: dict[int, pd.DataFrame]
+            Dataframes containing autointerp descriptions for each SAE
+        sae_widths: list[int]
+            The widths of SAEs we'll be using for the UMAP calculation
+        model: HookedSAETransformer
+            The model which all the SAEs should be attached to
+        n_neighbors_visual: int
+            The number of neighbors to consider for the UMAP embedding for the visual plot
+        min_dist_visual: float
+            The minimum distance between points in the UMAP embedding for the visual plot
+        n_neighbors_cluster: int
+            The number of neighbors to consider for the UMAP embedding for the cluster plot
+        min_dist_cluster: float
+            The minimum distance between points in the UMAP embedding for the cluster plot
+        min_cluster_size: int
+            The minimum number of points in a cluster.
+        batch_size: int
+            Number of features to process at once, for logits
+    """
+    assert not find_clusters, "Not implemented yet"
+
+    # Get initial dataframe by concatenating across SAEs (and autointerp descriptions)
+    sae_dfs = []
+    for width in sae_widths:
+        df = autointerp_dfs[width].copy()
+        df["sae_width"] = width
+        df["feature_idx"] = list(range(width))
+        sae_dfs.append(df)
+    feature_df = pd.concat(sae_dfs)
+
+    # Get concatenated decoder matrix
+    W_dec = t.cat([saes[width].W_dec for width in sae_widths])
+
+    # Get all the top boosted tokens for each feature, processing in batches
+    top_token_ids = []
+    print("Computing top logits")
+    for start_idx in range(0, len(feature_df), batch_size):
+        end_idx = min(start_idx + batch_size, len(feature_df))
+        batch_result = W_dec[start_idx:end_idx] @ model.W_U
+        top_token_ids.append(batch_result.topk(10).indices)
+
+    # Combine results from all batches, and get them into the dataframe
+    token_factors_inds = t.cat(top_token_ids)
+    feature_df["tok_token_ids"] = token_factors_inds.tolist()
+    feature_df["top_token_strs"] = [
+        ", ".join(map(repr, model.to_str_tokens(tokens)))
+        for tokens in token_factors_inds
+    ]
+
+    print("Calculating 2D UMAP")
+    visual_umap = UMAP(
+        n_components=2,
+        n_neighbors=n_neighbors_visual,
+        min_dist=min_dist_visual,
+        metric="cosine",
+    )
+    visual_umap_embedding = visual_umap.fit_transform(W_dec.detach().cpu())
+
+    feature_df[["umap_x", "umap_y"]] = visual_umap_embedding[:, :2]
+
+    return feature_df
+
+
+# This took about 40s to run for me in Colab Pro+, 80s on my VastAI A100 remote machine
+expansion_factors = [1, 4, 16]
+umap_df = compute_sae_umap_data(splitting_saes, autointerp_dfs, [768 * ex for ex in expansion_factors], gpt2)
+display(umap_df.head())
+
+# %%
+# For the color scale
+custom_grey_green_color_scale = lambda n: (
+    ["rgba(170,170,170,0.5)"] + px.colors.n_colors("rgb(0,120,0)", "rgb(144,238,144)", n - 1, colortype="rgb")
+)
+
+# Make sure the points for wider SAEs are on top
+umap_df = umap_df.sort_values("sae_width", ascending=False)
+
+# Get marker size (larger for narrower SAEs)
+umap_df["marker_size"] = 4 * umap_df["sae_width"] / umap_df["sae_width"].max()
+
+px.scatter(
+    umap_df,
+    x="umap_x",
+    y="umap_y",
+    color=umap_df["sae_width"].astype(str),  # for discrete colors
+    size="marker_size",
+    height=900,
+    width=1200,
+    hover_data=["description", "top_token_strs"],
+    labels={"umap_x": "UMAP 1", "umap_y": "UMAP 2", "color": "SAE Width"},
+    color_discrete_sequence=custom_grey_green_color_scale(len(expansion_factors)),
+    template="simple_white",
+    title="Feature Splitting in SAEs",
+).update_traces(marker=dict(line=dict(width=0))).show()
+
+# %%

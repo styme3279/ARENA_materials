@@ -1,0 +1,37 @@
+{
+  "status": "installed_and_verified",
+  "validation": "schema, transformed Python syntax, exact intended executable diff, six supplied-code check groups; no training or online logging",
+  "notebooks": [
+    {
+      "path": "/root/ARENA_materials/chapter2_rl/exercises/part21_dqn/2.2.1_DQN_exercises.ipynb",
+      "original_sha256": "ffc436204490c17b5b51f4edda1dc6fadb7dc11656fe2e58eb7c69d4c2de03e7",
+      "annotated_sha256": "671eda8631c29cd7318bd0ea4572cefc734e880f261c27b2345af0a350071031",
+      "filled": [
+        "QNetwork.__init__",
+        "linear_schedule",
+        "DQNAgent.get_actions",
+        "DQNTrainer.add_to_replay_buffer"
+      ],
+      "cells": 62,
+      "read_code_cells": 13,
+      "exercise_code_cells": 3,
+      "remaining_placeholders": 3
+    },
+    {
+      "path": "/root/ARENA_materials/chapter2_rl/exercises/part22_vpg/2.2.2_VPG_exercises.ipynb",
+      "original_sha256": "635bf4676240af8dbba6fabe92571d99bd2124f27cad96a87b89929945df099e",
+      "annotated_sha256": "e4f9d8bf58b493d58e147c8be970787c62690ffe29d685bdc5b65b2da24e772f",
+      "filled": [
+        "PolicyNetwork.__init__",
+        "Rollout.add_step",
+        "Rollout.get_batches",
+        "compute_importance_weights",
+        "normalize_returns"
+      ],
+      "cells": 57,
+      "read_code_cells": 9,
+      "exercise_code_cells": 5,
+      "remaining_placeholders": 6
+    }
+  ]
+}

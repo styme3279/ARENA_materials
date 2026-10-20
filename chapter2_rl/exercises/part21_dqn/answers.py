@@ -334,10 +334,21 @@ def epsilon_greedy_policy(
     Returns:
         actions:    The sampled action for each environment, shape (num_envs,).
     """
-    policy = t.zeros((envs.num_envs))
-    indices = t.rand((envs.num_envs))
-    num_actions = len(envs.action_space)
-    policy[t.where()]
-
+    num_envs = envs.num_envs
+    #policy = t.zeros((num_envs))
+    #indices = t.rand((num_envs))
+    num_act = envs.action_space.n
+    #policy[t.where()]
+    acts = []
+    for env in range(num_envs):
+        r = t.rand(1, generator=rng, device=device)
+        if r < epsilon:
+            act = t.randint(0, num_act - 1, generator=rng, device=device)
+        else:
+            act = q_network(obs[env]).q
+        acts.append(act)
+    print(acts)
+    return t.concat(acts)
+        
 
 tests.test_epsilon_greedy_policy(epsilon_greedy_policy)

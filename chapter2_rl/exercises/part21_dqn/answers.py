@@ -554,13 +554,15 @@ class DQNTrainer:
         with t.inference_mode():
             target = self.target_network(samples.next_obs).max(dim=-1).values
         rewards = samples.rewards + unterminated_mask * self.args.gamma * target
-        q = self.q_network(samples.obs).
-        print(f"{q.shape=}, {rewards.shape=}")
-        
+        actions = samples.actions.unsqueeze(-1)
+        q = self.q_network(samples.obs).gather(-1, actions).squeeze(-1)
         self.optimizer.zero_grad()
         loss = (rewards - q).pow(2).mean()
         loss.backward()
         self.optimizer.step()
+
+        if step % self.args.trains_per_target_update == 0:
+            self.target_network.load_state_dict(self.q_network.state_dict())
 
     def train(self) -> None:
         if self.args.use_wandb:

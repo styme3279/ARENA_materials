@@ -130,6 +130,7 @@ print(f"Total number of parameters: {n_params}")
 print("You should manually verify network is Linear-ReLU-Linear-ReLU-Linear")
 assert not isinstance(net.layers[-1], nn.ReLU)
 assert n_params == 10934
+
 # %%
 @dataclass
 class ReplayBufferSamples:
@@ -296,3 +297,5 @@ line(
 )
 
 tests.test_linear_schedule(linear_schedule)
+
+# %%

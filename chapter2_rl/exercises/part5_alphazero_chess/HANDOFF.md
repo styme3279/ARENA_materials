@@ -139,6 +139,14 @@ python viz.py runs/r2                     # dashboard + game replays
    `bool(done.all())` early exits in `gpu_mcts.search` are host syncs and would have to go.
 4. A bigger network (e.g. 192–256 channels × 15–20 blocks) only pays off on a much bigger GPU, and
    means starting over.
+5. Move the eval daemons off the GPU: about 1.6x self-play, which means 1.6x training per hour. Measured on
+   the B300 MIG 1g slice in `r2`: with the 3 daemons sharing the GPU, self-play ran at about 750 plies/s.
+   With them paused (SIGSTOP for gen 42), it ran at 1202. Their batch-1 to 12 network calls force GPU
+   process time-slicing. Fix: start them with `CUDA_VISIBLE_DEVICES=` (no trainer restart needed). Cost:
+   on 1 CPU thread the 128x10 net takes 40 ms per batch of 12, so a match takes about 7–10 min instead of
+   about 2.3 min. Each opponent then gets a new score about every 30 min instead of every 5. Use 2
+   daemons, not 3: 3 busy ones plus the trainer and Stockfish is about 4.5 of the 5.1-CPU quota.
+   Not done: the user preferred frequent ladder results (2026-10-20).
 
 ## Working with this user
 

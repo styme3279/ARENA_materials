@@ -341,14 +341,20 @@ def epsilon_greedy_policy(
     #policy[t.where()]
     acts = []
     for env in range(num_envs):
-        r = t.rand(1, generator=rng, device=device)
+        r = t.rand(1, generator=rng, device=device).item()
         if r < epsilon:
-            act = t.randint(0, num_act - 1, generator=rng, device=device)
+            act = t.randint(0, num_act - 1, size=(1,), generator=rng, device=device)
         else:
-            act = q_network(obs[env]).q
+            act = q_network(obs[env]).argmax()
         acts.append(act)
     print(acts)
-    return t.concat(acts)
+    return t.as_tensor(acts, device=device)
+
+    # r = t.rand(num_envs, generator=rng, device=device)
+    #  = r < epsilon
+    # acts = t.zeros(num_envs)
+    # acts[which] = 
+    # acts[~which]
         
 
 tests.test_epsilon_greedy_policy(epsilon_greedy_policy)

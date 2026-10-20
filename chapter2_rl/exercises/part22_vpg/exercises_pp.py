@@ -2,6 +2,7 @@
 import os
 import sys
 from pathlib import Path
+from torch.distributions import Categorical
 
 IN_COLAB = "google.colab" in sys.modules
 
@@ -341,13 +342,61 @@ def compute_returns(
     """
     num_envs, num_steps = rewards.shape
     returns = t.zeros_like(rewards)
-    G = t.zeros_like(rewards)
+    G = t.zeros_like(rewards[:, 0])
     for i in reversed(range(num_steps)):
-        G = rewards[:, i] + gamma * G
-        returns[:, i] = rewards[:, i] + gamma * returns[:, i]
-
+        G = rewards[:, i] + gamma * G * (~done[:, i]) # my reward + gamma  * previous return, but drop next answer if my game ended here
+        returns[:, i] = G
+    return returns
     
 
 
 tests.test_compute_returns(compute_returns)
 # %%
+def compute_logprobs(tau: RolloutTensors, pi: PolicyNetwork) -> Float[Tensor, " num_envs num_steps"]:
+    """
+    Computes the logprobs of the actions taken on each timestep under the current policy.
+    """
+    scores = pi(tau.obs)
+    policy = Categorical(logits=scores)
+    return policy.log_prob(tau.actions)
+
+
+tests.test_compute_logprobs(compute_logprobs, PolicyNetwork)
+# %%
+def compute_importance_weights(logprobs_taken, tau: RolloutTensors, clip_coef: Optional[float]) -> t.Tensor:
+    """
+    Compute importance weights from log probabilities.
+
+    Keeps the result numerically stable by exponentiating the difference between logprobs.
+    Gradients should NOT flow through the importance weights (uses .detach()).
+    Optionally clips the weights to [1 - clip_coef, 1 + clip_coef].
+    """
+    new_lp = logprobs_taken.detach()
+    old_lp = tau.logprobs
+    ratio = (new_lp - old_lp).exp()
+    if clip_coef is not None:
+        ratio = t.clip(ratio, 1 - clip_coef, 1 + clip_coef)
+    return ratio
+
+
+tests.test_compute_importance_weights(compute_importance_weights)
+# %%
+def normalize_returns(returns: Float[Tensor, " num_envs num_steps"]) -> Float[Tensor, " num_envs num_steps"]:
+    """
+    Normalizes the returns by ensuring zero mean, unit variance across all trajectories and timesteps.
+    """
+    eps = 1e-8
+    return (returns - returns.mean()) / (returns.std() + eps)
+
+
+tests.test_normalize_returns(normalize_returns)
+# %%
+def compute_reinforce_loss(
+    returns: Float[Tensor, " num_envs num_steps"],
+    logprobs_taken: Float[Tensor, " num_envs num_steps"],
+    iw: Float[Tensor, " num_envs num_steps"],
+) -> Float[Tensor, ""]:
+    raise 
+
+
+tests.test_compute_reinforce_loss(compute_reinforce_loss)

@@ -366,16 +366,203 @@ tests.test_compute_returns(compute_returns)
 
 # %%
 def compute_logprobs(tau: RolloutTensors, pi: PolicyNetwork) -> Float[Tensor, " num_envs num_steps"]:
-    current_logprobs = pi(tau.obs)
-
-    print(current_logprobs)
-
-    print(tau.actions)
-
-    print(current_logprobs.gather(dim=-1, index=tau.actions.unsqueeze(-1)).squeeze(-1))
+    current_logprobs = pi(tau.obs).log_softmax(dim=-1)
 
     return current_logprobs.gather(dim=-1, index=tau.actions.unsqueeze(-1)).squeeze(-1)
 
 
 tests.test_compute_logprobs(compute_logprobs, PolicyNetwork)
+
 # %%
+def compute_importance_weights(logprobs_taken, tau: RolloutTensors, clip_coef: Optional[float]) -> t.Tensor:
+    """
+    Compute importance weights from log probabilities.
+
+    Keeps the result numerically stable by exponentiating the difference between logprobs.
+    Gradients should NOT flow through the importance weights (uses .detach()).
+    Optionally clips the weights to [1 - clip_coef, 1 + clip_coef].
+    """
+    importance_weights = t.exp(logprobs_taken - tau.logprobs)
+
+    return t.clip(importance_weights, min = 1 - clip_coef, max = 1 + clip_coef).detach() if clip_coef is not None else importance_weights.detach()
+
+
+tests.test_compute_importance_weights(compute_importance_weights)
+
+# %%
+def normalize_returns(returns: Float[Tensor, " num_envs num_steps"]) -> Float[Tensor, " num_envs num_steps"]:
+    """
+    Normalizes the returns by ensuring zero mean, unit variance across all trajectories and timesteps.
+    """
+    return (returns - returns.mean()) / returns.std()
+
+
+tests.test_normalize_returns(normalize_returns)
+
+# %%
+def compute_reinforce_loss(
+    returns: Float[Tensor, " num_envs num_steps"],
+    logprobs_taken: Float[Tensor, " num_envs num_steps"],
+    iw: Float[Tensor, " num_envs num_steps"],
+) -> Float[Tensor, ""]:
+    baseline = returns - returns.mean(dim=0, keepdim=True).detach()
+
+    return (iw * logprobs_taken * baseline).mean()
+
+
+tests.test_compute_reinforce_loss(compute_reinforce_loss)
+
+# %%
+class VPGTrainer:
+    def __init__(self, args: VPGArgs):
+        set_global_seeds(args.seed)
+        self.args = args
+
+        device = args.device
+
+        self.run_name = f"{args.env_id}__{args.wandb_project_name}__seed{args.seed}__{time.strftime('%Y%m%d-%H%M%S')}"
+
+        # Create our environments (any `env_id` registered in `ENVS`, see the setup cell)
+        self.envs = make_envs(args.env_id, args.num_envs, args.seed, device)
+
+        # Define some basic variables from our environment (note, we assume a single discrete action space)
+        self.num_envs = args.num_envs
+        self.action_shape = self.envs.action_space.shape
+        self.num_actions = self.envs.action_space.n
+        self.obs_shape = self.envs.observation_space.shape
+
+        # Create our networks & optimizer
+        self.policy_network = PolicyNetwork(self.obs_shape, self.num_actions).to(device)
+
+        self.optimizer = t.optim.Adam(self.policy_network.parameters(), lr=args.lr, eps=1e-5, maximize=True)
+        self.optimizer.zero_grad()
+
+        # Create our agent
+        self.agent = VPGAgent(envs=self.envs, policy_network=self.policy_network, args=self.args)
+
+    def compute_loss(self, tau: RolloutTensors) -> tuple[t.Tensor, dict[str, Any]]:
+        returns = compute_returns(tau.rewards, tau.dones)
+        new_logprobs = compute_logprobs(tau, self.policy_network)
+        iw = compute_importance_weights(new_logprobs, tau)
+        
+
+        info = {
+            "r_joy": joy.item(),
+            "iw": iw.mean().item() if self.args.use_iw else None,
+        }
+
+        return joy, info
+
+    def update_learning_rate(self, time_steps, args):
+        if args.use_lr_decay and args.lr_frac > 0:
+            progress = min(1.0, max(time_steps / args.total_timesteps, 0) / args.lr_frac)
+            return (progress * args.lr_end) + ((1 - progress) * args.lr)
+        return args.lr
+
+    def train(self) -> None:
+        """
+        Trains the agent by generating rollouts and updating the policy.
+        The progress bar tracks total environment steps.
+        """
+        if self.args.use_wandb:
+            wandb.init(
+                project=self.args.wandb_project_name,
+                entity=self.args.wandb_entity,
+                name=self.run_name,
+            )
+            wandb.watch(self.policy_network, log="all", log_freq=50)
+
+        # --- Setup ---
+        rollout = Rollout(max_steps=self.args.num_steps_per_rollout)
+
+        # Calculate the total number of rollouts to perform
+        env_steps_per_rollout = self.args.num_steps_per_rollout * self.args.num_envs
+        num_updates = self.args.total_timesteps // env_steps_per_rollout
+        train_steps = 0  # Counter for gradient updates
+        next_video_at = 0  # gradient-step count at which the next grid video is due
+        video_slot = LiveVideo(overwrite=self.args.overwrite_video)  # one display slot per run (see rl_utils.LiveVideo)
+
+        # --- Training Loop ---
+        # The progress bar is managed manually with a `with` statement.
+        # `total` is set to the total environment steps we want to run.
+        # The loop iterates `num_updates` times, not `total_timesteps` times.
+        with tqdm(
+            total=self.args.total_timesteps,
+            unit=" env steps",
+            unit_scale=True,
+            desc="Training",
+            miniters=1,
+            mininterval=0.02,
+        ) as pbar:
+            env_steps_consumed = 0
+
+            for update_num in range(num_updates):
+                # 1. Generate a new rollout from the environment
+
+                rollout = self.agent.gen_rollout(rollout)
+
+                # 2. Split the rollout into batches along the num_envs dimension
+
+                rollout_batches = rollout.get_batches(self.args.batch_size)
+
+                # 3. Logging and Progress Bar Update
+                # Undiscounted return of each env's *first* episode in this rollout
+                tau = rollout.get()
+                first_episode = (tau.dones.int().cumsum(dim=1) - tau.dones.int()) == 0  # no `done` strictly before this step
+                episode_return = (tau.rewards * first_episode).sum(dim=1)  # (num_envs,)
+                mean_return = episode_return.mean().item()
+                # 95% confidence interval of average of return on first episode
+                ci95_return = 1.96 * (episode_return.std() / self.args.num_envs**0.5).item()
+                max_return = episode_return.max().item()
+
+                # Log a 4x4 grid video of the rollout we already have (no extra env steps) every `video_log_freq`
+                # gradient steps - to wandb if use_wandb, inline if live_viz - via the shared `rl_utils.log_grid_video`.
+                # With rollout_use_count=1 and one batch per rollout that is one video every `video_log_freq` rollouts.
+                want_video = self.args.video_log_freq and (self.args.use_wandb or self.args.live_viz)
+                if want_video and train_steps >= next_video_at:
+                    caption = f"rollout {rollout.timestep} steps | mean first-episode return {mean_return:.1f}"
+                    log_grid_video(tau.obs, self.envs.draw, dones=tau.dones, step=env_steps_consumed, live=self.args.live_viz, slot=video_slot, caption=caption)
+                    next_video_at += self.args.video_log_freq
+
+                # 4. Advance env-step counter before gradient updates (one rollout collected)
+                env_steps_consumed += self.args.num_steps_per_rollout * self.args.num_envs
+
+                # 5. For each batch, perform multiple gradient updates
+                for i in range(self.args.rollout_use_count):
+                    for batch in rollout_batches:
+                        loss, reinforce_info = self.compute_loss(batch)
+
+                        info = reinforce_info
+
+                        loss.backward()
+
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
+                        train_steps += 1
+
+                        new_lr = self.update_learning_rate(env_steps_consumed, self.args)
+
+                        for pg in self.optimizer.param_groups:
+                            pg["lr"] = new_lr
+
+                        # Create info string to display in the progress bar
+                        current_lr = self.optimizer.param_groups[0]["lr"]
+                        info_dict = {
+                            "joy": f"{info['r_joy']:.4f}",
+                            "G": f"{mean_return:.2f} ± {ci95_return:.2f} (max: {max_return:.0f})",
+                            "iw": f"{info['iw']:.4f}" if self.args.use_iw else None,
+                            "lr": f"{current_lr:.2e}",
+                        }
+
+                        pbar.set_postfix(info_dict)
+
+                # Progress bar advances once per rollout (env steps actually collected)
+                pbar.update(self.args.num_steps_per_rollout * self.args.num_envs)
+
+        # --- Cleanup ---
+        self.envs.close()
+        if self.args.use_wandb:
+            wandb.finish()
+
+
+tests.test_compute_loss(VPGTrainer, VPGArgs, Rollout)

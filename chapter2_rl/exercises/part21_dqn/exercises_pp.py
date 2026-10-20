@@ -505,7 +505,7 @@ class DQNTrainer:
         Optional argument `verbose`: if True, we can use a progress bar (useful to check how long
         the initial buffer filling is taking).
         """
-        for _ in tqdm(range(n)):
+        for _ in range(n):
             self.agent.play_step()
 
     def prepopulate_replay_buffer(self):
@@ -524,16 +524,19 @@ class DQNTrainer:
             when to update the target network)
         """
         sample = self.buffer.sample(self.args.batch_size) # 
-        obs, actions, rewards, terminated = sample.obs, sample.actions, sample.rewards, sample.terminated
+        obs, actions, rewards, terminated, next_obs = sample.obs, sample.actions, sample.rewards, sample.terminated, sample.next_obs
+
         self.optimizer.zero_grad()
-        with t.inference_mode():
-            max_next_
-        loss = 
+        with t.no_grad():
+            max_next_q = self.target_network(next_obs).max(dim=-1).values
+            y = rewards + self.args.gamma * (1 - terminated.float()) * max_next_q
+        pred = self.q_network(obs).gather(dim=-1, index=actions.unsqueeze(-1)).squeeze(-1)
+        loss = F.mse_loss(y, pred)
         loss.backward()
         self.optimizer.step()
 
         if step % self.args.trains_per_target_update == 0:
-            self.q_network.update_target_network()
+            self.target_network.load_state_dict(self.q_network.state_dict())
         
 
 
@@ -624,4 +627,172 @@ def test_probe(probe_idx: int):
 
 for probe_idx in range(1, 6):
     test_probe(probe_idx)
+# %%
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+
+class DQNTrainer:
+    def __init__(self, args: DQNArgs):
+        set_global_seeds(args.seed)
+        self.args = args
+        self.rng = t.Generator(device=args.device).manual_seed(args.seed)
+        self.run_name = f"{args.env_id}__{args.wandb_project_name}__seed{args.seed}__{time.strftime('%Y%m%d-%H%M%S')}"
+
+        self.envs = make_envs(args.env_id, args.num_envs, args.seed, args.device)
+
+        # Define some basic variables from our environment (note, we assume a single discrete action space)
+        num_envs = self.envs.num_envs
+        action_shape = self.envs.single_action_space.shape
+        num_actions = self.envs.single_action_space.n
+        obs_shape = self.envs.single_observation_space.shape
+        assert action_shape == ()
+
+        # Create our replay buffer (on the same device as the environment)
+        self.buffer = ReplayBuffer(num_envs, obs_shape, action_shape, args.buffer_size, args.seed, args.device)
+
+        # Create our networks & optimizer (target network should be initialized with a copy of the Q-network's weights)
+        self.q_network = QNetwork(obs_shape, num_actions).to(args.device)
+        self.target_network = QNetwork(obs_shape, num_actions).to(args.device)
+        self.target_network.load_state_dict(self.q_network.state_dict())
+        self.optimizer = t.optim.AdamW(self.q_network.parameters(), lr=args.learning_rate)
+
+        # Create our agent
+        self.agent = DQNAgent(
+            self.envs,
+            self.buffer,
+            self.q_network,
+            args.start_e,
+            args.end_e,
+            args.exploration_fraction,
+            args.total_timesteps,
+            self.rng,
+        )
+
+        # Metrics collected during training, for plotting at the end
+        self.metrics = {"step": [], "loss": [], "q": [], "epsilon": []}  # one entry per optimization step
+        self.episodes = {"step": [], "length": []}                       # one entry whenever an episode finishes
+
+    def add_to_replay_buffer(self, n: int, verbose: bool = False):
+        """
+        Calls `agent.play_step` n times (n * num_envs environment steps), adding to the replay buffer.
+        Returns a dict of data from the last terminated episode, if any.
+        """
+        data = None
+        for _ in tqdm(range(n), disable=not verbose, desc="Filling replay buffer"):
+            infos = self.agent.play_step()
+            new_data = get_episode_data_from_infos(infos)
+            if new_data is not None:
+                data = new_data
+        return data
+
+    def prepopulate_replay_buffer(self):
+        """
+        Called to fill the replay buffer before training starts.
+        """
+        n_steps_to_fill_buffer = self.args.buffer_size // self.args.num_envs
+        self.add_to_replay_buffer(n_steps_to_fill_buffer, verbose=True)
+
+    def training_step(self, step: int) -> None:
+        """
+        Samples once from the replay buffer, and takes a single optimization step.
+        """
+        sample = self.buffer.sample(self.args.batch_size)
+        obs, actions, rewards, terminated, next_obs = sample.obs, sample.actions, sample.rewards, sample.terminated, sample.next_obs
+
+        self.optimizer.zero_grad()
+        with t.no_grad():
+            max_next_q = self.target_network(next_obs).max(dim=-1).values
+            y = rewards + self.args.gamma * (1 - terminated.float()) * max_next_q
+        pred = self.q_network(obs).gather(dim=-1, index=actions.unsqueeze(-1)).squeeze(-1)
+        loss = F.mse_loss(y, pred)
+        loss.backward()
+        self.optimizer.step()
+
+        if step % self.args.trains_per_target_update == 0:
+            self.target_network.load_state_dict(self.q_network.state_dict())
+
+        # Record metrics. Kept as device tensors and converted once at the end, so we don't force a
+        # GPU->CPU sync on every training step.
+        self.metrics["step"].append(self.agent.step)
+        self.metrics["loss"].append(loss.detach())
+        self.metrics["q"].append(pred.detach().mean())
+        self.metrics["epsilon"].append(self.agent.epsilon)
+
+    def train(self, plot: bool = True) -> None:
+        if self.args.use_wandb:
+            wandb.init(
+                project=self.args.wandb_project_name,
+                entity=self.args.wandb_entity,
+                name=self.run_name,
+            )
+
+        self.prepopulate_replay_buffer()
+
+        pbar = tqdm(range(self.args.total_training_steps))
+        last_logged_time, last_logged_step = time.time(), self.agent.step  # so we don't log too often
+
+        greedy = lambda obs: self.q_network(obs).argmax(-1)
+        fresh_envs = lambda seed: CartPole(num_envs=16, seed=seed, device=self.args.device)
+        can_render = self.args.env_id == "CartPole-gpu"
+        live_videos = can_render and self.args.steps_per_live_video is not None
+        wandb_videos = can_render and self.args.use_wandb and self.args.video_log_freq is not None
+        video_slot = LiveVideo(overwrite=self.args.overwrite_video)
+
+        for step in pbar:
+            data = self.add_to_replay_buffer(self.args.steps_per_update)
+            if data is not None:
+                # Record every finished episode for the plot (unthrottled)
+                self.episodes["step"].append(self.agent.step)
+                self.episodes["length"].append(data["episode_length"])
+
+                if time.time() - last_logged_time > 0.5:
+                    now = time.time()
+                    if self.args.use_wandb:
+                        sps = (self.agent.step - last_logged_step) / (now - last_logged_time)
+                        wandb.log({**data, "SPS": sps}, step=self.agent.step)
+                    last_logged_time, last_logged_step = now, self.agent.step
+                    pbar.set_postfix(**data)
+
+            self.training_step(step)
+
+            live = live_videos and step % self.args.steps_per_live_video == 0
+            to_wandb = wandb_videos and step % self.args.video_log_freq == 0
+            if live or to_wandb:
+                log_greedy_rollout_video(fresh_envs(step), greedy, self.envs.draw, step=self.agent.step, live=live, slot=video_slot)
+
+        self.envs.close()
+        if self.args.use_wandb:
+            wandb.finish()
+
+        if plot:
+            self.plot_training()
+
+    def plot_training(self) -> None:
+        """Plots episode length, TD loss, mean predicted Q and epsilon against environment steps."""
+        if not self.metrics["step"]:
+            print("No training steps recorded, nothing to plot.")
+            return
+
+        loss = t.stack(self.metrics["loss"]).cpu().numpy()
+        q = t.stack(self.metrics["q"]).cpu().numpy()
+        steps = self.metrics["step"]
+
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=["Episode length", "TD loss (log scale)", "Mean predicted Q", "Epsilon"],
+        )
+        fig.add_trace(go.Scatter(x=self.episodes["step"], y=self.episodes["length"], mode="lines"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=steps, y=loss, mode="lines"), row=1, col=2)
+        fig.add_trace(go.Scatter(x=steps, y=q, mode="lines"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=steps, y=self.metrics["epsilon"], mode="lines"), row=2, col=2)
+
+        fig.update_yaxes(type="log", row=1, col=2)
+        fig.update_xaxes(title_text="environment steps")
+        fig.update_layout(height=650, showlegend=False, title_text=self.run_name)
+        fig.show()
+# %%
+args = DQNArgs(use_wandb=True)
+trainer = DQNTrainer(args)
+trainer.train()
 # %%

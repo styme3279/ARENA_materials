@@ -182,6 +182,7 @@ class Rollout:
         self._logprobs.append(logprobs)
         self._rewards.append(rewards)
         self._dones.append(dones)
+        self.timestep += 1
 
     def reset(self):
         self._obs.clear(); self._actions.clear(); self._logprobs.clear()
@@ -207,9 +208,117 @@ class Rollout:
         Splits the rollout buffer into batches of size `batch_size`, and returns a list of
         `RolloutTensors` objects, each containing `batch_size` many trajectories.
         """
-
+        tau = self.get()  # each field: (num_envs, T, ...)
+        split_fields = [t.split(field, batch_size, dim=0) for field in tau]
+        return [RolloutTensors(*chunks) for chunks in zip(*split_fields)]
         
 
 
 tests.test_rollout(Rollout)
+# %%
+@dataclass
+class VPGArgs:
+    # Basic / global
+    seed: int = 1
+    env_id: str = "CartPole-gpu"
+
+    # Wandb / logging
+    use_wandb: bool = False
+    wandb_project_name: str = "VPGCartPole"
+    wandb_entity: str | None = None
+    video_log_freq: int | None = 50   # every N gradient steps, render a 4x4 grid video of the latest rollout
+                                      # (logged to wandb if use_wandb, shown inline if live_viz)
+
+    # Duration of different phases / buffer memory settings
+    total_timesteps: int = 500_000
+    # max_rollout_steps: int = 500
+    # min_rollout_steps: int = 64
+    num_envs: int = 4
+
+    num_steps_per_rollout: int = 128
+
+    lr: float = 2.5e-4
+    gamma: float = 1
+    rollout_use_count: int = 1
+    clip_coef: float = 0.2
+    device: str = "cpu"
+    normalize_returns: bool = True
+    num_batches_per_rollout: int = 1
+    # LR decay settings
+    use_lr_decay: bool = False
+    lr_end: Optional[float] = None
+    lr_frac: Optional[float] = None
+    use_iw: bool = False
+    full_reset: bool = True   # fully reset all envs at the start of each rollout
+    live_viz: bool = True     # display the 4x4 grid video inline every `video_log_freq` gradient steps (notebook only)
+    overwrite_video: bool = True  # each live video replaces the previous one in the notebook output (False appends them)
+
+    def __post_init__(self):
+        self.batch_size = self.num_envs // self.num_batches_per_rollout
+        self.device = t.device(self.device)
+
+        if self.use_lr_decay:
+            assert self.lr_end is not None, "lr_end must be set if use_lr_decay is True"
+            assert self.lr_frac is not None, "lr_frac must be set if use_lr_decay is True"
+
+        self.env_steps_per_update = self.num_steps_per_rollout * self.num_envs // self.num_batches_per_rollout
+
+        if not self.use_iw:
+            assert self.rollout_use_count == 1, "rollout_use_count must be 1 if use_iw is False"
+            assert self.num_batches_per_rollout == 1, "num_batches_per_rollout must be 1 if use_iw is False"
+# %%
+class VPGAgent:
+    """Base Agent class handling the interaction with the environment."""
+
+    def __init__(
+        self,
+        envs: gym.Env,
+        policy_network: PolicyNetwork,
+        args: VPGArgs,
+    ):
+
+        self.envs = envs
+        self.policy_network = policy_network
+        self.args = args
+        self.obs_shape = envs.observation_space.shape
+        self.action_shape = envs.action_space.shape
+
+    @t.no_grad()
+    def gen_rollout(self, rollout: Rollout) -> Rollout:
+        """
+        Steps all environments in parallel for `args.num_steps_per_rollout` steps, adding each step to the rollout
+        buffer (which is reset first), and returns the filled buffer.
+        """
+        if self.args.full_reset and hasattr(self.envs, "_terminated"):
+            self.envs._terminated[:] = True
+            self.envs._truncated[:] = True
+        obs, _ = self.envs.reset()  # Need a starting observation
+        rollout.reset()
+
+        for _ in range(self.args.num_steps_per_rollout):
+            actions, log_probs = self.get_actions(obs)
+            next_obs, rewards, terminated, truncated = self.envs.step(actions)
+            dones = terminated | truncated
+            rollout.add_step(obs, actions, log_probs, rewards, dones)
+            obs = next_obs
+
+        return rollout
+
+    def get_actions(
+        self, obs: Float[Tensor, " num_envs *obs_shape"]
+    ) -> tuple[Int[Tensor, " num_envs"], Float[Tensor, " num_envs"]]:
+        """
+        Computes the agent's turn: given an observation for each environment,
+        sample the action the agent takes, along with the log_probs of that action.
+        Use t.multinomial to sample the actions.
+        """
+        logits = self.policy_network(obs)
+        log_probs = F.log_softmax(logits, dim=-1)
+        actions = t.multinomial(log_probs.exp(), num_samples=1)
+        log_probs = t.gather(t.log_softmax(logits, dim=-1), 1, actions)
+        return actions, log_probs
+
+
+tests.test_get_actions(VPGAgent, PolicyNetwork)
+tests.test_gen_rollout(VPGAgent, PolicyNetwork, VPGArgs, Rollout)
 # %%

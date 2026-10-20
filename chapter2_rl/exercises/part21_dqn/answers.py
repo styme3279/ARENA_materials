@@ -336,6 +336,7 @@ def epsilon_greedy_policy(
     """
     policy = t.zeros((envs.num_envs))
     indices = t.rand((envs.num_envs))
+    num_actions = len(envs.action_space)
     policy[t.where()]
 
 

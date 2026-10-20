@@ -142,8 +142,6 @@ def display_dashboard(
 
 # %%
 
-print(list(splitting_saes.keys())[0])
-
 # %%
 
 #### FIND MAX ACTIVATING TOKENS FOR GIVEN PROMPT #####
@@ -151,32 +149,37 @@ print(list(splitting_saes.keys())[0])
 prompt = "Mitigating the risk of extinction from AI should be a global"
 # answer = " priority"
 
-sae_to_use = 
-sae_id = sae_ids[0]
-sae = splitting_saes[int(list(splitting_saes.keys())[sae_id])]
-print(f"Running sae with size {sae_id}")
+def get_top_k_from_sae(k=3):
+    sae_to_use = 0
+    sae_id = sae_ids[sae_to_use]
+    sae = splitting_saes[int(list(splitting_saes.keys())[sae_to_use])]
+    print(f"Running sae: {sae_id}")
 
-# Get top activations on final token
-_, cache = gpt2.run_with_cache_with_saes(
-    prompt,
-    saes=[sae],
-    stop_at_layer=_get_hook_layer(sae) + 1,
-)
+    # Get top activations on final token
+    _, cache = gpt2.run_with_cache_with_saes(
+        prompt,
+        saes=[sae],
+        stop_at_layer=_get_hook_layer(sae) + 1,
+    )
 
-# cache is [batch, seq_len, d_sae]
-sae_acts_post = cache[f"{sae.cfg.metadata.hook_name}.hook_sae_acts_post"][0, -1, :]
+    # cache is [batch, seq_len, d_sae]
+    sae_acts_post = cache[f"{sae.cfg.metadata.hook_name}.hook_sae_acts_post"][0, -1, :]
 
-# Plot line chart of latent activations
-px.line(
-    sae_acts_post.cpu().numpy(),
-    title=f"Latent activations at the final token position ({sae_acts_post.nonzero().numel()} alive)",
-    labels={"index": "Latent", "value": "Activation"},
-    width=1000,
-).update_layout(showlegend=False).show()
+    # Plot line chart of latent activations
+    px.line(
+        sae_acts_post.cpu().numpy(),
+        title=f"Latent activations at the final token position ({sae_acts_post.nonzero().numel()} alive)",
+        labels={"index": "Latent", "value": "Activation"},
+        width=1000,
+    ).update_layout(showlegend=False).show()
 
-# Print the top 5 latents, and inspect their dashboards
-for act, ind in zip(*sae_acts_post.topk(3)):
-    print(f"Latent {ind} had activation {act:.2f}")
+    top_latents = []
+    # Print the top 5 latents, and inspect their dashboards
+    for act, ind in zip(*sae_acts_post.topk(k)):
+        print(f"Latent {ind} had activation {act:.2f}")
+        top_latents.append((ind, act)))
+
+    return top_latents
     
     # display_dashboard(latent_idx=ind, 
     # display_dashboard(

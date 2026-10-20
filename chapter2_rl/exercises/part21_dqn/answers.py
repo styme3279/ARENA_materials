@@ -281,8 +281,11 @@ def linear_schedule(
     for the first `exploration_fraction` fraction of total timesteps, and then stay at end_e for the
     rest of training.
     """
-    raise NotImplementedError()
+    return max(start_e + (end_e - start_e) * (current_step / (exploration_fraction * total_timesteps)), end_e)
 
+    # how many steps the decrease last?
+    # fraction of the decrease completed, capped at 1?
+    # start at start_e, then move toward end_e?
 
 epsilons = [
     linear_schedule(step, start_e=1.0, end_e=0.05, exploration_fraction=0.5, total_timesteps=500)

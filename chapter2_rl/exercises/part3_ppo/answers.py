@@ -110,7 +110,7 @@ BatchedEnvs = GPUEnv | AtariEnvs | BraxEnvs  # anything `ENV_DICT` can build; al
 # The bonus training loops below (Atari / MuJoCo / swing-up) each take a few minutes. They're guarded
 # by `if SLOW:` so a top-to-bottom run of this file trains only the fast (~15s) CartPole; flip this to
 # True to actually run the bonus environments.
-SLOW = False
+SLOW = True
 # %%
 @dataclass
 class PPOArgs:
@@ -892,4 +892,77 @@ def test_probe(probe_idx: int):
 # %%
 for probe_idx in range(1, 6):
     test_probe(probe_idx)
+# %%
+import ale_py
+
+gym.register_envs(ale_py)  # registers the "ALE/..." Atari environments with gymnasium
+
+env = gym.make("ALE/Breakout-v5", render_mode="rgb_array")
+
+print(env.action_space)  # Discrete(4): 4 actions to choose from
+print(env.observation_space)  # Box(0, 255, (210, 160, 3), uint8): an RGB image of the game screen
+# %%
+print(env.unwrapped.get_action_meanings())
+# %%
+def get_actor_and_critic_atari(obs_shape: tuple[int,], num_actions: int) -> tuple[nn.Sequential, nn.Sequential]:
+    """
+    Returns (actor, critic) in the "atari" case, according to diagram above.
+    """
+    assert obs_shape[-1] % 8 == 4
+
+    L_after_convolutions = (obs_shape[-1] // 8) - 3
+    in_features = 64 * L_after_convolutions * L_after_convolutions
+
+    hidden = nn.Sequential(
+        layer_init(nn.Conv2d(4, 32, 8, stride=4, padding=0)),
+        nn.ReLU(),
+        layer_init(nn.Conv2d(32, 64, 4, stride=2, padding=0)),
+        nn.ReLU(),
+        layer_init(nn.Conv2d(64, 64, 3, stride=1, padding=0)),
+        nn.ReLU(),
+        nn.Flatten(),
+        layer_init(nn.Linear(in_features, 512)),
+        nn.ReLU(),
+    )
+
+    actor = nn.Sequential(hidden, layer_init(nn.Linear(512, num_actions), std=0.01))
+    critic = nn.Sequential(hidden, layer_init(nn.Linear(512, 1), std=1))
+
+    return actor, critic
+# %%
+args = PPOArgs(
+    env_id="ALE/Breakout-v5",
+    wandb_project_name="PPOAtari",
+    mode="atari",
+    total_phases=366,
+    num_envs=64,
+    num_steps_per_rollout=128,
+    num_minibatches=4,
+    lr=2.5e-4,
+    clip_coef=0.1,
+    ent_coef=0.01,
+    vf_coef=0.5,
+)
+trainer = PPOTrainer(args)
+trainer.train()
+
+# A 4x4 grid video of 16 of the trained agent's Breakout games (cells flash red when an env resets):
+display(record_grid_video(trainer, kind="atari"))
+# %%
+args = PPOArgs(
+    env_id="ALE/Pong-v5",
+    wandb_project_name="PPOAtari",
+    mode="atari",
+    total_phases=366,
+    num_envs=64,
+    num_steps_per_rollout=128,
+    num_minibatches=4,
+    lr=2.5e-4,
+    clip_coef=0.1,
+    ent_coef=0.01,
+    vf_coef=0.5,
+)
+trainer = PPOTrainer(args)
+trainer.train()
+display(record_grid_video(trainer, kind="atari"))
 # %%

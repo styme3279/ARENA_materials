@@ -895,3 +895,31 @@ trainer.train()
 ENV_DICT["classic-control"] = CartPole  # restore the unshaped env
 display(record_grid_video(trainer, kind="classic-control"))
 # %%
+import ale_py
+
+gym.register_envs(ale_py)  # registers the "ALE/..." Atari environments with gymnasium
+
+env = gym.make("ALE/Breakout-v5", render_mode="rgb_array")
+
+print(env.action_space)  # Discrete(4): 4 actions to choose from
+print(env.observation_space)  # Box(0, 255, (210, 160, 3), uint8): an RGB image of the game screen
+
+# %%
+def get_actor_and_critic_atari(obs_shape: tuple[int, ...], num_actions: int) -> tuple[nn.Sequential, nn.Sequential]:
+    """
+    Returns (actor, critic) in the "atari" case, according to diagram above.
+    """
+    assert obs_shape[-1] % 8 == 4
+
+    backbone = nn.Sequential(
+        nn.Conv2d(),
+        nn.ReLU(),
+        nn.Conv2d(),
+        nn.ReLU()
+    )
+    actor = nn.Sequential(backbone, layer_init(nn.Linear()))
+    critic = nn.Sequential(backbone, layer_init(nn.Linear()))
+    return actor, critic
+
+
+tests.test_get_actor_and_critic(get_actor_and_critic, mode="atari")

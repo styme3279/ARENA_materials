@@ -208,13 +208,39 @@ def compute_advantages(
     """
     T, _ = rewards.shape
     advantages = t.zeros_like(rewards)
-    advantages[T-1,:] = rewards[T-1,:] + (1.0 - next_terminated.float()) * gamma * next_value - values[T-1,:]
+    advantages[T-1] = rewards[T-1] + (1.0 - next_terminated.float()) * gamma * next_value - values[T-1]
     for step in reversed(range(T-1)):
-        td_step = rewards[step,:] + (1.0 - terminated[step,:].float()) * gamma * values[step+1,:] - values[step,:]
-        advantages[step] = td_step + (1.0 - terminated[step+1,:].float()) * (gamma * gae_lambda) * advantages[step+1,:]
-    print(advantages)
+        td_step = rewards[step] + (1.0 - terminated[step+1].float()) * gamma * values[step+1] - values[step]
+        advantages[step] = td_step + (1.0 - terminated[step+1].float()) * (gamma * gae_lambda) * advantages[step+1]
     return advantages
 
 tests.test_compute_advantages(compute_advantages)
+
+# %%
+def get_minibatch_indices(rng: Generator, batch_size: int, minibatch_size: int) -> list[np.ndarray]:
+    """
+    Return a list of length `num_minibatches`, where each element is an array of `minibatch_size` and the union of all
+    the arrays is the set of indices [0, 1, ..., batch_size - 1] where `batch_size = num_steps_per_rollout * num_envs`.
+    """
+    assert batch_size % minibatch_size == 0
+    arr = np.arange(batch_size)
+    rng.shuffle(arr)
+    num_minibatches = batch_size // minibatch_size
+    return list(einops.rearrange(arr, "batch_size -> num_minibatches minibatch_size", batch_size=batch_size, num_minibatches=num_minibatches, minibatch_size=minibatch_size))
+
+
+rng = np.random.default_rng(0)
+
+batch_size = 12
+minibatch_size = 6
+# num_minibatches = batch_size // minibatch_size = 2
+
+indices = get_minibatch_indices(rng, batch_size, minibatch_size)
+
+assert isinstance(indices, list)
+assert all(isinstance(x, np.ndarray) for x in indices)
+assert np.array(indices).shape == (2, 6)
+assert sorted(np.unique(indices)) == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+print("All tests in `test_minibatch_indexes` passed!")
 
 # %%

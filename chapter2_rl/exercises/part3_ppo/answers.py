@@ -605,7 +605,8 @@ def calc_entropy_bonus(dist: Categorical, ent_coef: float):
         the coefficient for the entropy loss, which weights its contribution to the overall
         objective function. Denoted by c_2 in the paper.
     """
-    return 
+    return ent_coef * dist.entropy().mean()
 
 
 tests.test_calc_entropy_bonus(calc_entropy_bonus)
+# %%

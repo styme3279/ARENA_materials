@@ -234,7 +234,7 @@ def compute_advantages(
     """
     Compute advantages using Generalized Advantage Estimation.
     """
-    
+    T = values.shape  
 
 
 tests.test_compute_advantages(compute_advantages)

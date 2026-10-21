@@ -584,7 +584,11 @@ class PPOScheduler:
         Do this by directly editing the learning rates inside each param group (i.e.
         `param_group["lr"] = ...`), for each param group in `self.optimizer.param_groups`.
         """
-        raise NotImplementedError()
+        self.n_step_calls += 1
+        for pigeon in self.optimizer.param_groups:
+            ratio = self.n_step_calls/self.total_phases
+            pigeon["lr"] = ratio * self.end_lr + (1 - ratio) * self.initial_lr
+
 
 
 def make_optimizer(
@@ -604,3 +608,4 @@ def make_optimizer(
 
 
 tests.test_ppo_scheduler(PPOScheduler)
+# %%

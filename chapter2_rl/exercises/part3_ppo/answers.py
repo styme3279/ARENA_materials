@@ -950,3 +950,143 @@ trainer.train()
 display(record_grid_video(trainer, kind="atari"))
 
 # %%
+env = BraxEnvs("Hopper-v4", num_envs=1, seed=0)  # GPU (Brax) Hopper
+
+print(env.single_action_space)
+print(env.single_observation_space)
+# Render a short *random* rollout to a gym-style MP4 (tracking camera; falls back to Brax's
+# in-browser 3D viewer if no OpenGL backend is available).
+display(record_brax_video(env, actor=None, steps=150))
+
+# %%
+class Critic(nn.Module):
+    def __init__(self, obs_dim):
+        super().__init__()
+        self.layers = nn.Sequential(
+            layer_init(nn.Linear(obs_dim, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 1), std=1.0),
+        )
+
+    def forward(self, obs) -> Tensor:
+        return self.layers(obs)
+
+
+class Actor(nn.Module):
+    actor_mu: nn.Sequential
+    actor_log_sigma: nn.Parameter
+
+    def __init__(self, obs_dim, action_dim):
+        super().__init__()
+        self.actor_mu = nn.Sequential(
+            layer_init(nn.Linear(obs_dim, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, action_dim), std=0.01),
+        )
+        self.actor_log_sigma = nn.Parameter(t.zeros(1, action_dim))
+
+    def forward(self, obs) -> tuple[Tensor, Tensor, t.distributions.Normal]:
+        mu = self.actor_mu(obs)
+        sigma = t.exp(self.actor_log_sigma).broadcast_to(mu.shape)
+        dist = t.distributions.Normal(mu, sigma)
+        return mu, sigma, dist
+
+
+def get_actor_and_critic_mujoco(obs_dim: int, action_dim: int):
+    """
+    Returns (actor, critic) in the "mujoco" case, according to description above.
+    """
+    return Actor(obs_dim, action_dim), Critic(obs_dim)
+
+
+tests.test_get_actor_and_critic(get_actor_and_critic, mode="mujoco")
+
+# %%
+class PPOAgentCts(PPOAgent):
+    def play_step(self) -> list[dict]:
+        """
+        Changes required:
+            - actor returns (mu, sigma, dist), with dist used to sample actions
+            - logprobs need to be summed over action space
+        """
+        obs = self.next_obs
+        terminated = self.next_terminated
+
+        with t.inference_mode():
+            logits = self.actor(obs)
+            values = self.critic(obs)
+
+        dist = t.distributions.categorical.Categorical(logits=logits)
+        actions = dist.sample()
+        logprobs = dist.log_prob(actions)
+
+        next_obs, rewards, next_terminated, truncated, infos = self.envs.step(actions)
+        self.memory.add(obs, actions, logprobs, values.squeeze(-1), rewards, terminated)
+
+        self.next_obs = next_obs
+        self.next_terminated = next_terminated
+        self.step += self.envs.num_envs
+
+        return infos
+
+
+def calc_clipped_surrogate_objective_cts(
+    dist: t.distributions.Normal,
+    mb_action: Float[Tensor, " minibatch_size *action_shape"],
+    mb_advantages: Float[Tensor, " minibatch_size"],
+    mb_logprobs: Float[Tensor, " minibatch_size"],
+    clip_coef: float,
+    eps: float = 1e-8,
+) -> Float[Tensor, ""]:
+    """
+    Changes required:
+        - logprobs need to be summed over action space
+    """
+    assert (mb_action.shape[0],) == mb_advantages.shape == mb_logprobs.shape
+
+    normalized_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + eps)
+    ratio = t.exp(dist.log_prob(mb_action) - mb_logprobs)
+    clipped = t.clamp(ratio, 1-clip_coef, 1+clip_coef)
+    return t.min(ratio * normalized_advantages, clipped * normalized_advantages).mean()
+
+
+def calc_entropy_bonus_cts(dist: t.distributions.Normal, ent_coef: float):
+    """
+    Changes required:
+        - entropy needs to be summed over action space before taking mean
+    """
+    return ent_coef * dist.entropy().mean()
+
+
+class PPOTrainerCts(PPOTrainer):
+    def __init__(self, args: PPOArgs):
+        super().__init__(args)
+        self.agent = PPOAgentCts(self.envs, self.actor, self.critic, self.memory)
+
+    def compute_ppo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
+        """
+        Changes required:
+            - actor returns (mu, sigma, dist), with dist used for loss functions (rather than
+                getting dist from logits)
+            - objective function calculated using new `_cts` functions defined above
+            - newlogprob (for logging) needs to be summed over action space
+            - mu and sigma should be logged
+        """
+        mb_obs = minibatch.obs
+        mb_actions = minibatch.actions
+        mb_logprobs = minibatch.logprobs
+        mb_advantages = minibatch.advantages
+        mb_returns = minibatch.returns
+
+        logits = self.actor(mb_obs)
+        values = self.critic(mb_obs).flatten()
+        dist = t.distributions.categorical.Categorical(logits=logits)
+
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(dist, mb_actions, mb_advantages, mb_logprobs, self.args.clip_coef)
+        value_loss = calc_value_function_loss(values, mb_returns, self.args.vf_coef)
+        entropy_bonus = calc_entropy_bonus(dist, self.args.ent_coef)
+        return clipped_surrogate_objective - value_loss + entropy_bonus

@@ -202,7 +202,7 @@ def compute_advantages(
 
     next_terminated = next_terminated.float()
 
-    next_td_error = (rewards[buffer_size-1] + next_value - values[buffer_size-1]) * (1-next_terminated) + (rewards[buffer_size-1] - values[buffer_size-1]) * (next_terminated)
+    next_td_error = rewards[buffer_size-1] + (1 - next_terminated) * gamma * next_value - values[buffer_size-1] 
 
 
     for time in reversed(range(buffer_size)):
@@ -213,7 +213,7 @@ def compute_advantages(
         advantages[time] = current_sum
 
         next_terminated = terminated[time].float()
-        next_td_error = (rewards[time] + next_value - values[time]) * (1 - next_terminated) + (rewards[time] - values[time]) * (next_terminated)
+        next_td_error = rewards[time] + (1- next_terminated) * gamma *  next_value - values[time]
         next_value = values[time]
 
     return advantages

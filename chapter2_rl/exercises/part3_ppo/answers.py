@@ -642,8 +642,7 @@ class PPOTrainer:
         to step through the environment. It also returns a dict of data which you can include in
         your progress bar postfix.
         """
-        rollout_progress_bar = tqdm(range(self.args.num_steps_per_rollout))
-        for _ in rollout_progress_bar:
+        for _ in range(self.args.num_steps_per_rollout):
             infos = self.agent.play_step()
 
     def learning_phase(self) -> None:
@@ -1017,12 +1016,11 @@ class PPOAgentCts(PPOAgent):
         terminated = self.next_terminated
 
         with t.inference_mode():
-            logits = self.actor(obs)
+            mu, sigma, dist = self.actor(obs)
             values = self.critic(obs)
 
-        dist = t.distributions.categorical.Categorical(logits=logits)
         actions = dist.sample()
-        logprobs = dist.log_prob(actions)
+        logprobs = dist.log_prob(actions).sum(-1)
 
         next_obs, rewards, next_terminated, truncated, infos = self.envs.step(actions)
         self.memory.add(obs, actions, logprobs, values.squeeze(-1), rewards, terminated)
@@ -1049,7 +1047,7 @@ def calc_clipped_surrogate_objective_cts(
     assert (mb_action.shape[0],) == mb_advantages.shape == mb_logprobs.shape
 
     normalized_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + eps)
-    ratio = t.exp(dist.log_prob(mb_action) - mb_logprobs)
+    ratio = t.exp(dist.log_prob(mb_action).sum(-1) - mb_logprobs)
     clipped = t.clamp(ratio, 1-clip_coef, 1+clip_coef)
     return t.min(ratio * normalized_advantages, clipped * normalized_advantages).mean()
 
@@ -1059,7 +1057,7 @@ def calc_entropy_bonus_cts(dist: t.distributions.Normal, ent_coef: float):
     Changes required:
         - entropy needs to be summed over action space before taking mean
     """
-    return ent_coef * dist.entropy().mean()
+    return ent_coef * dist.entropy().sum(-1).mean()
 
 
 class PPOTrainerCts(PPOTrainer):
@@ -1082,11 +1080,46 @@ class PPOTrainerCts(PPOTrainer):
         mb_advantages = minibatch.advantages
         mb_returns = minibatch.returns
 
-        logits = self.actor(mb_obs)
+        _, _, dist = self.actor(mb_obs)
         values = self.critic(mb_obs).flatten()
-        dist = t.distributions.categorical.Categorical(logits=logits)
 
-        clipped_surrogate_objective = calc_clipped_surrogate_objective(dist, mb_actions, mb_advantages, mb_logprobs, self.args.clip_coef)
+        clipped_surrogate_objective = calc_clipped_surrogate_objective_cts(dist, mb_actions, mb_advantages, mb_logprobs, self.args.clip_coef)
         value_loss = calc_value_function_loss(values, mb_returns, self.args.vf_coef)
-        entropy_bonus = calc_entropy_bonus(dist, self.args.ent_coef)
+        entropy_bonus = calc_entropy_bonus_cts(dist, self.args.ent_coef)
         return clipped_surrogate_objective - value_loss + entropy_bonus
+
+# %%
+args = PPOArgs(
+    env_id="Hopper-v4",
+    wandb_project_name="PPOMuJoCo",
+    mode="mujoco",
+    total_phases=200,  # solves (return >= 1000) after ~60-120 phases; 64 envs is as fast as 2048 and runs on a CPU
+    num_envs=64,
+    num_steps_per_rollout=32,
+    num_minibatches=8,
+    lr=1e-3,
+    gamma=0.97,
+    ent_coef=0.0,
+    vf_coef=0.5,
+)
+trainer = PPOTrainerCts(args)
+trainer.train()
+# gym-style MP4 of the trained agent (tracking camera; in-browser viewer fallback)
+display(record_brax_video(trainer.envs, trainer.agent.actor))
+
+# %%
+args = PPOArgs(
+    env_id="Humanoid-v4",
+    wandb_project_name="PPOMuJoCo",
+    mode="mujoco",
+    total_phases=228,
+    num_envs=2048,
+    num_steps_per_rollout=32,
+    num_minibatches=8,
+    lr=1e-3,
+    ent_coef=0.0,
+    vf_coef=0.5,
+)
+trainer = PPOTrainerCts(args)
+trainer.train()
+display(record_brax_video(trainer.envs, trainer.agent.actor))

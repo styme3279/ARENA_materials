@@ -512,11 +512,15 @@ def calc_clipped_surrogate_objective(
     r_t(theta) = pi(a_t|s_t) / pi_target(a_t|s_t)
     """
 
-    print(mb_action)
-    print(mb_logprobs)
+    logits_diff = dist.log_prob(mb_action) - mb_logprobs
+    prob_ratio = t.exp(logits_diff)
 
-    clipped = ...
+    mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + eps)
 
+    non_clipped = prob_ratio * mb_advantages
+    clipped = t.clip(prob_ratio, 1 - clip_coef, 1 + clip_coef) * mb_advantages
+
+    return t.minimum(non_clipped, clipped).mean()
 
 tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)
 

@@ -682,8 +682,11 @@ class PPOTrainer:
             J.backward()
             print(6)
             params = iter(self.agent.actor.parameters, self.agent.critic.parameters)
-            assert False
-            # nn.utils.clip_grad_norm(params, max_grad_norm)
+            # assert False
+            nn.utils.clip_grad_norm(params, self.args.max_grad_norm)
+            print(7)
+            print(8)
+            
             self.optimizer.step()
 
     def compute_ppo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
@@ -691,39 +694,40 @@ class PPOTrainer:
         Handles learning phase for a single minibatch. Returns objective function to be maximized.
         """
 
-        rprint(minibatch)
-
+        self.actor.train()
+        self.critic.train()
+        
         obs        = minibatch.obs
+        actions    = minibatch.actions
         advantages = minibatch.advantages
         logprobs   = minibatch.logprobs
         returns    = minibatch.returns
 
-        with t.train_mode():
-            
+        logits = self.actor(obs).squeeze(-1)
+        values = self.critic(obs).squeeze(-1)
 
+        dist = Categorical(logits=logits)
 
-        assert False
+        J_clip = calc_clipped_surrogate_objective(
+            dist=dist,
+            mb_action=actions,
+            mb_advantages=advantages,
+            mb_logprobs=logprobs,
+            clip_coef=self.args.clip_coef,
+        )
 
-        # J_clip = calc_clipped_surrogate_objective(
-        #     dist=,
-        #     mb_action=,
-        #     mb_advantages=,
-        #     mb_logprobs=,
-        #     clip_coef=self.args.clip_coef,
-        #     eps=self.args.eps,
-        # )
+        J_vf = calc_value_function_loss(
+            values=values,
+            mb_returns=returns,
+            vf_coef=self.args.vf_coef,
+        )
 
-        # J_vf = calc_value_function_loss(
-        #     values=,
-        #     mb_returns=,
-        #     vf_coef=self.args.vf_coef,
-        # )
+        J_H = calc_entropy_bonus(
+            dist=dist,
+            ent_coef=self.args.ent_coef,   
+        )
 
-        # J_H = calc_entropy_bonus(
-        #     dist=,
-        #     ent_coef=self.args.ent_coef,   
-        # )
-        
+        return J_clip - J_vf + J_H
 
     def log_video(self, phase: int, caption: str | None = None) -> None:
         """Render the first 16 envs of the rollout currently sitting in the replay memory as a 4x4

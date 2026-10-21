@@ -519,7 +519,7 @@ def calc_clipped_surrogate_objective(
 
     weighted_advantages = iw * mb_advantages
 
-    clipped_iw = np.clip(iw, 1 - eps, 1 + eps)
+    clipped_iw = np.clip(iw, 1 - clip_coef, 1 + clip_coef)
     clipped_weighted_advantages = clipped_iw * mb_advantages
 
     min_advantage = np.minimum(weighted_advantages, clipped_weighted_advantages) # (minibatch_size)

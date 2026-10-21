@@ -245,20 +245,45 @@ def compute_advantages(
     """
     T = rewards.shape[0]
 
-    advantages = t.zeros_like(rewards)
-    advantages[T-1] = - values[-1,:] + (1-next_terminated.float()) * gamma * next_value
+    # Get tensors of V(s_{t+1}) and d_{t+1} for all t = 0, 1, ..., T-1
+    next_values = t.concat([values[1:], next_value[None, :]])
+    next_terminated = t.concat([terminated[1:], next_terminated[None, :]])
 
-    deltas = rewards + gamma * ?? 
-    
+    deltas = rewards + gamma * next_values * (1 - next_terminated.float()) - values
+
+    advantages = t.zeros_like(deltas)
+    advantages[-1] = deltas[-1]
     for s in reversed(range(T-1)):
-        delta_t = rewards[s] - values[s] + (1-terminated[s+1].float()) * gamma * values[s+1]
-        # delta_t = rewards[s] - (gamma - 1 + terminated[s+1].float()) * values[s]
-        advantages[s] = delta_t + (1 - terminated[s+1].float()) * gae_lambda * gamma * advantages[s+1]
+        advantages[s] = deltas[s] + (1 - terminated[s+1].float()) * gae_lambda * gamma * advantages[s+1]
 
-    print(advantages)
     return advantages
 
 tests.test_compute_advantages(compute_advantages)
 
 
 # %%
+
+def get_minibatch_indices(rng: Generator, batch_size: int, minibatch_size: int) -> list[np.ndarray]:
+    """
+    Return a list of length `num_minibatches`, where each element is an array of `minibatch_size` and the union of all
+    the arrays is the set of indices [0, 1, ..., batch_size - 1] where `batch_size = num_steps_per_rollout * num_envs`.
+    """
+    assert batch_size % minibatch_size == 0
+
+    np.range(batch_size)
+
+
+rng = np.random.default_rng(0)
+
+batch_size = 12
+minibatch_size = 6
+# num_minibatches = batch_size // minibatch_size = 2
+
+indices = get_minibatch_indices(rng, batch_size, minibatch_size)
+
+assert isinstance(indices, list)
+assert all(isinstance(x, np.ndarray) for x in indices)
+assert np.array(indices).shape == (2, 6)
+assert sorted(np.unique(indices)) == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+print("All tests in `test_minibatch_indexes` passed!")
+

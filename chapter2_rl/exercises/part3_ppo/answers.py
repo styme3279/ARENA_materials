@@ -196,28 +196,25 @@ def compute_advantages(
     buffer_size = rewards.shape[0]
     num_envs = rewards.shape[1]
 
-    advantages = t.zeros((buffer_size, num_envs))
+    advantages = t.zeros((buffer_size, num_envs)).to(rewards.device)
 
-    current_sum = t.zeros(num_envs)
+    current_sum = t.zeros(num_envs).to(rewards.device)
 
     next_terminated = next_terminated.float()
-
-    next_td_error = rewards[buffer_size-1] + (1 - next_terminated) * gamma * next_value - values[buffer_size-1] 
 
 
     for time in reversed(range(buffer_size)):
 
+        td_error = rewards[time] + (1 - next_terminated) * gamma * next_value - values[time]
 
-        current_sum = next_td_error + (1 - next_terminated) * gamma * gae_lambda * current_sum
+        current_sum = td_error + (1 - next_terminated) * gamma * gae_lambda * current_sum
 
         advantages[time] = current_sum
 
         next_terminated = terminated[time].float()
-        next_td_error = rewards[time] + (1- next_terminated) * gamma *  next_value - values[time]
         next_value = values[time]
 
     return advantages
-
 
 tests.test_compute_advantages(compute_advantages)
 

@@ -246,11 +246,16 @@ def compute_advantages(
     T = rewards.shape[0]
 
     advantages = t.zeros_like(rewards)
-    advantages[T-1] = - next_value
-    for s in range(T-2, -1, -1):
-        delta_t = rewards[s] - values[s]
+    advantages[T-1] = - values[-1,:] + (1-next_terminated.float()) * gamma * next_value
+
+    deltas = rewards + gamma * ?? 
+    
+    for s in reversed(range(T-1)):
+        delta_t = rewards[s] - values[s] + (1-terminated[s+1].float()) * gamma * values[s+1]
+        # delta_t = rewards[s] - (gamma - 1 + terminated[s+1].float()) * values[s]
         advantages[s] = delta_t + (1 - terminated[s+1].float()) * gae_lambda * gamma * advantages[s+1]
 
+    print(advantages)
     return advantages
 
 tests.test_compute_advantages(compute_advantages)

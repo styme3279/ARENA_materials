@@ -498,7 +498,22 @@ class PPOAgent:
         obs = self.next_obs
         terminated = self.next_terminated
 
-        self.envs.step()
+        action_logits = self.actor(obs)
+        dist = t.distributions.categorical.Categorical(logits=action_logits)
+        actions = dist.sample()
+        log_probs = dist.log_prob(actions)
+ 
+        next_obs, rewards, next_terminated, truncated, infos = self.envs.step(actions)
+
+        values = self.critic(obs)
+
+        done = next_terminated | truncated 
+        true_next_obs = next_obs.clone()
+        true_next_obs[done] = infos["final_observation"][done]
+
+        self.memory.add(true_next_obs, actions, log_probs, values, rewards, next_terminated)
+
+        self.next_obs = next_obs
 
         self.step += self.envs.num_envs
         return infos
@@ -515,3 +530,4 @@ class PPOAgent:
 
 
 tests.test_ppo_agent(PPOAgent)
+# %%

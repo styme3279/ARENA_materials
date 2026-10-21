@@ -451,16 +451,16 @@ class PPOAgent:
             actions = dist.sample()
             logprobs = dist.log_prob(actions)
 
-            values = self.critic(obs)
+            values = self.critic(obs).squeeze(dim=-1)
             next_obs, reward, next_terminated, truncated, info = self.envs.step(actions)
 
-        print(obs.shape, actions.shape, logprobs.shape, reward.shape, terminated.shape)
-        assert False
+        # print(obs.shape, actions.shape, logprobs.shape, values.shape, reward.shape, terminated.shape)
+        # assert False
 
         self.memory.add(obs, actions, logprobs, values, reward, terminated)
 
-        obs = next_obs
-        terminated = next_terminated
+        self.next_obs = next_obs
+        self.next_terminated = next_terminated
 
         self.step += self.envs.num_envs
         return infos

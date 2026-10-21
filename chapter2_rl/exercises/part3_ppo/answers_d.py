@@ -181,3 +181,63 @@ def get_actor_and_critic_classic(obs_dim: int, num_actions: int):
 tests.test_get_actor_and_critic(get_actor_and_critic, mode="classic-control")
 
 # %%
+
+@t.inference_mode()
+def compute_advantages(
+    next_value: Float[Tensor, "num_envs"],
+    next_terminated: Bool[Tensor, "num_envs"],
+    rewards: Float[Tensor, "buffer_size num_envs"],
+    values: Float[Tensor, "buffer_size num_envs"],
+    terminated: Bool[Tensor, "buffer_size num_envs"],
+    gamma: float,
+    gae_lambda: float,
+) -> Float[Tensor, "buffer_size num_envs"]:
+    """
+    Compute advantages using Generalized Advantage Estimation.
+
+    A_t = delta_t + (1 - d_t+1)(gamma*lambda)A_t+1 
+    A_t-1 = delta_t-1
+    delta_t = r_t + (1 - d_t+1)*gamma*V_theta(s_t+1) - V_theta(s_t)
+    """
+    T = values.shape[0]
+    terminated = terminated.float()
+    next_terminated = next_terminated.float()
+
+    # Get tensors of V(s_{t+1}) and d_{t+1} for all t = 0, 1, ..., T-1
+    next_values = t.concat([values[1:], next_value[None, :]])
+    next_terminated = t.concat([terminated[1:], next_terminated[None, :]])
+
+    deltas = rewards + gamma * next_values * (1.0 - next_terminated) - values
+    advantages = t.zeros_like(deltas)
+    advantages[-1] = deltas[-1]
+
+    for s in reversed(range(T - 1)):
+        advantages[s] = deltas[s] + gamma * gae_lambda * (1.0 - terminated[s + 1]) * advantages[s + 1]
+
+    return advantages
+
+tests.test_compute_advantages(compute_advantages)
+
+# %%
+def get_minibatch_indices(rng: Generator, batch_size: int, minibatch_size: int) -> list[np.ndarray]:
+    """
+    Return a list of length `num_minibatches`, where each element is an array of `minibatch_size` and the union of all
+    the arrays is the set of indices [0, 1, ..., batch_size - 1] where `batch_size = num_steps_per_rollout * num_envs`.
+    """
+    assert batch_size % minibatch_size == 0
+    raise NotImplementedError()
+
+
+rng = np.random.default_rng(0)
+
+batch_size = 12
+minibatch_size = 6
+# num_minibatches = batch_size // minibatch_size = 2
+
+indices = get_minibatch_indices(rng, batch_size, minibatch_size)
+
+assert isinstance(indices, list)
+assert all(isinstance(x, np.ndarray) for x in indices)
+assert np.array(indices).shape == (2, 6)
+assert sorted(np.unique(indices)) == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+print("All tests in `test_minibatch_indexes` passed!")

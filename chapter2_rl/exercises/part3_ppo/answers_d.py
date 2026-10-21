@@ -650,8 +650,8 @@ class PPOTrainer:
         to step through the environment. It also returns a dict of data which you can include in
         your progress bar postfix.
         """
-        infos = self.agent.play_step()
-
+        for step in range(self.args.num_steps_per_rollout):
+            infos = self.agent.play_step()
     def learning_phase(self) -> None:
         """
         This function does the following:
@@ -660,14 +660,33 @@ class PPOTrainer:
             - Clips the gradients (see detail #11)
             - Steps the learning rate scheduler
         """
-        raise NotImplementedError()
-
+        minibatches = self.agent.get_minibatches(self.args.gamma, self.args.gae_lambda)
+        for minibatch in minibatches:
+            objective_fn = self.compute_ppo_objective(minibatch)
+            objective_fn.backward()
+            nn.utils.clip_grad_norm_(
+                list(self.actor.parameters()) + list(self.critic.parameters()), self.args.max_grad_norm
+            )
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+        self.scheduler.step()
     def compute_ppo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
         """
         Handles learning phase for a single minibatch. Returns objective function to be maximized.
         """
-        raise NotImplementedError()
+        logits = self.actor(minibatch.obs)
+        dist = Categorical(logits=logits)
+        values = self.critic(minibatch.obs).squeeze()
 
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(
+            dist, minibatch.actions, minibatch.advantages, minibatch.logprobs, self.args.clip_coef
+        )
+        value_loss = calc_value_function_loss(values, minibatch.returns, self.args.vf_coef)
+        entropy_bonus = calc_entropy_bonus(dist, self.args.ent_coef)
+
+        total_objective_function = clipped_surrogate_objective - value_loss + entropy_bonus
+        return total_objective_function
+    
     def log_video(self, phase: int, caption: str | None = None) -> None:
         """Render the first 16 envs of the rollout currently sitting in the replay memory as a 4x4
         grid video (drawn with the env's own `draw` method) via the shared `rl_utils.log_grid_video`:
@@ -744,3 +763,54 @@ class PPOTrainer:
             # "'NoneType' object has no attribute '_log'".
             wandb.unwatch((self.actor, self.critic))
             wandb.finish()
+
+# %%
+def test_probe(probe_idx: int):
+    """
+    Tests a probe environment by training a network on it & verifying that the value functions are
+    in the expected range.
+    """
+    # Train our network
+    args = PPOArgs(
+        env_id=f"Probe{probe_idx}-v0",
+        mode="probe",  # use the GPU (tensor-native) probe envs, so PPOTrainer's GPU agent can run them
+        wandb_project_name=f"test-probe-{probe_idx}",
+        total_phases=14,  # adjust up if needed to make tests pass
+        num_envs=256,
+        num_steps_per_rollout=8,
+        num_minibatches=4,
+        lr=0.01, # also maybe adjust this 
+        video_log_freq=None,
+        use_wandb=False,
+    )
+    trainer = PPOTrainer(args)
+    trainer.train()
+    agent = trainer.agent
+
+    # Get the correct set of observations, and corresponding values we expect
+    obs_for_probes = [[[0.0]], [[-1.0], [+1.0]], [[0.0], [1.0]], [[0.0]], [[0.0], [1.0]]]
+    expected_value_for_probes = [
+        [[1.0]],
+        [[-1.0], [+1.0]],
+        [[args.gamma], [1.0]],
+        [[1.0]],
+        [[1.0], [1.0]],
+    ]
+    expected_probs_for_probes = [None, None, None, [[0.0, 1.0]], [[1.0, 0.0], [0.0, 1.0]]]
+    tolerances = [1e-3, 1e-3, 1e-3, 2e-3, 2e-3]
+    obs = t.tensor(obs_for_probes[probe_idx - 1]).to(args.device)
+
+    # Calculate the actual value & probs, and verify them
+    with t.inference_mode():
+        value = agent.critic(obs)
+        probs = agent.actor(obs).softmax(-1)
+    # A bf16 network (e.g. under autocast) can't represent these targets to better than its eps
+    atol = max(tolerances[probe_idx - 1], t.finfo(value.dtype).eps)
+    expected_value = t.tensor(expected_value_for_probes[probe_idx - 1]).to(args.device)
+    t.testing.assert_close(value.float(), expected_value, atol=atol, rtol=0)
+    expected_probs = expected_probs_for_probes[probe_idx - 1]
+    if expected_probs is not None:
+        t.testing.assert_close(probs.float(), t.tensor(expected_probs).to(args.device), atol=atol, rtol=0)
+    print("Probe tests passed!\n")
+
+# %%

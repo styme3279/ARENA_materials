@@ -524,3 +524,40 @@ class PPOAgent:
 tests.test_ppo_agent(PPOAgent)
 
 # %%
+def calc_clipped_surrogate_objective(
+    dist: Categorical,
+    mb_action: Int[Tensor, "minibatch_size"],
+    mb_advantages: Float[Tensor, "minibatch_size"],
+    mb_logprobs: Float[Tensor, "minibatch_size"],
+    clip_coef: float,
+    eps: float = 1e-8,
+) -> Float[Tensor, ""]:
+    """Return the clipped surrogate objective, suitable for maximisation with gradient ascent.
+
+    dist:
+        a distribution containing the actor's unnormalized logits of shape (minibatch_size, num_actions)
+    mb_action:
+        what actions were taken in the sampled minibatch
+    mb_advantages:
+        advantages calculated from the sampled minibatch
+    mb_logprobs:
+        logprobs of the actions taken in the sampled minibatch (according to the old policy)
+    clip_coef:
+        amount of clipping, denoted by epsilon in Eq 7.
+    eps:
+        used to add to std dev of mb_advantages when normalizing (to avoid dividing by zero)
+    """
+    assert mb_action.shape == mb_advantages.shape == mb_logprobs.shape
+
+    minibatch_size = mb_action.shape[0]
+    
+    new_logprobs = dist.log_prob(mb_action)
+    normalized_mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + eps)
+
+    prob_ratios = new_logprobs - mb_logprobs
+
+    return (1 / minibatch_size) * (t.min((prob_ratios * normalized_mb_advantages), (prob_ratios.clip(1 - clip_coef, 1 + clip_coef) * normalized_mb_advantages))).sum()
+
+
+tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)
+# %%

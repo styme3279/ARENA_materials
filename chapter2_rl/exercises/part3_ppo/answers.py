@@ -934,3 +934,238 @@ if SLOW:
     trainer.train()
     display(record_grid_video(trainer, kind="atari"))
 # %%
+%pip install brax==0.14.2 mujoco   # only on a fresh machine (e.g. Colab); already in the course requirements.
+                                    # Uses the preinstalled jax: Colab ships it with the CUDA plugin matching its torch.
+
+!sudo apt-get install -y libosmesa6                        # headless + sudo: software GL for MP4 rendering
+!conda create -y -n oslibs -c conda-forge "mesalib=24.3.4" # headless, no sudo: same library via conda-forge
+
+# %%
+env = BraxEnvs("Hopper-v4", num_envs=1, seed=0)  # GPU (Brax) Hopper
+
+print(env.single_action_space)
+print(env.single_observation_space)
+# Render a short *random* rollout to a gym-style MP4 (tracking camera; falls back to Brax's
+# in-browser 3D viewer if no OpenGL backend is available).
+display(record_brax_video(env, actor=None, steps=150))
+
+# %%
+class Critic(nn.Module):
+    def __init__(self, obs_dim):
+        super().__init__()
+        self.critic = nn.Sequential(
+            layer_init(nn.Linear(obs_dim, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 1), std=1.0),
+        )
+
+    def forward(self, obs) -> Tensor:
+        value = self.critic(obs)
+        return value
+
+
+class Actor(nn.Module):
+    actor_mu: nn.Sequential
+    actor_log_sigma: nn.Parameter
+
+    def __init__(self, obs_dim, action_dim):
+        super().__init__()
+        self.actor_mu = nn.Sequential(
+            layer_init(nn.Linear(obs_dim, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, action_dim), std=0.01),
+        )
+        self.actor_log_sigma = nn.Parameter(t.zeros(1, action_dim))
+
+    def forward(self, obs) -> tuple[Tensor, Tensor, t.distributions.Normal]:
+        mu = self.actor_mu(obs)
+        sigma = t.exp(self.actor_log_sigma).broadcast_to(mu.shape)
+        dist = t.distributions.Normal(mu, sigma)
+        return mu, sigma, dist
+
+def get_actor_and_critic_mujoco(obs_dim: int, action_dim: int):
+    """
+    Returns (actor, critic) in the "mujoco" case, according to description above.
+    """
+    return Actor(obs_dim, action_dim), Critic(obs_dim)
+
+# %%
+class PPOAgentCts(PPOAgent):
+    def play_step(self) -> list[dict]:
+        """
+        Changes required:
+            - actor returns (mu, sigma, dist), with dist used to sample actions
+            - logprobs need to be summed over action space
+        """
+        obs = self.next_obs
+        terminated = self.next_terminated
+
+        with t.inference_mode():
+            # DISCRETE VERSION: derive distribution from the logits
+            # dist = Categorical(logits=self.actor(obs))
+            # CONTINUOUS VERSION: return distribution object directly
+            _, _, dist = self.actor.forward(obs)
+
+        actions = dist.sample()
+
+        # Step the GPU env with the action tensor directly (Brax / swing-up stay on-device)
+        next_obs, rewards, next_terminated, next_truncated, infos = self.envs.step(actions)
+
+        # DISCRETE VERSION: no need to sum logprobs
+        # logprobs = dist.log_prob(actions)
+        # CONTINUOUS VERSION: logprobs need to be summed over action space
+        logprobs = dist.log_prob(actions).sum(-1)
+
+        with t.inference_mode():
+            values = self.critic(obs).flatten()
+        self.memory.add(obs, actions, logprobs, values, rewards, terminated)
+
+        self.next_obs = next_obs
+        self.next_terminated = next_terminated.float()
+
+        self.step += self.envs.num_envs
+        return infos
+
+
+def calc_clipped_surrogate_objective_cts(
+    dist: t.distributions.Normal,
+    mb_action: Int[Tensor, " minibatch_size *action_shape"],
+    mb_advantages: Float[Tensor, " minibatch_size"],
+    mb_logprobs: Float[Tensor, " minibatch_size"],
+    clip_coef: float,
+    eps: float = 1e-8,
+) -> Float[Tensor, ""]:
+    """
+    Changes required:
+        - logprobs need to be summed over action space
+    """
+    assert (mb_action.shape[0],) == mb_advantages.shape == mb_logprobs.shape
+
+    # DISCRETE VERSION: no need to sum logprobs
+    # logits_diff = probs.log_prob(mb_action) - mb_logprobs
+    # CONTINUOUS VERSION: logprobs need to be summed over action space
+    logits_diff = dist.log_prob(mb_action).sum(-1) - mb_logprobs
+
+    r_theta = t.exp(logits_diff)
+
+    mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + eps)
+
+    non_clipped = r_theta * mb_advantages
+    clipped = t.clip(r_theta, 1 - clip_coef, 1 + clip_coef) * mb_advantages
+
+    return t.minimum(non_clipped, clipped).mean()
+
+
+def calc_entropy_bonus_cts(dist: t.distributions.Normal, ent_coef: float):
+    """
+    Changes required:
+        - entropy needs to be summed over action space before taking mean
+    """
+    # DISCRETE VERSION: no need to sum entropy
+    # return ent_coef * dist.entropy().mean()
+    # CONTINUOUS VERSION: entropy needs to be summed over action space
+    return ent_coef * dist.entropy().sum(-1).mean()
+
+
+class PPOTrainerCts(PPOTrainer):
+    def __init__(self, args: PPOArgs):
+        super().__init__(args)
+        self.agent = PPOAgentCts(self.envs, self.actor, self.critic, self.memory)
+
+    def compute_ppo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
+        """
+        Changes required:
+            - actor returns (mu, sigma, dist), with dist used for loss functions (rather than
+                getting dist from logits)
+            - objective function calculated using new `_cts` functions defined above
+            - newlogprob (for logging) needs to be summed over action space
+            - mu and sigma should be logged
+        """
+        # DISCRETE VERSION: actor returns logits, and we derive dist from them
+        # dist = Categorical(logits=self.actor(minibatch.obs))
+        # CONTINUOUS VERSION: actor returns distribution object directly
+        mu, sigma, dist = self.agent.actor(minibatch.obs)
+
+        values = self.agent.critic(minibatch.obs).squeeze()
+
+        clipped_surrogate_objective = calc_clipped_surrogate_objective_cts(
+            dist, minibatch.actions, minibatch.advantages, minibatch.logprobs, self.args.clip_coef
+        )
+        value_loss = calc_value_function_loss(values, minibatch.returns, self.args.vf_coef)
+        entropy_bonus = calc_entropy_bonus_cts(dist, self.args.ent_coef)
+        total_objective_function = clipped_surrogate_objective - value_loss + entropy_bonus
+
+        with t.inference_mode():
+            # DISCRETE VERSION: no need to sum logprobs
+            # newlogprob = dist.log_prob(minibatch.actions)
+            # CONTINUOUS VERSION: logprobs need to be summed over action space
+            newlogprob = dist.log_prob(minibatch.actions).sum(-1)
+            logratio = newlogprob - minibatch.logprobs
+            ratio = logratio.exp()
+            approx_kl = (ratio - 1 - logratio).mean().item()
+            clipfracs = [((ratio - 1.0).abs() > self.args.clip_coef).float().mean().item()]
+        # Stash the latest loss components (incl. the policy's mu/sigma) for the progress bar + wandb.
+        self.last_metrics = dict(
+            value_loss=value_loss.item(),
+            clip_surr=clipped_surrogate_objective.item(),
+            entropy=entropy_bonus.item(),
+            approx_kl=approx_kl,
+            mu=mu.mean().item(),
+            sigma=sigma.mean().item(),
+        )
+        if self.args.use_wandb:
+            wandb.log(
+                dict(
+                    total_steps=self.agent.step,
+                    values=values.mean().item(),
+                    lr=self.scheduler.optimizer.param_groups[0]["lr"],
+                    clipfrac=np.mean(clipfracs),
+                    **self.last_metrics,
+                ),
+                step=self.agent.step,
+            )
+
+        return total_objective_function
+
+# %%
+if SLOW:
+    args = PPOArgs(
+        env_id="Hopper-v4",
+        wandb_project_name="PPOMuJoCo",
+        mode="mujoco",
+        total_phases=200,  # solves (return >= 1000) after ~60-120 phases; 64 envs is as fast as 2048 and runs on a CPU
+        num_envs=64,
+        num_steps_per_rollout=32,
+        num_minibatches=8,
+        lr=1e-3,
+        gamma=0.97,
+        ent_coef=0.0,
+        vf_coef=0.5,
+    )
+    trainer = PPOTrainerCts(args)
+    trainer.train()
+    # gym-style MP4 of the trained agent (tracking camera; in-browser viewer fallback)
+    display(record_brax_video(trainer.envs, trainer.agent.actor))
+
+# %%
+if SLOW:
+    args = PPOArgs(
+        env_id="Humanoid-v4",
+        wandb_project_name="PPOMuJoCo",
+        mode="mujoco",
+        total_phases=228,
+        num_envs=2048,
+        num_steps_per_rollout=32,
+        num_minibatches=8,
+        lr=1e-3,
+        ent_coef=0.0,
+        vf_coef=0.5,
+    )
+    trainer = PPOTrainerCts(args)
+    trainer.train()
+    display(record_brax_video(trainer.envs, trainer.agent.actor))
+# %%

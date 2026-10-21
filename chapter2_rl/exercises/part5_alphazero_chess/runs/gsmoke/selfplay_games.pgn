@@ -1,0 +1,33 @@
+[Event "self-play gen 1"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "agent"]
+[Black "agent"]
+[Result "0-1"]
+[Termination "checkmate"]
+
+1. g4 e5 2. Na3 Na6 3. f4 Qh4# 0-1
+
+[Event "self-play gen 2"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "agent"]
+[Black "agent"]
+[Result "0-1"]
+[Termination "checkmate"]
+
+1. e3 d6 2. g4 Bxg4 3. d3 b5 4. Bg2 a6 5. Na3 Nd7 6. h3 Nh6 7. Be4 Nf6 8. Bb7 Bf3 9. Kf1 Ne4 10. Qd2 Nxd2+ 11. Bxd2 Bd1 12. f3 Ng4 13. Bxa6 h6 14. Bb7 Nxe3+ 15. Bxe3 Rh7 16. Rxd1 Kd7 17. d4 Ke6 18. c3 Ra7 19. f4 Qd7 20. Ne2 Rxa3 21. Kf2 Ra8 22. d5+ Kf5 23. Rh2 g6 24. Bc8 Rh8 25. Kf1 Ra4 26. Nc1 e5 27. Re1 c6 28. b4 g5 29. fxe5 Rxb4 30. Kf2 cxd5 31. exd6 Bg7 32. Bf4 f6 33. Kf1 h5 34. Re4 Bh6 35. a3 d4 36. Bxd7+ Kxe4 37. Kg2 Rc4 38. Be3 Kd5 39. Be6+ Ke5 40. Bf5 h4 41. Nd3+ Kd5 42. Bf2 b4 43. Be6+ Ke4 44. Kg1 Rc6 45. d7 g4 46. Kh1 Kf3 47. Bg3 Rxc3 48. Bf7 Rc4 49. d8=Q Rc3 50. Bh5 Be3 51. Bxg4+ Kxg3 52. Qf8 b3 53. Qg8 Rc2 54. Qxb3 Rxh2# 0-1
+
+[Event "self-play gen 3"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "agent"]
+[Black "agent"]
+[Result "0-1"]
+[Termination "checkmate"]
+
+1. e3 Nh6 2. Qf3 e6 3. Bd3 d5 4. Qxf7+ Kxf7 5. Bf5 Nd7 6. Ne2 Qg5 7. c3 Nxf5 8. Ng3 Qh5 9. Nxf5 Ne5 10. e4 Qg4 11. a4 Qh4 12. Na3 Qf4 13. Ra2 Bc5 14. a5 a6 15. d3 Qe3+ 16. Kf1 h5 17. Nxg7 dxe4 18. c4 Rh6 19. g4 Nd7 20. b3 Ra7 21. Bd2 Kxg7 22. dxe4 e5 23. h3 b5 24. Rg1 Qxe4 25. Rb2 Rh7 26. Nxb5 Qf3 27. g5 h4 28. Nd4 e4 29. Rg2 Bb4 30. Be3 Qxg2+ 31. Ke2 Nf8 32. Rb1 Rb7 33. Rc1 Be1 34. Nb5 Bg4+ 35. hxg4 Rh8 36. Na3 Rh7 37. Bf4 Qg1 38. b4 Qh1 39. c5 Rb6 40. Rc3 Ne6 41. f3 e3 42. Bg3 Rh5 43. Bxc7 Qh3 44. Kd3 e2 45. b5 Bf2 46. Ke4 Rxb5 47. Bd6 Kg6 48. c6 Rf5 49. Bh2 Bc5 50. Kd3 Bf8 51. Bb8 Nxg5 52. Kc2 Qh1 53. Bf4 Rxf4 54. c7 Nh7 55. Nc4 Rh6 56. c8=Q Bg7 57. g5 Rh5 58. Kd2 e1=Q+ 59. Kc2 Qhf1 60. Qf8 Bh6 61. Qg8+ Bg7 62. Ne5+ Kf5 63. Rc7 Bh6 64. Qd5 Qe3 65. Qg8 Qef2+ 66. Kc3 Rxg5 67. Qg7 Qh2 68. Rb7 Ra4 69. Qh8 Rg3 70. Rb2 Qff2 71. Rb8 Re4 72. Rb4 Qc2# 0-1
+

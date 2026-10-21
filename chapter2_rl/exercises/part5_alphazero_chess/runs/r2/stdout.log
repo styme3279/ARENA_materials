@@ -1,0 +1,1031 @@
+resumed runs/r1/latest.pt: gen 38, 13366 games, 2.42h
+model 128ch x 10 blocks; 4096 games x 64 sims on NVIDIA B300 SXM6 AC MIG 1g.34gb
+3 eval daemons on the CPUs
+gen   39 | 2.52h | 2.35M pos 14400 games | 1202 plies/s (78k evals/s) | len 59 W/D/B 0.50/0.03/0.47 mate 0.97 | loss 2.935 (pol 2.690 val 0.244) | oracle top1 0.208 acc 44.3 blunder 0.60 val_mse 0.641 | play 324s train 29s
+gen   40 | 2.59h | 2.41M pos 14970 games | 750 plies/s (49k evals/s) | len 106 W/D/B 0.38/0.24/0.38 mate 0.76 | loss 2.802 (pol 2.624 val 0.179) | oracle top1 0.205 acc 44.3 blunder 0.60 val_mse 0.596 | play 246s train 9s
+  [eval gen 39] vs minimax2    score 0.00 (+0 =0 -12)  132s
+  [eval gen 39] vs sf_elo1350  score 0.00 (+0 =0 -12)  83s
+gen   41 | 2.64h | 2.47M pos 15427 games | 755 plies/s (49k evals/s) | len 136 W/D/B 0.43/0.21/0.36 mate 0.79 | loss 2.737 (pol 2.585 val 0.152) | oracle top1 0.208 acc 44.8 blunder 0.59 val_mse 0.599 | play 157s train 9s
+  [eval gen 39] vs greedy      score 0.71 (+8 =1 -3)  253s
+  [eval gen 39] vs random      score 1.00 (+12 =0 -0)  287s
+  [eval gen 40] vs sf_skill0   score 0.00 (+0 =0 -12)  76s
+  [eval gen 40] vs minimax3    score 0.00 (+0 =0 -12)  64s
+  [eval gen 39] vs minimax2    score 0.12 (+1 =1 -10)  141s
+gen   42 | 2.66h | 2.53M pos 15824 games | 1202 plies/s (78k evals/s) | len 152 W/D/B 0.34/0.26/0.40 mate 0.74 | loss 2.700 (pol 2.558 val 0.142) | oracle top1 0.213 acc 44.9 blunder 0.59 val_mse 0.594 | play 82s train 6s
+gen   43 | 2.69h | 2.59M pos 16194 games | 749 plies/s (49k evals/s) | len 174 W/D/B 0.34/0.36/0.30 mate 0.64 | loss 2.670 (pol 2.533 val 0.136) | oracle top1 0.213 acc 44.8 blunder 0.59 val_mse 0.571 | play 93s train 9s
+  [eval gen 40] vs sf_elo1350  score 0.00 (+0 =0 -12)  180s
+  [eval gen 40] vs greedy      score 0.92 (+11 =0 -1)  244s
+gen   44 | 2.71h | 2.66M pos 16541 games | 740 plies/s (48k evals/s) | len 181 W/D/B 0.36/0.31/0.33 mate 0.69 | loss 2.664 (pol 2.523 val 0.141) | oracle top1 0.209 acc 44.9 blunder 0.59 val_mse 0.609 | play 66s train 9s
+  [eval gen 42] vs minimax2    score 0.04 (+0 =1 -11)  94s
+  [eval gen 42] vs sf_skill0   score 0.00 (+0 =0 -12)  67s
+  [eval gen 40] vs random      score 1.00 (+12 =0 -0)  323s
+gen   45 | 2.74h | 2.72M pos 16872 games | 766 plies/s (50k evals/s) | len 182 W/D/B 0.34/0.40/0.27 mate 0.60 | loss 2.665 (pol 2.520 val 0.146) | oracle top1 0.215 acc 44.7 blunder 0.59 val_mse 0.630 | play 70s train 9s
+  [eval gen 43] vs sf_elo1350  score 0.00 (+0 =0 -12)  71s
+  [eval gen 43] vs minimax3    score 0.00 (+0 =0 -12)  70s
+gen   46 | 2.75h | 2.78M pos 17185 games | 734 plies/s (48k evals/s) | len 200 W/D/B 0.32/0.34/0.35 mate 0.66 | loss 2.658 (pol 2.510 val 0.148) | oracle top1 0.216 acc 44.8 blunder 0.59 val_mse 0.601 | play 56s train 9s
+  [eval gen 44] vs minimax2    score 0.08 (+0 =2 -10)  85s
+gen   47 | 2.77h | 3.07M pos 18397 games | 759 plies/s (49k evals/s) | len 243 W/D/B 0.50/0.04/0.46 mate 0.09 | loss 2.602 (pol 2.464 val 0.138) | oracle top1 0.219 acc 45.3 blunder 0.59 val_mse 0.577 | play 27s train 42s
+  [eval gen 45] vs sf_elo1350  score 0.00 (+0 =0 -12)  63s
+  [eval gen 43] vs greedy      score 0.75 (+8 =2 -2)  244s
+gen   48 | 2.83h | 3.14M pos 18902 games | 751 plies/s (49k evals/s) | len 123 W/D/B 0.39/0.17/0.44 mate 0.73 | loss 2.596 (pol 2.466 val 0.131) | oracle top1 0.224 acc 45.4 blunder 0.58 val_mse 0.559 | play 207s train 9s
+  [eval gen 46] vs minimax2    score 0.04 (+0 =1 -11)  103s
+  [eval gen 46] vs sf_skill0   score 0.00 (+0 =0 -12)  94s
+  [eval gen 47] vs sf_elo1350  score 0.00 (+0 =0 -12)  78s
+  [eval gen 44] vs random      score 0.92 (+10 =2 -0)  297s
+  [eval gen 47] vs minimax2    score 0.00 (+0 =0 -12)  66s
+  [eval gen 47] vs minimax3    score 0.00 (+0 =0 -12)  62s
+gen   49 | 2.87h | 3.20M pos 19339 games | 741 plies/s (48k evals/s) | len 140 W/D/B 0.43/0.17/0.40 mate 0.64 | loss 2.613 (pol 2.472 val 0.141) | oracle top1 0.221 acc 45.8 blunder 0.58 val_mse 0.570 | play 127s train 9s
+  [eval gen 47] vs sf_elo1350  score 0.00 (+0 =0 -12)  88s
+gen   50 | 2.91h | 3.26M pos 19771 games | 772 plies/s (50k evals/s) | len 144 W/D/B 0.41/0.14/0.45 mate 0.64 | loss 2.620 (pol 2.476 val 0.144) | oracle top1 0.219 acc 45.2 blunder 0.59 val_mse 0.561 | play 117s train 9s
+  [eval gen 47] vs greedy      score 0.75 (+8 =2 -2)  289s
+  [eval gen 47] vs random      score 0.92 (+10 =2 -0)  200s
+  [eval gen 49] vs sf_skill0   score 0.00 (+0 =0 -12)  89s
+  [eval gen 48] vs minimax2    score 0.08 (+1 =0 -11)  171s
+gen   51 | 2.94h | 3.32M pos 20178 games | 745 plies/s (48k evals/s) | len 150 W/D/B 0.40/0.19/0.41 mate 0.57 | loss 2.632 (pol 2.483 val 0.149) | oracle top1 0.215 acc 45.6 blunder 0.58 val_mse 0.578 | play 110s train 9s
+  [eval gen 49] vs minimax3    score 0.00 (+0 =0 -12)  69s
+  [eval gen 49] vs sf_elo1350  score 0.00 (+0 =0 -12)  78s
+gen   52 | 2.97h | 3.38M pos 20565 games | 737 plies/s (48k evals/s) | len 160 W/D/B 0.42/0.22/0.36 mate 0.56 | loss 2.637 (pol 2.487 val 0.149) | oracle top1 0.226 acc 45.7 blunder 0.58 val_mse 0.524 | play 117s train 8s
+  [eval gen 50] vs minimax2    score 0.12 (+0 =3 -9)  125s
+  [eval gen 50] vs random      score 0.92 (+10 =2 -0)  191s
+  [eval gen 49] vs greedy      score 0.92 (+10 =2 -0)  218s
+gen   53 | 3.01h | 3.44M pos 20946 games | 761 plies/s (49k evals/s) | len 159 W/D/B 0.42/0.22/0.36 mate 0.58 | loss 2.656 (pol 2.497 val 0.159) | oracle top1 0.224 acc 45.9 blunder 0.58 val_mse 0.548 | play 108s train 9s
+  [eval gen 51] vs minimax3    score 0.00 (+0 =0 -12)  73s
+  [eval gen 51] vs sf_elo1350  score 0.00 (+0 =0 -12)  102s
+  [eval gen 51] vs sf_skill0   score 0.00 (+0 =0 -12)  109s
+gen   54 | 3.03h | 3.50M pos 21312 games | 746 plies/s (48k evals/s) | len 169 W/D/B 0.38/0.21/0.41 mate 0.55 | loss 2.649 (pol 2.493 val 0.157) | oracle top1 0.227 acc 46.0 blunder 0.58 val_mse 0.570 | play 88s train 9s
+  [eval gen 52] vs minimax2    score 0.04 (+0 =1 -11)  95s
+gen   55 | 3.06h | 3.57M pos 21682 games | 722 plies/s (47k evals/s) | len 168 W/D/B 0.42/0.21/0.37 mate 0.58 | loss 2.651 (pol 2.491 val 0.160) | oracle top1 0.228 acc 46.1 blunder 0.57 val_mse 0.527 | play 91s train 9s
+  [eval gen 53] vs sf_elo1350  score 0.00 (+0 =0 -12)  89s
+  [eval gen 52] vs random      score 0.92 (+10 =2 -0)  264s
+  [eval gen 54] vs minimax2    score 0.00 (+0 =0 -12)  69s
+gen   56 | 3.09h | 3.63M pos 22068 games | 786 plies/s (51k evals/s) | len 173 W/D/B 0.39/0.24/0.37 mate 0.56 | loss 2.640 (pol 2.488 val 0.152) | oracle top1 0.222 acc 45.9 blunder 0.58 val_mse 0.540 | play 83s train 9s
+  [eval gen 52] vs greedy      score 0.92 (+10 =2 -0)  279s
+  [eval gen 54] vs minimax3    score 0.00 (+0 =0 -12)  88s
+  [eval gen 54] vs sf_elo1350  score 0.00 (+0 =0 -12)  72s
+gen   57 | 3.11h | 3.69M pos 22417 games | 756 plies/s (49k evals/s) | len 178 W/D/B 0.37/0.29/0.34 mate 0.49 | loss 2.629 (pol 2.482 val 0.147) | oracle top1 0.213 acc 45.6 blunder 0.58 val_mse 0.543 | play 70s train 9s
+  [eval gen 55] vs sf_skill0   score 0.00 (+0 =0 -12)  74s
+  [eval gen 55] vs minimax2    score 0.00 (+0 =0 -12)  88s
+gen   58 | 3.13h | 3.76M pos 22750 games | 755 plies/s (49k evals/s) | len 190 W/D/B 0.43/0.26/0.31 mate 0.41 | loss 2.621 (pol 2.477 val 0.144) | oracle top1 0.223 acc 46.2 blunder 0.58 val_mse 0.566 | play 70s train 9s
+gen   59 | 3.15h | 3.82M pos 23099 games | 761 plies/s (49k evals/s) | len 183 W/D/B 0.40/0.30/0.31 mate 0.48 | loss 2.612 (pol 2.470 val 0.143) | oracle top1 0.225 acc 46.0 blunder 0.58 val_mse 0.552 | play 70s train 9s
+  [eval gen 56] vs sf_elo1350  score 0.00 (+0 =0 -12)  98s
+  [eval gen 55] vs random      score 0.92 (+10 =2 -0)  224s
+  [eval gen 56] vs greedy      score 0.92 (+10 =2 -0)  192s
+gen   60 | 3.17h | 3.88M pos 23430 games | 790 plies/s (51k evals/s) | len 182 W/D/B 0.41/0.21/0.39 mate 0.46 | loss 2.618 (pol 2.472 val 0.147) | oracle top1 0.228 acc 46.2 blunder 0.58 val_mse 0.542 | play 57s train 8s
+  [eval gen 58] vs minimax2    score 0.04 (+0 =1 -11)  105s
+  [eval gen 58] vs minimax3    score 0.00 (+0 =0 -12)  93s
+  [eval gen 58] vs sf_skill0   score 0.00 (+0 =0 -12)  76s
+gen   61 | 3.19h | 4.00M pos 23936 games | 733 plies/s (48k evals/s) | len 226 W/D/B 0.47/0.13/0.40 mate 0.17 | loss 2.604 (pol 2.462 val 0.142) | oracle top1 0.222 acc 46.0 blunder 0.58 val_mse 0.562 | play 45s train 16s
+  [eval gen 59] vs sf_elo1350  score 0.00 (+0 =0 -12)  75s
+gen   62 | 3.23h | 4.06M pos 24337 games | 737 plies/s (48k evals/s) | len 157 W/D/B 0.39/0.25/0.36 mate 0.56 | loss 2.601 (pol 2.466 val 0.135) | oracle top1 0.227 acc 46.4 blunder 0.58 val_mse 0.546 | play 133s train 9s
+  [eval gen 60] vs minimax2    score 0.04 (+0 =1 -11)  79s
+  [eval gen 59] vs random      score 0.96 (+11 =1 -0)  203s
+gen   63 | 3.26h | 4.12M pos 24721 games | 758 plies/s (49k evals/s) | len 159 W/D/B 0.37/0.23/0.40 mate 0.53 | loss 2.609 (pol 2.467 val 0.142) | oracle top1 0.225 acc 46.1 blunder 0.58 val_mse 0.539 | play 114s train 9s
+  [eval gen 61] vs sf_elo1350  score 0.00 (+0 =0 -12)  100s
+  [eval gen 59] vs greedy      score 0.79 (+7 =5 -0)  280s
+  [eval gen 62] vs minimax2    score 0.00 (+0 =0 -12)  74s
+  [eval gen 61] vs minimax3    score 0.00 (+0 =0 -12)  112s
+gen   64 | 3.29h | 4.19M pos 25121 games | 743 plies/s (48k evals/s) | len 162 W/D/B 0.40/0.20/0.40 mate 0.55 | loss 2.615 (pol 2.471 val 0.144) | oracle top1 0.229 acc 45.6 blunder 0.58 val_mse 0.615 | play 99s train 9s
+  [eval gen 62] vs sf_elo1350  score 0.00 (+0 =0 -12)  69s
+  [eval gen 62] vs sf_skill0   score 0.00 (+0 =0 -12)  125s
+gen   65 | 3.32h | 4.25M pos 25510 games | 766 plies/s (50k evals/s) | len 165 W/D/B 0.40/0.21/0.39 mate 0.52 | loss 2.618 (pol 2.473 val 0.145) | oracle top1 0.227 acc 46.2 blunder 0.58 val_mse 0.542 | play 96s train 9s
+  [eval gen 63] vs minimax2    score 0.04 (+0 =1 -11)  88s
+  [eval gen 62] vs random      score 0.92 (+10 =2 -0)  154s
+  [eval gen 64] vs minimax3    score 0.00 (+0 =0 -12)  67s
+  [eval gen 63] vs greedy      score 0.92 (+11 =0 -1)  134s
+gen   66 | 3.35h | 4.31M pos 25895 games | 755 plies/s (49k evals/s) | len 162 W/D/B 0.42/0.22/0.36 mate 0.53 | loss 2.620 (pol 2.478 val 0.141) | oracle top1 0.227 acc 46.4 blunder 0.57 val_mse 0.582 | play 92s train 9s
+  [eval gen 64] vs sf_elo1350  score 0.00 (+0 =0 -12)  92s
+  [eval gen 64] vs sf_skill0   score 0.00 (+0 =0 -12)  64s
+  [eval gen 65] vs minimax2    score 0.04 (+0 =1 -11)  69s
+gen   67 | 3.38h | 4.37M pos 26258 games | 742 plies/s (48k evals/s) | len 168 W/D/B 0.40/0.23/0.37 mate 0.50 | loss 2.618 (pol 2.475 val 0.143) | oracle top1 0.224 acc 45.9 blunder 0.58 val_mse 0.555 | play 99s train 9s
+  [eval gen 65] vs sf_elo1350  score 0.00 (+0 =0 -12)  102s
+gen   68 | 3.41h | 4.43M pos 26620 games | 763 plies/s (50k evals/s) | len 167 W/D/B 0.42/0.20/0.38 mate 0.56 | loss 2.625 (pol 2.483 val 0.142) | oracle top1 0.222 acc 46.0 blunder 0.58 val_mse 0.530 | play 91s train 8s
+  [eval gen 64] vs random      score 0.96 (+11 =1 -0)  259s
+  [eval gen 65] vs greedy      score 0.92 (+10 =2 -0)  247s
+gen   69 | 3.44h | 4.50M pos 26996 games | 756 plies/s (49k evals/s) | len 169 W/D/B 0.41/0.23/0.36 mate 0.49 | loss 2.627 (pol 2.484 val 0.143) | oracle top1 0.233 acc 46.3 blunder 0.58 val_mse 0.541 | play 92s train 9s
+  [eval gen 67] vs minimax3    score 0.00 (+0 =0 -12)  79s
+  [eval gen 66] vs minimax2    score 0.04 (+0 =1 -11)  194s
+  [eval gen 67] vs sf_skill0   score 0.00 (+0 =0 -12)  85s
+gen   70 | 3.46h | 4.56M pos 27344 games | 737 plies/s (48k evals/s) | len 178 W/D/B 0.39/0.25/0.36 mate 0.50 | loss 2.622 (pol 2.483 val 0.139) | oracle top1 0.235 acc 46.4 blunder 0.58 val_mse 0.537 | play 83s train 9s
+  [eval gen 68] vs sf_elo1350  score 0.00 (+0 =0 -12)  51s
+  [eval gen 69] vs minimax2    score 0.04 (+0 =1 -11)  74s
+gen   71 | 3.49h | 4.62M pos 27699 games | 756 plies/s (49k evals/s) | len 178 W/D/B 0.38/0.23/0.39 mate 0.48 | loss 2.621 (pol 2.484 val 0.137) | oracle top1 0.233 acc 46.2 blunder 0.58 val_mse 0.505 | play 76s train 9s
+  [eval gen 68] vs random      score 0.96 (+11 =1 -0)  252s
+  [eval gen 69] vs sf_elo1350  score 0.00 (+0 =0 -12)  93s
+gen   72 | 3.51h | 4.68M pos 28041 games | 761 plies/s (49k evals/s) | len 178 W/D/B 0.38/0.21/0.41 mate 0.47 | loss 2.611 (pol 2.480 val 0.131) | oracle top1 0.226 acc 45.8 blunder 0.58 val_mse 0.514 | play 70s train 9s
+  [eval gen 70] vs minimax3    score 0.00 (+0 =0 -12)  93s
+  [eval gen 68] vs greedy      score 0.88 (+9 =3 -0)  282s
+gen   73 | 3.53h | 4.75M pos 28386 games | 766 plies/s (50k evals/s) | len 183 W/D/B 0.39/0.25/0.36 mate 0.43 | loss 2.611 (pol 2.479 val 0.132) | oracle top1 0.236 acc 46.2 blunder 0.58 val_mse 0.513 | play 70s train 9s
+  [eval gen 70] vs minimax2    score 0.12 (+0 =3 -9)  103s
+gen   74 | 3.55h | 4.81M pos 28733 games | 756 plies/s (49k evals/s) | len 179 W/D/B 0.39/0.22/0.39 mate 0.46 | loss 2.603 (pol 2.474 val 0.128) | oracle top1 0.232 acc 46.3 blunder 0.57 val_mse 0.501 | play 76s train 9s
+  [eval gen 71] vs sf_skill0   score 0.00 (+0 =0 -12)  98s
+  [eval gen 72] vs sf_elo1350  score 0.00 (+0 =0 -12)  78s
+gen   75 | 3.58h | 4.87M pos 29091 games | 768 plies/s (50k evals/s) | len 177 W/D/B 0.41/0.19/0.39 mate 0.46 | loss 2.604 (pol 2.473 val 0.131) | oracle top1 0.231 acc 46.4 blunder 0.58 val_mse 0.543 | play 75s train 9s
+  [eval gen 73] vs minimax2    score 0.00 (+0 =0 -12)  68s
+  [eval gen 71] vs random      score 0.96 (+11 =1 -0)  225s
+gen   76 | 3.60h | 4.93M pos 29402 games | 753 plies/s (49k evals/s) | len 196 W/D/B 0.42/0.21/0.37 mate 0.35 | loss 2.603 (pol 2.472 val 0.131) | oracle top1 0.227 acc 46.3 blunder 0.57 val_mse 0.527 | play 71s train 9s
+  [eval gen 74] vs sf_elo1350  score 0.00 (+0 =0 -12)  85s
+gen   77 | 3.62h | 4.99M pos 29728 games | 758 plies/s (49k evals/s) | len 189 W/D/B 0.48/0.13/0.40 mate 0.38 | loss 2.596 (pol 2.467 val 0.129) | oracle top1 0.227 acc 46.3 blunder 0.58 val_mse 0.519 | play 59s train 8s
+  [eval gen 74] vs minimax3    score 0.00 (+0 =0 -12)  107s
+  [eval gen 75] vs minimax2    score 0.00 (+0 =0 -12)  82s
+  [eval gen 73] vs greedy      score 0.88 (+9 =3 -0)  287s
+gen   78 | 3.65h | 5.05M pos 30104 games | 791 plies/s (51k evals/s) | len 160 W/D/B 0.40/0.19/0.41 mate 0.58 | loss 2.601 (pol 2.470 val 0.130) | oracle top1 0.238 acc 46.5 blunder 0.58 val_mse 0.514 | play 93s train 8s
+  [eval gen 76] vs sf_elo1350  score 0.00 (+0 =0 -12)  98s
+  [eval gen 76] vs random      score 0.96 (+11 =1 -0)  108s
+  [eval gen 76] vs sf_skill0   score 0.00 (+0 =0 -12)  76s
+gen   79 | 3.68h | 5.12M pos 30496 games | 766 plies/s (50k evals/s) | len 163 W/D/B 0.39/0.19/0.43 mate 0.53 | loss 2.604 (pol 2.472 val 0.132) | oracle top1 0.233 acc 46.5 blunder 0.58 val_mse 0.537 | play 96s train 9s
+  [eval gen 77] vs minimax2    score 0.04 (+0 =1 -11)  80s
+  [eval gen 77] vs minimax3    score 0.00 (+0 =0 -12)  99s
+  [eval gen 78] vs sf_elo1350  score 0.00 (+0 =0 -12)  67s
+gen   80 | 3.70h | 5.18M pos 30841 games | 736 plies/s (48k evals/s) | len 177 W/D/B 0.37/0.20/0.43 mate 0.47 | loss 2.600 (pol 2.469 val 0.132) | oracle top1 0.237 acc 46.6 blunder 0.57 val_mse 0.519 | play 89s train 9s
+  [eval gen 77] vs greedy      score 0.71 (+6 =5 -1)  218s
+gen   81 | 3.73h | 5.24M pos 31200 games | 756 plies/s (49k evals/s) | len 172 W/D/B 0.41/0.23/0.36 mate 0.46 | loss 2.605 (pol 2.469 val 0.136) | oracle top1 0.230 acc 46.5 blunder 0.58 val_mse 0.490 | play 92s train 8s
+  [eval gen 79] vs sf_skill0   score 0.00 (+0 =0 -12)  94s
+  [eval gen 78] vs minimax2    score 0.12 (+1 =1 -10)  190s
+  [eval gen 78] vs random      score 0.88 (+9 =3 -0)  251s
+gen   82 | 3.76h | 5.30M pos 31569 games | 782 plies/s (51k evals/s) | len 172 W/D/B 0.45/0.20/0.35 mate 0.52 | loss 2.605 (pol 2.467 val 0.138) | oracle top1 0.237 acc 47.1 blunder 0.57 val_mse 0.515 | play 84s train 9s
+  [eval gen 80] vs greedy      score 0.79 (+9 =1 -2)  114s
+  [eval gen 80] vs sf_elo1350  score 0.00 (+0 =0 -12)  120s
+gen   83 | 3.78h | 5.37M pos 31949 games | 764 plies/s (50k evals/s) | len 168 W/D/B 0.39/0.22/0.39 mate 0.52 | loss 2.610 (pol 2.473 val 0.138) | oracle top1 0.227 acc 46.5 blunder 0.57 val_mse 0.512 | play 86s train 9s
+  [eval gen 80] vs minimax3    score 0.00 (+0 =0 -12)  124s
+gen   84 | 3.81h | 5.43M pos 32303 games | 732 plies/s (48k evals/s) | len 172 W/D/B 0.40/0.22/0.38 mate 0.49 | loss 2.608 (pol 2.469 val 0.139) | oracle top1 0.228 acc 46.2 blunder 0.58 val_mse 0.522 | play 95s train 9s
+  [eval gen 81] vs sf_skill0   score 0.00 (+0 =0 -12)  120s
+gen   85 | 3.84h | 5.49M pos 32648 games | 736 plies/s (48k evals/s) | len 179 W/D/B 0.39/0.23/0.39 mate 0.47 | loss 2.610 (pol 2.471 val 0.139) | oracle top1 0.237 acc 47.0 blunder 0.57 val_mse 0.546 | play 89s train 9s
+  [eval gen 81] vs minimax2    score 0.17 (+1 =2 -9)  268s
+gen   86 | 3.86h | 5.55M pos 32987 games | 796 plies/s (52k evals/s) | len 177 W/D/B 0.45/0.23/0.32 mate 0.45 | loss 2.608 (pol 2.470 val 0.137) | oracle top1 0.236 acc 46.7 blunder 0.57 val_mse 0.514 | play 72s train 8s
+  [eval gen 82] vs random      score 0.88 (+9 =3 -0)  295s
+  [eval gen 83] vs greedy      score 0.96 (+11 =1 -0)  228s
+gen   87 | 3.89h | 5.61M pos 33326 games | 748 plies/s (49k evals/s) | len 181 W/D/B 0.40/0.22/0.38 mate 0.45 | loss 2.604 (pol 2.468 val 0.136) | oracle top1 0.237 acc 46.8 blunder 0.57 val_mse 0.498 | play 77s train 9s
+  [eval gen 84] vs sf_elo1350  score 0.00 (+0 =0 -12)  125s
+  [eval gen 85] vs minimax3    score 0.00 (+0 =0 -12)  89s
+  [eval gen 85] vs sf_skill0   score 0.00 (+0 =0 -12)  70s
+gen   88 | 3.91h | 5.68M pos 33678 games | 743 plies/s (48k evals/s) | len 181 W/D/B 0.45/0.20/0.36 mate 0.43 | loss 2.603 (pol 2.466 val 0.137) | oracle top1 0.242 acc 47.2 blunder 0.57 val_mse 0.494 | play 88s train 9s
+  [eval gen 86] vs minimax2    score 0.17 (+1 =2 -9)  115s
+  [eval gen 86] vs greedy      score 0.79 (+9 =1 -2)  137s
+gen   89 | 3.94h | 5.74M pos 34024 games | 781 plies/s (51k evals/s) | len 176 W/D/B 0.36/0.22/0.42 mate 0.47 | loss 2.607 (pol 2.466 val 0.141) | oracle top1 0.236 acc 46.9 blunder 0.57 val_mse 0.508 | play 68s train 9s
+  [eval gen 86] vs random      score 0.92 (+10 =2 -0)  199s
+  [eval gen 87] vs sf_elo1350  score 0.00 (+0 =0 -12)  97s
+gen   90 | 3.96h | 5.80M pos 34369 games | 752 plies/s (49k evals/s) | len 182 W/D/B 0.44/0.17/0.39 mate 0.46 | loss 2.602 (pol 2.466 val 0.137) | oracle top1 0.243 acc 46.8 blunder 0.57 val_mse 0.507 | play 76s train 9s
+  [eval gen 88] vs minimax3    score 0.00 (+0 =0 -12)  87s
+  [eval gen 88] vs minimax2    score 0.12 (+0 =3 -9)  103s
+gen   91 | 3.98h | 5.86M pos 34700 games | 759 plies/s (49k evals/s) | len 187 W/D/B 0.40/0.21/0.39 mate 0.42 | loss 2.600 (pol 2.462 val 0.138) | oracle top1 0.239 acc 46.9 blunder 0.57 val_mse 0.524 | play 76s train 9s
+  [eval gen 87] vs sf_skill0   score 0.04 (+0 =1 -11)  190s
+  [eval gen 89] vs sf_elo1350  score 0.00 (+0 =0 -12)  79s
+gen   92 | 4.01h | 5.92M pos 35032 games | 747 plies/s (49k evals/s) | len 184 W/D/B 0.40/0.19/0.41 mate 0.41 | loss 2.598 (pol 2.462 val 0.136) | oracle top1 0.239 acc 47.3 blunder 0.56 val_mse 0.521 | play 77s train 9s
+  [eval gen 90] vs minimax2    score 0.04 (+0 =1 -11)  99s
+gen   93 | 4.03h | 5.98M pos 35381 games | 773 plies/s (50k evals/s) | len 178 W/D/B 0.45/0.16/0.39 mate 0.47 | loss 2.592 (pol 2.458 val 0.134) | oracle top1 0.233 acc 46.8 blunder 0.57 val_mse 0.544 | play 74s train 8s
+  [eval gen 89] vs random      score 0.92 (+10 =2 -0)  261s
+  [eval gen 90] vs greedy      score 0.88 (+9 =3 -0)  216s
+gen   94 | 4.06h | 6.05M pos 35746 games | 763 plies/s (50k evals/s) | len 172 W/D/B 0.47/0.16/0.37 mate 0.51 | loss 2.598 (pol 2.465 val 0.133) | oracle top1 0.233 acc 47.2 blunder 0.56 val_mse 0.522 | play 86s train 9s
+  [eval gen 91] vs sf_elo1350  score 0.00 (+0 =0 -12)  148s
+  [eval gen 92] vs sf_skill0   score 0.00 (+0 =0 -12)  112s
+  [eval gen 92] vs minimax3    score 0.08 (+1 =0 -11)  121s
+gen   95 | 4.09h | 6.11M pos 36095 games | 756 plies/s (49k evals/s) | len 175 W/D/B 0.43/0.20/0.37 mate 0.48 | loss 2.602 (pol 2.467 val 0.136) | oracle top1 0.247 acc 47.6 blunder 0.56 val_mse 0.528 | play 92s train 9s
+  [eval gen 93] vs minimax2    score 0.04 (+0 =1 -11)  85s
+gen   96 | 4.11h | 6.17M pos 36471 games | 743 plies/s (48k evals/s) | len 174 W/D/B 0.39/0.24/0.38 mate 0.44 | loss 2.593 (pol 2.461 val 0.133) | oracle top1 0.242 acc 47.4 blunder 0.57 val_mse 0.545 | play 94s train 9s
+  [eval gen 94] vs sf_elo1350  score 0.00 (+0 =0 -12)  107s
+gen   97 | 4.14h | 6.23M pos 36827 games | 762 plies/s (50k evals/s) | len 169 W/D/B 0.37/0.21/0.42 mate 0.48 | loss 2.591 (pol 2.458 val 0.133) | oracle top1 0.242 acc 47.3 blunder 0.57 val_mse 0.502 | play 86s train 8s
+  [eval gen 93] vs greedy      score 0.88 (+9 =3 -0)  253s
+  [eval gen 95] vs minimax2    score 0.00 (+0 =0 -12)  93s
+  [eval gen 93] vs random      score 0.79 (+7 =5 -0)  279s
+gen   98 | 4.17h | 6.30M pos 37170 games | 760 plies/s (49k evals/s) | len 178 W/D/B 0.41/0.22/0.38 mate 0.46 | loss 2.601 (pol 2.465 val 0.137) | oracle top1 0.244 acc 47.5 blunder 0.56 val_mse 0.496 | play 81s train 9s
+  [eval gen 96] vs sf_skill0   score 0.00 (+0 =0 -12)  91s
+gen   99 | 4.19h | 6.36M pos 37510 games | 756 plies/s (49k evals/s) | len 177 W/D/B 0.47/0.19/0.34 mate 0.46 | loss 2.595 (pol 2.461 val 0.133) | oracle top1 0.244 acc 47.3 blunder 0.57 val_mse 0.509 | play 76s train 9s
+  [eval gen 96] vs minimax3    score 0.08 (+1 =0 -11)  112s
+  [eval gen 96] vs sf_elo1350  score 0.00 (+0 =0 -12)  166s
+gen  100 | 4.22h | 6.42M pos 37862 games | 745 plies/s (48k evals/s) | len 172 W/D/B 0.36/0.22/0.42 mate 0.46 | loss 2.595 (pol 2.463 val 0.133) | oracle top1 0.244 acc 47.6 blunder 0.56 val_mse 0.507 | play 82s train 9s
+  [eval gen 98] vs minimax2    score 0.08 (+0 =2 -10)  140s
+gen  101 | 4.24h | 6.48M pos 38210 games | 764 plies/s (50k evals/s) | len 178 W/D/B 0.42/0.22/0.35 mate 0.45 | loss 2.593 (pol 2.464 val 0.130) | oracle top1 0.245 acc 47.3 blunder 0.57 val_mse 0.509 | play 80s train 8s
+  [eval gen 97] vs greedy      score 0.88 (+9 =3 -0)  278s
+  [eval gen 98] vs random      score 0.96 (+11 =1 -0)  240s
+  [eval gen 99] vs sf_elo1350  score 0.00 (+0 =0 -12)  86s
+gen  102 | 4.26h | 6.54M pos 38575 games | 763 plies/s (50k evals/s) | len 168 W/D/B 0.38/0.20/0.42 mate 0.51 | loss 2.597 (pol 2.461 val 0.136) | oracle top1 0.237 acc 47.7 blunder 0.56 val_mse 0.492 | play 81s train 9s
+  [eval gen 100] vs minimax3    score 0.00 (+0 =0 -12)  77s
+  [eval gen 100] vs sf_skill0   score 0.00 (+0 =0 -12)  100s
+gen  103 | 4.29h | 6.60M pos 38925 games | 746 plies/s (48k evals/s) | len 176 W/D/B 0.41/0.19/0.41 mate 0.47 | loss 2.600 (pol 2.467 val 0.133) | oracle top1 0.246 acc 47.4 blunder 0.56 val_mse 0.480 | play 82s train 9s
+  [eval gen 100] vs minimax2    score 0.12 (+0 =3 -9)  170s
+gen  104 | 4.31h | 6.66M pos 39275 games | 759 plies/s (49k evals/s) | len 179 W/D/B 0.42/0.23/0.35 mate 0.43 | loss 2.595 (pol 2.461 val 0.134) | oracle top1 0.246 acc 47.5 blunder 0.57 val_mse 0.476 | play 76s train 9s
+  [eval gen 102] vs sf_elo1350  score 0.00 (+0 =0 -12)  80s
+gen  105 | 4.34h | 6.72M pos 39637 games | 763 plies/s (50k evals/s) | len 168 W/D/B 0.37/0.20/0.43 mate 0.51 | loss 2.601 (pol 2.462 val 0.139) | oracle top1 0.243 acc 47.4 blunder 0.56 val_mse 0.474 | play 75s train 8s
+  [eval gen 101] vs random      score 0.96 (+11 =1 -0)  250s
+  [eval gen 101] vs greedy      score 0.96 (+11 =1 -0)  278s
+  [eval gen 103] vs minimax2    score 0.21 (+0 =5 -7)  101s
+gen  106 | 4.36h | 6.79M pos 39975 games | 786 plies/s (51k evals/s) | len 179 W/D/B 0.40/0.22/0.38 mate 0.43 | loss 2.598 (pol 2.463 val 0.136) | oracle top1 0.240 acc 47.0 blunder 0.57 val_mse 0.501 | play 73s train 9s
+  [eval gen 104] vs minimax3    score 0.00 (+0 =0 -12)  95s
+  [eval gen 104] vs sf_elo1350  score 0.00 (+0 =0 -12)  70s
+gen  107 | 4.39h | 6.85M pos 40323 games | 728 plies/s (47k evals/s) | len 173 W/D/B 0.42/0.20/0.38 mate 0.49 | loss 2.598 (pol 2.462 val 0.136) | oracle top1 0.246 acc 47.2 blunder 0.57 val_mse 0.490 | play 84s train 9s
+  [eval gen 104] vs sf_skill0   score 0.00 (+0 =0 -12)  101s
+  [eval gen 105] vs minimax2    score 0.08 (+0 =2 -10)  96s
+gen  108 | 4.41h | 6.91M pos 40677 games | 746 plies/s (49k evals/s) | len 178 W/D/B 0.43/0.23/0.34 mate 0.43 | loss 2.602 (pol 2.466 val 0.136) | oracle top1 0.246 acc 47.4 blunder 0.56 val_mse 0.472 | play 77s train 9s
+  [eval gen 106] vs sf_elo1350  score 0.00 (+0 =0 -12)  67s
+gen  109 | 4.44h | 6.97M pos 41041 games | 752 plies/s (49k evals/s) | len 176 W/D/B 0.40/0.23/0.37 mate 0.45 | loss 2.602 (pol 2.468 val 0.135) | oracle top1 0.246 acc 47.6 blunder 0.56 val_mse 0.483 | play 87s train 9s
+  [eval gen 105] vs random      score 0.79 (+7 =5 -0)  246s
+  [eval gen 107] vs minimax2    score 0.08 (+0 =2 -10)  108s
+gen  110 | 4.46h | 7.03M pos 41392 games | 773 plies/s (50k evals/s) | len 174 W/D/B 0.45/0.19/0.36 mate 0.51 | loss 2.602 (pol 2.467 val 0.135) | oracle top1 0.254 acc 47.4 blunder 0.57 val_mse 0.481 | play 79s train 9s
+  [eval gen 106] vs greedy      score 0.88 (+9 =3 -0)  294s
+  [eval gen 108] vs minimax3    score 0.00 (+0 =0 -12)  101s
+gen  111 | 4.49h | 7.09M pos 41738 games | 742 plies/s (48k evals/s) | len 176 W/D/B 0.40/0.23/0.37 mate 0.46 | loss 2.606 (pol 2.466 val 0.140) | oracle top1 0.239 acc 47.3 blunder 0.56 val_mse 0.509 | play 77s train 9s
+  [eval gen 109] vs sf_skill0   score 0.00 (+0 =0 -12)  80s
+  [eval gen 108] vs sf_elo1350  score 0.00 (+0 =0 -12)  148s
+gen  112 | 4.51h | 7.16M pos 42110 games | 748 plies/s (49k evals/s) | len 168 W/D/B 0.41/0.21/0.38 mate 0.48 | loss 2.603 (pol 2.461 val 0.142) | oracle top1 0.244 acc 47.6 blunder 0.56 val_mse 0.493 | play 88s train 9s
+  [eval gen 110] vs minimax2    score 0.08 (+0 =2 -10)  85s
+gen  113 | 4.54h | 7.22M pos 42471 games | 759 plies/s (49k evals/s) | len 168 W/D/B 0.41/0.23/0.36 mate 0.51 | loss 2.605 (pol 2.462 val 0.143) | oracle top1 0.244 acc 47.3 blunder 0.56 val_mse 0.479 | play 81s train 9s
+  [eval gen 110] vs greedy      score 0.92 (+10 =2 -0)  164s
+  [eval gen 111] vs sf_elo1350  score 0.00 (+0 =0 -12)  117s
+  [eval gen 109] vs random      score 0.92 (+10 =2 -0)  298s
+gen  114 | 4.57h | 7.28M pos 42833 games | 757 plies/s (49k evals/s) | len 170 W/D/B 0.40/0.26/0.33 mate 0.47 | loss 2.601 (pol 2.464 val 0.138) | oracle top1 0.245 acc 47.2 blunder 0.57 val_mse 0.499 | play 92s train 9s
+  [eval gen 112] vs sf_skill0   score 0.00 (+0 =0 -12)  99s
+  [eval gen 112] vs minimax2    score 0.17 (+0 =4 -8)  133s
+gen  115 | 4.59h | 7.34M pos 43192 games | 754 plies/s (49k evals/s) | len 171 W/D/B 0.40/0.19/0.41 mate 0.52 | loss 2.599 (pol 2.462 val 0.138) | oracle top1 0.249 acc 47.4 blunder 0.57 val_mse 0.480 | play 81s train 9s
+  [eval gen 112] vs minimax3    score 0.00 (+0 =0 -12)  127s
+  [eval gen 113] vs sf_elo1350  score 0.00 (+0 =0 -12)  55s
+gen  116 | 4.62h | 7.40M pos 43551 games | 772 plies/s (50k evals/s) | len 174 W/D/B 0.42/0.20/0.38 mate 0.48 | loss 2.599 (pol 2.458 val 0.141) | oracle top1 0.245 acc 47.6 blunder 0.56 val_mse 0.499 | play 80s train 9s
+  [eval gen 113] vs greedy      score 1.00 (+12 =0 -0)  220s
+  [eval gen 114] vs minimax2    score 0.08 (+1 =0 -11)  106s
+gen  117 | 4.64h | 7.47M pos 43909 games | 770 plies/s (50k evals/s) | len 175 W/D/B 0.37/0.24/0.39 mate 0.44 | loss 2.598 (pol 2.455 val 0.143) | oracle top1 0.251 acc 47.7 blunder 0.56 val_mse 0.513 | play 85s train 9s
+  [eval gen 114] vs random      score 1.00 (+12 =0 -0)  219s
+  [eval gen 115] vs sf_skill0   score 0.00 (+0 =0 -12)  104s
+gen  118 | 4.67h | 7.53M pos 44273 games | 748 plies/s (49k evals/s) | len 176 W/D/B 0.38/0.20/0.43 mate 0.50 | loss 2.597 (pol 2.455 val 0.142) | oracle top1 0.259 acc 48.1 blunder 0.56 val_mse 0.523 | play 82s train 9s
+  [eval gen 115] vs sf_elo1350  score 0.00 (+0 =0 -12)  123s
+  [eval gen 116] vs minimax3    score 0.04 (+0 =1 -11)  136s
+gen  119 | 4.69h | 7.59M pos 44635 games | 768 plies/s (50k evals/s) | len 171 W/D/B 0.44/0.17/0.38 mate 0.49 | loss 2.597 (pol 2.460 val 0.137) | oracle top1 0.256 acc 48.1 blunder 0.56 val_mse 0.508 | play 85s train 9s
+  [eval gen 117] vs minimax2    score 0.12 (+0 =3 -9)  116s
+  [eval gen 116] vs greedy      score 0.83 (+8 =4 -0)  201s
+gen  120 | 4.72h | 7.65M pos 44974 games | 760 plies/s (49k evals/s) | len 179 W/D/B 0.42/0.22/0.37 mate 0.48 | loss 2.595 (pol 2.458 val 0.136) | oracle top1 0.257 acc 48.0 blunder 0.56 val_mse 0.499 | play 75s train 9s
+  [eval gen 118] vs sf_elo1350  score 0.00 (+0 =0 -12)  75s
+  [eval gen 118] vs sf_skill0   score 0.00 (+0 =0 -12)  70s
+gen  121 | 4.74h | 7.71M pos 45319 games | 767 plies/s (50k evals/s) | len 180 W/D/B 0.38/0.23/0.39 mate 0.46 | loss 2.590 (pol 2.455 val 0.134) | oracle top1 0.260 acc 48.0 blunder 0.56 val_mse 0.524 | play 85s train 9s
+  [eval gen 117] vs random      score 0.96 (+11 =1 -0)  190s
+  [eval gen 119] vs minimax2    score 0.08 (+0 =2 -10)  105s
+gen  122 | 4.77h | 7.78M pos 45686 games | 759 plies/s (49k evals/s) | len 172 W/D/B 0.39/0.23/0.38 mate 0.44 | loss 2.586 (pol 2.451 val 0.135) | oracle top1 0.258 acc 48.1 blunder 0.56 val_mse 0.500 | play 81s train 9s
+  [eval gen 120] vs sf_elo1350  score 0.00 (+0 =0 -12)  79s
+  [eval gen 119] vs greedy      score 0.92 (+10 =2 -0)  200s
+gen  123 | 4.79h | 7.84M pos 46042 games | 757 plies/s (49k evals/s) | len 178 W/D/B 0.44/0.18/0.38 mate 0.48 | loss 2.585 (pol 2.452 val 0.133) | oracle top1 0.259 acc 47.9 blunder 0.56 val_mse 0.504 | play 81s train 9s
+  [eval gen 120] vs minimax3    score 0.08 (+0 =2 -10)  190s
+  [eval gen 121] vs sf_skill0   score 0.00 (+0 =0 -12)  84s
+gen  124 | 4.82h | 7.90M pos 46416 games | 751 plies/s (49k evals/s) | len 168 W/D/B 0.40/0.20/0.40 mate 0.48 | loss 2.594 (pol 2.461 val 0.133) | oracle top1 0.247 acc 47.6 blunder 0.56 val_mse 0.511 | play 93s train 9s
+  [eval gen 121] vs minimax2    score 0.17 (+1 =2 -9)  191s
+gen  125 | 4.85h | 7.97M pos 46779 games | 739 plies/s (48k evals/s) | len 175 W/D/B 0.41/0.19/0.40 mate 0.48 | loss 2.593 (pol 2.459 val 0.135) | oracle top1 0.253 acc 47.5 blunder 0.56 val_mse 0.507 | play 83s train 9s
+  [eval gen 123] vs sf_elo1350  score 0.00 (+0 =0 -12)  98s
+  [eval gen 122] vs random      score 0.92 (+10 =2 -0)  271s
+gen  126 | 4.87h | 8.03M pos 47132 games | 766 plies/s (50k evals/s) | len 178 W/D/B 0.43/0.18/0.39 mate 0.47 | loss 2.589 (pol 2.456 val 0.134) | oracle top1 0.249 acc 47.7 blunder 0.56 val_mse 0.497 | play 80s train 9s
+  [eval gen 124] vs minimax2    score 0.04 (+0 =1 -11)  123s
+  [eval gen 122] vs greedy      score 0.83 (+8 =4 -0)  286s
+  [eval gen 124] vs minimax3    score 0.00 (+0 =0 -12)  82s
+gen  127 | 4.90h | 8.09M pos 47488 games | 765 plies/s (50k evals/s) | len 178 W/D/B 0.44/0.17/0.40 mate 0.45 | loss 2.584 (pol 2.454 val 0.130) | oracle top1 0.248 acc 47.5 blunder 0.57 val_mse 0.490 | play 80s train 9s
+  [eval gen 125] vs sf_elo1350  score 0.00 (+0 =0 -12)  90s
+  [eval gen 125] vs sf_skill0   score 0.00 (+0 =0 -12)  104s
+gen  128 | 4.93h | 8.16M pos 47852 games | 753 plies/s (49k evals/s) | len 177 W/D/B 0.36/0.23/0.41 mate 0.43 | loss 2.582 (pol 2.450 val 0.132) | oracle top1 0.247 acc 47.3 blunder 0.57 val_mse 0.492 | play 87s train 9s
+  [eval gen 125] vs random      score 1.00 (+12 =0 -0)  130s
+gen  129 | 4.95h | 8.22M pos 48205 games | 721 plies/s (47k evals/s) | len 171 W/D/B 0.43/0.19/0.38 mate 0.51 | loss 2.588 (pol 2.455 val 0.134) | oracle top1 0.252 acc 48.1 blunder 0.56 val_mse 0.507 | play 80s train 9s
+  [eval gen 127] vs minimax3    score 0.00 (+0 =0 -12)  128s
+  [eval gen 126] vs minimax2    score 0.17 (+1 =2 -9)  197s
+gen  130 | 4.98h | 8.28M pos 48564 games | 752 plies/s (49k evals/s) | len 172 W/D/B 0.40/0.22/0.37 mate 0.47 | loss 2.594 (pol 2.457 val 0.136) | oracle top1 0.248 acc 47.7 blunder 0.56 val_mse 0.502 | play 82s train 9s
+  [eval gen 128] vs sf_elo1350  score 0.00 (+0 =0 -12)  90s
+  [eval gen 126] vs greedy      score 0.88 (+9 =3 -0)  286s
+gen  131 | 5.00h | 8.34M pos 48927 games | 759 plies/s (49k evals/s) | len 169 W/D/B 0.43/0.22/0.36 mate 0.48 | loss 2.596 (pol 2.460 val 0.136) | oracle top1 0.247 acc 47.8 blunder 0.56 val_mse 0.500 | play 86s train 9s
+  [eval gen 129] vs sf_skill0   score 0.00 (+0 =0 -12)  86s
+  [eval gen 128] vs random      score 0.88 (+9 =3 -0)  205s
+gen  132 | 5.03h | 8.40M pos 49286 games | 784 plies/s (51k evals/s) | len 176 W/D/B 0.41/0.21/0.38 mate 0.47 | loss 2.590 (pol 2.455 val 0.135) | oracle top1 0.254 acc 48.1 blunder 0.56 val_mse 0.502 | play 78s train 9s
+  [eval gen 129] vs minimax2    score 0.04 (+0 =1 -11)  132s
+gen  133 | 5.05h | 8.47M pos 49641 games | 757 plies/s (49k evals/s) | len 175 W/D/B 0.38/0.20/0.42 mate 0.48 | loss 2.596 (pol 2.460 val 0.135) | oracle top1 0.249 acc 47.7 blunder 0.56 val_mse 0.481 | play 81s train 9s
+  [eval gen 131] vs sf_elo1350  score 0.00 (+0 =0 -12)  85s
+  [eval gen 130] vs minimax3    score 0.00 (+0 =0 -12)  128s
+gen  134 | 5.08h | 8.53M pos 49996 games | 757 plies/s (49k evals/s) | len 181 W/D/B 0.42/0.18/0.40 mate 0.47 | loss 2.596 (pol 2.460 val 0.136) | oracle top1 0.253 acc 47.9 blunder 0.56 val_mse 0.480 | play 76s train 9s
+  [eval gen 130] vs greedy      score 0.79 (+7 =5 -0)  252s
+  [eval gen 132] vs minimax2    score 0.08 (+0 =2 -10)  137s
+gen  135 | 5.10h | 8.59M pos 50340 games | 770 plies/s (50k evals/s) | len 177 W/D/B 0.42/0.19/0.39 mate 0.46 | loss 2.593 (pol 2.454 val 0.138) | oracle top1 0.256 acc 47.8 blunder 0.56 val_mse 0.501 | play 80s train 9s
+  [eval gen 133] vs sf_skill0   score 0.00 (+0 =0 -12)  84s
+  [eval gen 133] vs sf_elo1350  score 0.00 (+0 =0 -12)  84s
+gen  136 | 5.12h | 8.65M pos 50696 games | 774 plies/s (50k evals/s) | len 173 W/D/B 0.42/0.19/0.38 mate 0.51 | loss 2.598 (pol 2.461 val 0.137) | oracle top1 0.258 acc 48.1 blunder 0.56 val_mse 0.490 | play 79s train 8s
+  [eval gen 132] vs random      score 0.83 (+8 =4 -0)  265s
+  [eval gen 134] vs minimax2    score 0.04 (+0 =1 -11)  87s
+gen  137 | 5.15h | 8.72M pos 51053 games | 751 plies/s (49k evals/s) | len 176 W/D/B 0.40/0.27/0.34 mate 0.41 | loss 2.595 (pol 2.456 val 0.138) | oracle top1 0.250 acc 47.9 blunder 0.56 val_mse 0.476 | play 87s train 9s
+  [eval gen 135] vs sf_elo1350  score 0.00 (+0 =0 -12)  92s
+  [eval gen 135] vs minimax3    score 0.04 (+0 =1 -11)  151s
+gen  138 | 5.18h | 8.78M pos 51416 games | 765 plies/s (50k evals/s) | len 172 W/D/B 0.42/0.21/0.37 mate 0.46 | loss 2.598 (pol 2.459 val 0.139) | oracle top1 0.250 acc 47.7 blunder 0.56 val_mse 0.478 | play 86s train 9s
+  [eval gen 134] vs greedy      score 0.71 (+6 =5 -1)  238s
+  [eval gen 136] vs minimax2    score 0.25 (+1 =4 -7)  99s
+gen  139 | 5.20h | 8.84M pos 51771 games | 759 plies/s (49k evals/s) | len 171 W/D/B 0.42/0.23/0.35 mate 0.48 | loss 2.592 (pol 2.452 val 0.139) | oracle top1 0.246 acc 47.8 blunder 0.56 val_mse 0.473 | play 76s train 9s
+  [eval gen 137] vs sf_skill0   score 0.00 (+0 =0 -12)  88s
+gen  140 | 5.23h | 8.90M pos 52163 games | 756 plies/s (49k evals/s) | len 163 W/D/B 0.40/0.21/0.39 mate 0.53 | loss 2.598 (pol 2.456 val 0.142) | oracle top1 0.252 acc 47.9 blunder 0.56 val_mse 0.475 | play 87s train 9s
+  [eval gen 137] vs sf_elo1350  score 0.00 (+0 =0 -12)  118s
+  [eval gen 136] vs random      score 0.92 (+10 =2 -0)  246s
+gen  141 | 5.25h | 8.97M pos 52528 games | 771 plies/s (50k evals/s) | len 174 W/D/B 0.45/0.19/0.36 mate 0.48 | loss 2.594 (pol 2.454 val 0.140) | oracle top1 0.252 acc 47.8 blunder 0.56 val_mse 0.482 | play 80s train 9s
+  [eval gen 139] vs minimax2    score 0.12 (+1 =1 -10)  140s
+  [eval gen 139] vs minimax3    score 0.00 (+0 =0 -12)  87s
+gen  142 | 5.28h | 9.03M pos 52881 games | 758 plies/s (49k evals/s) | len 172 W/D/B 0.42/0.20/0.38 mate 0.48 | loss 2.587 (pol 2.451 val 0.136) | oracle top1 0.249 acc 48.0 blunder 0.56 val_mse 0.458 | play 81s train 9s
+  [eval gen 138] vs greedy      score 0.88 (+9 =3 -0)  254s
+  [eval gen 140] vs sf_elo1350  score 0.04 (+0 =1 -11)  109s
+gen  143 | 5.30h | 9.09M pos 53232 games | 761 plies/s (49k evals/s) | len 173 W/D/B 0.43/0.21/0.37 mate 0.47 | loss 2.591 (pol 2.452 val 0.139) | oracle top1 0.247 acc 47.7 blunder 0.56 val_mse 0.491 | play 81s train 9s
+  [eval gen 141] vs sf_skill0   score 0.00 (+0 =0 -12)  111s
+  [eval gen 141] vs minimax2    score 0.08 (+0 =2 -10)  83s
+gen  144 | 5.33h | 9.15M pos 53590 games | 766 plies/s (50k evals/s) | len 177 W/D/B 0.39/0.23/0.38 mate 0.46 | loss 2.592 (pol 2.452 val 0.139) | oracle top1 0.251 acc 47.7 blunder 0.56 val_mse 0.494 | play 86s train 9s
+  [eval gen 140] vs random      score 0.92 (+10 =2 -0)  252s
+  [eval gen 142] vs sf_elo1350  score 0.00 (+0 =0 -12)  93s
+gen  145 | 5.36h | 9.21M pos 53942 games | 742 plies/s (48k evals/s) | len 173 W/D/B 0.39/0.22/0.39 mate 0.46 | loss 2.592 (pol 2.455 val 0.138) | oracle top1 0.251 acc 47.8 blunder 0.56 val_mse 0.482 | play 88s train 9s
+  [eval gen 142] vs greedy      score 0.75 (+7 =4 -1)  216s
+gen  146 | 5.38h | 9.27M pos 54303 games | 765 plies/s (50k evals/s) | len 167 W/D/B 0.38/0.21/0.41 mate 0.49 | loss 2.591 (pol 2.451 val 0.140) | oracle top1 0.249 acc 47.7 blunder 0.56 val_mse 0.490 | play 75s train 9s
+  [eval gen 143] vs minimax3    score 0.12 (+1 =1 -10)  167s
+  [eval gen 144] vs sf_skill0   score 0.00 (+0 =0 -12)  114s
+gen  147 | 5.41h | 9.34M pos 54670 games | 748 plies/s (49k evals/s) | len 174 W/D/B 0.46/0.17/0.37 mate 0.51 | loss 2.597 (pol 2.456 val 0.140) | oracle top1 0.253 acc 48.1 blunder 0.56 val_mse 0.481 | play 82s train 9s
+  [eval gen 143] vs minimax2    score 0.08 (+1 =0 -11)  230s
+gen  148 | 5.43h | 9.40M pos 55005 games | 764 plies/s (50k evals/s) | len 179 W/D/B 0.42/0.22/0.36 mate 0.45 | loss 2.593 (pol 2.456 val 0.136) | oracle top1 0.253 acc 47.9 blunder 0.56 val_mse 0.492 | play 75s train 8s
+  [eval gen 145] vs random      score 0.96 (+11 =1 -0)  211s
+  [eval gen 146] vs sf_elo1350  score 0.00 (+0 =0 -12)  124s
+  [eval gen 145] vs greedy      score 0.75 (+6 =6 -0)  167s
+gen  149 | 5.45h | 9.46M pos 55358 games | 754 plies/s (49k evals/s) | len 173 W/D/B 0.46/0.16/0.39 mate 0.53 | loss 2.594 (pol 2.457 val 0.137) | oracle top1 0.254 acc 48.2 blunder 0.56 val_mse 0.480 | play 81s train 9s
+  [eval gen 147] vs sf_skill0   score 0.00 (+0 =0 -12)  101s
+gen  150 | 5.48h | 9.52M pos 55714 games | 745 plies/s (48k evals/s) | len 171 W/D/B 0.35/0.22/0.42 mate 0.47 | loss 2.594 (pol 2.455 val 0.139) | oracle top1 0.255 acc 48.1 blunder 0.56 val_mse 0.482 | play 77s train 9s
+  [eval gen 147] vs minimax3    score 0.00 (+0 =0 -12)  130s
+gen  151 | 5.51h | 9.58M pos 56090 games | 760 plies/s (49k evals/s) | len 167 W/D/B 0.41/0.21/0.38 mate 0.49 | loss 2.598 (pol 2.458 val 0.140) | oracle top1 0.252 acc 48.0 blunder 0.56 val_mse 0.507 | play 86s train 9s
+  [eval gen 147] vs minimax2    score 0.08 (+0 =2 -10)  206s
+  [eval gen 150] vs sf_elo1350  score 0.00 (+0 =0 -12)  82s
+gen  152 | 5.53h | 9.64M pos 56442 games | 760 plies/s (49k evals/s) | len 179 W/D/B 0.40/0.20/0.40 mate 0.47 | loss 2.595 (pol 2.457 val 0.139) | oracle top1 0.252 acc 48.4 blunder 0.55 val_mse 0.457 | play 86s train 9s
+  [eval gen 149] vs random      score 0.88 (+9 =3 -0)  196s
+  [eval gen 148] vs greedy      score 0.83 (+8 =4 -0)  255s
+gen  153 | 5.56h | 9.71M pos 56805 games | 781 plies/s (51k evals/s) | len 171 W/D/B 0.40/0.22/0.38 mate 0.48 | loss 2.601 (pol 2.459 val 0.142) | oracle top1 0.249 acc 48.1 blunder 0.56 val_mse 0.485 | play 79s train 9s
+  [eval gen 150] vs minimax2    score 0.12 (+0 =3 -9)  109s
+  [eval gen 151] vs minimax3    score 0.08 (+1 =0 -11)  85s
+  [eval gen 151] vs sf_skill0   score 0.00 (+0 =0 -12)  99s
+gen  154 | 5.58h | 9.77M pos 57177 games | 747 plies/s (49k evals/s) | len 170 W/D/B 0.41/0.19/0.40 mate 0.52 | loss 2.595 (pol 2.456 val 0.139) | oracle top1 0.245 acc 47.4 blunder 0.57 val_mse 0.472 | play 82s train 9s
+  [eval gen 152] vs sf_elo1350  score 0.00 (+0 =0 -12)  151s
+gen  155 | 5.61h | 9.83M pos 57520 games | 757 plies/s (49k evals/s) | len 176 W/D/B 0.39/0.23/0.38 mate 0.48 | loss 2.591 (pol 2.454 val 0.137) | oracle top1 0.254 acc 48.0 blunder 0.56 val_mse 0.497 | play 76s train 8s
+  [eval gen 153] vs minimax2    score 0.00 (+0 =0 -12)  68s
+  [eval gen 152] vs greedy      score 0.88 (+9 =3 -0)  180s
+gen  156 | 5.63h | 9.89M pos 57878 games | 779 plies/s (51k evals/s) | len 174 W/D/B 0.38/0.21/0.41 mate 0.46 | loss 2.595 (pol 2.458 val 0.138) | oracle top1 0.246 acc 48.1 blunder 0.56 val_mse 0.471 | play 84s train 9s
+  [eval gen 152] vs random      score 0.92 (+10 =2 -0)  277s
+  [eval gen 154] vs sf_elo1350  score 0.00 (+0 =0 -12)  68s
+gen  157 | 5.66h | 9.96M pos 58245 games | 755 plies/s (49k evals/s) | len 175 W/D/B 0.41/0.25/0.34 mate 0.47 | loss 2.597 (pol 2.457 val 0.140) | oracle top1 0.249 acc 48.0 blunder 0.56 val_mse 0.490 | play 81s train 9s
+  [eval gen 154] vs sf_skill0   score 0.04 (+0 =1 -11)  134s
+  [eval gen 155] vs minimax3    score 0.00 (+0 =0 -12)  107s
+gen  158 | 5.68h | 10.02M pos 58592 games | 750 plies/s (49k evals/s) | len 174 W/D/B 0.42/0.21/0.37 mate 0.46 | loss 2.591 (pol 2.457 val 0.134) | oracle top1 0.250 acc 48.0 blunder 0.56 val_mse 0.478 | play 87s train 8s
+  [eval gen 155] vs minimax2    score 0.38 (+2 =5 -5)  218s
+gen  159 | 5.71h | 10.08M pos 58950 games | 778 plies/s (51k evals/s) | len 173 W/D/B 0.39/0.21/0.40 mate 0.49 | loss 2.591 (pol 2.455 val 0.136) | oracle top1 0.252 acc 48.4 blunder 0.55 val_mse 0.470 | play 89s train 9s
+  [eval gen 157] vs sf_elo1350  score 0.00 (+0 =0 -12)  59s
+  [eval gen 156] vs greedy      score 0.79 (+8 =3 -1)  198s
+  [eval gen 156] vs random      score 0.92 (+10 =2 -0)  200s
+gen  160 | 5.73h | 10.14M pos 59293 games | 754 plies/s (49k evals/s) | len 176 W/D/B 0.43/0.18/0.40 mate 0.48 | loss 2.592 (pol 2.458 val 0.133) | oracle top1 0.251 acc 48.2 blunder 0.56 val_mse 0.459 | play 76s train 8s
+  [eval gen 158] vs minimax2    score 0.17 (+0 =4 -8)  133s
+  [eval gen 158] vs minimax3    score 0.00 (+0 =0 -12)  109s
+  [eval gen 158] vs sf_skill0   score 0.00 (+0 =0 -12)  130s
+gen  161 | 5.76h | 10.20M pos 59658 games | 750 plies/s (49k evals/s) | len 176 W/D/B 0.41/0.23/0.36 mate 0.44 | loss 2.589 (pol 2.458 val 0.132) | oracle top1 0.254 acc 48.4 blunder 0.55 val_mse 0.462 | play 87s train 9s
+  [eval gen 159] vs sf_elo1350  score 0.00 (+0 =0 -12)  97s
+gen  162 | 5.79h | 10.27M pos 59999 games | 753 plies/s (49k evals/s) | len 182 W/D/B 0.40/0.23/0.36 mate 0.44 | loss 2.585 (pol 2.452 val 0.133) | oracle top1 0.252 acc 48.2 blunder 0.55 val_mse 0.466 | play 76s train 9s
+  [eval gen 159] vs random      score 1.00 (+12 =0 -0)  173s
+gen  163 | 5.81h | 10.33M pos 60357 games | 783 plies/s (51k evals/s) | len 177 W/D/B 0.42/0.21/0.37 mate 0.50 | loss 2.590 (pol 2.456 val 0.135) | oracle top1 0.254 acc 48.3 blunder 0.55 val_mse 0.453 | play 79s train 9s
+  [eval gen 159] vs greedy      score 0.79 (+7 =5 -0)  219s
+  [eval gen 160] vs minimax2    score 0.08 (+0 =2 -10)  154s
+gen  164 | 5.84h | 10.39M pos 60722 games | 762 plies/s (50k evals/s) | len 176 W/D/B 0.42/0.25/0.34 mate 0.42 | loss 2.592 (pol 2.455 val 0.137) | oracle top1 0.258 acc 48.6 blunder 0.55 val_mse 0.471 | play 91s train 9s
+  [eval gen 162] vs sf_elo1350  score 0.00 (+0 =0 -12)  84s
+  [eval gen 161] vs minimax3    score 0.17 (+1 =2 -9)  161s
+  [eval gen 162] vs sf_skill0   score 0.00 (+0 =0 -12)  120s
+gen  165 | 5.86h | 10.45M pos 61066 games | 747 plies/s (49k evals/s) | len 175 W/D/B 0.40/0.24/0.36 mate 0.48 | loss 2.587 (pol 2.451 val 0.136) | oracle top1 0.259 acc 48.5 blunder 0.55 val_mse 0.470 | play 77s train 9s
+gen  166 | 5.89h | 10.52M pos 61412 games | 759 plies/s (49k evals/s) | len 178 W/D/B 0.35/0.25/0.40 mate 0.45 | loss 2.582 (pol 2.450 val 0.133) | oracle top1 0.259 acc 48.5 blunder 0.55 val_mse 0.463 | play 81s train 8s
+  [eval gen 163] vs minimax2    score 0.17 (+1 =2 -9)  197s
+  [eval gen 163] vs random      score 0.88 (+9 =3 -0)  205s
+  [eval gen 163] vs greedy      score 0.75 (+6 =6 -0)  214s
+gen  167 | 5.91h | 10.58M pos 61763 games | 794 plies/s (52k evals/s) | len 175 W/D/B 0.37/0.27/0.36 mate 0.41 | loss 2.580 (pol 2.449 val 0.131) | oracle top1 0.259 acc 48.6 blunder 0.55 val_mse 0.468 | play 77s train 9s
+  [eval gen 165] vs sf_elo1350  score 0.08 (+1 =0 -11)  105s
+gen  168 | 5.94h | 10.64M pos 62112 games | 754 plies/s (49k evals/s) | len 176 W/D/B 0.45/0.21/0.34 mate 0.49 | loss 2.582 (pol 2.447 val 0.135) | oracle top1 0.256 acc 48.3 blunder 0.55 val_mse 0.479 | play 81s train 9s
+  [eval gen 165] vs sf_skill0   score 0.00 (+0 =0 -12)  93s
+  [eval gen 165] vs minimax3    score 0.00 (+0 =0 -12)  130s
+gen  169 | 5.96h | 10.70M pos 62488 games | 741 plies/s (48k evals/s) | len 168 W/D/B 0.41/0.24/0.35 mate 0.52 | loss 2.589 (pol 2.453 val 0.136) | oracle top1 0.265 acc 48.4 blunder 0.56 val_mse 0.483 | play 89s train 9s
+gen  170 | 5.98h | 10.76M pos 62821 games | 775 plies/s (50k evals/s) | len 180 W/D/B 0.42/0.21/0.37 mate 0.48 | loss 2.588 (pol 2.452 val 0.136) | oracle top1 0.258 acc 48.5 blunder 0.55 val_mse 0.485 | play 69s train 8s
+  [eval gen 167] vs greedy      score 0.79 (+7 =5 -0)  208s
+  [eval gen 166] vs minimax2    score 0.21 (+1 =3 -8)  233s
+  [eval gen 167] vs random      score 0.92 (+10 =2 -0)  220s
+gen  171 | 6.01h | 10.82M pos 63167 games | 776 plies/s (50k evals/s) | len 180 W/D/B 0.35/0.19/0.46 mate 0.45 | loss 2.589 (pol 2.451 val 0.138) | oracle top1 0.264 acc 48.5 blunder 0.55 val_mse 0.469 | play 74s train 9s
+  [eval gen 169] vs sf_elo1350  score 0.00 (+0 =0 -12)  99s
+  [eval gen 169] vs sf_skill0   score 0.04 (+0 =1 -11)  113s
+gen  172 | 6.03h | 10.89M pos 63511 games | 748 plies/s (49k evals/s) | len 179 W/D/B 0.44/0.20/0.36 mate 0.45 | loss 2.589 (pol 2.454 val 0.135) | oracle top1 0.258 acc 48.2 blunder 0.56 val_mse 0.480 | play 82s train 9s
+  [eval gen 169] vs minimax3    score 0.04 (+0 =1 -11)  158s
+  [eval gen 170] vs minimax2    score 0.08 (+0 =2 -10)  117s
+gen  173 | 6.06h | 10.95M pos 63880 games | 746 plies/s (48k evals/s) | len 173 W/D/B 0.37/0.22/0.41 mate 0.49 | loss 2.588 (pol 2.453 val 0.135) | oracle top1 0.261 acc 48.5 blunder 0.55 val_mse 0.469 | play 88s train 9s
+gen  174 | 6.09h | 11.01M pos 64229 games | 752 plies/s (49k evals/s) | len 174 W/D/B 0.39/0.26/0.35 mate 0.43 | loss 2.583 (pol 2.450 val 0.133) | oracle top1 0.260 acc 48.6 blunder 0.55 val_mse 0.455 | play 87s train 9s
+  [eval gen 171] vs sf_elo1350  score 0.00 (+0 =0 -12)  107s
+  [eval gen 170] vs greedy      score 0.75 (+7 =4 -1)  239s
+gen  175 | 6.11h | 11.07M pos 64601 games | 767 plies/s (50k evals/s) | len 164 W/D/B 0.37/0.24/0.39 mate 0.52 | loss 2.586 (pol 2.450 val 0.136) | oracle top1 0.258 acc 48.4 blunder 0.55 val_mse 0.459 | play 91s train 9s
+  [eval gen 173] vs sf_skill0   score 0.00 (+0 =0 -12)  90s
+  [eval gen 171] vs random      score 0.83 (+8 =4 -0)  264s
+gen  176 | 6.14h | 11.13M pos 64954 games | 760 plies/s (49k evals/s) | len 174 W/D/B 0.37/0.22/0.41 mate 0.46 | loss 2.588 (pol 2.452 val 0.136) | oracle top1 0.261 acc 48.6 blunder 0.55 val_mse 0.469 | play 75s train 9s
+  [eval gen 174] vs minimax3    score 0.04 (+0 =1 -11)  100s
+  [eval gen 173] vs minimax2    score 0.25 (+1 =4 -7)  222s
+gen  177 | 6.16h | 11.19M pos 65315 games | 758 plies/s (49k evals/s) | len 172 W/D/B 0.39/0.23/0.38 mate 0.47 | loss 2.592 (pol 2.453 val 0.140) | oracle top1 0.256 acc 48.6 blunder 0.55 val_mse 0.461 | play 81s train 9s
+  [eval gen 175] vs sf_elo1350  score 0.00 (+0 =0 -12)  78s
+  [eval gen 174] vs greedy      score 0.88 (+9 =3 -0)  232s
+gen  178 | 6.19h | 11.26M pos 65667 games | 762 plies/s (50k evals/s) | len 176 W/D/B 0.44/0.19/0.37 mate 0.49 | loss 2.590 (pol 2.450 val 0.140) | oracle top1 0.264 acc 48.5 blunder 0.55 val_mse 0.459 | play 75s train 9s
+  [eval gen 176] vs sf_skill0   score 0.00 (+0 =0 -12)  96s
+gen  179 | 6.21h | 11.32M pos 66014 games | 776 plies/s (50k evals/s) | len 176 W/D/B 0.40/0.22/0.38 mate 0.46 | loss 2.591 (pol 2.451 val 0.141) | oracle top1 0.261 acc 48.3 blunder 0.55 val_mse 0.457 | play 79s train 9s
+  [eval gen 176] vs minimax2    score 0.08 (+0 =2 -10)  180s
+  [eval gen 175] vs random      score 0.92 (+10 =2 -0)  263s
+gen  180 | 6.24h | 11.38M pos 66391 games | 742 plies/s (48k evals/s) | len 170 W/D/B 0.45/0.19/0.36 mate 0.50 | loss 2.596 (pol 2.456 val 0.140) | oracle top1 0.260 acc 48.7 blunder 0.55 val_mse 0.454 | play 88s train 9s
+  [eval gen 178] vs sf_elo1350  score 0.00 (+0 =0 -12)  126s
+gen  181 | 6.26h | 11.44M pos 66754 games | 737 plies/s (48k evals/s) | len 174 W/D/B 0.41/0.23/0.36 mate 0.46 | loss 2.592 (pol 2.454 val 0.138) | oracle top1 0.267 acc 48.6 blunder 0.55 val_mse 0.453 | play 83s train 9s
+  [eval gen 178] vs minimax3    score 0.00 (+0 =0 -12)  184s
+gen  182 | 6.29h | 11.51M pos 67119 games | 756 plies/s (49k evals/s) | len 175 W/D/B 0.41/0.22/0.37 mate 0.46 | loss 2.593 (pol 2.456 val 0.137) | oracle top1 0.259 acc 48.4 blunder 0.55 val_mse 0.459 | play 81s train 9s
+  [eval gen 177] vs greedy      score 0.79 (+8 =3 -1)  302s
+  [eval gen 179] vs minimax2    score 0.08 (+1 =0 -11)  189s
+gen  183 | 6.31h | 11.57M pos 67482 games | 760 plies/s (49k evals/s) | len 171 W/D/B 0.48/0.17/0.35 mate 0.51 | loss 2.593 (pol 2.457 val 0.136) | oracle top1 0.257 acc 48.5 blunder 0.55 val_mse 0.466 | play 81s train 9s
+  [eval gen 181] vs sf_skill0   score 0.00 (+0 =0 -12)  80s
+  [eval gen 180] vs random      score 1.00 (+12 =0 -0)  222s
+  [eval gen 181] vs sf_elo1350  score 0.00 (+0 =0 -12)  105s
+gen  184 | 6.34h | 11.63M pos 67827 games | 742 plies/s (48k evals/s) | len 176 W/D/B 0.42/0.22/0.35 mate 0.46 | loss 2.586 (pol 2.451 val 0.135) | oracle top1 0.261 acc 48.7 blunder 0.55 val_mse 0.465 | play 83s train 9s
+  [eval gen 182] vs minimax2    score 0.12 (+0 =3 -9)  92s
+gen  185 | 6.37h | 11.69M pos 68181 games | 767 plies/s (50k evals/s) | len 174 W/D/B 0.38/0.19/0.42 mate 0.49 | loss 2.586 (pol 2.452 val 0.134) | oracle top1 0.259 acc 48.6 blunder 0.55 val_mse 0.464 | play 85s train 9s
+  [eval gen 182] vs minimax3    score 0.00 (+0 =0 -12)  119s
+  [eval gen 182] vs greedy      score 0.92 (+10 =2 -0)  242s
+  [eval gen 183] vs sf_elo1350  score 0.00 (+0 =0 -12)  80s
+gen  186 | 6.39h | 11.76M pos 68556 games | 759 plies/s (49k evals/s) | len 170 W/D/B 0.38/0.25/0.38 mate 0.46 | loss 2.587 (pol 2.451 val 0.136) | oracle top1 0.262 acc 48.6 blunder 0.55 val_mse 0.468 | play 81s train 9s
+  [eval gen 184] vs minimax2    score 0.21 (+1 =3 -8)  82s
+gen  187 | 6.41h | 11.82M pos 68903 games | 778 plies/s (51k evals/s) | len 175 W/D/B 0.40/0.21/0.39 mate 0.45 | loss 2.589 (pol 2.453 val 0.136) | oracle top1 0.255 acc 48.5 blunder 0.55 val_mse 0.466 | play 74s train 8s
+  [eval gen 184] vs sf_skill0   score 0.00 (+0 =0 -12)  159s
+  [eval gen 184] vs random      score 0.88 (+9 =3 -0)  222s
+gen  188 | 6.44h | 11.88M pos 69257 games | 757 plies/s (49k evals/s) | len 172 W/D/B 0.44/0.21/0.35 mate 0.46 | loss 2.585 (pol 2.446 val 0.139) | oracle top1 0.258 acc 48.9 blunder 0.54 val_mse 0.488 | play 76s train 9s
+  [eval gen 185] vs sf_elo1350  score 0.00 (+0 =0 -12)  148s
+gen  189 | 6.47h | 11.94M pos 69630 games | 733 plies/s (48k evals/s) | len 169 W/D/B 0.44/0.20/0.36 mate 0.49 | loss 2.588 (pol 2.447 val 0.142) | oracle top1 0.255 acc 48.6 blunder 0.55 val_mse 0.467 | play 95s train 9s
+  [eval gen 186] vs minimax3    score 0.08 (+0 =2 -10)  164s
+  [eval gen 187] vs minimax2    score 0.00 (+0 =0 -12)  102s
+gen  190 | 6.49h | 12.00M pos 69999 games | 766 plies/s (50k evals/s) | len 173 W/D/B 0.44/0.20/0.37 mate 0.49 | loss 2.591 (pol 2.447 val 0.144) | oracle top1 0.258 acc 49.1 blunder 0.54 val_mse 0.483 | play 86s train 9s
+  [eval gen 186] vs greedy      score 0.83 (+8 =4 -0)  240s
+  [eval gen 188] vs sf_elo1350  score 0.00 (+0 =0 -12)  113s
+gen  191 | 6.52h | 12.07M pos 70357 games | 748 plies/s (49k evals/s) | len 174 W/D/B 0.40/0.25/0.35 mate 0.47 | loss 2.592 (pol 2.449 val 0.143) | oracle top1 0.260 acc 49.0 blunder 0.55 val_mse 0.459 | play 93s train 9s
+  [eval gen 189] vs sf_skill0   score 0.00 (+0 =0 -12)  108s
+  [eval gen 189] vs minimax2    score 0.08 (+0 =2 -10)  83s
+  [eval gen 188] vs random      score 0.88 (+9 =3 -0)  214s
+gen  192 | 6.54h | 12.13M pos 70699 games | 759 plies/s (49k evals/s) | len 176 W/D/B 0.39/0.23/0.38 mate 0.47 | loss 2.594 (pol 2.449 val 0.145) | oracle top1 0.261 acc 49.0 blunder 0.54 val_mse 0.475 | play 70s train 9s
+  [eval gen 190] vs minimax3    score 0.00 (+0 =0 -12)  87s
+  [eval gen 190] vs sf_elo1350  score 0.00 (+0 =0 -12)  103s
+gen  193 | 6.57h | 12.19M pos 71056 games | 752 plies/s (49k evals/s) | len 171 W/D/B 0.41/0.22/0.37 mate 0.45 | loss 2.592 (pol 2.449 val 0.144) | oracle top1 0.261 acc 49.1 blunder 0.54 val_mse 0.470 | play 82s train 9s
+gen  194 | 6.60h | 12.25M pos 71416 games | 758 plies/s (49k evals/s) | len 176 W/D/B 0.38/0.25/0.38 mate 0.44 | loss 2.595 (pol 2.450 val 0.145) | oracle top1 0.259 acc 49.0 blunder 0.55 val_mse 0.464 | play 86s train 9s
+  [eval gen 190] vs greedy      score 0.79 (+7 =5 -0)  260s
+  [eval gen 191] vs minimax2    score 0.25 (+0 =6 -6)  170s
+  [eval gen 193] vs sf_skill0   score 0.00 (+0 =0 -12)  69s
+gen  195 | 6.62h | 12.31M pos 71788 games | 794 plies/s (52k evals/s) | len 168 W/D/B 0.39/0.20/0.40 mate 0.51 | loss 2.597 (pol 2.449 val 0.149) | oracle top1 0.260 acc 49.3 blunder 0.54 val_mse 0.460 | play 72s train 9s
+  [eval gen 191] vs random      score 0.88 (+9 =3 -0)  225s
+  [eval gen 193] vs sf_elo1350  score 0.00 (+0 =0 -12)  118s
+gen  196 | 6.64h | 12.38M pos 72169 games | 750 plies/s (49k evals/s) | len 168 W/D/B 0.45/0.18/0.37 mate 0.54 | loss 2.602 (pol 2.455 val 0.147) | oracle top1 0.257 acc 48.9 blunder 0.55 val_mse 0.460 | play 82s train 9s
+  [eval gen 194] vs minimax3    score 0.00 (+0 =0 -12)  104s
+gen  197 | 6.67h | 12.44M pos 72545 games | 767 plies/s (50k evals/s) | len 166 W/D/B 0.41/0.19/0.40 mate 0.55 | loss 2.599 (pol 2.451 val 0.148) | oracle top1 0.259 acc 49.1 blunder 0.54 val_mse 0.460 | play 80s train 9s
+  [eval gen 193] vs greedy      score 0.83 (+8 =4 -0)  217s
+  [eval gen 194] vs minimax2    score 0.08 (+0 =2 -10)  141s
+gen  198 | 6.69h | 12.50M pos 72884 games | 757 plies/s (49k evals/s) | len 177 W/D/B 0.42/0.20/0.38 mate 0.45 | loss 2.593 (pol 2.449 val 0.144) | oracle top1 0.261 acc 49.1 blunder 0.55 val_mse 0.466 | play 76s train 8s
+  [eval gen 196] vs sf_elo1350  score 0.00 (+0 =0 -12)  88s
+  [eval gen 196] vs sf_skill0   score 0.00 (+0 =0 -12)  117s
+  [eval gen 195] vs random      score 0.96 (+11 =1 -0)  213s
+gen  199 | 6.72h | 12.57M pos 73254 games | 753 plies/s (49k evals/s) | len 173 W/D/B 0.40/0.22/0.38 mate 0.50 | loss 2.598 (pol 2.451 val 0.147) | oracle top1 0.262 acc 49.3 blunder 0.54 val_mse 0.469 | play 87s train 9s
+gen  200 | 6.75h | 12.63M pos 73623 games | 776 plies/s (50k evals/s) | len 170 W/D/B 0.38/0.21/0.41 mate 0.49 | loss 2.595 (pol 2.451 val 0.144) | oracle top1 0.258 acc 49.2 blunder 0.55 val_mse 0.463 | play 84s train 9s
+  [eval gen 197] vs minimax3    score 0.04 (+0 =1 -11)  133s
+  [eval gen 197] vs greedy      score 0.88 (+10 =1 -1)  140s
+  [eval gen 197] vs minimax2    score 0.04 (+0 =1 -11)  151s
+gen  201 | 6.77h | 12.69M pos 73988 games | 764 plies/s (50k evals/s) | len 166 W/D/B 0.41/0.24/0.35 mate 0.50 | loss 2.597 (pol 2.449 val 0.147) | oracle top1 0.261 acc 49.0 blunder 0.55 val_mse 0.455 | play 75s train 9s
+  [eval gen 199] vs sf_elo1350  score 0.00 (+0 =0 -12)  87s
+  [eval gen 199] vs sf_skill0   score 0.00 (+0 =0 -12)  118s
+gen  202 | 6.79h | 12.75M pos 74340 games | 757 plies/s (49k evals/s) | len 172 W/D/B 0.33/0.28/0.39 mate 0.45 | loss 2.600 (pol 2.453 val 0.147) | oracle top1 0.262 acc 49.3 blunder 0.54 val_mse 0.485 | play 81s train 9s
+  [eval gen 200] vs minimax2    score 0.08 (+0 =2 -10)  92s
+gen  203 | 6.82h | 12.81M pos 74696 games | 755 plies/s (49k evals/s) | len 177 W/D/B 0.43/0.20/0.37 mate 0.47 | loss 2.595 (pol 2.451 val 0.144) | oracle top1 0.260 acc 49.3 blunder 0.55 val_mse 0.470 | play 87s train 9s
+  [eval gen 201] vs sf_elo1350  score 0.00 (+0 =0 -12)  101s
+  [eval gen 199] vs random      score 0.96 (+11 =1 -0)  303s
+gen  204 | 6.84h | 12.87M pos 75057 games | 758 plies/s (49k evals/s) | len 172 W/D/B 0.42/0.20/0.39 mate 0.50 | loss 2.591 (pol 2.447 val 0.144) | oracle top1 0.261 acc 49.0 blunder 0.55 val_mse 0.477 | play 76s train 9s
+  [eval gen 202] vs minimax2    score 0.21 (+2 =1 -9)  121s
+  [eval gen 200] vs greedy      score 0.92 (+10 =2 -0)  293s
+gen  205 | 6.87h | 12.93M pos 75428 games | 774 plies/s (50k evals/s) | len 163 W/D/B 0.37/0.22/0.42 mate 0.51 | loss 2.594 (pol 2.448 val 0.146) | oracle top1 0.256 acc 49.1 blunder 0.55 val_mse 0.478 | play 79s train 9s
+  [eval gen 203] vs sf_elo1350  score 0.00 (+0 =0 -12)  72s
+  [eval gen 202] vs minimax3    score 0.08 (+1 =0 -11)  191s
+  [eval gen 203] vs sf_skill0   score 0.00 (+0 =0 -12)  90s
+gen  206 | 6.90h | 13.00M pos 75792 games | 741 plies/s (48k evals/s) | len 170 W/D/B 0.42/0.19/0.39 mate 0.49 | loss 2.597 (pol 2.452 val 0.145) | oracle top1 0.262 acc 49.1 blunder 0.55 val_mse 0.472 | play 94s train 9s
+  [eval gen 204] vs minimax2    score 0.08 (+0 =2 -10)  146s
+gen  207 | 6.93h | 13.06M pos 76164 games | 767 plies/s (50k evals/s) | len 172 W/D/B 0.41/0.23/0.36 mate 0.46 | loss 2.596 (pol 2.452 val 0.144) | oracle top1 0.264 acc 48.9 blunder 0.55 val_mse 0.473 | play 91s train 9s
+gen  208 | 6.95h | 13.12M pos 76527 games | 766 plies/s (50k evals/s) | len 170 W/D/B 0.41/0.21/0.38 mate 0.49 | loss 2.597 (pol 2.452 val 0.145) | oracle top1 0.262 acc 48.9 blunder 0.55 val_mse 0.486 | play 80s train 8s
+  [eval gen 205] vs sf_elo1350  score 0.00 (+0 =0 -12)  105s
+  [eval gen 204] vs random      score 0.88 (+9 =3 -0)  256s
+  [eval gen 204] vs greedy      score 0.75 (+6 =6 -0)  293s
+gen  209 | 6.97h | 13.18M pos 76881 games | 772 plies/s (50k evals/s) | len 175 W/D/B 0.43/0.21/0.36 mate 0.49 | loss 2.596 (pol 2.453 val 0.143) | oracle top1 0.263 acc 49.0 blunder 0.55 val_mse 0.476 | play 74s train 9s
+  [eval gen 207] vs minimax3    score 0.00 (+0 =0 -12)  114s
+  [eval gen 207] vs minimax2    score 0.17 (+0 =4 -8)  136s
+gen  210 | 7.00h | 13.24M pos 77244 games | 760 plies/s (49k evals/s) | len 166 W/D/B 0.43/0.21/0.37 mate 0.51 | loss 2.600 (pol 2.456 val 0.144) | oracle top1 0.269 acc 49.4 blunder 0.54 val_mse 0.489 | play 81s train 9s
+  [eval gen 207] vs sf_skill0   score 0.00 (+0 =0 -12)  106s
+  [eval gen 208] vs sf_elo1350  score 0.00 (+0 =0 -12)  115s
+gen  211 | 7.02h | 13.31M pos 77614 games | 752 plies/s (49k evals/s) | len 175 W/D/B 0.42/0.19/0.38 mate 0.49 | loss 2.600 (pol 2.453 val 0.147) | oracle top1 0.267 acc 49.2 blunder 0.55 val_mse 0.483 | play 82s train 9s
+gen  212 | 7.05h | 13.37M pos 77984 games | 760 plies/s (49k evals/s) | len 166 W/D/B 0.44/0.20/0.36 mate 0.50 | loss 2.600 (pol 2.452 val 0.148) | oracle top1 0.264 acc 49.3 blunder 0.54 val_mse 0.468 | play 81s train 9s
+  [eval gen 208] vs random      score 0.96 (+11 =1 -0)  263s
+gen  213 | 7.07h | 13.43M pos 78342 games | 782 plies/s (51k evals/s) | len 179 W/D/B 0.39/0.21/0.40 mate 0.44 | loss 2.596 (pol 2.451 val 0.144) | oracle top1 0.264 acc 49.0 blunder 0.55 val_mse 0.469 | play 79s train 9s
+  [eval gen 209] vs greedy      score 0.75 (+6 =6 -0)  270s
+  [eval gen 211] vs minimax3    score 0.04 (+0 =1 -11)  96s
+  [eval gen 209] vs minimax2    score 0.21 (+1 =3 -8)  240s
+gen  214 | 7.10h | 13.50M pos 78703 games | 758 plies/s (49k evals/s) | len 173 W/D/B 0.40/0.22/0.38 mate 0.48 | loss 2.597 (pol 2.452 val 0.145) | oracle top1 0.267 acc 49.1 blunder 0.55 val_mse 0.475 | play 76s train 9s
+  [eval gen 212] vs sf_skill0   score 0.00 (+0 =0 -12)  98s
+  [eval gen 212] vs sf_elo1350  score 0.00 (+0 =0 -12)  95s
+gen  215 | 7.12h | 13.56M pos 79050 games | 735 plies/s (48k evals/s) | len 175 W/D/B 0.43/0.19/0.38 mate 0.49 | loss 2.593 (pol 2.451 val 0.143) | oracle top1 0.264 acc 49.2 blunder 0.54 val_mse 0.475 | play 84s train 9s
+gen  216 | 7.15h | 13.62M pos 79435 games | 768 plies/s (50k evals/s) | len 166 W/D/B 0.41/0.23/0.35 mate 0.51 | loss 2.596 (pol 2.449 val 0.147) | oracle top1 0.263 acc 49.2 blunder 0.55 val_mse 0.488 | play 85s train 9s
+  [eval gen 213] vs minimax2    score 0.08 (+0 =2 -10)  135s
+  [eval gen 212] vs random      score 0.92 (+10 =2 -0)  275s
+gen  217 | 7.17h | 13.69M pos 79810 games | 782 plies/s (51k evals/s) | len 173 W/D/B 0.41/0.18/0.41 mate 0.50 | loss 2.596 (pol 2.446 val 0.150) | oracle top1 0.265 acc 49.1 blunder 0.55 val_mse 0.480 | play 79s train 9s
+  [eval gen 213] vs greedy      score 0.92 (+10 =2 -0)  290s
+gen  218 | 7.20h | 13.75M pos 80192 games | 764 plies/s (50k evals/s) | len 165 W/D/B 0.41/0.20/0.38 mate 0.52 | loss 2.603 (pol 2.450 val 0.153) | oracle top1 0.260 acc 49.1 blunder 0.55 val_mse 0.478 | play 80s train 9s
+  [eval gen 215] vs sf_elo1350  score 0.08 (+1 =0 -11)  211s
+  [eval gen 216] vs sf_skill0   score 0.00 (+0 =0 -12)  120s
+  [eval gen 215] vs minimax3    score 0.08 (+1 =0 -11)  193s
+gen  219 | 7.23h | 13.81M pos 80567 games | 727 plies/s (47k evals/s) | len 163 W/D/B 0.37/0.23/0.39 mate 0.51 | loss 2.602 (pol 2.449 val 0.154) | oracle top1 0.261 acc 49.2 blunder 0.55 val_mse 0.480 | play 90s train 9s
+gen  220 | 7.25h | 13.87M pos 80940 games | 757 plies/s (49k evals/s) | len 173 W/D/B 0.41/0.21/0.38 mate 0.47 | loss 2.606 (pol 2.451 val 0.155) | oracle top1 0.259 acc 49.2 blunder 0.55 val_mse 0.475 | play 81s train 9s
+  [eval gen 217] vs minimax2    score 0.21 (+1 =3 -8)  147s
+  [eval gen 219] vs sf_elo1350  score 0.00 (+0 =0 -12)  69s
+gen  221 | 7.28h | 13.94M pos 81325 games | 767 plies/s (50k evals/s) | len 168 W/D/B 0.44/0.19/0.37 mate 0.51 | loss 2.609 (pol 2.454 val 0.154) | oracle top1 0.264 acc 49.5 blunder 0.54 val_mse 0.489 | play 85s train 9s
+  [eval gen 217] vs random      score 0.92 (+10 =2 -0)  245s
+  [eval gen 217] vs greedy      score 0.96 (+11 =1 -0)  292s
+gen  222 | 7.30h | 14.00M pos 81717 games | 774 plies/s (50k evals/s) | len 162 W/D/B 0.42/0.20/0.38 mate 0.56 | loss 2.609 (pol 2.454 val 0.155) | oracle top1 0.261 acc 49.2 blunder 0.54 val_mse 0.487 | play 85s train 9s
+  [eval gen 219] vs minimax2    score 0.04 (+0 =1 -11)  143s
+  [eval gen 220] vs minimax3    score 0.08 (+1 =0 -11)  112s
+gen  223 | 7.33h | 14.07M pos 82123 games | 747 plies/s (49k evals/s) | len 161 W/D/B 0.39/0.18/0.43 mate 0.56 | loss 2.617 (pol 2.458 val 0.158) | oracle top1 0.259 acc 49.3 blunder 0.54 val_mse 0.492 | play 93s train 9s
+  [eval gen 220] vs sf_skill0   score 0.00 (+0 =0 -12)  118s
+  [eval gen 221] vs sf_elo1350  score 0.00 (+0 =0 -12)  114s
+gen  224 | 7.36h | 14.13M pos 82470 games | 749 plies/s (49k evals/s) | len 177 W/D/B 0.39/0.18/0.44 mate 0.47 | loss 2.613 (pol 2.457 val 0.156) | oracle top1 0.260 acc 49.3 blunder 0.54 val_mse 0.500 | play 82s train 9s
+  [eval gen 222] vs minimax2    score 0.12 (+1 =1 -10)  112s
+gen  225 | 7.38h | 14.19M pos 82840 games | 773 plies/s (50k evals/s) | len 171 W/D/B 0.43/0.21/0.36 mate 0.48 | loss 2.613 (pol 2.457 val 0.157) | oracle top1 0.260 acc 49.5 blunder 0.54 val_mse 0.469 | play 85s train 9s
+  [eval gen 221] vs random      score 0.96 (+11 =1 -0)  241s
+  [eval gen 222] vs greedy      score 0.83 (+8 =4 -0)  227s
+  [eval gen 223] vs sf_elo1350  score 0.08 (+1 =0 -11)  100s
+gen  226 | 7.41h | 14.26M pos 83202 games | 755 plies/s (49k evals/s) | len 173 W/D/B 0.39/0.22/0.39 mate 0.46 | loss 2.616 (pol 2.460 val 0.156) | oracle top1 0.261 acc 49.4 blunder 0.54 val_mse 0.471 | play 87s train 9s
+  [eval gen 224] vs minimax3    score 0.00 (+0 =0 -12)  89s
+  [eval gen 224] vs sf_skill0   score 0.00 (+0 =0 -12)  99s
+gen  227 | 7.44h | 14.32M pos 83578 games | 739 plies/s (48k evals/s) | len 173 W/D/B 0.36/0.24/0.40 mate 0.47 | loss 2.617 (pol 2.461 val 0.156) | oracle top1 0.261 acc 49.3 blunder 0.54 val_mse 0.467 | play 89s train 9s
+gen  228 | 7.46h | 14.38M pos 83934 games | 767 plies/s (50k evals/s) | len 171 W/D/B 0.43/0.22/0.36 mate 0.46 | loss 2.615 (pol 2.460 val 0.155) | oracle top1 0.262 acc 49.5 blunder 0.54 val_mse 0.455 | play 80s train 8s
+  [eval gen 224] vs minimax2    score 0.12 (+1 =1 -10)  234s
+  [eval gen 225] vs random      score 0.96 (+11 =1 -0)  219s
+  [eval gen 225] vs greedy      score 0.88 (+9 =3 -0)  216s
+gen  229 | 7.49h | 14.44M pos 84302 games | 771 plies/s (50k evals/s) | len 170 W/D/B 0.40/0.18/0.41 mate 0.49 | loss 2.610 (pol 2.458 val 0.152) | oracle top1 0.261 acc 49.2 blunder 0.55 val_mse 0.448 | play 80s train 9s
+  [eval gen 227] vs sf_elo1350  score 0.00 (+0 =0 -12)  120s
+  [eval gen 227] vs sf_skill0   score 0.00 (+0 =0 -12)  80s
+gen  230 | 7.51h | 14.51M pos 84660 games | 756 plies/s (49k evals/s) | len 174 W/D/B 0.37/0.22/0.41 mate 0.46 | loss 2.608 (pol 2.454 val 0.154) | oracle top1 0.262 acc 49.4 blunder 0.54 val_mse 0.439 | play 81s train 9s
+  [eval gen 227] vs minimax3    score 0.00 (+0 =0 -12)  175s
+  [eval gen 228] vs minimax2    score 0.00 (+0 =0 -12)  80s
+gen  231 | 7.54h | 14.57M pos 85012 games | 760 plies/s (49k evals/s) | len 174 W/D/B 0.43/0.18/0.39 mate 0.51 | loss 2.600 (pol 2.448 val 0.152) | oracle top1 0.262 acc 49.2 blunder 0.55 val_mse 0.453 | play 75s train 9s
+gen  232 | 7.56h | 14.63M pos 85368 games | 742 plies/s (48k evals/s) | len 176 W/D/B 0.44/0.24/0.31 mate 0.44 | loss 2.598 (pol 2.447 val 0.151) | oracle top1 0.264 acc 49.3 blunder 0.54 val_mse 0.444 | play 83s train 9s
+  [eval gen 229] vs sf_elo1350  score 0.04 (+0 =1 -11)  193s
+  [eval gen 228] vs greedy      score 0.88 (+9 =3 -0)  295s
+gen  233 | 7.59h | 14.69M pos 85743 games | 786 plies/s (51k evals/s) | len 168 W/D/B 0.37/0.21/0.42 mate 0.48 | loss 2.598 (pol 2.446 val 0.152) | oracle top1 0.266 acc 49.5 blunder 0.54 val_mse 0.444 | play 78s train 9s
+  [eval gen 229] vs random      score 0.75 (+6 =6 -0)  245s
+  [eval gen 231] vs minimax2    score 0.08 (+0 =2 -10)  104s
+gen  234 | 7.61h | 14.76M pos 86135 games | 757 plies/s (49k evals/s) | len 166 W/D/B 0.42/0.18/0.40 mate 0.52 | loss 2.606 (pol 2.452 val 0.154) | oracle top1 0.264 acc 49.2 blunder 0.55 val_mse 0.458 | play 87s train 9s
+  [eval gen 231] vs sf_skill0   score 0.00 (+0 =0 -12)  102s
+  [eval gen 232] vs minimax3    score 0.00 (+0 =0 -12)  141s
+gen  235 | 7.64h | 14.82M pos 86505 games | 740 plies/s (48k evals/s) | len 174 W/D/B 0.41/0.22/0.37 mate 0.46 | loss 2.603 (pol 2.452 val 0.151) | oracle top1 0.266 acc 49.3 blunder 0.55 val_mse 0.456 | play 83s train 9s
+  [eval gen 232] vs sf_elo1350  score 0.00 (+0 =0 -12)  116s
+gen  236 | 7.67h | 14.89M pos 86876 games | 763 plies/s (50k evals/s) | len 172 W/D/B 0.42/0.21/0.38 mate 0.48 | loss 2.599 (pol 2.445 val 0.154) | oracle top1 0.260 acc 49.2 blunder 0.55 val_mse 0.464 | play 86s train 9s
+  [eval gen 234] vs minimax2    score 0.12 (+1 =1 -10)  128s
+  [eval gen 233] vs random      score 0.83 (+8 =4 -0)  180s
+gen  237 | 7.69h | 14.95M pos 87246 games | 760 plies/s (49k evals/s) | len 170 W/D/B 0.44/0.18/0.38 mate 0.50 | loss 2.602 (pol 2.449 val 0.153) | oracle top1 0.263 acc 49.3 blunder 0.55 val_mse 0.457 | play 86s train 9s
+  [eval gen 233] vs greedy      score 0.88 (+9 =3 -0)  272s
+  [eval gen 235] vs sf_elo1350  score 0.00 (+0 =0 -12)  71s
+  [eval gen 235] vs minimax3    score 0.00 (+0 =0 -12)  90s
+gen  238 | 7.72h | 15.01M pos 87604 games | 764 plies/s (50k evals/s) | len 172 W/D/B 0.42/0.20/0.38 mate 0.49 | loss 2.600 (pol 2.447 val 0.153) | oracle top1 0.266 acc 49.5 blunder 0.54 val_mse 0.449 | play 75s train 9s
+  [eval gen 236] vs minimax2    score 0.12 (+0 =3 -9)  107s
+  [eval gen 235] vs sf_skill0   score 0.00 (+0 =0 -12)  150s
+gen  239 | 7.74h | 15.07M pos 87970 games | 747 plies/s (49k evals/s) | len 175 W/D/B 0.44/0.19/0.37 mate 0.51 | loss 2.598 (pol 2.445 val 0.153) | oracle top1 0.263 acc 49.5 blunder 0.54 val_mse 0.454 | play 82s train 9s
+  [eval gen 237] vs sf_elo1350  score 0.00 (+0 =0 -12)  94s
+gen  240 | 7.77h | 15.14M pos 88346 games | 751 plies/s (49k evals/s) | len 167 W/D/B 0.44/0.18/0.38 mate 0.54 | loss 2.601 (pol 2.447 val 0.154) | oracle top1 0.267 acc 49.7 blunder 0.54 val_mse 0.459 | play 87s train 9s
+  [eval gen 236] vs random      score 0.92 (+10 =2 -0)  293s
+  [eval gen 237] vs greedy      score 0.88 (+9 =3 -0)  214s
+gen  241 | 7.79h | 15.20M pos 88714 games | 791 plies/s (51k evals/s) | len 171 W/D/B 0.40/0.25/0.35 mate 0.47 | loss 2.604 (pol 2.447 val 0.157) | oracle top1 0.264 acc 49.7 blunder 0.54 val_mse 0.463 | play 83s train 9s
+  [eval gen 238] vs minimax2    score 0.21 (+1 =3 -8)  193s
+  [eval gen 239] vs minimax3    score 0.00 (+0 =0 -12)  93s
+  [eval gen 239] vs sf_skill0   score 0.00 (+0 =0 -12)  86s
+gen  242 | 7.82h | 15.26M pos 89103 games | 767 plies/s (50k evals/s) | len 160 W/D/B 0.44/0.17/0.38 mate 0.58 | loss 2.601 (pol 2.444 val 0.157) | oracle top1 0.266 acc 49.6 blunder 0.54 val_mse 0.462 | play 80s train 9s
+  [eval gen 240] vs sf_elo1350  score 0.00 (+0 =0 -12)  124s
+gen  243 | 7.84h | 15.32M pos 89472 games | 744 plies/s (48k evals/s) | len 166 W/D/B 0.40/0.17/0.43 mate 0.56 | loss 2.600 (pol 2.443 val 0.156) | oracle top1 0.268 acc 49.8 blunder 0.54 val_mse 0.457 | play 83s train 9s
+gen  244 | 7.87h | 15.39M pos 89829 games | 764 plies/s (50k evals/s) | len 172 W/D/B 0.41/0.19/0.39 mate 0.47 | loss 2.603 (pol 2.446 val 0.157) | oracle top1 0.267 acc 49.5 blunder 0.54 val_mse 0.459 | play 80s train 9s
+  [eval gen 240] vs random      score 0.83 (+8 =4 -0)  247s
+  [eval gen 241] vs minimax2    score 0.08 (+0 =2 -10)  166s
+gen  245 | 7.89h | 15.45M pos 90199 games | 787 plies/s (51k evals/s) | len 170 W/D/B 0.38/0.22/0.39 mate 0.48 | loss 2.606 (pol 2.451 val 0.155) | oracle top1 0.266 acc 49.4 blunder 0.54 val_mse 0.460 | play 78s train 9s
+  [eval gen 240] vs greedy      score 0.71 (+5 =7 -0)  295s
+gen  246 | 7.92h | 15.51M pos 90570 games | 753 plies/s (49k evals/s) | len 164 W/D/B 0.50/0.13/0.38 mate 0.60 | loss 2.609 (pol 2.447 val 0.162) | oracle top1 0.266 acc 49.5 blunder 0.54 val_mse 0.474 | play 87s train 9s
+  [eval gen 244] vs sf_skill0   score 0.00 (+0 =0 -12)  96s
+  [eval gen 243] vs sf_elo1350  score 0.04 (+0 =1 -11)  140s
+  [eval gen 243] vs minimax3    score 0.04 (+0 =1 -11)  208s
+gen  247 | 7.95h | 15.57M pos 90938 games | 736 plies/s (48k evals/s) | len 171 W/D/B 0.41/0.21/0.38 mate 0.49 | loss 2.610 (pol 2.450 val 0.160) | oracle top1 0.266 acc 49.5 blunder 0.54 val_mse 0.488 | play 89s train 9s
+  [eval gen 245] vs minimax2    score 0.21 (+1 =3 -8)  163s
+gen  248 | 7.97h | 15.63M pos 91284 games | 768 plies/s (50k evals/s) | len 175 W/D/B 0.38/0.16/0.46 mate 0.50 | loss 2.605 (pol 2.449 val 0.156) | oracle top1 0.265 acc 49.5 blunder 0.54 val_mse 0.474 | play 75s train 9s
+  [eval gen 245] vs greedy      score 0.83 (+9 =2 -1)  224s
+gen  249 | 8.00h | 15.69M pos 91646 games | 765 plies/s (50k evals/s) | len 168 W/D/B 0.41/0.20/0.39 mate 0.50 | loss 2.612 (pol 2.455 val 0.158) | oracle top1 0.267 acc 49.4 blunder 0.54 val_mse 0.480 | play 86s train 9s
+  [eval gen 245] vs random      score 0.88 (+9 =3 -0)  219s
+  [eval gen 247] vs sf_skill0   score 0.00 (+0 =0 -12)  72s
+  [eval gen 246] vs sf_elo1350  score 0.00 (+0 =0 -12)  145s
+gen  250 | 8.02h | 15.76M pos 92009 games | 748 plies/s (49k evals/s) | len 173 W/D/B 0.43/0.21/0.35 mate 0.49 | loss 2.614 (pol 2.457 val 0.157) | oracle top1 0.266 acc 49.6 blunder 0.54 val_mse 0.467 | play 77s train 9s
+  [eval gen 248] vs minimax3    score 0.04 (+0 =1 -11)  123s
+  [eval gen 248] vs minimax2    score 0.29 (+1 =5 -6)  99s
+gen  251 | 8.05h | 15.82M pos 92356 games | 762 plies/s (50k evals/s) | len 174 W/D/B 0.42/0.16/0.41 mate 0.48 | loss 2.612 (pol 2.456 val 0.156) | oracle top1 0.266 acc 49.7 blunder 0.54 val_mse 0.455 | play 81s train 8s
+  [eval gen 248] vs greedy      score 0.75 (+6 =6 -0)  199s
+  [eval gen 249] vs random      score 1.00 (+12 =0 -0)  126s
+gen  252 | 8.07h | 15.88M pos 92730 games | 782 plies/s (51k evals/s) | len 167 W/D/B 0.40/0.20/0.40 mate 0.52 | loss 2.613 (pol 2.453 val 0.160) | oracle top1 0.265 acc 49.9 blunder 0.54 val_mse 0.452 | play 73s train 9s
+  [eval gen 249] vs sf_elo1350  score 0.00 (+0 =0 -12)  117s
+gen  253 | 8.10h | 15.94M pos 93120 games | 764 plies/s (50k evals/s) | len 167 W/D/B 0.42/0.18/0.40 mate 0.54 | loss 2.621 (pol 2.456 val 0.164) | oracle top1 0.262 acc 49.4 blunder 0.54 val_mse 0.459 | play 86s train 9s
+  [eval gen 250] vs sf_skill0   score 0.00 (+0 =0 -12)  113s
+  [eval gen 251] vs minimax2    score 0.21 (+0 =5 -7)  112s
+  [eval gen 250] vs minimax3    score 0.08 (+1 =0 -11)  177s
+gen  254 | 8.12h | 16.01M pos 93494 games | 747 plies/s (49k evals/s) | len 169 W/D/B 0.44/0.15/0.40 mate 0.56 | loss 2.613 (pol 2.455 val 0.159) | oracle top1 0.259 acc 49.4 blunder 0.54 val_mse 0.468 | play 82s train 9s
+  [eval gen 252] vs sf_elo1350  score 0.00 (+0 =0 -12)  93s
+gen  255 | 8.15h | 16.07M pos 93853 games | 765 plies/s (50k evals/s) | len 167 W/D/B 0.43/0.19/0.39 mate 0.56 | loss 2.615 (pol 2.454 val 0.161) | oracle top1 0.261 acc 49.3 blunder 0.54 val_mse 0.485 | play 75s train 8s
+  [eval gen 253] vs minimax2    score 0.00 (+0 =0 -12)  82s
+gen  256 | 8.17h | 16.13M pos 94236 games | 772 plies/s (50k evals/s) | len 163 W/D/B 0.41/0.20/0.39 mate 0.54 | loss 2.622 (pol 2.459 val 0.162) | oracle top1 0.263 acc 49.4 blunder 0.55 val_mse 0.461 | play 90s train 9s
+  [eval gen 254] vs sf_elo1350  score 0.00 (+0 =0 -12)  79s
+  [eval gen 252] vs greedy      score 0.88 (+10 =1 -1)  300s
+  [eval gen 252] vs random      score 0.92 (+10 =2 -0)  256s
+gen  257 | 8.20h | 16.19M pos 94590 games | 766 plies/s (50k evals/s) | len 173 W/D/B 0.45/0.18/0.38 mate 0.51 | loss 2.621 (pol 2.455 val 0.166) | oracle top1 0.261 acc 49.8 blunder 0.54 val_mse 0.469 | play 80s train 9s
+  [eval gen 255] vs sf_skill0   score 0.00 (+0 =0 -12)  108s
+gen  258 | 8.22h | 16.26M pos 94959 games | 747 plies/s (49k evals/s) | len 175 W/D/B 0.37/0.22/0.41 mate 0.50 | loss 2.622 (pol 2.454 val 0.168) | oracle top1 0.262 acc 49.3 blunder 0.55 val_mse 0.462 | play 82s train 9s
+  [eval gen 255] vs minimax3    score 0.04 (+0 =1 -11)  121s
+  [eval gen 255] vs minimax2    score 0.25 (+1 =4 -7)  251s
+gen  259 | 8.25h | 16.32M pos 95331 games | 748 plies/s (49k evals/s) | len 169 W/D/B 0.42/0.18/0.40 mate 0.51 | loss 2.624 (pol 2.457 val 0.166) | oracle top1 0.260 acc 49.3 blunder 0.54 val_mse 0.457 | play 88s train 9s
+  [eval gen 257] vs sf_elo1350  score 0.00 (+0 =0 -12)  87s
+gen  260 | 8.27h | 16.38M pos 95708 games | 775 plies/s (50k evals/s) | len 162 W/D/B 0.40/0.21/0.39 mate 0.53 | loss 2.628 (pol 2.457 val 0.171) | oracle top1 0.260 acc 49.2 blunder 0.55 val_mse 0.464 | play 79s train 8s
+  [eval gen 257] vs random      score 0.83 (+8 =4 -0)  213s
+  [eval gen 256] vs greedy      score 0.75 (+6 =6 -0)  296s
+  [eval gen 258] vs minimax2    score 0.08 (+0 =2 -10)  88s
+gen  261 | 8.30h | 16.44M pos 96065 games | 771 plies/s (50k evals/s) | len 172 W/D/B 0.43/0.18/0.39 mate 0.50 | loss 2.625 (pol 2.457 val 0.168) | oracle top1 0.256 acc 49.3 blunder 0.55 val_mse 0.452 | play 80s train 9s
+  [eval gen 259] vs sf_skill0   score 0.00 (+0 =0 -12)  68s
+  [eval gen 259] vs sf_elo1350  score 0.00 (+0 =0 -12)  85s
+gen  262 | 8.32h | 16.50M pos 96437 games | 746 plies/s (48k evals/s) | len 168 W/D/B 0.38/0.22/0.40 mate 0.48 | loss 2.628 (pol 2.458 val 0.170) | oracle top1 0.258 acc 49.2 blunder 0.55 val_mse 0.455 | play 82s train 9s
+  [eval gen 259] vs minimax3    score 0.04 (+0 =1 -11)  218s
+gen  263 | 8.35h | 16.57M pos 96809 games | 752 plies/s (49k evals/s) | len 170 W/D/B 0.39/0.23/0.38 mate 0.49 | loss 2.628 (pol 2.456 val 0.172) | oracle top1 0.258 acc 49.2 blunder 0.55 val_mse 0.455 | play 87s train 9s
+  [eval gen 260] vs minimax2    score 0.25 (+1 =4 -7)  157s
+gen  264 | 8.38h | 16.63M pos 97192 games | 768 plies/s (50k evals/s) | len 165 W/D/B 0.39/0.19/0.42 mate 0.56 | loss 2.625 (pol 2.456 val 0.169) | oracle top1 0.259 acc 49.3 blunder 0.55 val_mse 0.463 | play 80s train 9s
+  [eval gen 260] vs greedy      score 0.92 (+10 =2 -0)  265s
+gen  265 | 8.40h | 16.69M pos 97575 games | 762 plies/s (50k evals/s) | len 168 W/D/B 0.37/0.16/0.46 mate 0.55 | loss 2.627 (pol 2.459 val 0.169) | oracle top1 0.259 acc 49.4 blunder 0.54 val_mse 0.464 | play 86s train 9s
+  [eval gen 261] vs random      score 0.88 (+9 =3 -0)  219s
+  [eval gen 262] vs sf_elo1350  score 0.00 (+0 =0 -12)  165s
+  [eval gen 263] vs sf_skill0   score 0.00 (+0 =0 -12)  101s
+gen  266 | 8.43h | 16.76M pos 97943 games | 740 plies/s (48k evals/s) | len 175 W/D/B 0.44/0.21/0.35 mate 0.48 | loss 2.623 (pol 2.457 val 0.166) | oracle top1 0.259 acc 49.6 blunder 0.54 val_mse 0.457 | play 83s train 9s
+  [eval gen 264] vs minimax3    score 0.00 (+0 =0 -12)  123s
+  [eval gen 264] vs minimax2    score 0.04 (+0 =1 -11)  148s
+gen  267 | 8.46h | 16.82M pos 98306 games | 743 plies/s (48k evals/s) | len 171 W/D/B 0.45/0.19/0.36 mate 0.50 | loss 2.625 (pol 2.459 val 0.166) | oracle top1 0.261 acc 49.5 blunder 0.54 val_mse 0.466 | play 88s train 9s
+  [eval gen 265] vs sf_elo1350  score 0.00 (+0 =0 -12)  88s
+gen  268 | 8.48h | 16.89M pos 98676 games | 764 plies/s (50k evals/s) | len 174 W/D/B 0.41/0.16/0.43 mate 0.49 | loss 2.626 (pol 2.458 val 0.168) | oracle top1 0.260 acc 49.4 blunder 0.54 val_mse 0.476 | play 75s train 9s
+  [eval gen 265] vs random      score 1.00 (+12 =0 -0)  194s
+  [eval gen 264] vs greedy      score 0.79 (+7 =5 -0)  292s
+gen  269 | 8.51h | 16.95M pos 99058 games | 777 plies/s (50k evals/s) | len 165 W/D/B 0.40/0.18/0.43 mate 0.54 | loss 2.623 (pol 2.456 val 0.167) | oracle top1 0.260 acc 49.5 blunder 0.54 val_mse 0.468 | play 84s train 9s
+  [eval gen 266] vs minimax2    score 0.04 (+0 =1 -11)  158s
+  [eval gen 267] vs sf_skill0   score 0.00 (+0 =0 -12)  101s
+gen  270 | 8.53h | 17.01M pos 99424 games | 741 plies/s (48k evals/s) | len 165 W/D/B 0.37/0.21/0.42 mate 0.51 | loss 2.631 (pol 2.463 val 0.168) | oracle top1 0.255 acc 49.5 blunder 0.54 val_mse 0.464 | play 88s train 9s
+  [eval gen 268] vs sf_elo1350  score 0.00 (+0 =0 -12)  86s
+  [eval gen 267] vs minimax3    score 0.08 (+1 =0 -11)  200s
+gen  271 | 8.56h | 17.07M pos 99779 games | 746 plies/s (48k evals/s) | len 174 W/D/B 0.39/0.18/0.43 mate 0.51 | loss 2.631 (pol 2.460 val 0.171) | oracle top1 0.260 acc 49.5 blunder 0.54 val_mse 0.459 | play 82s train 9s
+  [eval gen 269] vs minimax2    score 0.17 (+0 =4 -8)  133s
+gen  272 | 8.58h | 17.13M pos 100145 games | 755 plies/s (49k evals/s) | len 168 W/D/B 0.44/0.19/0.37 mate 0.53 | loss 2.634 (pol 2.460 val 0.173) | oracle top1 0.260 acc 49.5 blunder 0.54 val_mse 0.476 | play 81s train 8s
+  [eval gen 268] vs greedy      score 0.83 (+8 =4 -0)  290s
+gen  273 | 8.61h | 17.20M pos 100530 games | 765 plies/s (50k evals/s) | len 163 W/D/B 0.43/0.16/0.40 mate 0.56 | loss 2.637 (pol 2.463 val 0.173) | oracle top1 0.257 acc 49.2 blunder 0.55 val_mse 0.468 | play 91s train 9s
+  [eval gen 270] vs sf_elo1350  score 0.04 (+0 =1 -11)  120s
+  [eval gen 269] vs random      score 0.88 (+9 =3 -0)  294s
+gen  274 | 8.64h | 17.26M pos 100895 games | 751 plies/s (49k evals/s) | len 173 W/D/B 0.45/0.19/0.35 mate 0.50 | loss 2.637 (pol 2.465 val 0.172) | oracle top1 0.259 acc 49.3 blunder 0.55 val_mse 0.468 | play 82s train 9s
+  [eval gen 271] vs sf_skill0   score 0.12 (+1 =1 -10)  170s
+  [eval gen 272] vs minimax3    score 0.00 (+0 =0 -12)  70s
+  [eval gen 272] vs minimax2    score 0.08 (+0 =2 -10)  160s
+gen  275 | 8.66h | 17.32M pos 101226 games | 748 plies/s (49k evals/s) | len 182 W/D/B 0.34/0.18/0.48 mate 0.50 | loss 2.628 (pol 2.456 val 0.172) | oracle top1 0.258 acc 49.6 blunder 0.54 val_mse 0.476 | play 77s train 8s
+gen  276 | 8.69h | 17.38M pos 101618 games | 747 plies/s (49k evals/s) | len 168 W/D/B 0.38/0.21/0.42 mate 0.51 | loss 2.629 (pol 2.454 val 0.175) | oracle top1 0.258 acc 49.2 blunder 0.55 val_mse 0.474 | play 82s train 9s
+gen  277 | 8.71h | 17.45M pos 101987 games | 751 plies/s (49k evals/s) | len 169 W/D/B 0.44/0.21/0.36 mate 0.49 | loss 2.629 (pol 2.458 val 0.171) | oracle top1 0.257 acc 49.3 blunder 0.55 val_mse 0.468 | play 87s train 9s
+  [eval gen 273] vs sf_elo1350  score 0.04 (+0 =1 -11)  227s
+  [eval gen 273] vs random      score 0.88 (+9 =3 -0)  264s
+  [eval gen 273] vs greedy      score 0.79 (+8 =3 -1)  297s
+gen  278 | 8.74h | 17.51M pos 102337 games | 762 plies/s (50k evals/s) | len 175 W/D/B 0.38/0.23/0.39 mate 0.48 | loss 2.622 (pol 2.452 val 0.170) | oracle top1 0.253 acc 49.1 blunder 0.55 val_mse 0.473 | play 75s train 9s
+  [eval gen 276] vs minimax3    score 0.00 (+0 =0 -12)  97s
+gen  279 | 8.76h | 17.57M pos 102696 games | 751 plies/s (49k evals/s) | len 171 W/D/B 0.42/0.19/0.39 mate 0.50 | loss 2.621 (pol 2.450 val 0.170) | oracle top1 0.258 acc 49.7 blunder 0.54 val_mse 0.474 | play 82s train 9s
+gen  280 | 8.79h | 17.63M pos 103050 games | 768 plies/s (50k evals/s) | len 171 W/D/B 0.44/0.18/0.38 mate 0.50 | loss 2.621 (pol 2.448 val 0.172) | oracle top1 0.257 acc 49.3 blunder 0.54 val_mse 0.475 | play 80s train 8s
+  [eval gen 276] vs sf_skill0   score 0.08 (+1 =0 -11)  198s
+  [eval gen 276] vs minimax2    score 0.25 (+1 =4 -7)  245s
+  [eval gen 277] vs random      score 0.79 (+7 =5 -0)  193s
+gen  281 | 8.81h | 17.69M pos 103411 games | 764 plies/s (50k evals/s) | len 174 W/D/B 0.45/0.20/0.34 mate 0.48 | loss 2.618 (pol 2.446 val 0.172) | oracle top1 0.256 acc 49.3 blunder 0.54 val_mse 0.469 | play 80s train 9s
+  [eval gen 279] vs sf_elo1350  score 0.00 (+0 =0 -12)  125s
+gen  282 | 8.84h | 17.76M pos 103782 games | 749 plies/s (49k evals/s) | len 174 W/D/B 0.44/0.21/0.35 mate 0.49 | loss 2.620 (pol 2.447 val 0.173) | oracle top1 0.258 acc 49.6 blunder 0.54 val_mse 0.458 | play 82s train 9s
+  [eval gen 279] vs minimax3    score 0.04 (+0 =1 -11)  139s
+gen  283 | 8.86h | 17.82M pos 104145 games | 774 plies/s (50k evals/s) | len 171 W/D/B 0.38/0.21/0.40 mate 0.49 | loss 2.619 (pol 2.446 val 0.173) | oracle top1 0.258 acc 49.2 blunder 0.55 val_mse 0.492 | play 79s train 9s
+  [eval gen 280] vs minimax2    score 0.12 (+0 =3 -9)  155s
+  [eval gen 279] vs greedy      score 0.83 (+8 =4 -0)  289s
+gen  284 | 8.89h | 17.88M pos 104528 games | 754 plies/s (49k evals/s) | len 161 W/D/B 0.41/0.20/0.40 mate 0.53 | loss 2.624 (pol 2.447 val 0.177) | oracle top1 0.261 acc 49.5 blunder 0.54 val_mse 0.486 | play 87s train 9s
+  [eval gen 282] vs sf_skill0   score 0.00 (+0 =0 -12)  91s
+  [eval gen 282] vs sf_elo1350  score 0.00 (+0 =0 -12)  129s
+gen  285 | 8.91h | 17.94M pos 104893 games | 764 plies/s (50k evals/s) | len 165 W/D/B 0.42/0.18/0.40 mate 0.54 | loss 2.631 (pol 2.451 val 0.180) | oracle top1 0.261 acc 49.7 blunder 0.54 val_mse 0.470 | play 80s train 8s
+  [eval gen 281] vs random      score 0.83 (+8 =4 -0)  277s
+gen  286 | 8.94h | 18.00M pos 105279 games | 766 plies/s (50k evals/s) | len 163 W/D/B 0.41/0.21/0.38 mate 0.53 | loss 2.639 (pol 2.458 val 0.181) | oracle top1 0.264 acc 49.5 blunder 0.54 val_mse 0.469 | play 86s train 9s
+  [eval gen 283] vs minimax2    score 0.12 (+1 =1 -10)  151s
+  [eval gen 284] vs minimax3    score 0.00 (+0 =0 -12)  114s
+gen  287 | 8.97h | 18.07M pos 105662 games | 760 plies/s (49k evals/s) | len 168 W/D/B 0.45/0.18/0.37 mate 0.50 | loss 2.641 (pol 2.456 val 0.186) | oracle top1 0.261 acc 49.4 blunder 0.54 val_mse 0.491 | play 86s train 9s
+  [eval gen 283] vs greedy      score 0.71 (+6 =5 -1)  253s
+  [eval gen 285] vs sf_elo1350  score 0.00 (+0 =0 -12)  80s
+gen  288 | 8.99h | 18.13M pos 106013 games | 766 plies/s (50k evals/s) | len 174 W/D/B 0.43/0.17/0.41 mate 0.51 | loss 2.633 (pol 2.454 val 0.179) | oracle top1 0.263 acc 49.6 blunder 0.54 val_mse 0.483 | play 75s train 9s
+  [eval gen 285] vs random      score 0.92 (+10 =2 -0)  157s
+  [eval gen 286] vs sf_skill0   score 0.00 (+0 =0 -12)  146s
+gen  289 | 9.01h | 18.19M pos 106385 games | 760 plies/s (49k evals/s) | len 166 W/D/B 0.44/0.21/0.35 mate 0.50 | loss 2.640 (pol 2.456 val 0.184) | oracle top1 0.258 acc 49.6 blunder 0.54 val_mse 0.469 | play 81s train 9s
+  [eval gen 286] vs minimax2    score 0.21 (+1 =3 -8)  196s
+  [eval gen 287] vs minimax3    score 0.00 (+0 =0 -12)  150s
+gen  290 | 9.04h | 18.26M pos 106761 games | 739 plies/s (48k evals/s) | len 173 W/D/B 0.41/0.20/0.39 mate 0.51 | loss 2.639 (pol 2.456 val 0.183) | oracle top1 0.257 acc 49.5 blunder 0.54 val_mse 0.489 | play 89s train 9s
+  [eval gen 288] vs sf_elo1350  score 0.00 (+0 =0 -12)  92s
+  [eval gen 287] vs greedy      score 0.79 (+7 =5 -0)  210s
+gen  291 | 9.07h | 18.32M pos 107146 games | 767 plies/s (50k evals/s) | len 168 W/D/B 0.36/0.22/0.42 mate 0.47 | loss 2.636 (pol 2.458 val 0.178) | oracle top1 0.260 acc 49.5 blunder 0.54 val_mse 0.478 | play 80s train 9s
+  [eval gen 289] vs minimax2    score 0.12 (+0 =3 -9)  121s
+gen  292 | 9.09h | 18.38M pos 107513 games | 772 plies/s (50k evals/s) | len 169 W/D/B 0.41/0.15/0.44 mate 0.52 | loss 2.640 (pol 2.460 val 0.181) | oracle top1 0.258 acc 49.3 blunder 0.54 val_mse 0.468 | play 74s train 9s
+  [eval gen 288] vs random      score 0.96 (+11 =1 -0)  250s
+gen  293 | 9.11h | 18.45M pos 107872 games | 759 plies/s (49k evals/s) | len 172 W/D/B 0.45/0.18/0.37 mate 0.50 | loss 2.633 (pol 2.458 val 0.175) | oracle top1 0.260 acc 49.5 blunder 0.54 val_mse 0.476 | play 81s train 9s
+  [eval gen 290] vs sf_elo1350  score 0.00 (+0 =0 -12)  114s
+  [eval gen 289] vs sf_skill0   score 0.00 (+0 =0 -12)  231s
+gen  294 | 9.14h | 18.51M pos 108268 games | 761 plies/s (49k evals/s) | len 161 W/D/B 0.42/0.19/0.39 mate 0.53 | loss 2.637 (pol 2.458 val 0.179) | oracle top1 0.256 acc 49.3 blunder 0.54 val_mse 0.467 | play 91s train 9s
+  [eval gen 292] vs minimax2    score 0.08 (+0 =2 -10)  101s
+  [eval gen 291] vs minimax3    score 0.00 (+0 =0 -12)  149s
+  [eval gen 293] vs sf_elo1350  score 0.00 (+0 =0 -12)  78s
+gen  295 | 9.17h | 18.57M pos 108635 games | 748 plies/s (49k evals/s) | len 164 W/D/B 0.45/0.21/0.34 mate 0.52 | loss 2.643 (pol 2.463 val 0.180) | oracle top1 0.258 acc 49.3 blunder 0.54 val_mse 0.458 | play 82s train 8s
+  [eval gen 292] vs greedy      score 0.67 (+5 =6 -1)  233s
+gen  296 | 9.19h | 18.63M pos 108984 games | 798 plies/s (52k evals/s) | len 174 W/D/B 0.42/0.23/0.35 mate 0.46 | loss 2.642 (pol 2.461 val 0.182) | oracle top1 0.261 acc 49.5 blunder 0.54 val_mse 0.453 | play 77s train 8s
+  [eval gen 293] vs minimax2    score 0.12 (+0 =3 -9)  101s
+  [eval gen 293] vs random      score 0.83 (+8 =4 -0)  170s
+gen  297 | 9.22h | 18.69M pos 109347 games | 748 plies/s (49k evals/s) | len 169 W/D/B 0.39/0.22/0.39 mate 0.49 | loss 2.649 (pol 2.468 val 0.181) | oracle top1 0.257 acc 49.4 blunder 0.54 val_mse 0.450 | play 82s train 9s
+  [eval gen 295] vs sf_elo1350  score 0.00 (+0 =0 -12)  99s
+  [eval gen 294] vs sf_skill0   score 0.00 (+0 =0 -12)  104s
+gen  298 | 9.24h | 18.75M pos 109720 games | 734 plies/s (48k evals/s) | len 166 W/D/B 0.45/0.17/0.38 mate 0.54 | loss 2.653 (pol 2.465 val 0.187) | oracle top1 0.259 acc 49.5 blunder 0.54 val_mse 0.448 | play 84s train 9s
+  [eval gen 295] vs minimax3    score 0.08 (+0 =2 -10)  170s
+gen  299 | 9.27h | 18.81M pos 110088 games | 763 plies/s (50k evals/s) | len 167 W/D/B 0.39/0.20/0.40 mate 0.51 | loss 2.654 (pol 2.467 val 0.187) | oracle top1 0.255 acc 49.1 blunder 0.55 val_mse 0.448 | play 80s train 9s
+  [eval gen 296] vs minimax2    score 0.17 (+0 =4 -8)  193s
+  [eval gen 296] vs greedy      score 0.92 (+10 =2 -0)  243s
+gen  300 | 9.29h | 18.88M pos 110448 games | 780 plies/s (51k evals/s) | len 169 W/D/B 0.39/0.19/0.42 mate 0.50 | loss 2.654 (pol 2.464 val 0.191) | oracle top1 0.262 acc 49.4 blunder 0.54 val_mse 0.448 | play 79s train 9s
+  [eval gen 297] vs random      score 0.75 (+6 =6 -0)  226s
+  [eval gen 298] vs sf_skill0   score 0.00 (+0 =0 -12)  70s
+  [eval gen 298] vs sf_elo1350  score 0.00 (+0 =0 -12)  141s
+gen  301 | 9.32h | 18.94M pos 110810 games | 748 plies/s (49k evals/s) | len 169 W/D/B 0.40/0.22/0.38 mate 0.48 | loss 2.653 (pol 2.465 val 0.188) | oracle top1 0.261 acc 49.3 blunder 0.54 val_mse 0.458 | play 82s train 9s
+  [eval gen 299] vs minimax3    score 0.00 (+0 =0 -12)  81s
+gen  302 | 9.34h | 19.00M pos 111188 games | 750 plies/s (49k evals/s) | len 168 W/D/B 0.40/0.21/0.38 mate 0.51 | loss 2.653 (pol 2.464 val 0.188) | oracle top1 0.260 acc 49.2 blunder 0.54 val_mse 0.443 | play 82s train 9s
+  [eval gen 299] vs minimax2    score 0.12 (+0 =3 -9)  110s
+gen  303 | 9.37h | 19.06M pos 111546 games | 745 plies/s (48k evals/s) | len 168 W/D/B 0.41/0.21/0.38 mate 0.50 | loss 2.648 (pol 2.460 val 0.188) | oracle top1 0.263 acc 49.5 blunder 0.54 val_mse 0.451 | play 77s train 8s
+  [eval gen 301] vs sf_elo1350  score 0.00 (+0 =0 -12)  128s
+  [eval gen 299] vs greedy      score 0.83 (+8 =4 -0)  265s
+gen  304 | 9.39h | 19.12M pos 111921 games | 761 plies/s (49k evals/s) | len 172 W/D/B 0.39/0.21/0.41 mate 0.46 | loss 2.644 (pol 2.457 val 0.188) | oracle top1 0.261 acc 49.5 blunder 0.54 val_mse 0.442 | play 81s train 9s
+  [eval gen 300] vs random      score 0.88 (+9 =3 -0)  289s
+  [eval gen 302] vs minimax2    score 0.04 (+0 =1 -11)  108s
+  [eval gen 302] vs sf_skill0   score 0.00 (+0 =0 -12)  101s
+gen  305 | 9.42h | 19.19M pos 112298 games | 772 plies/s (50k evals/s) | len 172 W/D/B 0.43/0.18/0.39 mate 0.49 | loss 2.647 (pol 2.459 val 0.188) | oracle top1 0.262 acc 49.4 blunder 0.54 val_mse 0.448 | play 80s train 9s
+  [eval gen 303] vs minimax3    score 0.00 (+0 =0 -12)  99s
+  [eval gen 303] vs sf_elo1350  score 0.00 (+0 =0 -12)  104s
+gen  306 | 9.44h | 19.25M pos 112667 games | 747 plies/s (49k evals/s) | len 166 W/D/B 0.45/0.17/0.38 mate 0.57 | loss 2.645 (pol 2.456 val 0.189) | oracle top1 0.257 acc 49.3 blunder 0.54 val_mse 0.442 | play 88s train 9s
+gen  307 | 9.47h | 19.31M pos 113070 games | 777 plies/s (51k evals/s) | len 157 W/D/B 0.42/0.17/0.40 mate 0.57 | loss 2.643 (pol 2.455 val 0.189) | oracle top1 0.260 acc 49.6 blunder 0.54 val_mse 0.451 | play 84s train 9s
+  [eval gen 304] vs minimax2    score 0.12 (+0 =3 -9)  116s
+  [eval gen 303] vs greedy      score 0.96 (+11 =1 -0)  219s
+gen  308 | 9.50h | 19.38M pos 113444 games | 764 plies/s (50k evals/s) | len 173 W/D/B 0.40/0.17/0.43 mate 0.51 | loss 2.642 (pol 2.456 val 0.187) | oracle top1 0.260 acc 49.5 blunder 0.54 val_mse 0.461 | play 80s train 9s
+  [eval gen 304] vs random      score 0.83 (+8 =4 -0)  224s
+  [eval gen 306] vs sf_skill0   score 0.00 (+0 =0 -12)  103s
+  [eval gen 306] vs sf_elo1350  score 0.00 (+0 =0 -12)  125s
+gen  309 | 9.52h | 19.44M pos 113840 games | 753 plies/s (49k evals/s) | len 159 W/D/B 0.39/0.20/0.41 mate 0.56 | loss 2.646 (pol 2.454 val 0.192) | oracle top1 0.259 acc 49.6 blunder 0.54 val_mse 0.436 | play 82s train 9s
+  [eval gen 307] vs minimax3    score 0.00 (+0 =0 -12)  102s
+gen  310 | 9.55h | 19.50M pos 114211 games | 754 plies/s (49k evals/s) | len 166 W/D/B 0.38/0.20/0.42 mate 0.51 | loss 2.649 (pol 2.458 val 0.191) | oracle top1 0.253 acc 49.5 blunder 0.54 val_mse 0.450 | play 87s train 8s
+  [eval gen 307] vs minimax2    score 0.25 (+1 =4 -7)  189s
+  [eval gen 307] vs greedy      score 0.92 (+10 =2 -0)  220s
+gen  311 | 9.57h | 19.57M pos 114581 games | 757 plies/s (49k evals/s) | len 168 W/D/B 0.42/0.19/0.39 mate 0.51 | loss 2.652 (pol 2.458 val 0.194) | oracle top1 0.255 acc 49.3 blunder 0.54 val_mse 0.451 | play 81s train 9s
+  [eval gen 309] vs sf_elo1350  score 0.00 (+0 =0 -12)  119s
+  [eval gen 309] vs sf_skill0   score 0.00 (+0 =0 -12)  117s
+gen  312 | 9.60h | 19.63M pos 114945 games | 760 plies/s (49k evals/s) | len 171 W/D/B 0.44/0.22/0.34 mate 0.52 | loss 2.658 (pol 2.461 val 0.197) | oracle top1 0.253 acc 49.4 blunder 0.54 val_mse 0.448 | play 81s train 9s
+  [eval gen 308] vs random      score 0.79 (+7 =5 -0)  260s
+gen  313 | 9.62h | 19.69M pos 115334 games | 759 plies/s (49k evals/s) | len 158 W/D/B 0.39/0.21/0.40 mate 0.52 | loss 2.657 (pol 2.460 val 0.196) | oracle top1 0.254 acc 49.2 blunder 0.55 val_mse 0.442 | play 81s train 9s
+  [eval gen 310] vs minimax2    score 0.04 (+0 =1 -11)  116s
+gen  314 | 9.65h | 19.75M pos 115721 games | 751 plies/s (49k evals/s) | len 165 W/D/B 0.40/0.22/0.38 mate 0.51 | loss 2.664 (pol 2.462 val 0.202) | oracle top1 0.255 acc 49.5 blunder 0.54 val_mse 0.443 | play 82s train 9s
+  [eval gen 312] vs sf_elo1350  score 0.00 (+0 =0 -12)  86s
+  [eval gen 311] vs minimax3    score 0.04 (+0 =1 -11)  196s
+  [eval gen 310] vs greedy      score 0.71 (+5 =7 -0)  275s
+gen  315 | 9.67h | 19.82M pos 116111 games | 770 plies/s (50k evals/s) | len 163 W/D/B 0.42/0.18/0.39 mate 0.54 | loss 2.659 (pol 2.457 val 0.202) | oracle top1 0.251 acc 49.3 blunder 0.55 val_mse 0.439 | play 80s train 9s
+  [eval gen 313] vs random      score 0.96 (+11 =1 -0)  129s
+  [eval gen 313] vs minimax2    score 0.08 (+1 =0 -11)  153s
+gen  316 | 9.70h | 19.88M pos 116473 games | 782 plies/s (51k evals/s) | len 172 W/D/B 0.41/0.18/0.41 mate 0.51 | loss 2.659 (pol 2.457 val 0.201) | oracle top1 0.250 acc 49.3 blunder 0.54 val_mse 0.443 | play 73s train 9s
+  [eval gen 313] vs sf_skill0   score 0.00 (+0 =0 -12)  96s
+  [eval gen 314] vs sf_elo1350  score 0.00 (+0 =0 -12)  79s
+gen  317 | 9.72h | 19.94M pos 116867 games | 751 plies/s (49k evals/s) | len 157 W/D/B 0.45/0.17/0.38 mate 0.60 | loss 2.665 (pol 2.461 val 0.205) | oracle top1 0.250 acc 49.2 blunder 0.54 val_mse 0.446 | play 82s train 9s
+  [eval gen 314] vs minimax3    score 0.00 (+0 =0 -12)  110s
+  [eval gen 315] vs minimax2    score 0.08 (+0 =2 -10)  105s
+gen  318 | 9.75h | 20.00M pos 117254 games | 764 plies/s (50k evals/s) | len 159 W/D/B 0.43/0.17/0.40 mate 0.57 | loss 2.663 (pol 2.457 val 0.206) | oracle top1 0.252 acc 49.3 blunder 0.55 val_mse 0.434 | play 86s train 9s
+  [eval gen 316] vs sf_elo1350  score 0.00 (+0 =0 -12)  95s
+gen  319 | 9.77h | 20.07M pos 117629 games | 757 plies/s (49k evals/s) | len 167 W/D/B 0.39/0.18/0.43 mate 0.54 | loss 2.663 (pol 2.461 val 0.202) | oracle top1 0.256 acc 49.4 blunder 0.54 val_mse 0.440 | play 87s train 9s
+  [eval gen 315] vs greedy      score 0.88 (+9 =3 -0)  299s
+gen  320 | 9.80h | 20.13M pos 118017 games | 794 plies/s (52k evals/s) | len 164 W/D/B 0.43/0.17/0.40 mate 0.57 | loss 2.656 (pol 2.453 val 0.202) | oracle top1 0.254 acc 49.3 blunder 0.54 val_mse 0.441 | play 83s train 9s
+  [eval gen 317] vs minimax2    score 0.12 (+0 =3 -9)  108s
+  [eval gen 316] vs random      score 0.88 (+9 =3 -0)  283s
+  [eval gen 318] vs sf_skill0   score 0.00 (+0 =0 -12)  99s
+gen  321 | 9.83h | 20.19M pos 118413 games | 751 plies/s (49k evals/s) | len 159 W/D/B 0.43/0.17/0.39 mate 0.58 | loss 2.663 (pol 2.454 val 0.208) | oracle top1 0.253 acc 49.3 blunder 0.54 val_mse 0.442 | play 82s train 9s
+  [eval gen 319] vs sf_elo1350  score 0.00 (+0 =0 -12)  118s
+  [eval gen 319] vs minimax3    score 0.12 (+1 =1 -10)  137s
+gen  322 | 9.85h | 20.25M pos 118772 games | 747 plies/s (49k evals/s) | len 170 W/D/B 0.46/0.17/0.37 mate 0.51 | loss 2.662 (pol 2.457 val 0.205) | oracle top1 0.250 acc 49.4 blunder 0.54 val_mse 0.445 | play 82s train 9s
+gen  323 | 9.88h | 20.31M pos 119133 games | 782 plies/s (51k evals/s) | len 167 W/D/B 0.44/0.19/0.38 mate 0.50 | loss 2.658 (pol 2.451 val 0.206) | oracle top1 0.253 acc 49.3 blunder 0.54 val_mse 0.446 | play 79s train 8s
+  [eval gen 320] vs minimax2    score 0.25 (+2 =2 -8)  154s
+  [eval gen 319] vs greedy      score 0.75 (+6 =6 -0)  266s
+gen  324 | 9.90h | 20.37M pos 119507 games | 768 plies/s (50k evals/s) | len 164 W/D/B 0.43/0.18/0.39 mate 0.55 | loss 2.667 (pol 2.458 val 0.209) | oracle top1 0.253 acc 49.4 blunder 0.54 val_mse 0.450 | play 85s train 9s
+  [eval gen 320] vs random      score 0.92 (+10 =2 -0)  221s
+  [eval gen 322] vs sf_skill0   score 0.00 (+0 =0 -12)  79s
+  [eval gen 322] vs sf_elo1350  score 0.00 (+0 =0 -12)  106s
+gen  325 | 9.93h | 20.44M pos 119874 games | 751 plies/s (49k evals/s) | len 168 W/D/B 0.39/0.21/0.40 mate 0.51 | loss 2.670 (pol 2.458 val 0.212) | oracle top1 0.252 acc 49.4 blunder 0.54 val_mse 0.439 | play 82s train 9s
+  [eval gen 323] vs minimax3    score 0.00 (+0 =0 -12)  95s
+gen  326 | 9.96h | 20.50M pos 120265 games | 755 plies/s (49k evals/s) | len 164 W/D/B 0.40/0.16/0.44 mate 0.57 | loss 2.674 (pol 2.460 val 0.214) | oracle top1 0.252 acc 49.5 blunder 0.54 val_mse 0.431 | play 92s train 9s
+  [eval gen 323] vs minimax2    score 0.25 (+1 =4 -7)  227s
+gen  327 | 9.98h | 20.56M pos 120629 games | 779 plies/s (51k evals/s) | len 171 W/D/B 0.39/0.20/0.41 mate 0.48 | loss 2.669 (pol 2.459 val 0.210) | oracle top1 0.254 acc 49.6 blunder 0.54 val_mse 0.445 | play 84s train 9s
+  [eval gen 323] vs greedy      score 0.88 (+10 =1 -1)  267s
+  [eval gen 325] vs sf_elo1350  score 0.00 (+0 =0 -12)  111s
+gen  328 | 10.00h | 20.62M pos 121003 games | 771 plies/s (50k evals/s) | len 165 W/D/B 0.43/0.19/0.38 mate 0.53 | loss 2.677 (pol 2.463 val 0.214) | oracle top1 0.256 acc 49.6 blunder 0.54 val_mse 0.429 | play 74s train 9s
+  [eval gen 324] vs random      score 0.83 (+8 =4 -0)  279s
+  [eval gen 326] vs sf_skill0   score 0.00 (+0 =0 -12)  95s
+gen  329 | 10.03h | 20.69M pos 121381 games | 764 plies/s (50k evals/s) | len 171 W/D/B 0.46/0.17/0.37 mate 0.53 | loss 2.675 (pol 2.460 val 0.215) | oracle top1 0.255 acc 49.6 blunder 0.54 val_mse 0.434 | play 80s train 9s
+  [eval gen 326] vs minimax2    score 0.00 (+0 =0 -12)  117s
+  [eval gen 327] vs minimax3    score 0.08 (+1 =0 -11)  152s
+gen  330 | 10.05h | 20.75M pos 121759 games | 745 plies/s (48k evals/s) | len 162 W/D/B 0.40/0.16/0.44 mate 0.55 | loss 2.672 (pol 2.458 val 0.214) | oracle top1 0.253 acc 49.7 blunder 0.54 val_mse 0.437 | play 83s train 9s
+  [eval gen 328] vs sf_elo1350  score 0.00 (+0 =0 -12)  111s
+gen  331 | 10.08h | 20.81M pos 122140 games | 783 plies/s (51k evals/s) | len 161 W/D/B 0.47/0.16/0.36 mate 0.57 | loss 2.674 (pol 2.459 val 0.215) | oracle top1 0.256 acc 49.7 blunder 0.54 val_mse 0.421 | play 78s train 8s
+  [eval gen 329] vs minimax2    score 0.08 (+0 =2 -10)  85s
+  [eval gen 327] vs greedy      score 0.88 (+9 =3 -0)  292s
+gen  332 | 10.10h | 20.87M pos 122508 games | 780 plies/s (51k evals/s) | len 166 W/D/B 0.40/0.19/0.40 mate 0.55 | loss 2.671 (pol 2.458 val 0.213) | oracle top1 0.253 acc 49.6 blunder 0.54 val_mse 0.409 | play 79s train 9s
+  [eval gen 328] vs random      score 0.83 (+8 =4 -0)  244s
+  [eval gen 330] vs sf_skill0   score 0.08 (+1 =0 -11)  129s
+gen  333 | 10.13h | 20.93M pos 122885 games | 754 plies/s (49k evals/s) | len 163 W/D/B 0.40/0.15/0.45 mate 0.54 | loss 2.671 (pol 2.457 val 0.214) | oracle top1 0.259 acc 49.6 blunder 0.54 val_mse 0.412 | play 82s train 9s
+  [eval gen 330] vs sf_elo1350  score 0.08 (+1 =0 -11)  167s
+gen  334 | 10.16h | 20.99M pos 123255 games | 742 plies/s (48k evals/s) | len 165 W/D/B 0.41/0.14/0.45 mate 0.55 | loss 2.676 (pol 2.457 val 0.219) | oracle top1 0.256 acc 49.6 blunder 0.54 val_mse 0.399 | play 88s train 9s
+  [eval gen 331] vs minimax3    score 0.08 (+0 =2 -10)  174s
+gen  335 | 10.18h | 21.05M pos 123615 games | 754 plies/s (49k evals/s) | len 168 W/D/B 0.46/0.15/0.39 mate 0.54 | loss 2.676 (pol 2.458 val 0.218) | oracle top1 0.258 acc 49.6 blunder 0.54 val_mse 0.401 | play 71s train 8s
+  [eval gen 332] vs minimax2    score 0.21 (+1 =3 -8)  217s
+gen  336 | 10.20h | 21.12M pos 123988 games | 782 plies/s (51k evals/s) | len 163 W/D/B 0.48/0.17/0.35 mate 0.54 | loss 2.681 (pol 2.458 val 0.223) | oracle top1 0.258 acc 49.7 blunder 0.54 val_mse 0.399 | play 73s train 9s
+  [eval gen 331] vs greedy      score 0.88 (+9 =3 -0)  292s
+  [eval gen 334] vs sf_elo1350  score 0.00 (+0 =0 -12)  72s
+gen  337 | 10.22h | 21.18M pos 124356 games | 786 plies/s (51k evals/s) | len 167 W/D/B 0.44/0.16/0.40 mate 0.52 | loss 2.681 (pol 2.462 val 0.219) | oracle top1 0.258 acc 49.5 blunder 0.54 val_mse 0.400 | play 73s train 9s
+  [eval gen 333] vs random      score 0.96 (+11 =1 -0)  220s
+  [eval gen 335] vs minimax2    score 0.08 (+0 =2 -10)  89s
+  [eval gen 335] vs sf_skill0   score 0.04 (+0 =1 -11)  135s
+gen  338 | 10.25h | 21.24M pos 124723 games | 752 plies/s (49k evals/s) | len 164 W/D/B 0.45/0.18/0.37 mate 0.53 | loss 2.680 (pol 2.458 val 0.222) | oracle top1 0.257 acc 49.6 blunder 0.54 val_mse 0.395 | play 82s train 9s
+  [eval gen 336] vs sf_elo1350  score 0.00 (+0 =0 -12)  77s
+gen  339 | 10.27h | 21.30M pos 125106 games | 760 plies/s (49k evals/s) | len 165 W/D/B 0.46/0.16/0.38 mate 0.52 | loss 2.680 (pol 2.458 val 0.222) | oracle top1 0.259 acc 49.7 blunder 0.54 val_mse 0.394 | play 81s train 9s
+  [eval gen 336] vs minimax3    score 0.08 (+1 =0 -11)  203s
+  [eval gen 337] vs minimax2    score 0.17 (+1 =2 -9)  89s
+gen  340 | 10.30h | 21.36M pos 125493 games | 765 plies/s (50k evals/s) | len 160 W/D/B 0.44/0.15/0.41 mate 0.57 | loss 2.686 (pol 2.464 val 0.222) | oracle top1 0.259 acc 49.7 blunder 0.54 val_mse 0.381 | play 80s train 9s
+gen  341 | 10.33h | 21.43M pos 125884 games | 767 plies/s (50k evals/s) | len 166 W/D/B 0.41/0.19/0.40 mate 0.53 | loss 2.686 (pol 2.463 val 0.222) | oracle top1 0.257 acc 49.5 blunder 0.54 val_mse 0.386 | play 85s train 9s
+  [eval gen 336] vs greedy      score 0.88 (+9 =3 -0)  299s
+  [eval gen 338] vs sf_elo1350  score 0.04 (+0 =1 -11)  182s
+gen  342 | 10.35h | 21.49M pos 126257 games | 767 plies/s (50k evals/s) | len 163 W/D/B 0.39/0.17/0.43 mate 0.53 | loss 2.684 (pol 2.460 val 0.224) | oracle top1 0.260 acc 49.7 blunder 0.54 val_mse 0.392 | play 80s train 9s
+  [eval gen 340] vs sf_skill0   score 0.00 (+0 =0 -12)  99s
+  [eval gen 338] vs random      score 0.88 (+9 =3 -0)  256s
+gen  343 | 10.38h | 21.55M pos 126643 games | 760 plies/s (49k evals/s) | len 163 W/D/B 0.45/0.22/0.33 mate 0.52 | loss 2.687 (pol 2.461 val 0.226) | oracle top1 0.260 acc 49.7 blunder 0.54 val_mse 0.392 | play 81s train 9s
+  [eval gen 341] vs minimax3    score 0.00 (+0 =0 -12)  94s
+  [eval gen 340] vs minimax2    score 0.17 (+2 =0 -10)  203s
+gen  344 | 10.40h | 21.61M pos 127018 games | 767 plies/s (50k evals/s) | len 166 W/D/B 0.46/0.20/0.34 mate 0.55 | loss 2.691 (pol 2.460 val 0.231) | oracle top1 0.259 acc 49.5 blunder 0.54 val_mse 0.396 | play 85s train 9s
+  [eval gen 342] vs sf_elo1350  score 0.00 (+0 =0 -12)  73s
+gen  345 | 10.43h | 21.68M pos 127405 games | 768 plies/s (50k evals/s) | len 160 W/D/B 0.47/0.18/0.36 mate 0.54 | loss 2.696 (pol 2.463 val 0.233) | oracle top1 0.258 acc 49.8 blunder 0.54 val_mse 0.389 | play 80s train 8s
+  [eval gen 341] vs greedy      score 0.79 (+8 =3 -1)  302s
+  [eval gen 343] vs minimax2    score 0.12 (+0 =3 -9)  116s
+  [eval gen 342] vs random      score 0.88 (+9 =3 -0)  243s
+gen  346 | 10.45h | 21.74M pos 127782 games | 804 plies/s (52k evals/s) | len 164 W/D/B 0.42/0.20/0.38 mate 0.54 | loss 2.698 (pol 2.460 val 0.238) | oracle top1 0.262 acc 49.8 blunder 0.54 val_mse 0.399 | play 81s train 9s
+  [eval gen 344] vs sf_skill0   score 0.00 (+0 =0 -12)  116s
+  [eval gen 344] vs sf_elo1350  score 0.00 (+0 =0 -12)  91s
+gen  347 | 10.48h | 21.80M pos 128160 games | 759 plies/s (49k evals/s) | len 165 W/D/B 0.42/0.15/0.43 mate 0.57 | loss 2.702 (pol 2.463 val 0.239) | oracle top1 0.258 acc 49.7 blunder 0.54 val_mse 0.394 | play 86s train 9s
+  [eval gen 344] vs minimax3    score 0.00 (+0 =0 -12)  106s
+gen  348 | 10.50h | 21.86M pos 128527 games | 756 plies/s (49k evals/s) | len 166 W/D/B 0.45/0.12/0.43 mate 0.56 | loss 2.704 (pol 2.464 val 0.241) | oracle top1 0.261 acc 49.8 blunder 0.54 val_mse 0.400 | play 81s train 9s
+  [eval gen 345] vs minimax2    score 0.21 (+2 =1 -9)  146s
+gen  349 | 10.53h | 21.92M pos 128893 games | 775 plies/s (50k evals/s) | len 165 W/D/B 0.42/0.20/0.39 mate 0.55 | loss 2.704 (pol 2.461 val 0.243) | oracle top1 0.264 acc 49.8 blunder 0.54 val_mse 0.402 | play 74s train 8s
+  [eval gen 346] vs random      score 0.83 (+8 =4 -0)  227s
+  [eval gen 347] vs sf_elo1350  score 0.00 (+0 =0 -12)  106s
+gen  350 | 10.55h | 21.98M pos 129279 games | 792 plies/s (51k evals/s) | len 164 W/D/B 0.39/0.14/0.48 mate 0.59 | loss 2.707 (pol 2.461 val 0.246) | oracle top1 0.262 acc 49.8 blunder 0.54 val_mse 0.410 | play 78s train 9s
+  [eval gen 345] vs greedy      score 0.96 (+11 =1 -0)  294s
+gen  351 | 10.58h | 22.05M pos 129676 games | 765 plies/s (50k evals/s) | len 160 W/D/B 0.45/0.17/0.38 mate 0.60 | loss 2.712 (pol 2.467 val 0.245) | oracle top1 0.260 acc 49.6 blunder 0.54 val_mse 0.411 | play 91s train 9s
+  [eval gen 349] vs sf_skill0   score 0.00 (+0 =0 -12)  115s
+  [eval gen 348] vs minimax2    score 0.29 (+1 =5 -6)  162s
+gen  352 | 10.60h | 22.11M pos 130040 games | 771 plies/s (50k evals/s) | len 167 W/D/B 0.41/0.19/0.39 mate 0.49 | loss 2.702 (pol 2.464 val 0.238) | oracle top1 0.264 acc 49.8 blunder 0.54 val_mse 0.424 | play 74s train 9s
+  [eval gen 348] vs minimax3    score 0.17 (+2 =0 -10)  227s
+  [eval gen 350] vs sf_elo1350  score 0.00 (+0 =0 -12)  87s
+gen  353 | 10.63h | 22.17M pos 130435 games | 761 plies/s (49k evals/s) | len 163 W/D/B 0.42/0.19/0.39 mate 0.53 | loss 2.709 (pol 2.467 val 0.243) | oracle top1 0.264 acc 49.6 blunder 0.54 val_mse 0.409 | play 81s train 9s
+gen  354 | 10.65h | 22.23M pos 130805 games | 766 plies/s (50k evals/s) | len 165 W/D/B 0.44/0.16/0.40 mate 0.51 | loss 2.714 (pol 2.472 val 0.242) | oracle top1 0.265 acc 49.6 blunder 0.54 val_mse 0.407 | play 80s train 8s
+  [eval gen 351] vs minimax2    score 0.21 (+1 =3 -8)  180s
+  [eval gen 350] vs greedy      score 0.92 (+10 =2 -0)  301s
+gen  355 | 10.68h | 22.30M pos 131202 games | 783 plies/s (51k evals/s) | len 162 W/D/B 0.41/0.17/0.42 mate 0.60 | loss 2.707 (pol 2.465 val 0.242) | oracle top1 0.261 acc 49.4 blunder 0.54 val_mse 0.411 | play 78s train 9s
+  [eval gen 351] vs random      score 0.92 (+10 =2 -0)  301s
+  [eval gen 353] vs sf_elo1350  score 0.04 (+0 =1 -11)  124s
+gen  356 | 10.70h | 22.36M pos 131566 games | 770 plies/s (50k evals/s) | len 165 W/D/B 0.44/0.18/0.38 mate 0.55 | loss 2.714 (pol 2.470 val 0.245) | oracle top1 0.264 acc 49.7 blunder 0.54 val_mse 0.402 | play 74s train 9s
+gen  357 | 10.72h | 22.42M pos 131933 games | 763 plies/s (50k evals/s) | len 166 W/D/B 0.43/0.15/0.42 mate 0.53 | loss 2.711 (pol 2.468 val 0.243) | oracle top1 0.264 acc 49.6 blunder 0.54 val_mse 0.404 | play 81s train 9s
+  [eval gen 353] vs sf_skill0   score 0.04 (+0 =1 -11)  199s
+  [eval gen 354] vs minimax2    score 0.17 (+0 =4 -8)  111s
+gen  358 | 10.75h | 22.48M pos 132312 games | 762 plies/s (50k evals/s) | len 162 W/D/B 0.44/0.18/0.39 mate 0.53 | loss 2.714 (pol 2.466 val 0.248) | oracle top1 0.264 acc 49.7 blunder 0.54 val_mse 0.400 | play 81s train 9s
+  [eval gen 354] vs minimax3    score 0.08 (+1 =0 -11)  220s
+gen  359 | 10.78h | 22.54M pos 132698 games | 755 plies/s (49k evals/s) | len 163 W/D/B 0.45/0.14/0.40 mate 0.57 | loss 2.719 (pol 2.466 val 0.253) | oracle top1 0.266 acc 49.6 blunder 0.54 val_mse 0.398 | play 87s train 9s
+  [eval gen 356] vs sf_elo1350  score 0.17 (+2 =0 -10)  218s
+gen  360 | 10.80h | 22.61M pos 133089 games | 789 plies/s (51k evals/s) | len 167 W/D/B 0.39/0.18/0.43 mate 0.52 | loss 2.714 (pol 2.466 val 0.248) | oracle top1 0.262 acc 49.7 blunder 0.54 val_mse 0.395 | play 78s train 9s
+  [eval gen 356] vs greedy      score 0.96 (+11 =1 -0)  296s
+  [eval gen 357] vs random      score 0.83 (+8 =4 -0)  204s
+gen  361 | 10.83h | 22.67M pos 133487 games | 765 plies/s (50k evals/s) | len 160 W/D/B 0.40/0.18/0.42 mate 0.59 | loss 2.721 (pol 2.467 val 0.254) | oracle top1 0.262 acc 49.7 blunder 0.54 val_mse 0.409 | play 80s train 9s
+  [eval gen 359] vs minimax3    score 0.00 (+0 =0 -12)  90s
+  [eval gen 359] vs sf_skill0   score 0.04 (+0 =1 -11)  127s
+gen  362 | 10.85h | 22.73M pos 133882 games | 779 plies/s (51k evals/s) | len 155 W/D/B 0.48/0.16/0.36 mate 0.61 | loss 2.728 (pol 2.467 val 0.262) | oracle top1 0.261 acc 49.7 blunder 0.54 val_mse 0.407 | play 84s train 9s
+  [eval gen 358] vs minimax2    score 0.29 (+3 =1 -8)  229s
+gen  363 | 10.88h | 22.79M pos 134264 games | 760 plies/s (49k evals/s) | len 158 W/D/B 0.46/0.18/0.36 mate 0.58 | loss 2.730 (pol 2.469 val 0.261) | oracle top1 0.262 acc 49.6 blunder 0.54 val_mse 0.399 | play 81s train 9s
+  [eval gen 361] vs sf_elo1350  score 0.00 (+0 =0 -12)  86s
+gen  364 | 10.90h | 22.85M pos 134648 games | 776 plies/s (50k evals/s) | len 157 W/D/B 0.39/0.16/0.45 mate 0.57 | loss 2.737 (pol 2.474 val 0.262) | oracle top1 0.260 acc 49.7 blunder 0.54 val_mse 0.405 | play 79s train 8s
+  [eval gen 360] vs random      score 0.96 (+11 =1 -0)  300s
+  [eval gen 360] vs greedy      score 0.83 (+8 =4 -0)  265s
+  [eval gen 362] vs minimax2    score 0.21 (+0 =5 -7)  141s
+gen  365 | 10.92h | 22.92M pos 135032 games | 800 plies/s (52k evals/s) | len 167 W/D/B 0.44/0.17/0.39 mate 0.54 | loss 2.738 (pol 2.474 val 0.264) | oracle top1 0.261 acc 49.5 blunder 0.54 val_mse 0.396 | play 72s train 9s
+  [eval gen 363] vs sf_skill0   score 0.04 (+0 =1 -11)  94s
+  [eval gen 363] vs sf_elo1350  score 0.00 (+0 =0 -12)  97s
+gen  366 | 10.95h | 22.98M pos 135406 games | 757 plies/s (49k evals/s) | len 163 W/D/B 0.38/0.16/0.45 mate 0.57 | loss 2.738 (pol 2.477 val 0.260) | oracle top1 0.259 acc 49.7 blunder 0.54 val_mse 0.397 | play 76s train 9s
+  [eval gen 363] vs minimax3    score 0.08 (+1 =0 -11)  114s
+  [eval gen 364] vs minimax2    score 0.08 (+0 =2 -10)  80s
+gen  367 | 10.97h | 23.04M pos 135800 games | 765 plies/s (50k evals/s) | len 157 W/D/B 0.41/0.16/0.43 mate 0.56 | loss 2.740 (pol 2.475 val 0.265) | oracle top1 0.261 acc 49.6 blunder 0.54 val_mse 0.397 | play 86s train 9s
+  [eval gen 365] vs sf_elo1350  score 0.00 (+0 =0 -12)  97s
+gen  368 | 11.00h | 23.10M pos 136206 games | 759 plies/s (49k evals/s) | len 156 W/D/B 0.41/0.13/0.46 mate 0.62 | loss 2.739 (pol 2.474 val 0.265) | oracle top1 0.261 acc 49.5 blunder 0.54 val_mse 0.390 | play 86s train 9s
+  [eval gen 365] vs random      score 0.92 (+10 =2 -0)  263s
+  [eval gen 364] vs greedy      score 0.92 (+10 =2 -0)  290s
+gen  369 | 11.02h | 23.17M pos 136587 games | 811 plies/s (53k evals/s) | len 161 W/D/B 0.45/0.13/0.42 mate 0.56 | loss 2.738 (pol 2.477 val 0.261) | oracle top1 0.259 acc 49.7 blunder 0.54 val_mse 0.384 | play 76s train 9s
+  [eval gen 366] vs minimax2    score 0.08 (+0 =2 -10)  112s
+gen  370 | 11.05h | 23.23M pos 136982 games | 763 plies/s (50k evals/s) | len 157 W/D/B 0.42/0.15/0.43 mate 0.57 | loss 2.740 (pol 2.477 val 0.262) | oracle top1 0.260 acc 49.8 blunder 0.54 val_mse 0.380 | play 91s train 9s
+  [eval gen 367] vs sf_skill0   score 0.00 (+0 =0 -12)  112s
+  [eval gen 367] vs minimax3    score 0.17 (+2 =0 -10)  143s
+  [eval gen 368] vs sf_elo1350  score 0.04 (+0 =1 -11)  149s
+gen  371 | 11.08h | 23.29M pos 137359 games | 752 plies/s (49k evals/s) | len 161 W/D/B 0.45/0.17/0.38 mate 0.56 | loss 2.742 (pol 2.476 val 0.267) | oracle top1 0.260 acc 49.8 blunder 0.54 val_mse 0.379 | play 82s train 9s
+gen  372 | 11.10h | 23.35M pos 137722 games | 791 plies/s (51k evals/s) | len 167 W/D/B 0.40/0.17/0.43 mate 0.54 | loss 2.742 (pol 2.476 val 0.266) | oracle top1 0.264 acc 49.8 blunder 0.54 val_mse 0.377 | play 73s train 8s
+  [eval gen 369] vs greedy      score 0.79 (+7 =5 -0)  177s
+  [eval gen 369] vs minimax2    score 0.21 (+2 =1 -9)  141s
+  [eval gen 369] vs random      score 0.88 (+9 =3 -0)  218s
+gen  373 | 11.12h | 23.41M pos 138125 games | 782 plies/s (51k evals/s) | len 158 W/D/B 0.43/0.16/0.40 mate 0.58 | loss 2.754 (pol 2.482 val 0.272) | oracle top1 0.262 acc 49.9 blunder 0.53 val_mse 0.382 | play 79s train 9s
+  [eval gen 371] vs sf_skill0   score 0.00 (+0 =0 -12)  77s
+  [eval gen 371] vs sf_elo1350  score 0.00 (+0 =0 -12)  99s
+gen  374 | 11.15h | 23.47M pos 138501 games | 762 plies/s (50k evals/s) | len 160 W/D/B 0.47/0.11/0.41 mate 0.61 | loss 2.758 (pol 2.481 val 0.277) | oracle top1 0.262 acc 49.8 blunder 0.54 val_mse 0.377 | play 75s train 9s
+  [eval gen 371] vs minimax3    score 0.12 (+0 =3 -9)  134s
+gen  375 | 11.17h | 23.53M pos 138894 games | 756 plies/s (49k evals/s) | len 155 W/D/B 0.41/0.17/0.42 mate 0.59 | loss 2.753 (pol 2.476 val 0.277) | oracle top1 0.264 acc 49.9 blunder 0.53 val_mse 0.373 | play 87s train 9s
+  [eval gen 372] vs minimax2    score 0.12 (+1 =1 -10)  203s
+gen  376 | 11.20h | 23.60M pos 139264 games | 781 plies/s (51k evals/s) | len 165 W/D/B 0.39/0.20/0.41 mate 0.52 | loss 2.753 (pol 2.478 val 0.275) | oracle top1 0.266 acc 49.8 blunder 0.54 val_mse 0.379 | play 79s train 9s
+  [eval gen 372] vs greedy      score 0.88 (+9 =3 -0)  296s
+gen  377 | 11.22h | 23.66M pos 139644 games | 779 plies/s (51k evals/s) | len 166 W/D/B 0.41/0.17/0.42 mate 0.51 | loss 2.752 (pol 2.477 val 0.275) | oracle top1 0.262 acc 49.7 blunder 0.54 val_mse 0.380 | play 79s train 9s
+  [eval gen 374] vs sf_elo1350  score 0.00 (+0 =0 -12)  116s
+  [eval gen 373] vs random      score 0.96 (+11 =1 -0)  290s
+  [eval gen 375] vs sf_skill0   score 0.00 (+0 =0 -12)  123s
+gen  378 | 11.25h | 23.72M pos 140041 games | 767 plies/s (50k evals/s) | len 160 W/D/B 0.41/0.18/0.42 mate 0.56 | loss 2.753 (pol 2.479 val 0.275) | oracle top1 0.266 acc 49.9 blunder 0.53 val_mse 0.377 | play 85s train 9s
+  [eval gen 376] vs minimax3    score 0.00 (+0 =0 -12)  103s
+gen  379 | 11.27h | 23.78M pos 140423 games | 758 plies/s (49k evals/s) | len 163 W/D/B 0.44/0.15/0.41 mate 0.59 | loss 2.754 (pol 2.476 val 0.277) | oracle top1 0.264 acc 49.8 blunder 0.54 val_mse 0.377 | play 81s train 9s
+  [eval gen 376] vs minimax2    score 0.42 (+4 =2 -6)  249s
+gen  380 | 11.30h | 23.84M pos 140805 games | 777 plies/s (50k evals/s) | len 159 W/D/B 0.44/0.16/0.39 mate 0.59 | loss 2.755 (pol 2.475 val 0.280) | oracle top1 0.267 acc 49.9 blunder 0.54 val_mse 0.378 | play 74s train 9s
+  [eval gen 378] vs sf_elo1350  score 0.00 (+0 =0 -12)  97s
+gen  381 | 11.32h | 23.91M pos 141183 games | 779 plies/s (51k evals/s) | len 161 W/D/B 0.43/0.14/0.43 mate 0.57 | loss 2.756 (pol 2.475 val 0.281) | oracle top1 0.267 acc 49.7 blunder 0.54 val_mse 0.365 | play 79s train 9s
+  [eval gen 376] vs greedy      score 0.88 (+9 =3 -0)  297s
+gen  382 | 11.35h | 23.97M pos 141565 games | 779 plies/s (51k evals/s) | len 160 W/D/B 0.42/0.15/0.43 mate 0.57 | loss 2.750 (pol 2.472 val 0.278) | oracle top1 0.264 acc 49.8 blunder 0.54 val_mse 0.361 | play 79s train 9s
+  [eval gen 377] vs random      score 0.96 (+11 =1 -0)  306s
+  [eval gen 380] vs sf_skill0   score 0.00 (+0 =0 -12)  109s
+  [eval gen 379] vs minimax2    score 0.17 (+1 =2 -9)  177s
+gen  383 | 11.37h | 24.03M pos 141955 games | 782 plies/s (51k evals/s) | len 163 W/D/B 0.46/0.12/0.42 mate 0.61 | loss 2.746 (pol 2.472 val 0.274) | oracle top1 0.265 acc 49.6 blunder 0.54 val_mse 0.357 | play 84s train 9s
+  [eval gen 381] vs sf_elo1350  score 0.00 (+0 =0 -12)  93s
+gen  384 | 11.40h | 24.09M pos 142340 games | 763 plies/s (50k evals/s) | len 160 W/D/B 0.46/0.14/0.40 mate 0.58 | loss 2.747 (pol 2.474 val 0.273) | oracle top1 0.262 acc 49.6 blunder 0.54 val_mse 0.358 | play 81s train 9s
+  [eval gen 381] vs minimax3    score 0.08 (+1 =0 -11)  187s
+gen  385 | 11.42h | 24.15M pos 142723 games | 787 plies/s (51k evals/s) | len 162 W/D/B 0.41/0.17/0.42 mate 0.55 | loss 2.744 (pol 2.472 val 0.272) | oracle top1 0.265 acc 49.8 blunder 0.54 val_mse 0.346 | play 78s train 9s
+  [eval gen 382] vs minimax2    score 0.12 (+1 =1 -10)  115s
+  [eval gen 381] vs greedy      score 0.71 (+5 =7 -0)  291s
+gen  386 | 11.45h | 24.22M pos 143117 games | 780 plies/s (51k evals/s) | len 160 W/D/B 0.44/0.13/0.43 mate 0.60 | loss 2.754 (pol 2.478 val 0.276) | oracle top1 0.266 acc 49.6 blunder 0.54 val_mse 0.347 | play 89s train 9s
+  [eval gen 384] vs sf_elo1350  score 0.00 (+0 =0 -12)  111s
+gen  387 | 11.47h | 24.28M pos 143492 games | 786 plies/s (51k evals/s) | len 164 W/D/B 0.42/0.18/0.40 mate 0.56 | loss 2.753 (pol 2.478 val 0.275) | oracle top1 0.264 acc 49.7 blunder 0.54 val_mse 0.349 | play 78s train 9s
+  [eval gen 385] vs minimax2    score 0.04 (+0 =1 -11)  86s
+  [eval gen 383] vs random      score 0.92 (+10 =2 -0)  300s
+gen  388 | 11.50h | 24.34M pos 143866 games | 785 plies/s (51k evals/s) | len 164 W/D/B 0.41/0.17/0.43 mate 0.55 | loss 2.752 (pol 2.479 val 0.273) | oracle top1 0.266 acc 49.8 blunder 0.54 val_mse 0.349 | play 78s train 9s
+  [eval gen 384] vs sf_skill0   score 0.21 (+2 =1 -9)  252s
+gen  389 | 11.52h | 24.40M pos 144227 games | 763 plies/s (50k evals/s) | len 169 W/D/B 0.41/0.15/0.44 mate 0.55 | loss 2.750 (pol 2.478 val 0.272) | oracle top1 0.264 acc 49.8 blunder 0.54 val_mse 0.340 | play 70s train 9s
+  [eval gen 386] vs minimax3    score 0.04 (+0 =1 -11)  158s
+  [eval gen 386] vs sf_elo1350  score 0.08 (+1 =0 -11)  197s
+gen  390 | 11.55h | 24.46M pos 144610 games | 760 plies/s (49k evals/s) | len 163 W/D/B 0.43/0.13/0.44 mate 0.57 | loss 2.745 (pol 2.479 val 0.266) | oracle top1 0.265 acc 49.8 blunder 0.54 val_mse 0.336 | play 86s train 9s
+gen  391 | 11.57h | 24.53M pos 145006 games | 767 plies/s (50k evals/s) | len 160 W/D/B 0.45/0.15/0.40 mate 0.57 | loss 2.752 (pol 2.480 val 0.272) | oracle top1 0.265 acc 49.8 blunder 0.54 val_mse 0.333 | play 91s train 9s
+  [eval gen 387] vs greedy      score 0.92 (+10 =2 -0)  286s
+gen  392 | 11.60h | 24.59M pos 145383 games | 794 plies/s (52k evals/s) | len 167 W/D/B 0.41/0.18/0.40 mate 0.52 | loss 2.753 (pol 2.481 val 0.271) | oracle top1 0.268 acc 49.9 blunder 0.54 val_mse 0.332 | play 72s train 9s
+  [eval gen 388] vs minimax2    score 0.17 (+1 =2 -9)  235s
+  [eval gen 388] vs random      score 0.96 (+11 =1 -0)  309s
+gen  393 | 11.62h | 24.65M pos 145759 games | 793 plies/s (52k evals/s) | len 161 W/D/B 0.42/0.16/0.42 mate 0.58 | loss 2.755 (pol 2.480 val 0.275) | oracle top1 0.269 acc 50.0 blunder 0.54 val_mse 0.331 | play 72s train 9s
+  [eval gen 391] vs sf_elo1350  score 0.08 (+1 =0 -11)  78s
+  [eval gen 390] vs sf_skill0   score 0.00 (+0 =0 -12)  141s
+gen  394 | 11.64h | 24.71M pos 146136 games | 779 plies/s (51k evals/s) | len 162 W/D/B 0.45/0.14/0.41 mate 0.61 | loss 2.754 (pol 2.480 val 0.273) | oracle top1 0.269 acc 50.1 blunder 0.53 val_mse 0.329 | play 79s train 9s
+  [eval gen 392] vs minimax2    score 0.04 (+0 =1 -11)  102s
+gen  395 | 11.67h | 24.77M pos 146509 games | 775 plies/s (50k evals/s) | len 161 W/D/B 0.43/0.17/0.39 mate 0.55 | loss 2.756 (pol 2.480 val 0.276) | oracle top1 0.271 acc 50.1 blunder 0.53 val_mse 0.325 | play 85s train 9s
+  [eval gen 391] vs minimax3    score 0.12 (+1 =1 -10)  208s
+  [eval gen 393] vs sf_elo1350  score 0.08 (+1 =0 -11)  122s
+  [eval gen 392] vs greedy      score 0.88 (+10 =1 -1)  239s
+gen  396 | 11.69h | 24.83M pos 146886 games | 784 plies/s (51k evals/s) | len 165 W/D/B 0.44/0.15/0.41 mate 0.58 | loss 2.753 (pol 2.479 val 0.275) | oracle top1 0.266 acc 50.1 blunder 0.53 val_mse 0.326 | play 78s train 9s
+gen  397 | 11.72h | 24.90M pos 147281 games | 767 plies/s (50k evals/s) | len 163 W/D/B 0.45/0.13/0.43 mate 0.57 | loss 2.758 (pol 2.483 val 0.275) | oracle top1 0.269 acc 50.2 blunder 0.53 val_mse 0.318 | play 75s train 9s
+  [eval gen 394] vs sf_skill0   score 0.00 (+0 =0 -12)  88s
+  [eval gen 394] vs minimax2    score 0.25 (+2 =2 -8)  184s
+gen  398 | 11.74h | 24.96M pos 147661 games | 782 plies/s (51k evals/s) | len 165 W/D/B 0.46/0.13/0.41 mate 0.58 | loss 2.760 (pol 2.483 val 0.277) | oracle top1 0.269 acc 50.0 blunder 0.53 val_mse 0.322 | play 79s train 9s
+  [eval gen 394] vs random      score 0.96 (+11 =1 -0)  295s
+gen  399 | 11.77h | 25.02M pos 148066 games | 789 plies/s (51k evals/s) | len 154 W/D/B 0.49/0.14/0.37 mate 0.60 | loss 2.760 (pol 2.479 val 0.281) | oracle top1 0.267 acc 50.0 blunder 0.53 val_mse 0.322 | play 83s train 9s
+  [eval gen 396] vs sf_elo1350  score 0.00 (+0 =0 -12)  120s
+  [eval gen 396] vs greedy      score 0.75 (+6 =6 -0)  241s
+gen  400 | 11.79h | 25.09M pos 148463 games | 779 plies/s (51k evals/s) | len 162 W/D/B 0.42/0.14/0.44 mate 0.56 | loss 2.765 (pol 2.482 val 0.283) | oracle top1 0.267 acc 50.1 blunder 0.53 val_mse 0.321 | play 84s train 9s
+  [eval gen 398] vs sf_skill0   score 0.00 (+0 =0 -12)  107s
+gen  401 | 11.82h | 25.15M pos 148847 games | 776 plies/s (50k evals/s) | len 164 W/D/B 0.37/0.17/0.47 mate 0.56 | loss 2.766 (pol 2.485 val 0.281) | oracle top1 0.267 acc 50.2 blunder 0.53 val_mse 0.321 | play 79s train 9s
+  [eval gen 397] vs minimax3    score 0.12 (+1 =1 -10)  211s
+  [eval gen 398] vs minimax2    score 0.29 (+1 =5 -6)  196s
+gen  402 | 11.84h | 25.21M pos 149227 games | 767 plies/s (50k evals/s) | len 159 W/D/B 0.41/0.13/0.46 mate 0.60 | loss 2.764 (pol 2.482 val 0.282) | oracle top1 0.267 acc 50.2 blunder 0.53 val_mse 0.320 | play 85s train 9s
+  [eval gen 400] vs sf_elo1350  score 0.00 (+0 =0 -12)  78s
+gen  403 | 11.87h | 25.27M pos 149600 games | 777 plies/s (50k evals/s) | len 168 W/D/B 0.42/0.16/0.43 mate 0.56 | loss 2.762 (pol 2.480 val 0.282) | oracle top1 0.268 acc 50.1 blunder 0.53 val_mse 0.319 | play 79s train 9s
+  [eval gen 401] vs minimax2    score 0.12 (+1 =1 -10)  125s
+gen  404 | 11.89h | 25.33M pos 149981 games | 808 plies/s (53k evals/s) | len 161 W/D/B 0.43/0.16/0.41 mate 0.56 | loss 2.760 (pol 2.482 val 0.278) | oracle top1 0.268 acc 50.1 blunder 0.53 val_mse 0.320 | play 76s train 8s
+  [eval gen 399] vs greedy      score 0.79 (+7 =5 -0)  301s
+  [eval gen 400] vs random      score 0.92 (+10 =2 -0)  309s
+  [eval gen 402] vs sf_elo1350  score 0.00 (+0 =0 -12)  100s
+gen  405 | 11.92h | 25.40M pos 150347 games | 780 plies/s (51k evals/s) | len 166 W/D/B 0.43/0.19/0.37 mate 0.53 | loss 2.770 (pol 2.484 val 0.285) | oracle top1 0.266 acc 50.1 blunder 0.53 val_mse 0.321 | play 79s train 9s
+  [eval gen 403] vs sf_skill0   score 0.00 (+0 =0 -12)  97s
+gen  406 | 11.95h | 25.46M pos 150745 games | 779 plies/s (51k evals/s) | len 158 W/D/B 0.50/0.11/0.40 mate 0.63 | loss 2.765 (pol 2.480 val 0.284) | oracle top1 0.265 acc 50.0 blunder 0.53 val_mse 0.317 | play 95s train 9s
+  [eval gen 403] vs minimax2    score 0.12 (+0 =3 -9)  129s
+  [eval gen 403] vs minimax3    score 0.12 (+1 =1 -10)  209s
+gen  407 | 11.97h | 25.52M pos 151137 games | 766 plies/s (50k evals/s) | len 162 W/D/B 0.41/0.15/0.44 mate 0.58 | loss 2.772 (pol 2.482 val 0.289) | oracle top1 0.266 acc 49.9 blunder 0.54 val_mse 0.317 | play 86s train 9s
+  [eval gen 405] vs sf_elo1350  score 0.00 (+0 =0 -12)  109s
+  [eval gen 404] vs greedy      score 0.88 (+9 =3 -0)  242s
+gen  408 | 12.00h | 25.59M pos 151531 games | 785 plies/s (51k evals/s) | len 164 W/D/B 0.43/0.13/0.44 mate 0.59 | loss 2.765 (pol 2.479 val 0.286) | oracle top1 0.263 acc 50.0 blunder 0.53 val_mse 0.316 | play 78s train 9s
+gen  409 | 12.02h | 25.65M pos 151910 games | 777 plies/s (50k evals/s) | len 166 W/D/B 0.44/0.15/0.41 mate 0.54 | loss 2.761 (pol 2.478 val 0.283) | oracle top1 0.263 acc 49.9 blunder 0.54 val_mse 0.313 | play 79s train 9s
+  [eval gen 406] vs sf_skill0   score 0.00 (+0 =0 -12)  121s
+  [eval gen 406] vs minimax2    score 0.25 (+2 =2 -8)  222s
+  [eval gen 405] vs random      score 0.88 (+9 =3 -0)  281s
+done: gen 409, 25649564 positions, checkpoints in /root/ARENA_materials/chapter2_rl/exercises/part5_alphazero_chess/runs/r2

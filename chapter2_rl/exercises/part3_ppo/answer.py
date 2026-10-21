@@ -560,4 +560,5 @@ def calc_clipped_surrogate_objective(
 
 
 tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)
+
 # %%

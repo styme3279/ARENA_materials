@@ -478,13 +478,26 @@ class PPOAgent:
         # Get newest observations (i.e. where we're starting from)
         obs = self.next_obs
         terminated = self.next_terminated
-        infos = []
 
-        
+        with t.inference_mode():
+            logits = self.actor(obs)
+            dist = Categorical(logits=logits)
+            actions = dist.sample()
+            log_probs = dist.log_prob(actions)
+            values = self.critic(obs).flatten()       
 
-        self.step += self.envs.num_envs
-        return infos
+        next_obs, rewards, next_terminated, next_truncated, infos = self.envs.step(actions)
+        self.memory.add(
+            obs=obs,
+            actions=actions,
+            logprobs=log_probs,
+            values=values,
+            rewards=rewards,
+            terminated=terminated,
+        )
 
+        self.next_obs = next_obs
+        self.next_terminated = next_terminated
         self.step += self.envs.num_envs
         return infos
 
@@ -500,4 +513,38 @@ class PPOAgent:
 
 
 tests.test_ppo_agent(PPOAgent)
+# %%
+def calc_clipped_surrogate_objective(
+    dist: Categorical,
+    mb_action: Int[Tensor, "minibatch_size"],
+    mb_advantages: Float[Tensor, "minibatch_size"],
+    mb_logprobs: Float[Tensor, "minibatch_size"],
+    clip_coef: float,
+    eps: float = 1e-8,
+) -> Float[Tensor, ""]:
+    """Return the clipped surrogate objective, suitable for maximisation with gradient ascent.
+
+    dist:
+        a distribution containing the actor's unnormalized logits of shape (minibatch_size, num_actions)
+    mb_action:
+        what actions were taken in the sampled minibatch
+    mb_advantages:
+        advantages calculated from the sampled minibatch
+    mb_logprobs:
+        logprobs of the actions taken in the sampled minibatch (according to the old policy)
+    clip_coef:
+        amount of clipping, denoted by epsilon in Eq 7.
+    eps:
+        used to add to std dev of mb_advantages when normalizing (to avoid dividing by zero)
+    """
+    assert mb_action.shape == mb_advantages.shape == mb_logprobs.shape
+    new_logprobs = dist.log_prob(mb_action)
+    ratio = t.exp(new_logprobs - mb_logprobs)
+    mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + eps)
+    unclipped = ratio * mb_advantages
+    clipped = t.clamp(ratio, 1.0 - clip_coef, 1.0 + clip_coef) * mb_advantages
+    return t.minimum(unclipped, clipped).mean()
+
+
+tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)
 # %%

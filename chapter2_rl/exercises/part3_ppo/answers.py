@@ -378,3 +378,112 @@ class ReplayMemory:
         return minibatches
 
 # %%
+num_steps_per_rollout = 128
+num_envs = 2
+batch_size = num_steps_per_rollout * num_envs  # 256
+
+minibatch_size = 128
+num_minibatches = batch_size // minibatch_size  # 2
+
+batches_per_learning_phase = 2
+
+envs = CartPole(num_envs=num_envs)  # GPU-batched env: reset()/step() return on-device tensors
+memory = ReplayMemory(num_envs, (4,), (), batch_size, minibatch_size, batches_per_learning_phase)
+
+logprobs = values = t.zeros(num_envs, device=device)  # dummy values, just so we can see demo of plot
+obs, _ = envs.reset()
+terminated = t.zeros(num_envs, dtype=t.bool, device=device)  # d_t for the very first obs
+
+for i in range(num_steps_per_rollout):  # the locally-defined 128, matching this cell's batch_size
+    # Choose a random action and step the env (actions are an on-device tensor for the batched env)
+    actions = t.randint(0, envs.single_action_space.n, (num_envs,), device=device)
+    next_obs, rewards, next_terminated, truncated, infos = envs.step(actions)
+
+    # Add experience to memory (everything is already an on-device tensor). Like `PPOAgent.play_step`,
+    # the flag we store next to s_t is d_t, i.e. "s_t is the first obs of a new episode".
+    memory.add(obs, actions, logprobs, values, rewards, terminated)
+    obs, terminated = next_obs, next_terminated
+
+plot_cartpole_obs_and_dones(
+    t.stack(memory.obs).cpu(),
+    t.stack(memory.terminated).cpu(),
+    title="Current obs s<sub>t</sub><br>Dotted lines indicate d<sub>t</sub> = 1, solid lines are environment separators",
+)
+
+next_value = next_done = t.zeros(envs.num_envs).to(device)  # dummy values, just so we can see demo of plot
+minibatches = memory.get_minibatches(next_value, next_done, gamma=0.99, gae_lambda=0.95)
+
+plot_cartpole_obs_and_dones(
+    minibatches[0].obs.cpu(),
+    minibatches[0].terminated.cpu(),
+    title="Current obs (sampled)<br>this is what gets fed into our model for training",
+)
+
+# %%
+class PPOAgent:
+    critic: nn.Sequential
+    actor: nn.Sequential
+
+    def __init__(
+        self,
+        envs: BatchedEnvs,
+        actor: nn.Module,
+        critic: nn.Module,
+        memory: ReplayMemory,
+    ):
+        super().__init__()
+        self.envs = envs
+        self.actor = actor
+        self.critic = critic
+        self.memory = memory
+
+        self.step = 0  # Tracking number of steps taken (across all environments)
+        self.next_obs = t.as_tensor(envs.reset()[0], dtype=t.float)  # need starting obs (already on the env's device)
+        self.next_terminated = t.zeros(envs.num_envs, device=self.next_obs.device, dtype=t.bool)  # need starting termination=False
+
+    def play_step(self) -> list[dict]:
+        """
+        Carries out a single interaction step between the agent and the environment, and adds
+        results to the replay memory.
+
+        Returns the list of info dicts returned from `self.envs.step`.
+        """
+        # Get newest observations (i.e. where we're starting from)
+        obs = self.next_obs
+        terminated = self.next_terminated
+
+        with t.inference_mode():
+            action_logits = self.actor(obs) # (num_envs, action_space)
+            value = self.critic(obs) # (num_envs, 1)
+
+        dist = Categorical(logits=action_logits)
+        actions = dist.sample()
+        logprobs = dist.log_prob(actions)
+
+        print(actions.shape)
+
+        self.next_obs, rewards, next_terminated, next_truncated, infos =  envs.step(actions)
+
+        self.next_terminated = next_terminated #| next_truncated
+
+        self.memory.add(
+            obs, actions, logprobs, values, rewards, terminated
+        )
+        
+        self.step += self.envs.num_envs
+        return infos
+
+    def get_minibatches(self, gamma: float, gae_lambda: float) -> list[ReplayMinibatch]:
+        """
+        Gets minibatches from the replay memory, and resets the memory
+        """
+        with t.inference_mode():
+            next_value = self.critic(self.next_obs).flatten()
+        minibatches = self.memory.get_minibatches(next_value, self.next_terminated, gamma, gae_lambda)
+        self.memory.reset()
+        return minibatches
+
+
+tests.test_ppo_agent(PPOAgent)
+
+# %%

@@ -718,7 +718,31 @@ class PPOTrainer:
         clipped_sur = calc_clipped_surrogate_objective(
             dist, minibatch.actions, minibatch.advantages, minibatch.logprobs, self.args.vf_coef
         )
-        value_loss = 
+        value_loss = calc_value_function_loss(values, minibatch.returns, self.args.vf_coef)
+        entropy_loss = -calc_entropy_bonus(dist, self.args.ent_coef)
+        obj = clipped_sur - value_loss - entropy_loss
+
+        with t.inference_mode():
+            logratio = dist.log_prob(minibatch.actions) - minibatch.logprobs
+            ratio = logratio.exp()
+            approx_kl = ((ratio - 1) - logratio).mean().item()
+            clipfrac = ((ratio - 1).abs() > self.args.clip_coef).float().mean().item()
+
+        self.last_metrics = dict(
+            value_loss=value_loss,
+            clipped_sur=clipped_sur.item(),
+            entropy_loss=entropy_loss.item(),
+            approx_kl=approx_kl,
+            clipfrac=clipfrac
+        )
+        if self.args.use_wandb:
+            wandb.log(dict(
+                **self.last_metrics,
+                values=values.mean().item(),
+                lr=self.optimizer.param_groups[0]['lr'],
+                step=self.agent.step
+            ))
+        return obj
 
     def log_video(self, phase: int, caption: str | None = None) -> None:
         """Render the first 16 envs of the rollout currently sitting in the replay memory as a 4x4

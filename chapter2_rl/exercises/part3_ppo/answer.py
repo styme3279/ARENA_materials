@@ -554,7 +554,7 @@ def calc_clipped_surrogate_objective(
     new_logprobs = dist.log_prob(mb_action)
     normalized_mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + eps)
 
-    prob_ratios = new_logprobs - mb_logprobs
+    prob_ratios = t.exp(new_logprobs - mb_logprobs)
 
     return (1 / minibatch_size) * (t.min((prob_ratios * normalized_mb_advantages), (prob_ratios.clip(1 - clip_coef, 1 + clip_coef) * normalized_mb_advantages))).sum()
 

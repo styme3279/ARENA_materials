@@ -115,27 +115,29 @@ args = PPOArgs(num_minibatches=2)  # changing this also changes minibatch_size a
 arg_help(args)
 
 # %%
-class actor(nn.Module):
-    def __init__(self, obs_dim, num_actions):
+class Actor(nn.Module):
+    def __init__(self, obs_dim: int, num_actions: int):
+        super().__init__()
         self.layers = nn.Sequential(
             layer_init(nn.Linear(obs_dim, 64)),
             nn.modules.activation.Tanh(),
             layer_init(nn.Linear(64, 64)),
             nn.modules.activation.Tanh(),
-            layer_init(nn.Linear(64, num_actions))
+            layer_init(nn.Linear(64, num_actions), std=0.01)
         )
 
     def forward(self, x: Tensor):
         return self.layers(x)
 
-class critic(nn.Module):
-    def __init__(self, obs_dim, num_actions):
+class Critic(nn.Module):
+    def __init__(self, obs_dim: int):
+        super().__init__()
         self.layers = nn.Sequential(
             layer_init(nn.Linear(obs_dim, 64)),
             nn.modules.activation.Tanh(),
             layer_init(nn.Linear(64, 64)),
             nn.modules.activation.Tanh(),
-            layer_init(nn.Linear(64, 1))
+            layer_init(nn.Linear(64, 1), std=1)
         )
 
     def forward(self, x: Tensor):
@@ -185,7 +187,31 @@ def get_actor_and_critic_classic(obs_dim: int, num_actions: int):
     """
     Returns (actor, critic) in the "classic-control" case, according to diagram above.
     """
-    raise NotImplementedError()
+    return Actor(obs_dim, num_actions), Critic(obs_dim)
 
 
 tests.test_get_actor_and_critic(get_actor_and_critic, mode="classic-control")
+
+# %%
+@t.inference_mode()
+def compute_advantages(
+    next_value: Float[Tensor, "num_envs"],
+    next_terminated: Bool[Tensor, "num_envs"],
+    rewards: Float[Tensor, "buffer_size num_envs"],
+    values: Float[Tensor, "buffer_size num_envs"],
+    terminated: Bool[Tensor, "buffer_size num_envs"],
+    gamma: float,
+    gae_lambda: float,
+) -> Float[Tensor, "buffer_size num_envs"]:
+    """
+    Compute advantages using Generalized Advantage Estimation.
+    """
+    T, _ = rewards.shape
+    def compute_advantage_single_step(t):
+        return gamma* gae_lambda * compute_advantage_single_step(t+1)
+    return compute_advantage_single_step(T)
+
+
+tests.test_compute_advantages(compute_advantages)
+
+# %%

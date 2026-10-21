@@ -506,20 +506,20 @@ def calc_clipped_surrogate_objective(
 
     new_logprobs = dist.log_prob(mb_action)
     print(new_logprobs.shape)
-
     print(mb_advantages.shape)
-
+    mb_advantages = (mb_advantages - mb_advantages.mean()) / (t.std(mb_advantages, correction=1) + eps)
     r = t.exp(new_logprobs - mb_logprobs)
     arg1 = r * mb_advantages
-    arg2 = t.clamp(r, min=1-eps, max=1+eps)
+    arg2 = t.clamp(r, min=1-clip_coef, max=1+clip_coef) * mb_advantages
     arg  = t.stack((arg1, arg2))
-    a    = t.min(arg, dim=0)
-
-    print(arg1.shape, arg2.shape, arg.shape, a.shape)
+    # print(arg.shape)
+    a, _ = t.min(arg, dim=0)
+    return a.mean()
+    # print(arg1.shape, arg2.shape, arg.shape, a.shape)
     
 
 
-    assert False
+    # assert False
 
 
 tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)

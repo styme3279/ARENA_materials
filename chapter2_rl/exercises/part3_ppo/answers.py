@@ -243,9 +243,17 @@ def compute_advantages(
     """
     Compute advantages using Generalized Advantage Estimation.
     """
-    advantages = t.zeros_like(rewards)
-    
+    T = rewards.shape[0]
 
+    advantages = t.zeros_like(rewards)
+    advantages[T-1] = - next_value
+    for s in range(T-2, -1, -1):
+        delta_t = rewards[s] - values[s]
+        advantages[s] = delta_t + (1 - terminated[s+1].float()) * gae_lambda * gamma * advantages[s+1]
+
+    return advantages
 
 tests.test_compute_advantages(compute_advantages)
 
+
+# %%

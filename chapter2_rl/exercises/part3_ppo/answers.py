@@ -727,26 +727,27 @@ class PPOTrainer:
         """
         # raise NotImplementedError()
 
-        obs = minibatch.obs
+        mb_obs, mb_actions, mb_logprobs, mb_advantages, mb_returns, _ = minibatch # frozen stuff (target/old)
 
-        action_
+        action_logits, values = self.actor(mb_obs), self.critic(mb_obs)
 
-        calc_clipped_surrogate_objective(
-            dist: Categorical,
-            mb_action: Int[Tensor, "minibatch_size"],
-            mb_advantages: Float[Tensor, "minibatch_size"],
-            mb_logprobs: Float[Tensor, "minibatch_size"],
-            clip_coef: float,
-            eps: float = 1e-8,
+        dist = Categorical(logits=action_logits)
+
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(
+            dist,
+            mb_actions,
+            mb_advantages,
+            mb_logprobs,
+            self.args.clip_coef,
         )
-
-        calc_value_function_loss(
-            values: Float[Tensor, "minibatch_size"],
-            mb_returns: Float[Tensor, "minibatch_size"],
-            vf_coef: float,
+        value_loss = calc_value_function_loss(
+            values,
+            mb_returns,
+            self.args.vf_coef
         )
+        entropy_bonus = calc_entropy_bonus(dist, self.args.ent_coef)
 
-        calc_entropy_bonus(dist: Categorical, ent_coef: float)
+        return clipped_surrogate_objective - value_loss + entropy_bonus
 
     def log_video(self, phase: int, caption: str | None = None) -> None:
         """Render the first 16 envs of the rollout currently sitting in the replay memory as a 4x4

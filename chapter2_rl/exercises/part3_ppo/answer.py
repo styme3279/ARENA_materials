@@ -233,3 +233,30 @@ def get_actor_and_critic_classic(obs_dim: int, num_actions: int):
 tests.test_get_actor_and_critic(get_actor_and_critic, mode="classic-control")
 
 # %%
+@t.inference_mode()
+def compute_advantages(
+    next_value: Float[Tensor, "num_envs"],
+    next_terminated: Bool[Tensor, "num_envs"],
+    rewards: Float[Tensor, "buffer_size num_envs"],
+    values: Float[Tensor, "buffer_size num_envs"],
+    terminated: Bool[Tensor, "buffer_size num_envs"],
+    gamma: float,
+    gae_lambda: float,
+) -> Float[Tensor, "buffer_size num_envs"]:
+    """
+    Compute advantages using Generalized Advantage Estimation.
+    """
+    buffer_size = rewards.shape[0]
+    advantages = t.zeros_like(rewards)
+    advantages[-1, :] = rewards[-1, :] - values[-1, :] + (1 - next_terminated.int())*gamma*gae_lambda*next_value
+
+    for i in range(buffer_size - 2, -1, -1):
+        advantages[i, :] = rewards[i, :] - values[i, :] + (1 - terminated[i+1, :].int())*gamma*gae_lambda*advantages[i+1, :]
+
+    print(advantages)
+
+    return advantages
+
+
+tests.test_compute_advantages(compute_advantages)
+# %%

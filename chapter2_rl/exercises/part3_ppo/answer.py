@@ -248,18 +248,10 @@ def compute_advantages(
     """
     buffer_size = rewards.shape[0]
     advantages = t.zeros_like(rewards)
-    print(advantages)
-    print(rewards)
-    print(values)
-    print(next_terminated)
-    print(next_terminated.int())
-    print(next_value)
-    advantages[-1, :] = rewards[-1, :] - values[-1, :] + (1 - next_terminated.int())*gamma*gae_lambda*next_value
+    advantages[-1, :] = rewards[-1, :] - values[-1, :] + (1 - next_terminated.float())*gamma*next_value
 
     for i in range(buffer_size - 2, -1, -1):
-        advantages[i, :] = rewards[i, :] - values[i, :] + (1 - terminated[i+1, :].int())*gamma*gae_lambda*advantages[i+1, :]
-
-    print(advantages)
+        advantages[i, :] = rewards[i, :] - values[i, :] + (1 - terminated[i+1, :].float())*gamma*values[i+1, :] + (1 - terminated[i+1, :].float())*gamma*gae_lambda*advantages[i+1, :]
 
     return advantages
 

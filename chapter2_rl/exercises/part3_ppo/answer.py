@@ -962,3 +962,73 @@ trainer.train()
 display(record_grid_video(trainer, kind="classic-control"))
 
 # %%
+def cartpole_reward_function(self, action: Tensor) -> Tensor:
+    """Shaped reward for CartPole. Called by `step` just after the physics update, so `self.state`
+    is the new (num_envs, 4) state tensor with columns [x, v, theta, omega]. Should return a
+    (num_envs,) reward tensor (ideally bounded in [0, 1], for easier comparison with the unshaped
+    env)."""
+    x, v, theta, omega = self.state.unbind(-1) # each (num_envs,): position, velocity, angle, angular velocity
+
+    reward_1 = 1 - (theta / 0.2095).abs()
+    reward_2 = 1 - (x / 2.4).abs()
+    return (reward_1 + reward_2) / 2
+
+
+class EasyCart(CartPole):
+    def reward_function(self, action):
+        return cartpole_reward_function(self, action)
+
+# Swap the shaped env into ENV_DICT so `mode="classic-control"` builds it (we restore the
+# unshaped CartPole afterwards). `env_id` is just a label for the run name.
+ENV_DICT["classic-control"] = EasyCart
+args = PPOArgs(env_id="EasyCart", use_wandb=False, video_log_freq=50)
+trainer = PPOTrainer(args)
+trainer.train()
+ENV_DICT["classic-control"] = CartPole
+display(record_grid_video(trainer, kind="classic-control"))
+
+# %%
+def spin_cart_reward_function(self, action: Tensor) -> Tensor:
+    """Reward for the spinning-cart task. Like `cartpole_reward_function`, this is called by `step`
+    after the physics update (`self.state` is the new (num_envs, 4) tensor [x, v, theta, omega])
+    and should return a (num_envs,) reward tensor."""
+    x, v, theta, omega = self.state.unbind(-1)  # each (num_envs,): position, velocity, angle, angular velocity
+    rotation_speed_reward = (0.1 * omega.abs()).clamp(max=1.0)
+    stability_penalty = ((x / 2.5).abs() + (v / 10).abs()).clamp(min=1.0)
+    return rotation_speed_reward - 0.5 * stability_penalty
+
+
+class SpinCart(CartPole):
+    def reward_function(self, action):
+        return spin_cart_reward_function(self, action)
+
+    def terminated(self):
+        # Allow full 360-degree rotation: unlike the parent class, only terminate when the cart
+        # leaves the track (the pole angle no longer ends the episode).
+        x = self.state[:, 0]
+        return x.abs() > self.x_threshold
+
+ENV_DICT["classic-control"] = SpinCart
+# The shaped spinning reward is less stable than plain CartPole once the policy has spun up, so the
+# final video occasionally shows a policy that spun up and then partly lost it. It still spins, and
+# the run takes about 10 s on a CPU.
+args = PPOArgs(env_id="SpinCart", use_wandb=False, video_log_freq=50)
+trainer = PPOTrainer(args)
+trainer.train()
+ENV_DICT["classic-control"] = CartPole  # restore the unshaped env
+display(record_grid_video(trainer, kind="classic-control"))
+
+# %%
+import ale_py
+
+gym.register_envs(ale_py)  # registers the "ALE/..." Atari environments with gymnasium
+
+env = gym.make("ALE/Breakout-v5", render_mode="rgb_array")
+
+print(env.action_space)  # Discrete(4): 4 actions to choose from
+print(env.observation_space)  # Box(0, 255, (210, 160, 3), uint8): an RGB image of the game screen
+
+# %%
+print(env.unwrapped.get_action_meanings())
+
+# %%

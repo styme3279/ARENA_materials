@@ -208,7 +208,15 @@ def get_actor_and_critic_classic(obs_dim: int, num_actions: int):
     """
     Returns (actor, critic) in the "classic-control" case, according to diagram above.
     """
-    actors = nn.Sequential
+    root = nn.Sequential(
+        nn.Linear(obs_dim, 64, init=layer_init),
+        t.Tanh(),
+        nn.Linear(64, 64),
+        t.Tanh(),
+    )
+    actor = nn.Sequential(root, Linear(64, num_actions))
+    critic = nn.Sequential(root, Linear(64, 1))
+    return actor, critic
 
 
 tests.test_get_actor_and_critic(get_actor_and_critic, mode="classic-control")

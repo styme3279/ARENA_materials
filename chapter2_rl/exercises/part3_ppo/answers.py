@@ -193,12 +193,11 @@ def compute_advantages(
     """
     Compute advantages using Generalized Advantage Estimation.
     """
-    advantages = t.zeros(rewards.shape)
+    advantages = t.zeros(rewards.shape).to(rewards.device)
     delta_i           = rewards[-1, :] + gamma*(1 - next_terminated.int()) * next_value - values[-1, :]
     advantages[-1, :] = delta_i
     for i in range(rewards.shape[0]-2, -1, -1):
-        print(i)
-        delta_i          = rewards[i+1, :] + gamma * (1 - terminated[i+1, :].int()) * values[i+1, :] - values[i, :]
+        delta_i          = rewards[i, :] + gamma * (1 - terminated[i+1, :].int()) * values[i+1, :] - values[i, :]
         advantages[i, :] = delta_i + gamma * gae_lambda * (1-terminated[i+1, :].int()) * advantages[i+1, :]
 
     return advantages
@@ -206,5 +205,32 @@ def compute_advantages(
 
 tests.test_compute_advantages(compute_advantages)
 
+
+# %%
+def get_minibatch_indices(rng: Generator, batch_size: int, minibatch_size: int) -> list[np.ndarray]:
+    """
+    Return a list of length `num_minibatches`, where each element is an array of `minibatch_size` and the union of all
+    the arrays is the set of indices [0, 1, ..., batch_size - 1] where `batch_size = num_steps_per_rollout * num_envs`.
+    """
+    assert batch_size % minibatch_size == 0
+
+    a = t.randperm(batch_size * minibatch_size, generator=rng)
+    a = einops.rearrange(a, "(b m) -> b m")
+    a.
+    return a
+
+rng = np.random.default_rng(0)
+
+batch_size = 12
+minibatch_size = 6
+# num_minibatches = batch_size // minibatch_size = 2
+
+indices = get_minibatch_indices(rng, batch_size, minibatch_size)
+
+assert isinstance(indices, list)
+assert all(isinstance(x, np.ndarray) for x in indices)
+assert np.array(indices).shape == (2, 6)
+assert sorted(np.unique(indices)) == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+print("All tests in `test_minibatch_indexes` passed!")
 
 # %%

@@ -376,7 +376,7 @@ class ReplayMemory:
             [self.obs_shape, self.action_shape, (), (), (), ()],
         ):
             assert isinstance(data, Tensor)
-            assert data.shape == (self.num_envs, *expected_shape)
+            assert data.shape == (self.num_envs, *expected_shape), f"data.shape {data.shape}, should be {(self.num_envs, *expected_shape)}"
 
         # Append this step's tensors (no concatenation / host transfer)
         self.obs.append(obs)

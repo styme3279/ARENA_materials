@@ -658,8 +658,6 @@ class PPOTrainer:
         for step in range(num_steps_per_rollout):
             info = self.agent.play_step()
 
-        return None
-
 
     def learning_phase(self) -> None:
         """
@@ -681,13 +679,14 @@ class PPOTrainer:
             print(5)
             J.backward()
             print(6)
-            params = iter(self.agent.actor.parameters, self.agent.critic.parameters)
-            # assert False
-            nn.utils.clip_grad_norm(params, self.args.max_grad_norm)
             print(7)
+            nn.utils.clip_grad_norm((list(self.actor.parameters()), list(self.critic.parameters())), self.args.max_grad_norm)
             print(8)
-            
             self.optimizer.step()
+            print(9)
+            print(10)
+        self.scheduler.step()
+        assert False
 
     def compute_ppo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
         """

@@ -452,13 +452,21 @@ class PPOAgent:
         obs = self.next_obs
         terminated = self.next_terminated
 
-        actions = self.actor(obs)
-        next_obs, reward, next_terminated, truncated, infos = envs.step(actions)
+        with t.inference_mode():
+            logits = self.actor(obs)
+            values = self.critic(obs)
+
+        dist = t.distributions.categorical.Categorical(logits=logits)
+        actions = dist.sample()
+        logprobs = dist.log_prob(actions)
+
+        next_obs, rewards, next_terminated, truncated, infos = self.envs.step(actions)
+        self.memory.add(obs, actions, logprobs, values.squeeze(-1), rewards, terminated)
 
         self.next_obs = next_obs
         self.next_terminated = next_terminated
-
         self.step += self.envs.num_envs
+
         return infos
 
     def get_minibatches(self, gamma: float, gae_lambda: float) -> list[ReplayMinibatch]:
@@ -473,3 +481,5 @@ class PPOAgent:
 
 
 tests.test_ppo_agent(PPOAgent)
+
+# %%

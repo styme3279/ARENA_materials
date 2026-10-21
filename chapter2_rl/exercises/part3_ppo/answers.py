@@ -611,6 +611,8 @@ def make_optimizer(
 
 tests.test_ppo_scheduler(PPOScheduler)
 # %%
+from rich import print as rprint
+
 class PPOTrainer:
     def __init__(self, args: PPOArgs):
         set_global_seeds(args.seed)
@@ -667,14 +669,19 @@ class PPOTrainer:
             - Clips the gradients (see detail #11)
             - Steps the learning rate scheduler
         """
-        minibatches = self.agent.get_minibatches()
+
+        print(1)
+        minibatches = self.agent.get_minibatches(self.args.gamma, self.args.gae_lambda)
+        print(2)
         for minibatch in minibatches:
+            print(3)
             self.optimizer.zero_grad()
+            print(4)
             J = self.compute_ppo_objective(minibatch)
+            print(5)
             J.backward()
-
+            print(6)
             params = iter(self.agent.actor.parameters, self.agent.critic.parameters)
-
             assert False
             # nn.utils.clip_grad_norm(params, max_grad_norm)
             self.optimizer.step()
@@ -683,7 +690,40 @@ class PPOTrainer:
         """
         Handles learning phase for a single minibatch. Returns objective function to be maximized.
         """
-        raise NotImplementedError()
+
+        rprint(minibatch)
+
+        obs        = minibatch.obs
+        advantages = minibatch.advantages
+        logprobs   = minibatch.logprobs
+        returns    = minibatch.returns
+
+        with t.train_mode():
+            
+
+
+        assert False
+
+        # J_clip = calc_clipped_surrogate_objective(
+        #     dist=,
+        #     mb_action=,
+        #     mb_advantages=,
+        #     mb_logprobs=,
+        #     clip_coef=self.args.clip_coef,
+        #     eps=self.args.eps,
+        # )
+
+        # J_vf = calc_value_function_loss(
+        #     values=,
+        #     mb_returns=,
+        #     vf_coef=self.args.vf_coef,
+        # )
+
+        # J_H = calc_entropy_bonus(
+        #     dist=,
+        #     ent_coef=self.args.ent_coef,   
+        # )
+        
 
     def log_video(self, phase: int, caption: str | None = None) -> None:
         """Render the first 16 envs of the rollout currently sitting in the replay memory as a 4x4
@@ -761,8 +801,6 @@ class PPOTrainer:
             # "'NoneType' object has no attribute '_log'".
             wandb.unwatch((self.actor, self.critic))
             wandb.finish()
-
-# %%
 
 def test_probe(probe_idx: int):
     """

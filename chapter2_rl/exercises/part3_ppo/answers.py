@@ -694,15 +694,12 @@ class PPOTrainer:
         your progress bar postfix.
         """   
         data = None
-        n =  num_steps_per_rollout
-        for step in tqdm(range(n), desc="Adding to replay buffer"):
+        for step in tqdm(range(self.args.num_steps_per_rollout), desc="Adding to replay buffer"):
             infos = self.agent.play_step()
-
-            # Get data from environments, if some environment did actually terminate
-            new_data = get_episode_data_from_infos(infos)
-            if new_data is not None:
-                data = new_data  # makes sure we return a non-empty dict at the end, if some episode terminates
-
+            # self.memory = self.agent.memory
+            
+            data = infos
+            
         return data
 
     def learning_phase(self) -> None:
@@ -713,13 +710,26 @@ class PPOTrainer:
             - Clips the gradients (see detail #11)
             - Steps the learning rate scheduler
         """
-        raise NotImplementedError()
+        minibatches = self.agent.get_minibatches(self.args.gamma, self.args.gae_lambda)
+        for mb in minibatches:
+            self.optimizer.zero_grad()
+            loss_mb = self.compute_ppo_objective(mb)
+            loss_mb.backward()
+            nn.utils.clip_grad_norm(self.actor.parameters, self.args.max_grad_norm)
+            nn.utils.clip_grad_norm(self.critic.parameters, self.args.max_grad_norm)
+            self.optimizer.step()
+        self.scheduler.step()
+        # raise NotImplementedError()
 
     def compute_ppo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
         """
         Handles learning phase for a single minibatch. Returns objective function to be maximized.
         """
-        raise NotImplementedError()
+        # raise NotImplementedError()
+
+        obs = minibatch.obs
+
+        action_
 
         calc_clipped_surrogate_objective(
             dist: Categorical,

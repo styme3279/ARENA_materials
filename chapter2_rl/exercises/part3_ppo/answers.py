@@ -694,12 +694,18 @@ class PPOTrainer:
         your progress bar postfix.
         """   
         data = None
+        t0 = time.time()
         for step in tqdm(range(self.args.num_steps_per_rollout), desc="Adding to replay buffer"):
             infos = self.agent.play_step()
             # self.memory = self.agent.memory
             
             data = infos
-            
+            if self.args.use_wandb:
+                wandb.log(data, step=self.agent.step)
+
+        if self.args.use_wandb:
+            wandb.log({"SPS": (self.args.num_steps_per_rollout * self.num_envs) / time.time() - t0}, step=self.agent.step)
+
         return data
 
     def learning_phase(self) -> None:
@@ -715,8 +721,8 @@ class PPOTrainer:
             self.optimizer.zero_grad()
             loss_mb = self.compute_ppo_objective(mb)
             loss_mb.backward()
-            nn.utils.clip_grad_norm(self.actor.parameters, self.args.max_grad_norm)
-            nn.utils.clip_grad_norm(self.critic.parameters, self.args.max_grad_norm)
+            nn.utils.clip_grad_norm(self.actor.parameters(), self.args.max_grad_norm)
+            nn.utils.clip_grad_norm(self.critic.parameters(), self.args.max_grad_norm)
             self.optimizer.step()
         self.scheduler.step()
         # raise NotImplementedError()
@@ -727,9 +733,9 @@ class PPOTrainer:
         """
         # raise NotImplementedError()
 
-        mb_obs, mb_actions, mb_logprobs, mb_advantages, mb_returns, _ = minibatch # frozen stuff (target/old)
+        mb_obs, mb_actions, mb_logprobs, mb_advantages, mb_returns = minibatch.obs, minibatch.actions, minibatch.logprobs, minibatch.advantages, minibatch.returns # frozen stuff (target/old)
 
-        action_logits, values = self.actor(mb_obs), self.critic(mb_obs)
+        action_logits, values = self.actor(mb_obs), self.critic(mb_obs).squeeze(-1)
 
         dist = Categorical(logits=action_logits)
 
@@ -746,6 +752,18 @@ class PPOTrainer:
             self.args.vf_coef
         )
         entropy_bonus = calc_entropy_bonus(dist, self.args.ent_coef)
+
+        if self.args.use_wandb:
+            wandb.log(
+                dict(
+                    total_steps=self.agent.step,
+                    values=values.mean().item(),
+                    lr=self.scheduler.optimizer.param_groups[0]["lr"],
+                    value_loss=value_loss.item(),
+                    clipped_surrogate_objective=clipped_surrogate_objective.item(),
+                    entropy_bonus=entropy_bonus.item(),
+                ), step=self.agent.step
+            )
 
         return clipped_surrogate_objective - value_loss + entropy_bonus
 
@@ -825,3 +843,53 @@ class PPOTrainer:
             # "'NoneType' object has no attribute '_log'".
             wandb.unwatch((self.actor, self.critic))
             wandb.finish()
+# %%
+def test_probe(probe_idx: int):
+    """
+    Tests a probe environment by training a network on it & verifying that the value functions are
+    in the expected range.
+    """
+    # Train our network
+    args = PPOArgs(
+        env_id=f"Probe{probe_idx}-v0",
+        mode="probe",  # use the GPU (tensor-native) probe envs, so PPOTrainer's GPU agent can run them
+        wandb_project_name=f"test-probe-{probe_idx}",
+        total_phases=14,  # adjust up if needed to make tests pass
+        num_envs=256,
+        num_steps_per_rollout=8,
+        num_minibatches=4,
+        lr=0.01, # also maybe adjust this 
+        video_log_freq=None,
+        use_wandb=True,
+    )
+    trainer = PPOTrainer(args)
+    trainer.train()
+    agent = trainer.agent
+
+    # Get the correct set of observations, and corresponding values we expect
+    obs_for_probes = [[[0.0]], [[-1.0], [+1.0]], [[0.0], [1.0]], [[0.0]], [[0.0], [1.0]]]
+    expected_value_for_probes = [
+        [[1.0]],
+        [[-1.0], [+1.0]],
+        [[args.gamma], [1.0]],
+        [[1.0]],
+        [[1.0], [1.0]],
+    ]
+    expected_probs_for_probes = [None, None, None, [[0.0, 1.0]], [[1.0, 0.0], [0.0, 1.0]]]
+    tolerances = [1e-3, 1e-3, 1e-3, 2e-3, 2e-3]
+    obs = t.tensor(obs_for_probes[probe_idx - 1]).to(args.device)
+
+    # Calculate the actual value & probs, and verify them
+    with t.inference_mode():
+        value = agent.critic(obs)
+        probs = agent.actor(obs).softmax(-1)
+    expected_value = t.tensor(expected_value_for_probes[probe_idx - 1]).to(args.device)
+    t.testing.assert_close(value, expected_value, atol=tolerances[probe_idx - 1], rtol=0)
+    expected_probs = expected_probs_for_probes[probe_idx - 1]
+    if expected_probs is not None:
+        t.testing.assert_close(probs, t.tensor(expected_probs).to(args.device), atol=tolerances[probe_idx - 1], rtol=0)
+    print("Probe tests passed!\n")
+# %%
+for probe_idx in range(1, 6):
+    test_probe(probe_idx)
+# %%

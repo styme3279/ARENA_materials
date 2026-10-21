@@ -193,7 +193,17 @@ def compute_advantages(
     """
     Compute advantages using Generalized Advantage Estimation.
     """
-    raise NotImplementedError()
+    buffer_size = rewards.shape[0]
+
+    
+
+    
+    for t in reversed(range(buffer_size)):
+
+
+
 
 
 tests.test_compute_advantages(compute_advantages)
+
+# %%

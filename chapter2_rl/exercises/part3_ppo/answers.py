@@ -875,7 +875,8 @@ def fast_cart_reward_function(self, action: Tensor) -> Tensor:
     after the physics update (`self.state` is the new (num_envs, 4) tensor [x, v, theta, omega])
     and should return a (num_envs,) reward tensor."""
     x, v, theta, omega = self.state.unbind(-1)  # each (num_envs,): position, velocity, angle, angular velocity
-    return v
+    return -x
+    #return (theta.abs() / 180)
 
 class FastCart(CartPole):
     def reward_function(self, action):
@@ -887,7 +888,7 @@ class FastCart(CartPole):
         x = self.state[:, 0]
         return x.abs() > self.x_threshold
 
-ENV_DICT["classic-control"] = SpinCart
+ENV_DICT["classic-control"] = FastCart
 args = PPOArgs(env_id="FastCart", use_wandb=False, video_log_freq=50)
 trainer = PPOTrainer(args)
 trainer.train()

@@ -912,14 +912,14 @@ def get_actor_and_critic_atari(obs_shape: tuple[int, ...], num_actions: int) -> 
     assert obs_shape[-1] % 8 == 4
 
     backbone = nn.Sequential(
-        nn.Conv2d(in_channels=obs_shape[0], out_channels=32, kernel_size=8, stride=4, padding=0),
+        layer_init(nn.Conv2d(in_channels=obs_shape[0], out_channels=32, kernel_size=8, stride=4, padding=0)),
         nn.ReLU(),
-        nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2, padding=0),
+        layer_init(nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2, padding=0)),
         nn.ReLU(),
-        nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0),
+        layer_init(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0)),
         nn.Flatten(),
         nn.ReLU(),
-        layer_init(nn.Linear(, 512)),
+        layer_init(nn.Linear(3136, 512)),
         nn.ReLU()
     )
     actor = nn.Sequential(backbone, layer_init(nn.Linear(512, num_actions), std=0.01))
@@ -928,3 +928,25 @@ def get_actor_and_critic_atari(obs_shape: tuple[int, ...], num_actions: int) -> 
 
 
 tests.test_get_actor_and_critic(get_actor_and_critic, mode="atari")
+
+# %%
+args = PPOArgs(
+    env_id="ALE/Breakout-v5",
+    wandb_project_name="PPOAtari",
+    mode="atari",
+    total_phases=183,  # 183 * 8192 = 1.5M env steps
+    num_envs=256,
+    num_steps_per_rollout=32,
+    num_minibatches=4,
+    lr=2.5e-4,
+    clip_coef=0.1,
+    ent_coef=0.01,
+    vf_coef=0.5,
+)
+trainer = PPOTrainer(args)
+trainer.train()
+
+# A 4x4 grid video of 16 of the trained agent's Breakout games (cells flash red when an env resets):
+display(record_grid_video(trainer, kind="atari"))
+
+# %%

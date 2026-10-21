@@ -239,6 +239,7 @@ def get_actor_and_critic_classic(obs_dim: int, num_actions: int):
 
 tests.test_get_actor_and_critic(get_actor_and_critic, mode="classic-control")
 
+# %%
 
 @t.inference_mode()
 def compute_advantages(
@@ -254,8 +255,42 @@ def compute_advantages(
     Compute advantages using Generalized Advantage Estimation.
     """
     terminated = terminated.float()
-    
-    
+    next_terminated = next_terminated.float()
+    num_envs = next_value.shape[0]
+    buffer_size = rewards.shape[0]
+
+    # print(f"num_envs: {num_envs}")
+    # print(f"buffer_size: {buffer_size}")
+
+    # print(f"next_value: {next_value}")
+    # print(f"next_terminated: {next_terminated}")
+    # print(f"rewards: {rewards}")
+    # print(f"values: {values}")
+    # print(f"gamma: {gamma}")
+    # print(f"gae_lambda: {gae_lambda}")
+
+    # Append final reward to the end:
+    next_values = t.concat([values[1:], next_value[None, :]])
+    next_terminated = t.concat([terminated[1:], next_terminated[None, :]])
+
+    advantages = t.zeros_like(rewards)
+    # print(f"advantages: {advantages}")
+
+
+    TD_res = rewards + (1.0 - next_terminated) * gamma * next_values - values
+    # print(f"TD_res: {TD_res}")
+
+    advantages[-1] = TD_res[-1]
+
+    for time in reversed(range(buffer_size - 1)):
+        # print(f"time: {time}")
+        advantages[time] = TD_res[time] + (1 - terminated[time+1]) * gamma * gae_lambda * advantages[time+1]
+
+    return advantages
+        
+
+
+
 
 
 tests.test_compute_advantages(compute_advantages)

@@ -649,84 +649,74 @@ class PPOTrainer:
         self.agent = PPOAgent(self.envs, self.actor, self.critic, self.memory)
 
     def rollout_phase(self) -> dict | None:
-        """
-        This function populates the memory with a new set of experiences, using self.agent.play_step
-        to step through the environment. It also returns a dict of data which you can include in
-        your progress bar postfix.
-        """
+        data = None
+        t0 = time.time()
 
-        for step in range(num_steps_per_rollout):
-            info = self.agent.play_step()
+        for step in range(self.args.num_steps_per_rollout):
+            # Play a step, returning the infos dict (containing information for each environment)
+            infos = self.agent.play_step()
 
+            # Get data from environments, and log it if some environment did actually terminate
+            new_data = get_episode_data_from_infos(infos)
+            if new_data is not None:
+                data = new_data
+                if self.args.use_wandb:
+                    wandb.log(new_data, step=self.agent.step)
+
+        if self.args.use_wandb:
+            wandb.log(
+                {"SPS": (self.args.num_steps_per_rollout * self.num_envs) / (time.time() - t0)}, step=self.agent.step
+            )
+
+        return data
 
     def learning_phase(self) -> None:
-        """
-        This function does the following:
-            - Generates minibatches from memory
-            - Calculates the objective function, and takes an optimization step based on it
-            - Clips the gradients (see detail #11)
-            - Steps the learning rate scheduler
-        """
-
-        print(1)
         minibatches = self.agent.get_minibatches(self.args.gamma, self.args.gae_lambda)
-        print(2)
         for minibatch in minibatches:
-            print(3)
-            self.optimizer.zero_grad()
-            print(4)
-            J = self.compute_ppo_objective(minibatch)
-            print(5)
-            J.backward()
-            print(6)
-            print(7)
-            nn.utils.clip_grad_norm((list(self.actor.parameters()), list(self.critic.parameters())), self.args.max_grad_norm)
-            print(8)
+            objective_fn = self.compute_ppo_objective(minibatch)
+            objective_fn.backward()
+            nn.utils.clip_grad_norm_(
+                list(self.actor.parameters()) + list(self.critic.parameters()), self.args.max_grad_norm
+            )
             self.optimizer.step()
-            print(9)
-            print(10)
+            self.optimizer.zero_grad()
         self.scheduler.step()
-        assert False
 
     def compute_ppo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
-        """
-        Handles learning phase for a single minibatch. Returns objective function to be maximized.
-        """
-
-        self.actor.train()
-        self.critic.train()
-        
-        obs        = minibatch.obs
-        actions    = minibatch.actions
-        advantages = minibatch.advantages
-        logprobs   = minibatch.logprobs
-        returns    = minibatch.returns
-
-        logits = self.actor(obs).squeeze(-1)
-        values = self.critic(obs).squeeze(-1)
-
+        logits = self.actor(minibatch.obs)
         dist = Categorical(logits=logits)
+        values = self.critic(minibatch.obs).squeeze()
 
-        J_clip = calc_clipped_surrogate_objective(
-            dist=dist,
-            mb_action=actions,
-            mb_advantages=advantages,
-            mb_logprobs=logprobs,
-            clip_coef=self.args.clip_coef,
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(
+            dist, minibatch.actions, minibatch.advantages, minibatch.logprobs, self.args.clip_coef
         )
+        value_loss = calc_value_function_loss(values, minibatch.returns, self.args.vf_coef)
+        entropy_bonus = calc_entropy_bonus(dist, self.args.ent_coef)
 
-        J_vf = calc_value_function_loss(
-            values=values,
-            mb_returns=returns,
-            vf_coef=self.args.vf_coef,
-        )
+        total_objective_function = clipped_surrogate_objective - value_loss + entropy_bonus
 
-        J_H = calc_entropy_bonus(
-            dist=dist,
-            ent_coef=self.args.ent_coef,   
-        )
+        with t.inference_mode():
+            newlogprob = dist.log_prob(minibatch.actions)
+            logratio = newlogprob - minibatch.logprobs
+            ratio = logratio.exp()
+            approx_kl = (ratio - 1 - logratio).mean().item()
+            clipfracs = [((ratio - 1.0).abs() > self.args.clip_coef).float().mean().item()]
+        if self.args.use_wandb:
+            wandb.log(
+                dict(
+                    total_steps=self.agent.step,
+                    values=values.mean().item(),
+                    lr=self.scheduler.optimizer.param_groups[0]["lr"],
+                    value_loss=value_loss.item(),
+                    clipped_surrogate_objective=clipped_surrogate_objective.item(),
+                    entropy=entropy_bonus.item(),
+                    approx_kl=approx_kl,
+                    clipfrac=np.mean(clipfracs),
+                ),
+                step=self.agent.step,
+            )
 
-        return J_clip - J_vf + J_H
+        return total_objective_function
 
     def log_video(self, phase: int, caption: str | None = None) -> None:
         """Render the first 16 envs of the rollout currently sitting in the replay memory as a 4x4
@@ -855,3 +845,4 @@ for probe_idx in range(1, 6):
     test_probe(probe_idx)
 
 # %%
+

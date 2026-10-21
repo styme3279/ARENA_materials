@@ -236,7 +236,7 @@ def compute_advantages(
     """
     T = values.shape[0]
     next_values = t.cat([values[1:], next_value[None]])
-    next_dones = t.cat([terminated[1:], next_terminated[None]])
+    next_dones = t.cat([terminated[1:], next_terminated[None]]).float()
     not_done = 1.0 - next_dones
 
     deltas = rewards + gamma * next_values * not_done - values

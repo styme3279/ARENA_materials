@@ -642,7 +642,7 @@ class PPOTrainer:
         to step through the environment. It also returns a dict of data which you can include in
         your progress bar postfix.
         """
-        rollout_progress_bar = tqdm(self.args.num_steps_per_rollout)
+        rollout_progress_bar = tqdm(range(self.args.num_steps_per_rollout))
         for _ in rollout_progress_bar:
             infos = self.agent.play_step()
 
@@ -656,7 +656,7 @@ class PPOTrainer:
         """
         mbs = self.agent.get_minibatches(self.args.gamma, self.args.gae_lambda)
         for mb in mbs:
-            loss = self.compute_ppo_objective(mb[0])
+            loss = self.compute_ppo_objective(mb)
             loss.backward()
             nn.utils.clip_grad_norm(self.actor.parameters(), self.args.max_grad_norm)
             nn.utils.clip_grad_norm(self.critic.parameters(), self.args.max_grad_norm)
@@ -668,11 +668,20 @@ class PPOTrainer:
         """
         Handles learning phase for a single minibatch. Returns objective function to be maximized.
         """
-        clipped_surrogate_objective = calc_clipped_surrogate_objective
-        value_loss = calc_value_function_loss
-        entropy_bonus = calc_entropy_bonus
-        total_objective_function = clipped_surrogate_objective - value_loss + entropy_bonus
-        return total_objective_function
+        mb_obs = minibatch.obs
+        mb_actions = minibatch.actions
+        mb_logprobs = minibatch.logprobs
+        mb_advantages = minibatch.advantages
+        mb_returns = minibatch.returns
+
+        logits = self.actor(mb_obs)
+        values = self.critic(mb_obs).flatten()
+        dist = t.distributions.categorical.Categorical(logits=logits)
+
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(dist, mb_actions, mb_advantages, mb_logprobs, self.args.clip_coef)
+        value_loss = calc_value_function_loss(values, mb_returns, self.args.vf_coef)
+        entropy_bonus = calc_entropy_bonus(dist, self.args.ent_coef)
+        return clipped_surrogate_objective - value_loss + entropy_bonus
 
     def log_video(self, phase: int, caption: str | None = None) -> None:
         """Render the first 16 envs of the rollout currently sitting in the replay memory as a 4x4
@@ -799,8 +808,13 @@ def test_probe(probe_idx: int):
         t.testing.assert_close(probs.float(), t.tensor(expected_probs).to(args.device), atol=atol, rtol=0)
     print("Probe tests passed!\n")
 
+for probe_idx in range(1, 6):
+    test_probe(probe_idx)
+
 # %%
 args = PPOArgs(use_wandb=False, video_log_freq=50)
 trainer = PPOTrainer(args)
 trainer.train()
 display(record_grid_video(trainer, kind="classic-control"))
+
+# %%

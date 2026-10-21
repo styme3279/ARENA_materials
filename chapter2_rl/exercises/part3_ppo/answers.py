@@ -912,13 +912,18 @@ def get_actor_and_critic_atari(obs_shape: tuple[int, ...], num_actions: int) -> 
     assert obs_shape[-1] % 8 == 4
 
     backbone = nn.Sequential(
-        nn.Conv2d(),
+        nn.Conv2d(in_channels=obs_shape[0], out_channels=32, kernel_size=8, stride=4, padding=0),
         nn.ReLU(),
-        nn.Conv2d(),
+        nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2, padding=0),
+        nn.ReLU(),
+        nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0),
+        nn.Flatten(),
+        nn.ReLU(),
+        layer_init(nn.Linear(, 512)),
         nn.ReLU()
     )
-    actor = nn.Sequential(backbone, layer_init(nn.Linear()))
-    critic = nn.Sequential(backbone, layer_init(nn.Linear()))
+    actor = nn.Sequential(backbone, layer_init(nn.Linear(512, num_actions), std=0.01))
+    critic = nn.Sequential(backbone, layer_init(nn.Linear(512, 1), std=1))
     return actor, critic
 
 

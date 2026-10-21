@@ -45,16 +45,16 @@ This section takes you through a full implementation of RL fine-tuning of a lang
 (Reinforcement Learning from Human Feedback). We'll use **GRPO** (Group Relative Policy Optimization), the algorithm
 introduced in the [DeepSeekMath paper](https://arxiv.org/abs/2402.03300) and used to train DeepSeek-R1, which has become
 the standard algorithm for RL on language models. Unlike PPO, GRPO needs no critic (value network): 
-we instead estimate the advantage by scoring each rollout, and use the average score obtained
-by the *group* as the baseline function. This is more efficient than using PPO, which would require
-modifying the LLM and grafting on a value head to the end of the residual stream, and then
-training it to try and estimate how much the reward model would score a particular generation.
+we instead estimate the advantage by running lots of rollouts, scoring each of them, and using the average score obtained
+by the *group* as the baseline function. This is more efficient than using PPO, which required us to
+modify the LLM by grafting on a value head to the end of the residual stream, and then
+training it to estimate how much the reward model would score a particular generation.
 An older version of this material did exactly this, but GRPO (and other such methods) are more standard to use now. 
 
 We'll be working directly with [Hugging Face `transformers`](https://huggingface.co/docs/transformers/index) models,
 rather than transformer lens which is not optimized for performance. We start by discussing how the RL framework of states,
 actions and rewards fits onto autoregressive language models, then build GRPO up piece by piece (sampling, rewards,
-advantages, the KL penalty and the clipped objective), and put everything together into a `GRPO_Trainer` class. In the
+advantages, and the clipped objective), and put everything together into a `GRPO_Trainer` class. In the
 second half, you'll implement **LoRA** (Low-Rank Adaptation), a Parameter Efficient Fine-Tuning (PEFT) 
 method, from scratch, and use it to
 RL fine-tune a model that would otherwise be too big to train on a single GPU.
@@ -67,8 +67,8 @@ You don't need to have done the PPO material to do this section, although if you
 > If you're running on a machine with less than 22 GiB of VRAM
 > (or with no GPU at all), the variable `LOW_GPU_MEM` will be
 > set to `True` automatically, and we'll switch to smaller models.
-> You won't miss out on learning anything about RLHF, but you'll be
-> less able to play around with training larger models on more
+> You won't miss out on learning anything about RLHF, but you won't be
+> able to play around with training larger models on more
 > interesting reward functions.
 
 For a lecture on the material today, which provides some high-level understanding before you dive into the material, watch the video below:
@@ -276,7 +276,7 @@ We'll use two families of models today, both loaded from the Hugging Face Hub:
   parameters if `LOW_GPU_MEM`), which we'll fully fine-tune in the first section. It's an old model, but small and
   fast to sample from, and you know its architecture well from chapter 1.
 - [Qwen3](https://huggingface.co/Qwen/Qwen3-1.7B-Base) (1.7B parameters, or 0.6B with `LOW_GPU_MEM`), which we'll
-  fine-tune with LoRA in the second section. Fully fine-tuning a 1.7B model in float32 needs well over 24GB, as we'll see.
+  fine-tune with LoRA in the second section.
 
 Both are **base** models (pretrained only, no instruction tuning or RLHF).
 '''

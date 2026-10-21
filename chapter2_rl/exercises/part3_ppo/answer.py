@@ -494,16 +494,17 @@ class PPOAgent:
 
         with t.inference_mode():
             logits = self.actor(obs)
+            values = self.critic(obs)
 
-            action_sampler = t.distributions.categorical.Categorical(logits=logits)
-            actions = action_sampler.sample()
-            logprobs = action_sampler.log_prob(actions)
+        action_sampler = t.distributions.categorical.Categorical(logits=logits)
+        actions = action_sampler.sample()
+        logprobs = action_sampler.log_prob(actions)
 
-        next_obs, rewards, terminated, truncated, infos = self.envs.step(actions)
+        next_obs, rewards, terminated, _, infos = self.envs.step(actions)
 
-        self.memory.add(obs, actions, logprobs, )
+        self.memory.add(obs, actions, logprobs, values.squeeze(-1), rewards, terminated)
 
-        self.obs = next_obs
+        self.next_obs = next_obs
         self.next_terminated = terminated
 
         self.step += self.envs.num_envs

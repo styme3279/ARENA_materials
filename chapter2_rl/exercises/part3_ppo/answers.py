@@ -210,13 +210,9 @@ def compute_advantages(
     advantages = t.zeros_like(rewards)
     advantages[T-1,:] = rewards[T-1,:] + (1.0 - next_terminated.float()) * gamma * next_value - values[T-1,:]
     for step in reversed(range(T-1)):
-        advantages[step,:] = (1.0 - ) * gamma * gae_lambda * advantages[step+1,:]
-    # def compute_advantage_single_step(t):
-    #     if t == 1:
-    #         td = rewards[t-1,:] + (1.0 - terminated[t,:].float()) * gamma * values[t,:] - values[t-1,:]
-    #         return td
-    #     return gamma * gae_lambda * compute_advantage_single_step(t+1)
-    # return compute_advantage_single_step(T-1)
+        td_step = rewards[step,:] + (1.0 - terminated[step,:].float()) * gamma * values[step+1,:] - values[step,:]
+        advantages[step] = td_step + (1.0 - terminated[step+1,:].float()) * (gamma * gae_lambda) * advantages[step+1,:]
+    print(advantages)
     return advantages
 
 tests.test_compute_advantages(compute_advantages)

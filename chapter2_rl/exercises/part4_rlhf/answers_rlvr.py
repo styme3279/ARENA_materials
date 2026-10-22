@@ -227,11 +227,101 @@ rlvr_model = get_peft_model(
 inputs = tokenizer("Hello! How are you?", return_tensors="pt").to(device)
 
 # using the LoRA adaptors by default
-output = rlvr_model.generate(**inputs, max_new_tokens=30, pad_token_id=tokenizer.pad_token_id)
+output = rlvr_model.generate(**inputs, max_new_tokens=60, pad_token_id=tokenizer.pad_token_id)
 print(tokenizer.batch_decode(output))
 # based model with LoRA adaptors disabled
 with rlvr_model.disable_adapter():
-    output = rlvr_model.generate(**inputs, max_new_tokens=30, pad_token_id=tokenizer.pad_token_id)
+    output = rlvr_model.generate(**inputs, max_new_tokens=60, pad_token_id=tokenizer.pad_token_id)
     print(tokenizer.batch_decode(output))
 
 # %%
+print(rlvr_model.print_trainable_parameters())
+
+# %%
+def drgrpo_advantages(returns: Float[Tensor, "n_prompts G"]) -> Float[Tensor, "n_prompts G"]:
+    """Subtract each group's mean return (no std normalisation)."""
+    return returns - returns.mean(dim=-1, keepdim=True)
+
+# %%
+def drgrpo_objective(
+    new_logprobs: Float[Tensor, "batch gen_len"],
+    old_logprobs: Float[Tensor, "batch gen_len"],
+    advantages: Float[Tensor, " batch"],
+    mask: Float[Tensor, "batch gen_len"],
+    max_gen_len: int,
+    clip: float = 0.2,
+) -> Float[Tensor, ""]:
+    """Dr. GRPO loss to minimise, summed over the completions in the batch.
+
+    Args:
+        new_logprobs: Logprobs under the current policy.
+        old_logprobs: Logprobs under the sampling policy.
+        advantages: One advantage per completion.
+        mask: 1.0 on tokens that count, 0.0 on padding.
+        max_gen_len: Generation budget, for the constant normaliser.
+        clip: Ratio clipping range.
+    """
+    assert new_logprobs.shape == old_logprobs.shape and advantages.shape == new_logprobs.shape[:1]
+
+    ratio = (new_logprobs - old_logprobs).exp()
+    clipped = t.clamp(ratio, 1-clip, 1+clip)
+    obj = t.min((ratio * advantages.unsqueeze(-1)), (clipped * advantages.unsqueeze(-1)))
+    return -(obj * mask / max_gen_len).sum()
+
+
+tests.test_drgrpo_objective(drgrpo_objective)
+
+# %%
+def clamp(x : float, lo : float, hi : float) -> float:
+    return min(max(x, lo), hi)
+
+class Curriculum:
+    """Poses problems at difficulty D, scores the answers, and moves D towards the model's frontier."""
+
+    def __init__(
+        self,
+        task: Callable,
+        reward_fn: Callable,
+        initial: float = 1.0,
+        lr: float = 1.0,
+        target: float = 0.5,
+        d_min: float = 0.0,
+        d_max: float = len(DIFFICULTY_LADDER) - 1,
+        seed: int = 0,
+    ):
+        self.task, self.reward_fn = task, reward_fn
+        self.difficulty, self.lr, self.target, self.d_min, self.d_max = initial, lr, target, d_min, d_max
+        self.rng = random.Random(seed)                 # for the task generator
+        self.np_rng = np.random.default_rng(seed)      # for stochastic rounding
+
+    def sample_levels(self, n: int) -> Int[np.ndarray, " n"]:
+        """`n` rungs by stochastic rounding of D: D = 2.3 gives rung 2 70% of the time and rung 3 30%."""
+        lo = np.floor(self.difficulty)
+        return (lo + (self.np_rng.random(n) < self.difficulty - lo)).astype(int)
+
+    def sample(self, n: int) -> list[str]:
+        """Prompts for `n` problems at the current difficulty. Their rungs and answers are kept for scoring."""
+        self.levels = self.sample_levels(n).tolist()
+        prompts, self.answers = [], []
+        for level in self.levels:
+            prompt, answer = self.task(self.rng, level)
+            prompts.append(prompt)
+            self.answers.append(answer)
+        self.prompts = prompts
+        return prompts
+
+    def score(self, groups: list[list[str]]) -> Float[Tensor, "n_prompts G"]:
+        """Reward of each completion: row p scores problem p's group of completions against its answer."""
+        return t.stack([self.reward_fn(group, answer) for group, answer in zip(groups, self.answers)])
+
+    def solve_rate(self, groups: list[list[str]]) -> float:
+        """Fraction of completions whose boxed answer is exactly right."""
+        solved = [extract_boxed_int(c) == answer for group, answer in zip(groups, self.answers) for c in group]
+        return sum(solved) / len(solved)
+
+    def update(self, solve_rate: float) -> None:
+        """Move D towards the frontier: D <- clamp(D + lr * (solve_rate - target), d_min, d_max)."""
+        self.difficulty = clamp(, d_min, d_max)
+
+
+tests.test_curriculum_update(Curriculum)

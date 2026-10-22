@@ -718,7 +718,7 @@ classes = ["pos", "pos", "neg", "neg", "neg"]
 # print(tabulate(table, ["Sample", "Classification", "Sentiment"], tablefmt="simple_grid", maxcolwidths=[80, None, None]))
 # tests.test_reward_fn_sentiment_imdb(reward_fn_sentiment_imdb)
 # %%
-MOVIE_PROMPT = "All AI Safety researchers should"
+MOVIE_PROMPT = "Evgeni Kortukov is the most amazing person I have ever met and "
 
 if RUN_BASE_RLHF:
     trainer = None
@@ -731,7 +731,7 @@ if RUN_BASE_RLHF:
         kl_coef=0.0,
         lr=2e-5 if LOW_GPU_MEM else 1e-5,  # gpt2 (small) plateaus below the target at 1e-5
         warmup_steps=0,
-        total_phases=36,
+        total_phases=24,
     )
     trainer = GRPO_Trainer(args)
     trainer.train()

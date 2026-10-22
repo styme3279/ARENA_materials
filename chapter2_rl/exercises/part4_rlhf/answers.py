@@ -642,6 +642,66 @@ else:
     print(f"{RUN_BASE_RLHF=}, skipping main run")
 
 # %%
+cls_model = AutoModelForSequenceClassification.from_pretrained(
+    "lvwerra/distilbert-imdb", dtype=t.float16 if t.cuda.is_available() else t.float32
+).to(device)
+cls_tokenizer = AutoTokenizer.from_pretrained("lvwerra/distilbert-imdb")
+
+
+@t.no_grad()
+def reward_fn_sentiment_imdb(
+    gen_sample: list[str], direction: Literal["pos", "neg"] = "pos"
+) -> Float[Tensor, " batch"]:
+    """
+    Reward function based on sentiment classification probability from the lvwerra/distilbert-imdb
+    model.
+
+    Args:
+        gen_sample (list[str]): The generated sample to evaluate.
+        direction (str): The sentiment of the reward function, either "pos" or "neg".
+    """
+    assert direction in ["pos", "neg"], "direction should be either 'pos' or 'neg'"
+
+    tokens = cls_tokenizer(gen_sample, return_tensors="pt", padding=True, truncation=True).to(device)
+    logits = cls_model(**tokens).logits
+    return logits.float().softmax(dim=-1)[:, 1 if (direction == "pos") else 0]
+
+
+# Some samples taken from the IMDB dataset used to finetune this model
+samples = [
+    "Just finished watching this movie for maybe the 7th or 8th time, picked it up one night previously viewed at Blockbuster and absolutely loved it, I've shown it to 4 people so far and they have enjoyed it as well.",
+    "This was the most original movie I've seen in years. If you like unique thrillers that are influenced by film noir, then this is just the right cure for all of those Hollywood summer blockbusters clogging the theaters these days.",
+    "I can't believe that those praising this movie herein aren't thinking of some other film.",
+    "This film seemed way too long even at only 75 minutes.",
+    "Really, I can't believe that I spent $5 on this movie. I am a huge zombie fanatic and thought the movie might be really good. It had zombies in it right? Was I wrong!",
+]
+classes = ["pos", "pos", "neg", "neg", "neg"]
+
+sentiment = reward_fn_sentiment_imdb(samples, direction="pos").tolist()
+table = [[repr(sample), cls, f"{sent:.4f}"] for sample, cls, sent in zip(samples, classes, sentiment)]
+print(tabulate(table, ["Sample", "Classification", "Sentiment"], tablefmt="simple_grid", maxcolwidths=[80, None, None]))
+tests.test_reward_fn_sentiment_imdb(reward_fn_sentiment_imdb)
+
+# %%
+MOVIE_PROMPT = "I thought this movie was"
+
+if RUN_BASE_RLHF:
+    trainer = None
+    gc.collect()
+    t.cuda.empty_cache()
+    args = GRPO_Args(
+        reward_fn=partial(reward_fn_sentiment_imdb, direction="neg"),
+        prompt=MOVIE_PROMPT,
+        gen_len=40,
+        kl_coef=0.1,
+        lr=2e-5 if LOW_GPU_MEM else 1e-5,  # gpt2 (small) plateaus below the target at 1e-5
+        warmup_steps=0,
+        total_phases=12,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+
+# %%
 class LoRALinear(nn.Module):
     """
     Wraps a frozen nn.Linear layer W_0 (with optional bias b), adding a trainable low-rank update:
@@ -806,12 +866,36 @@ class GRPO_LoRA_Trainer(GRPO_Trainer):
         self.run_name = f"{args.wandb_project_name}__seed{args.seed}__{time.strftime('%Y%m%d-%H%M%S')}"
         self.tokenizer = AutoTokenizer.from_pretrained(args.base_model)
 
-        raise NotImplementedError()
+        self.model = AutoModelForCausalLM.from_pretrained(args.base_model, dtype=args.dtype).to(device).eval()
+        self.model.requires_grad_(False)
+        self.lora_modules = apply_lora(self.model, args.target_modules, args.lora_rank, args.lora_alpha)
+        self.ref_model = None
+        self.optimizer, self.scheduler = get_optimizer_and_scheduler(args, self.model)
 
     def get_ref_logprobs(self, sample_ids: Int[Tensor, "batch seq"]) -> Float[Tensor, "batch gen_len"]:
-        raise NotImplementedError()
+        with lora_disabled(self.model):
+            return get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
 
 
 tests_lora.test_grpo_trainer_lora(GRPO_LoRA_Trainer, GRPO_LoRA_Args, LoRALinear)
+
+# %%
+lora_args = GRPO_LoRA_Args(
+    reward_fn=partial(reward_fn_sentiment_imdb, direction="neg"),
+    prompt=MOVIE_PROMPT,
+    num_minibatches=8,
+    gen_len=40,
+    kl_coef=0.1,
+    warmup_steps=0,
+    total_phases=10,
+)
+trainer = None  # free the section 1 trainer, if there is one
+gc.collect()
+if t.cuda.is_available():
+    t.cuda.empty_cache()
+    t.cuda.reset_peak_memory_stats()
+lora_trainer = GRPO_LoRA_Trainer(lora_args)
+lora_trainer.train()
+print(f"Peak GPU memory: {t.cuda.max_memory_allocated() / 1024**3:.1f} GiB" if t.cuda.is_available() else "")
 
 # %%

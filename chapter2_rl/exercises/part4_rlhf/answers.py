@@ -173,7 +173,7 @@ def reward_fn_char_count(generated_sample: list[str], char: str = ".") -> Float[
     Returns:
         A float tensor of shape (batch,) giving the count of `char` in each sample.
     """
-    return t.Tensor([s.count(char) for s in generated_sample]).to(device)
+    return t.Tensor([s.count(char) for s in generated_sample]).to(device).to(t.float32)
 
 
 # Test your reward function
@@ -518,8 +518,9 @@ class GRPO_Trainer:
         )
 
         with t.inference_mode():
-            logits = get_logits(self.model, sample_ids, self.args.gen_len)
-            logprobs = get_logprobs(logits, sample_ids, self.args.gen_len)
+            # logits = get_logits(self.model, sample_ids, self.args.gen_len)
+            # logprobs = get_logprobs(logits, sample_ids, self.args.gen_len)
+            logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, chunk_size=8)
 
             ref_logits = get_logits(self.ref_model, sample_ids, self.args.gen_len)
             ref_logprobs = self.get_ref_logprobs(sample_ids)
@@ -527,6 +528,9 @@ class GRPO_Trainer:
         rewards = reward_fn_char_count(samples)
 
         advantages = compute_grpo_advantages(rewards)
+
+        print(f"rewards {rewards}")
+        print(f"adv: {advantages}")
 
         self.log_rollout(samples, rewards, logprobs, ref_logprobs)
 
@@ -587,6 +591,8 @@ class GRPO_Trainer:
             objective = self.compute_grpo_objective(minibatch)
             objective.backward()
             t.nn.utils.clip_grad_norm(self.model.parameters(), max_norm=self.args.max_grad_norm)
+            self.optimizer.step()
+            self.step += 1
 
     def train(self) -> None:
         """

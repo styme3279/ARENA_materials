@@ -518,15 +518,17 @@ class GRPO_Trainer:
         )
 
         with t.inference_mode():
-            model_outputs = self.model(sample_ids)
-            logprobs = get_logprobs(model_outputs.logits, sample_ids, self.args.gen_len)
+            logits = get_logits(self.model, sample_ids, self.args.gen_len)
+            logprobs = get_logprobs(logits, sample_ids, self.args.gen_len)
 
-            ref_outputs = self.ref_model(sample_ids)
-            ref_logprobs = get_logprobs(ref_outputs.logits, sample_ids, self.args.gen_len)
+            ref_logits = get_logits(self.ref_model, sample_ids, self.args.gen_len)
+            ref_logprobs = self.get_ref_logprobs(sample_ids)
 
         rewards = reward_fn_char_count(samples)
 
         advantages = compute_grpo_advantages(rewards)
+
+        self.log_rollout(samples, rewards, logprobs, ref_logprobs)
 
         replay_buffer = ReplayMemory(self.args, sample_ids, logprobs, ref_logprobs, advantages)
         return replay_buffer
@@ -542,7 +544,13 @@ class GRPO_Trainer:
             - Also optionally log stuff to Weights & Biases (provided)
         """
 
-        get_lo
+        logits = get_logits(self.model, minibatch.sample_ids, self.args.gen_len)
+        logprobs = get_logprobs(logits, minibatch.sample_ids, self.args.gen_len)
+
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
+        kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
+
+        objective = clipped_surrogate_objective + kl_penalty
 
         if self.args.use_wandb:
             with t.no_grad():
@@ -573,7 +581,12 @@ class GRPO_Trainer:
 
         Returns the average objective function value over the minibatches as a float for logging.
         """
-        raise NotImplementedError()
+
+        for minibatch in memory.get_minibatches():
+            self.optimizer.zero_grad()
+            objective = self.compute_grpo_objective(minibatch)
+            objective.backward()
+            t.nn.utils.clip_grad_norm(self.model.parameters(), max_norm=self.args.max_grad_norm)
 
     def train(self) -> None:
         """

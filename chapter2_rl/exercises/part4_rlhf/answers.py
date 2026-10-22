@@ -264,14 +264,15 @@ def get_logprobs(
     Returns:
         The logprobs on the tokens sampled.
     """
-    num_batches = logits.shape[0]
+    used_logits = logits[:, -(gen_len + 1):, :]
+    used_tokens = tokens[:, -(gen_len):]
 
-    for batch in range(num_batches):
-        logprobs = t.log_softmax(logits)
-        
+    logprobs = t.log_softmax(used_logits, dim=-1)
+    token_logprobs = logprobs.gather(dim=-1, index=used_tokens.unsqueeze(-1)).squeeze(-1)
+    return token_logprobs
 
-
-    
 
 
 tests.test_get_logprobs(get_logprobs)
+
+# %%

@@ -560,12 +560,13 @@ class GRPO_Trainer:
             temperature=self.args.temperature,
         )
 
-        logprobs = self.model(sample_ids)
-        ref_logprobs = self.ref_model(sample_ids)
+        logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.batch_size)
+        ref_logprobs = self.get_ref_logprobs(sample_ids)
         rewards = reward_fn_char_count(samples)
         advantages = compute_grpo_advantages(rewards)
 
         return ReplayMemory(
+            args=self.args,
             sample_ids=sample_ids,
             logprobs=logprobs,
             ref_logprobs=ref_logprobs,
@@ -582,11 +583,11 @@ class GRPO_Trainer:
             - Use these to compute both terms of the objective function, and return it
             - Also optionally log stuff to Weights & Biases (provided)
         """
-        logits = get_logits(self.model, minibatch.sample_ids, minibatch.logprobs.size(1))
-        logprobs = get_logprobs(logits, minibatch.sample_ids, minibatch.logprobs.size(1))
-        surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.ref_logprobs, minibatch.advantages, self.args.clip_coef)
+        logits = get_logits(self.model, minibatch.sample_ids, self.args.gen_len)
+        logprobs = get_logprobs(logits, minibatch.sample_ids, self.args.gen_len)
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
         kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
-        objective = surrogate_objective - kl_penalty
+        objective = clipped_surrogate_objective - kl_penalty
 
         if self.args.use_wandb:
             with t.no_grad():
@@ -617,7 +618,8 @@ class GRPO_Trainer:
 
         Returns the average objective function value over the minibatches as a float for logging.
         """
-        raise NotImplementedError()
+        for mb in memory.get_minibatches():
+            print(mb)
 
     def train(self) -> None:
         """

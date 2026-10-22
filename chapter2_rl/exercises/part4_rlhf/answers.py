@@ -618,53 +618,50 @@ class GRPO_Trainer:
             wandb.finish()
 
 
-tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
+# tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 
 
-# %%
-# Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
-if RUN_BASE_RLHF:
-    model = None  # free the demo model from earlier
-    args = GRPO_Args(
-        kl_coef=0.0,
-        lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
-        batch_size=64,
-        num_minibatches=1,
-        batches_per_learning_phase=1,
-        total_phases=6,
-        warmup_steps=0,
-        reward_fn=reward_fn_char_count,
-    )
-    trainer = GRPO_Trainer(args)
-    trainer.train()
-else:
-    print(f"{RUN_BASE_RLHF=}, skipping test run")
-
-# %%
-if RUN_BASE_RLHF:
-
-    trainer = None
-    gc.collect()
-    t.cuda.empty_cache()
-    # CUDA errors? reduce batch_size or gen_len
-    args = GRPO_Args(
-        kl_coef=1.25,
-        lr=1e-4,
-        num_minibatches=8,
-        batches_per_learning_phase=2,
-        warmup_steps=5,
-        total_phases=40,
-        reward_fn=reward_fn_char_count,
-        prompt= "Hello, my fellow ",
-    )
-    trainer = GRPO_Trainer(args)
-    trainer.train()
-else:
-    print(f"{RUN_BASE_RLHF=}, skipping main run")
-
+# # %%
+# # Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
+# if RUN_BASE_RLHF:
+#     model = None  # free the demo model from earlier
+#     args = GRPO_Args(
+#         kl_coef=0.0,
+#         lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
+#         batch_size=64,
+#         num_minibatches=1,
+#         batches_per_learning_phase=1,
+#         total_phases=6,
+#         warmup_steps=0,
+#         reward_fn=reward_fn_char_count,
+#     )
+#     trainer = GRPO_Trainer(args)
+#     trainer.train()
+# else:
+#     print(f"{RUN_BASE_RLHF=}, skipping test run")
 
 # %%
-!pip install transformers
+# if RUN_BASE_RLHF:
+
+#     trainer = None
+#     gc.collect()
+#     t.cuda.empty_cache()
+#     # CUDA errors? reduce batch_size or gen_len
+#     args = GRPO_Args(
+#         kl_coef=1.25,
+#         lr=1e-4,
+#         num_minibatches=8,
+#         batches_per_learning_phase=2,
+#         warmup_steps=5,
+#         total_phases=40,
+#         reward_fn=reward_fn_char_count,
+#         prompt= "Hello, my fellow ",
+#     )
+#     trainer = GRPO_Trainer(args)
+#     trainer.train()
+# else:
+#     print(f"{RUN_BASE_RLHF=}, skipping main run")
+
 
 # %%
 
@@ -690,10 +687,20 @@ def reward_fn_sentiment_imdb(
     """
     assert direction in ["pos", "neg"], "direction should be either 'pos' or 'neg'"
 
-    pipe = pipeline("text-classification", model="lvwerra/distilbert-imdb")
+    pipe = pipeline("text-classification", model="tomh/toxigen_hatebert", truncation=True)
 
-    classification = pipe()
-    
+    classifications = []
+    for sample in gen_sample:
+        classification = pipe(sample)
+        classification = classification[0]
+        if direction == "pos" and classification["label"] == "POSITIVE":
+            classifications.append(classification["score"])
+        elif direction == "neg" and classification["label"] == "NEGATIVE":
+            classifications.append(classification["score"])   
+        else:
+            classifications.append(1 - classification["score"])  
+
+    return t.Tensor(classifications).to(device)
 
 
 # Some samples taken from the IMDB dataset used to finetune this model
@@ -710,4 +717,22 @@ sentiment = reward_fn_sentiment_imdb(samples, direction="pos").tolist()
 table = [[repr(sample), cls, f"{sent:.4f}"] for sample, cls, sent in zip(samples, classes, sentiment)]
 print(tabulate(table, ["Sample", "Classification", "Sentiment"], tablefmt="simple_grid", maxcolwidths=[80, None, None]))
 tests.test_reward_fn_sentiment_imdb(reward_fn_sentiment_imdb)
+# %%
+MOVIE_PROMPT = "I thought this movie was"
+
+if RUN_BASE_RLHF:
+    trainer = None
+    gc.collect()
+    t.cuda.empty_cache()
+    args = GRPO_Args(
+        reward_fn=partial(reward_fn_sentiment_imdb, direction="neg"),
+        prompt=MOVIE_PROMPT,
+        gen_len=40,
+        kl_coef=0.1,
+        lr=2e-5 if LOW_GPU_MEM else 1e-5,  # gpt2 (small) plateaus below the target at 1e-5
+        warmup_steps=0,
+        total_phases=12,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
 # %%

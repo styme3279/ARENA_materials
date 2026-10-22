@@ -723,7 +723,7 @@ for Q-Learning: agents take a random action with probability epsilon, but now we
 decrease epsilon. The Q-network is also randomly initialized (rather than initialized with zeros),
 so its predictions of what is the best action to take are also pretty random to start.
 
-Some games like [Montezuma's Revenge](https://paperswithcode.com/task/montezumas-revenge) have sparse rewards that require more advanced exploration methods to obtain. The player is required to collect specific keys to unlock specific doors, but unlike humans, DQN has no prior knowledge about what a key or a door is, and it turns out that bumbling around randomly has too low of a probability of correctly matching a key to its door. Even if the agent does manage to do this, the long separation between finding the key and going to the door makes it hard to learn that picking the key up was important.
+Some games like [Montezuma's Revenge](https://ale.farama.org/environments/montezuma_revenge/) have sparse rewards that require more advanced exploration methods to obtain. The player is required to collect specific keys to unlock specific doors, but unlike humans, DQN has no prior knowledge about what a key or a door is, and it turns out that bumbling around randomly has too low of a probability of correctly matching a key to its door. Even if the agent does manage to do this, the long separation between finding the key and going to the door makes it hard to learn that picking the key up was important.
 
 As a result, DQN scored an embarrassing 0% of average human performance on this game.
 
@@ -1723,8 +1723,10 @@ def test_probe(probe_idx: int):
 
     # Calculate the actual value, and verify it
     value = trainer.q_network(obs)
+    # A bf16 network (e.g. under autocast) can't represent these targets to better than its eps
+    atol = max(tolerances[probe_idx - 1], t.finfo(value.dtype).eps)
     expected_value = t.tensor(expected_value_for_probes[probe_idx - 1]).to(device)
-    t.testing.assert_close(value, expected_value, atol=tolerances[probe_idx - 1], rtol=0)
+    t.testing.assert_close(value.float(), expected_value, atol=atol, rtol=0)
     print("Probe tests passed!\n")
 
 

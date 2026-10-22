@@ -234,7 +234,7 @@ def get_logprobs(
     
     generated_tokens = tokens[:,-gen_len:]
     log_probs = logits.log_softmax(dim=-1)
-    return t.gather(log_probs[:,-gen_len:,:], 2, generated_tokens.unsqueeze(-1)).squeeze(-1)
+    return t.gather(log_probs[:,-gen_len-1:-1,:], 2, generated_tokens.unsqueeze(-1)).squeeze(-1)
 
 
 tests.test_get_logprobs(get_logprobs)
@@ -262,3 +262,70 @@ def get_logprobs_batched(
         logits = get_logits(model, chunk, gen_len)
         logprobs.append(get_logprobs(logits, chunk, gen_len))
     return t.cat(logprobs)
+
+# %%
+def calc_kl_penalty_naive(
+    logprobs: Float[Tensor, "minibatch_size gen_len d_vocab"],
+    ref_logprobs: Float[Tensor, "minibatch_size gen_len d_vocab"],
+    kl_coef: float,
+) -> Float[Tensor, ""]:
+    probs = logprobs.exp()
+    kl_div = (probs * (logprobs - ref_logprobs)).sum(-1)  # sum d_vocab
+
+    return kl_coef * kl_div.mean()  # mean batch, seq
+
+
+tests.test_calc_kl_penalty_naive(calc_kl_penalty_naive)
+tests.test_calc_kl_penalty_naive_stability(calc_kl_penalty_naive)
+
+# %%
+@t.no_grad()
+def kl_diagnostics(model: PreTrainedModel, tokenizer: PreTrainedTokenizerBase, prompt: str, k: int = 50):
+    """Plot the model's top-k next-token probabilities after `prompt`, to show how concentrated the
+    distribution is: almost all the mass sits on a handful of tokens."""
+    input_ids = tokenizer(tokenizer.eos_token + prompt, return_tensors="pt").input_ids.to(device)
+    logprobs = model(input_ids).logits[0, -1].float().log_softmax(-1)
+    top = logprobs.argsort(descending=True)[:k]
+    probs = logprobs[top].exp().numpy(force=True)
+    labels = [repr(tokenizer.decode([i]))[1:-1] for i in top]
+
+    fig, ax = plt.subplots(figsize=(9, 3.5), dpi=200)
+    ax.bar(np.arange(k), probs, color="#378ADD")
+    ax.set(ylabel="probability", title=f'top-{k} next-token probs after "{prompt}"')
+    ax.set_xticks(np.arange(k), labels, rotation=90, fontsize=9)
+    fig.tight_layout()
+    return fig
+
+# %%
+kl_diagnostics(model, tokenizer, "The cat sat on the")
+plt.show()
+
+# %%
+def calc_kl_penalty(
+    logprobs: Float[Tensor, "minibatch_size gen_len"],
+    ref_logprobs: Float[Tensor, "minibatch_size gen_len"],
+    kl_coef: float,
+) -> Float[Tensor, ""]:
+    """
+    Computes the KL penalty `kl_coef * D_KL(pi_theta || pi_ref)` from only the generated tokens' logprobs, using the k2
+    estimator 0.5 * (log pi_theta - log pi_ref)^2.
+    Args:
+        logprobs:
+            log pi_theta(a_t | s_t) for each generated token (under the new model).
+        ref_logprobs:
+            log pi_ref(a_t | s_t) for each generated token (under the reference model).
+        kl_coef:
+            The coefficient of the KL penalty.
+
+    Output:
+        The (estimated) KL divergence between the new and reference policies, scaled by kl_coef.
+    """
+    assert logprobs.shape == ref_logprobs.shape, "logprobs and ref_logprobs must have the same shape"
+
+    return kl_coef * 0.5 * (logprobs - ref_logprobs).pow(2).mean()
+
+
+tests.test_calc_kl_penalty(calc_kl_penalty)
+tests.test_calc_kl_penalty_stability(calc_kl_penalty)
+
+# %%

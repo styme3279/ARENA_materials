@@ -624,3 +624,21 @@ class GRPO_Trainer:
 
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 # %%
+# Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
+if RUN_BASE_RLHF:
+    model = None  # free the demo model from earlier
+    args = GRPO_Args(
+        kl_coef=2.0,
+        lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
+        batch_size=64,
+        num_minibatches=1,
+        batches_per_learning_phase=1,
+        total_phases=30,
+        warmup_steps=0,
+        reward_fn=reward_fn_char_count,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping test run")
+# %%

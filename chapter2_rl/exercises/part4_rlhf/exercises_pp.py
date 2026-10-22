@@ -524,14 +524,20 @@ class GRPO_Trainer:
             temperature=self.args.temperature,
         )
 
-        logprobs_m = get_logprobs_batched(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunks=self.args.minibatch_size)
+        logprobs_m = get_logprobs_batched(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunk_size=self.args.minibatch_size)
         logprobs_ref = self.get_ref_logprobs(sample_ids)
         rewards = self.args.reward_fn(samples)
+        advantages = compute_grpo_advantages(rewards)
 
+        self.log_rollout(samples, rewards, logprobs_m, logprobs_ref)
 
-
-
-        raise NotImplementedError()
+        return ReplayMemory(
+            self.args,
+            sample_ids,
+            logprobs_m,
+            logprobs_ref,
+            advantages,
+        )
 
     def compute_grpo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
         """
@@ -543,7 +549,12 @@ class GRPO_Trainer:
             - Use these to compute both terms of the objective function, and return it
             - Also optionally log stuff to Weights & Biases (provided)
         """
-        raise NotImplementedError()
+        logits = get_logits(self.model, minibatch.sample_ids, self.args.gen_len)
+        logprobs = get_logprobs(logits, minibatch.sample_ids, self.args.gen_len)
+
+        clipped_sur_obj = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
+        kl = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
+        obj = clipped_sur_obj - kl
 
         if self.args.use_wandb:
             with t.no_grad():
@@ -553,14 +564,14 @@ class GRPO_Trainer:
                 dict(
                     total_steps=self.step,
                     lr=self.scheduler.get_last_lr()[0],
-                    clipped_surrogate_objective=clipped_surrogate_objective.item(),
+                    clipped_surrogate_objective=clipped_sur_obj.item(),
                     clipfrac=clipfrac,
-                    kl_penalty=kl_penalty.item(),
+                    kl_penalty=kl.item(),
                 ),
                 step=self.step,
             )
 
-        return objective
+        return obj
 
     def learning_phase(self, memory: ReplayMemory) -> float:
         """
@@ -574,7 +585,17 @@ class GRPO_Trainer:
 
         Returns the average objective function value over the minibatches as a float for logging.
         """
-        raise NotImplementedError()
+        total = 0.0
+        minibatches = memory.get_minibatches()
+        for minibatch in tqdm(minibatches):
+            self.optimizer.zero_grad()
+            objective = -self.compute_grpo_objective(minibatch)
+            objective.backward()
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
+            self.scheduler.step()
+            self.optimizer.step()
+            total += objective.item()
+            self.step += 1
 
     def train(self) -> None:
         """

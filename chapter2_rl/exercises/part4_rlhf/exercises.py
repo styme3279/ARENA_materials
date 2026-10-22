@@ -549,8 +549,6 @@ class GRPO_Trainer:
             - Compute the rewards and advantages
             - Log the rollouts, and return the data in a ReplayMemory object
         """
-
-        # [batch, pos]
         sample_ids, samples = get_samples(
             self.model,
             self.tokenizer,
@@ -560,17 +558,23 @@ class GRPO_Trainer:
             temperature=self.args.temperature,
         )
 
-        logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.batch_size)
+        # Log-probabilities of the generated tokens under the current (= old, from the learning phase's point of view)
+        # and reference policies
+        logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
         ref_logprobs = self.get_ref_logprobs(sample_ids)
-        rewards = reward_fn_char_count(samples)
+
+        # Rewards, and group-relative advantages
+        rewards = self.args.reward_fn(samples)
         advantages = compute_grpo_advantages(rewards)
+
+        self.log_rollout(samples, rewards, logprobs, ref_logprobs)
 
         return ReplayMemory(
             args=self.args,
             sample_ids=sample_ids,
             logprobs=logprobs,
             ref_logprobs=ref_logprobs,
-            advantages=advantages
+            advantages=advantages,
         )
 
     def compute_grpo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
@@ -585,7 +589,10 @@ class GRPO_Trainer:
         """
         logits = get_logits(self.model, minibatch.sample_ids, self.args.gen_len)
         logprobs = get_logprobs(logits, minibatch.sample_ids, self.args.gen_len)
-        clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
+
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(
+            logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef
+        )
         kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
         objective = clipped_surrogate_objective - kl_penalty
 
@@ -618,8 +625,22 @@ class GRPO_Trainer:
 
         Returns the average objective function value over the minibatches as a float for logging.
         """
-        for mb in memory.get_minibatches():
-            print(mb)
+        total = 0.0
+        minibatches = memory.get_minibatches()
+
+        # An inner progress bar under train()'s outer one: leave=False removes it when the phase ends, and
+        # delay=0.5 only shows it if the phase takes longer than half a second.
+        for minibatch in tqdm(minibatches, desc="learning", leave=False, delay=0.5):
+            self.optimizer.zero_grad()
+            objective = self.compute_grpo_objective(minibatch)
+            objective.backward()
+            nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.args.max_grad_norm)
+            self.optimizer.step()
+            self.step += 1
+            total += objective.item()
+
+        self.scheduler.step()
+        return total / len(minibatches)
 
     def train(self) -> None:
         """
@@ -642,7 +663,6 @@ class GRPO_Trainer:
 
         if self.args.use_wandb:
             wandb.finish()
-
 
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 

@@ -436,21 +436,22 @@ class RLVRTrainer:
     @t.no_grad()
     def rollout_phase(self) -> RolloutBuffer:
         """Sample problems, generate completions, score them, and move the curriculum."""
-        # Sample prompts, tokenize
         prompts = self.curriculum.sample(self.args.n_prompts)
-        tokens = self.tokenizer(prompts, padding=True)
-        # generate G completions
-        completions = self.sampler.generate(**tokens, max_new_tokens=self.args.max_new_tokens, num_return_sequences=self.args.num_return_sequences, verbose=True)
-        print(f"{completions.shape=}")
-        # decode
-        groups = list() # list[list[str]]
-        for completion_p in completions.shape[0]:
-            decoded_completions_p = self.tokenizer.batch_decode(completion_p)
+        enc = self.tokenizer(prompts, return_tensors="pt", padding=True).to(device)
+        gen = self.sampler.generate(**enc, max_new_tokens=self.args.max_new_tokens,
+                                    num_return_sequences=self.args.num_return_sequences, verbose=True)
+        prefix_len = enc.input_ids.shape[1]
+        groups = [self.tokenizer.batch_decode(g[:, prefix_len:], skip_special_tokens=True) for g in gen]  # groups[p][g]
 
-        # package a rollout
-        buffer = RolloutBuffer.from_rollouts(gen, prompt_mask, advantages, self.tokenizer.eos_id)
+        rewards = self.curriculum.score(groups).to(device)              # (n_prompts, G)
+        advantages = drgrpo_advantages(rewards)                         # (n_prompts, G)
+        buffer = RolloutBuffer.from_rollouts(gen, enc.attention_mask, advantages, self.tokenizer.eos_token_id)
+
+        solve_rate = self.curriculum.solve_rate(groups)
         self.log_rollout(groups, rewards, solve_rate, buffer)
-        loss = 
+        self.curriculum.update(solve_rate)
+        return buffer
+
     def compute_loss(self, mb: RolloutBuffer) -> Float[Tensor, ""]:
         """This microbatch's share of the loss averaged over every completion in the buffer."""
         logprobs = generation_logprobs(self.model, mb.gen, mb.prompt_mask, mb.mask)
@@ -462,7 +463,15 @@ class RLVRTrainer:
     def learning_phase(self, buffer: RolloutBuffer) -> float:
         """Perform one gradient step over the entire buffer, accumulating gradients over each microbatch. Returns the
         buffer's loss."""
-        raise NotImplementedError()
+        self.optimizer.zero_grad()
+        total = 0.0
+        buffer_loader = buffer.microbatches(self.args.micro_batch)
+        for micro_batch in tqdm(buffer_loader, desc="learning", leave=False):
+            loss = self.compute_loss(micro_batch)
+            loss.backward()
+            total += loss.item()
+        self.optimizer.step()
+        return total
 
     def train(self) -> list[tuple[float, float]]:
         """Alternate rollout and learning phases for `args.n_steps`, with live training curves. Returns

@@ -306,6 +306,8 @@ def _test_grpo_trainer(GRPO_Trainer, GRPO_Args):
     if t.allclose(memory.advantages, rewards):
         raise Exception("memory.advantages are the raw rewards: compute the GRPO advantages from them.")
     expected_adv = (rewards - rewards.mean()) / (rewards.std() + 1e-6)
+    print(memory.advantages)
+    print(expected_adv)
     t.testing.assert_close(memory.advantages, expected_adv, atol=1e-4, rtol=1e-4, msg="memory.advantages are wrong")
     print("`rollout_phase` passed!")
 

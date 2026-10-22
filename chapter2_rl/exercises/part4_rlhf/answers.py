@@ -175,14 +175,15 @@ def reward_fn_char_count(generated_sample: list[str], char: str = ".") -> Float[
     Returns:
         A float tensor of shape (batch,) giving the count of `char` in each sample.
     """
-    counts = []
-    for sample in generated_sample:
-        count = 0
-        for c in sample:
-            if c == char:
-                count += 1
-        counts.append(count)
-    return t.tensor(counts, dtype=t.float32).to(device)
+    # counts = []
+    # for sample in generated_sample:
+    #     count = 0
+    #     for c in sample:
+    #         if c == char:
+    #             count += 1
+    #     counts.append(count)
+    # return t.tensor(counts, dtype=t.float32).to(device)
+    return t.tensor([item.count(char) for item in generated_sample], device=device, dtype=t.float)
 
 
 # Test your reward function
@@ -512,7 +513,7 @@ class GRPO_Trainer:
         )
 
         with t.inference_mode():
-            logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.batch_size)
+            logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
             ref_logprobs = self.get_ref_logprobs(sample_ids)
         rewards = reward_fn_char_count(samples)
         advantages = compute_grpo_advantages(rewards)
@@ -564,11 +565,17 @@ class GRPO_Trainer:
 
         Returns the average objective function value over the minibatches as a float for logging.
         """
+        losses = []
         for minibatch in memory.get_minibatches():
             self.optimizer.zero_grad()
             loss = self.compute_grpo_objective(minibatch)
+            losses.append(loss)
             loss.backward()
             t.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
+            self.optimizer.step()
+            self.step += 1
+        self.scheduler.step()
+        return t.tensor(losses).mean()
 
     def train(self) -> None:
         """

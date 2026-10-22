@@ -299,3 +299,29 @@ kl_diagnostics(model, tokenizer, "The cat sat on the")
 plt.show()
 
 # %%
+def calc_kl_penalty(
+    logprobs: Float[Tensor, "minibatch_size gen_len"],
+    ref_logprobs: Float[Tensor, "minibatch_size gen_len"],
+    kl_coef: float,
+) -> Float[Tensor, ""]:
+    """
+    Computes the KL penalty `kl_coef * D_KL(pi_theta || pi_ref)` from only the generated tokens' logprobs, using the k2
+    estimator 0.5 * (log pi_theta - log pi_ref)^2.
+    Args:
+        logprobs:
+            log pi_theta(a_t | s_t) for each generated token (under the new model).
+        ref_logprobs:
+            log pi_ref(a_t | s_t) for each generated token (under the reference model).
+        kl_coef:
+            The coefficient of the KL penalty.
+
+    Output:
+        The (estimated) KL divergence between the new and reference policies, scaled by kl_coef.
+    """
+    assert logprobs.shape == ref_logprobs.shape, "logprobs and ref_logprobs must have the same shape"
+
+    raise NotImplementedError()
+
+
+tests.test_calc_kl_penalty(calc_kl_penalty)
+tests.test_calc_kl_penalty_stability(calc_kl_penalty)

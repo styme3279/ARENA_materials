@@ -957,3 +957,58 @@ print(model.model.layers[0])
 print(f"\n{model.config.num_attention_heads=}, {model.config.num_key_value_heads=}")
 
 # %%
+# Every linear layer in both attention and MLP layers
+
+# Every linear layer in both attention and MLP layers
+LORA_TARGET_MODULES = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
+
+
+def apply_lora(
+    model: nn.Module, 
+    target_modules: tuple[str, ...] = LORA_TARGET_MODULES, 
+    rank: int = 8, 
+    alpha: float = 8
+) -> list[LoRALinear]:
+    """
+    Wraps every nn.Linear whose name (the last part of its path) is one of `target_modules` in a LoRALinear.
+
+    Returns:
+        The list of LoRALinear modules added to the model.
+    """
+
+    lora_modules = []
+    # list(...) takes a snapshot, so we don't loop over the LoRALinear modules we're adding
+    for name, module in list(model.named_modules()):
+        # `name` is the module's full path, e.g. "model.layers.3.self_attn.q_proj"
+        if isinstance(module, nn.Linear) and name.split(".")[-1] in target_modules:
+            lora = LoRALinear(module, rank=rank, alpha=alpha)
+            model.set_submodule(name, lora)
+            lora_modules.append(lora)
+
+    if not lora_modules:
+        raise ValueError(
+            f"No nn.Linear layers named any of {target_modules} were found. Different models name their layers "
+            "differently: print the model to see the names."
+        )
+    return lora_modules
+
+
+tests_lora.test_apply_lora(apply_lora)
+
+# %%
+lora_modules = apply_lora(model, target_modules=LORA_TARGET_MODULES, rank=8, alpha=8)
+lora_model = model  # not a copy: apply_lora adds the adapters to `model` in place, so these are the same object
+n_lora = sum(m.A.numel() + m.B.numel() for m in lora_modules)
+n_total = sum(p.numel() for p in lora_model.parameters())
+print(f"{len(lora_modules)} LoRA modules, {n_lora:,} LoRA parameters out of {n_total:,} ({n_lora / n_total:.3%})")
+print(lora_model.model.layers[0].self_attn)
+
+# %%
+logits = model(tokens).logits  # adapters on: the policy we're training
+
+with lora_disabled(model):
+    ref_logits = model(tokens).logits  # adapters off: the original pretrained model
+
+logits = model(tokens).logits  # adapters back on again
+
+# %%

@@ -525,7 +525,10 @@ class GRPO_Trainer:
         )
 
         # sample_ids_gen = sample_ids[:, -self.args.gen_len]
-        get_logprobs_batched()
+        logprobs_m = get_logprobs_batched(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunks=self.args.minibatch_size)
+        logprobs_ref = get_logprobs_batched(model=self.ref_model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunks=self.args.minibatch_size)
+
+        
 
 
 

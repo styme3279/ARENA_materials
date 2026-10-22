@@ -524,11 +524,10 @@ class GRPO_Trainer:
             temperature=self.args.temperature,
         )
 
-        # sample_ids_gen = sample_ids[:, -self.args.gen_len]
         logprobs_m = get_logprobs_batched(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunks=self.args.minibatch_size)
-        logprobs_ref = get_logprobs_batched(model=self.ref_model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunks=self.args.minibatch_size)
+        logprobs_ref = self.get_ref_logprobs(sample_ids)
+        rewards = self.args.reward_fn(samples)
 
-        
 
 
 

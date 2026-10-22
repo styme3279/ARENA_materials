@@ -250,13 +250,26 @@ def get_logprobs(
     Returns:
         The logprobs on the tokens sampled.
     """
-    logprobs = t.nn.functional.log_softmax(logits, dim=-1)
-    print(logits.shape, logprobs.shape, tokens.shape)
-    sampled_logprobs = t.gather(input=logprobs, dim=-1, index=tokens.unsqueeze(-1))
-    print(sampled_logprobs.shape)
-
-
+    logprobs = t.nn.functional.log_softmax(logits, dim=-1)[:, -gen_len-1:-1, :]
+    tokens_last = tokens[:, -gen_len:].unsqueeze(-1)
+    sampled_logprobs = t.gather(input=logprobs, dim=-1, index=tokens_last).squeeze(-1)
+    return sampled_logprobs
 
 tests.test_get_logprobs(get_logprobs)
+
+# %%
+def calc_kl_penalty_naive(
+    logprobs: Float[Tensor, "minibatch_size gen_len d_vocab"],
+    ref_logprobs: Float[Tensor, "minibatch_size gen_len d_vocab"],
+    kl_coef: float,
+) -> Float[Tensor, ""]:
+    probs = logprobs.exp()
+    kl_div = (probs * (logprobs - ref_logprobs)).sum(-1)  # sum d_vocab
+
+    return kl_coef * kl_div.mean()  # mean batch, seq
+
+
+tests.test_calc_kl_penalty_naive(calc_kl_penalty_naive)
+tests.test_calc_kl_penalty_naive_stability(calc_kl_penalty_naive)
 
 # %%

@@ -906,26 +906,26 @@ class LoRALinear(nn.Module):
         # self.B = nn.Linear(rank, base.out_features)
         in_features = base.in_features
         out_features = base.out_features
-        self.A = nn.Parameter(t.randn(in_features, rank, device=t.device)/np.sqrt(in_features))
-        self.B = nn.Parameter(t.zeros(rank, out_features, device=t.device))
+        self.A = nn.Parameter(t.randn(in_features, rank, device=device)/np.sqrt(in_features))
+        self.B = nn.Parameter(t.zeros(rank, out_features, device=device))
 
 
     def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
 
-        x = self.base(x)
-        if self.enabled:
-            lora = einops.einsum(x, self.A, "... d_in, d_in r -> ... r")
-            lora = einops.einsum(lore, )
-
-
-        return x
-        
+        y = self.base(x)
+        if (not self.enabled) or self.merged:
+            return y
+        lora = einops.einsum(x.to(t.float32), self.A, "... d_in, d_in r -> ... r")
+        lora = einops.einsum(lora, self.B, "... r, r d_out -> ... d_out")
+        y += self.alpha/self.rank * lora
+        return y
 
     @t.no_grad()
     def merge(self) -> None:
         """Adds the low-rank update into the base layer's weights, so the forward pass no longer needs A and B."""
         assert not self.merged, "LoRALinear: Attempting to merge an already merged model."
-        raise NotImplementedError()
+        self.base.weight += (self.alpha / self.rank) * einops.einsum(self.A, self.B, "d_in r, r d_out -> d_out d_in")
+        self.merged = True
 
     @t.no_grad()
     def unmerge(self) -> None:
@@ -934,12 +934,26 @@ class LoRALinear(nn.Module):
         a lower precision (like bfloat16), merging and unmerging both round, so this only gets back to W_0 approximately.
         """
         assert self.merged, "LoRALinear: merge must be run before running unmerge."
-        raise NotImplementedError()
+        self.base.weight -= (self.alpha / self.rank) * einops.einsum(self.A, self.B, "d_in r, r d_out -> d_out d_in")
+        self.merged = False
 
     def extra_repr(self) -> str:
         return f"rank={self.rank}, alpha={self.alpha}, enabled={self.enabled}, merged={self.merged}"
 
 
 tests_lora.test_lora_linear(LoRALinear)
+
+# %%
+tests_lora.test_lora_merge(LoRALinear)
+
+
+# %%
+trainer = None  # free the section 1 trainer (policy + reference model), if there is one
+gc.collect()
+if t.cuda.is_available():
+    t.cuda.empty_cache()
+model = AutoModelForCausalLM.from_pretrained(LORA_MODEL, dtype=LORA_DTYPE).to(device)
+print(model.model.layers[0])
+print(f"\n{model.config.num_attention_heads=}, {model.config.num_key_value_heads=}")
 
 # %%

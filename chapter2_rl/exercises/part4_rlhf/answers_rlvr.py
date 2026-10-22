@@ -133,7 +133,105 @@ def int_reward(completions: list[str], answer: int) -> Float[Tensor, " G"]:
         if reward is None:
             rewards.append(0.0)
         elif reward != answer:
-            rewards
+            rewards.append(0.1)
+        elif reward == answer:
+            rewards.append(1.0)
+        else:
+            raise ValueError
+    return t.tensor(rewards)
 
 
 tests.test_int_reward(int_reward)
+
+# %%
+@dataclass
+class RLVRArgs:
+    # Base model & LoRA (applied with `peft` below)
+    model_name: str = "Qwen/Qwen3-0.6B-Base"
+    lora_rank: int = 16
+    lora_alpha: float = 32
+    lora_dropout: float = 0.0
+    lora_targets: list[str] = field(
+        default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    )
+
+    # Task & reward (the functions you wrote in section 1). `task(rng, difficulty)` -> (prompt, answer)
+    task: Callable = mult_byhand
+    reward_fn: Callable = int_reward     # (completions of one problem, its answer) -> rewards (G,)
+
+    # Dynamic curriculum (section 2): keep each question near `target_success` so the group reward has variance
+    target_success: float = 0.5
+    initial_difficulty: float = 1.0      # D_0; the controller finds the frontier from here
+    difficulty_lr: float = 1.0           # alpha: D += alpha * (batch solve rate - target_success). 0 = fixed difficulty
+    min_difficulty: float = 0.0
+    max_difficulty: float = len(DIFFICULTY_LADDER) - 1
+
+    # Rollouts: each step samples `n_prompts` problems and `num_return_sequences` completions per problem (the GRPO
+    # group, size G in the maths) for `n_prompts * num_return_sequences` total
+    n_prompts: int = 16
+    num_return_sequences: int = 8
+    max_new_tokens: int = 400       # enough for 4x4 working; 350 or less truncates answers and learns less reliably
+    temperature: float = 1.0
+    top_k: int = 50               
+    top_p: float = 0.95
+    sampler: str = "auto"         # "vllm" (in-process vLLM, single weight copy; needs vllm + a big card), "fast" (utils.FastSampler:
+                                  # CUDA graphs + no-repeat GQA attention), "hf" (model.generate). "auto" = vllm if importable, else fast on CUDA, else hf
+
+    # Optimization
+    lr: float = 1e-4
+    log_samples: int = 1          # rollouts printed per step (0 = none)
+    micro_batch: int = 4          # sequences per forward pass when computing logprobs (memory, not maths; peak ~10 GiB, 8 needs ~17)
+
+    # Duration & reproducibility
+    n_steps: int = 20             # training steps, each one rollout batch + one gradient step (~6 min on an A40 with FastSampler)
+    seed: int = 0
+
+# %%
+# Provided: load a small base model + a LoRA adapter
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import LoraConfig, get_peft_model
+from torchinfo import summary
+
+MODEL_NAME = "Qwen/Qwen3-0.6B-Base"
+
+cfg = RLVRArgs()
+
+tokenizer = AutoTokenizer.from_pretrained(cfg.model_name)
+tokenizer.padding_side = "left"   # batched generation: pad on the left so all prompts end at the same position
+
+# Rollout sampler. With vLLM installed we get samples ~2.5x faster (vLLM's weights and the HF model's are one copy).
+# vLLM is optional and not in the ARENA requirements: `pip install vllm==0.30.0`, ideally in a separate environment,
+# since it pins its own torch and transformers. It's only imported if it's installed and we use it here.
+USE_VLLM = cfg.sampler == "vllm" or (cfg.sampler == "auto" and device.type == "cuda" and utils.vllm_available())
+if USE_VLLM:
+    vllm_engine = utils.VLLMEngine(cfg.model_name, tokenizer, seed=cfg.seed, max_lora_rank=cfg.lora_rank,
+                                        temperature=cfg.temperature, top_k=cfg.top_k, top_p=cfg.top_p)
+    _base = vllm_engine.make_hf_base()
+    print("Using vLLM")
+else:
+    vllm_engine = None
+    _base = AutoModelForCausalLM.from_pretrained(cfg.model_name, dtype=t.bfloat16, attn_implementation="sdpa").to(device)
+    print("no vLLM, falling back to FastSampler (CUDA) or HF generate")
+
+_base.config.pad_token_id = tokenizer.pad_token_id
+rlvr_model = get_peft_model(
+    _base,
+    LoraConfig(r=cfg.lora_rank, 
+                lora_alpha=cfg.lora_alpha, 
+                lora_dropout=cfg.lora_dropout,
+                target_modules=cfg.lora_targets),
+)
+
+
+# %%
+inputs = tokenizer("Hello! How are you?", return_tensors="pt").to(device)
+
+# using the LoRA adaptors by default
+output = rlvr_model.generate(**inputs, max_new_tokens=30, pad_token_id=tokenizer.pad_token_id)
+print(tokenizer.batch_decode(output))
+# based model with LoRA adaptors disabled
+with rlvr_model.disable_adapter():
+    output = rlvr_model.generate(**inputs, max_new_tokens=30, pad_token_id=tokenizer.pad_token_id)
+    print(tokenizer.batch_decode(output))
+
+# %%

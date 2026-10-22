@@ -517,7 +517,19 @@ class GRPO_Trainer:
             temperature=self.args.temperature,
         )
 
-        raise NotImplementedError()
+        with t.inference_mode():
+            model_outputs = self.model(sample_ids)
+            logprobs = get_logprobs(model_outputs.logits, sample_ids, self.args.gen_len)
+
+            ref_outputs = self.ref_model(sample_ids)
+            ref_logprobs = get_logprobs(ref_outputs.logits, sample_ids, self.args.gen_len)
+
+        rewards = reward_fn_char_count(samples)
+
+        advantages = compute_grpo_advantages(rewards)
+
+        replay_buffer = ReplayMemory(self.args, sample_ids, logprobs, ref_logprobs, advantages)
+        return replay_buffer
 
     def compute_grpo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
         """
@@ -529,7 +541,8 @@ class GRPO_Trainer:
             - Use these to compute both terms of the objective function, and return it
             - Also optionally log stuff to Weights & Biases (provided)
         """
-        raise NotImplementedError()
+
+        get_lo
 
         if self.args.use_wandb:
             with t.no_grad():
@@ -586,3 +599,6 @@ class GRPO_Trainer:
 
 
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
+
+
+# %%

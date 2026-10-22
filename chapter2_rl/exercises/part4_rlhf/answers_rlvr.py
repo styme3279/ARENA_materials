@@ -436,9 +436,16 @@ class RLVRTrainer:
     @t.no_grad()
     def rollout_phase(self) -> RolloutBuffer:
         """Sample problems, generate completions, score them, and move the curriculum."""
-        self.curriculum.sample()
+        prompts = self.curriculum.sample(self.args.n_prompts)
+        tokens = self.tokenizer(prompts, return_tensors="pt", padding=True).to(device)
+        completions = self.sampler.generate(**tokens, max_new_tokens=self.args.max_new_tokens, num_return_sequences=self.args.num_return_sequences, verbose=True)
+        
         self.curriculum.score()
         self.curriculum.solve_rate()
+        self.curriculum.update()
+        
+        self.tokenizer.batch_decode()
+        return RolloutBuffer.from_rollouts()
 
     def compute_loss(self, mb: RolloutBuffer) -> Float[Tensor, ""]:
         """This microbatch's share of the loss averaged over every completion in the buffer."""
@@ -451,7 +458,15 @@ class RLVRTrainer:
     def learning_phase(self, buffer: RolloutBuffer) -> float:
         """Perform one gradient step over the entire buffer, accumulating gradients over each microbatch. Returns the
         buffer's loss."""
-        raise NotImplementedError()
+        buffer_loss = 0.0
+        
+        for mb in buffer.microbatches(self.args.micro_batch):
+            loss += self.compute_loss(mb)
+            loss.backward()
+            buffer_loss += loss.item()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        return buffer_loss
 
     def train(self) -> list[tuple[float, float]]:
         """Alternate rollout and learning phases for `args.n_steps`, with live training curves. Returns

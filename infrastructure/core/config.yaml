@@ -49,6 +49,9 @@ conversion_map:
   "1.3.4":
     streamlit_page: "14_[1.3.4]_Activation_Oracles"
     exercise_dir: "part34_activation_oracles"
+  "1.3.5":
+    streamlit_page: "15_[1.3.5]_The_J-Lens_&_J-Space"
+    exercise_dir: "part35_j_space"
   "1.4.1":
     streamlit_page: "21_[1.4.1]_Indirect_Object_Identification"
     exercise_dir: "part41_indirect_object_identification"
@@ -298,6 +301,16 @@ chapters:
         status: "All exercises complete and verified"
         streamlit_description: "In this section, you'll implement activation oracles, a technique for interpreting model activations by training small auxiliary models to predict the answer to a wide set of questions. You'll use these to recover hidden knowledge contained within taboo model organisms, and uncover a model's forward-predictions."
         streamlit_description_short: "Implement activation oracles to reveal hidden knowledge and uncover forward-predictions."
+      - id: "15_j_space"
+        number: "1.3.5"
+        title: "The J-Lens & J-Space"
+        exercise_dir: "part35_j_space"
+        page_file: "15_[1.3.5]_The_J-Lens_&_J-Space.md"
+        header_image: "https://raw.githubusercontent.com/info-arena/ARENA_img/refs/heads/main/img/header-63c.png"
+        parent: "1_3_overview"
+        status: "First draft"
+        streamlit_description: "In this section, you'll derive and fit the Jacobian lens (J-lens), which reads out the tokens a model's residual stream is preparing to verbalise. You'll use J-space directions to swap intermediate concepts in multi-hop reasoning, audit and ablate eval awareness, and compare the J-lens with its R-lens and J++ variants."
+        streamlit_description_short: "Fit the Jacobian lens, edit multi-hop reasoning in J-space, and ablate eval awareness."
 
       # Group 1.4: Circuits in LLMs
       - id: "1_4_overview"

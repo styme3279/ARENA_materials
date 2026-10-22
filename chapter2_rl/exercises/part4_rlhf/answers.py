@@ -111,7 +111,7 @@ class GRPO_Args:
     seed: int = 1
 
     # Wandb / logging
-    use_wandb: bool = True
+    use_wandb: bool = False
     wandb_project_name: str = "RLHF"
     wandb_entity: str | None = None
 
@@ -585,6 +585,7 @@ class GRPO_Trainer:
         clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
         kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
         objective = clipped_surrogate_objective - kl_penalty
+        # objective *= -1
         if self.args.use_wandb:
             with t.no_grad():
                 ratio = (logprobs - minibatch.logprobs).exp()
@@ -671,3 +672,45 @@ if RUN_BASE_RLHF:
     trainer.train()
 else:
     print(f"{RUN_BASE_RLHF=}, skipping test run")
+# %%
+if RUN_BASE_RLHF:
+    trainer = None
+    gc.collect()
+    t.cuda.empty_cache()
+    # CUDA errors? reduce batch_size or gen_len
+    args = GRPO_Args(
+        kl_coef=0.25,
+        lr=1e-4,
+        num_minibatches=8,
+        batches_per_learning_phase=2,
+        warmup_steps=5,
+        total_phases=40,
+        reward_fn=reward_fn_char_count,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping main run")
+# %%
+# trying something "different" :P
+if RUN_BASE_RLHF:
+    trainer = None
+    gc.collect()
+    t.cuda.empty_cache()
+    # CUDA errors? reduce batch_size or gen_len
+    args = GRPO_Args(
+        kl_coef=0.25,
+        lr=1e-4,
+        num_minibatches=8,
+        batches_per_learning_phase=2,
+        warmup_steps=5,
+        total_phases=40,
+        reward_fn=reward_fn_char_count,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping main run")
+
+# %%
+

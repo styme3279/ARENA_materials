@@ -357,10 +357,7 @@ def calc_kl_penalty(
         The (estimated) KL divergence between the new and reference policies, scaled by kl_coef.
     """
     assert logprobs.shape == ref_logprobs.shape, "logprobs and ref_logprobs must have the same shape"
-    probs = logprobs.exp()
-    kl_div = (probs * (logprobs - ref_logprobs))
-
-    return kl_coef * kl_div.mean()  # mean batch, seq
+    return (0.5 * kl_coef * (logprobs - ref_logprobs).pow(2)).mean()
 
 
 tests.test_calc_kl_penalty(calc_kl_penalty)

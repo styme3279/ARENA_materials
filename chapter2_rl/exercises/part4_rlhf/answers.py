@@ -813,3 +813,5 @@ class GRPO_LoRA_Trainer(GRPO_Trainer):
 
 
 tests_lora.test_grpo_trainer_lora(GRPO_LoRA_Trainer, GRPO_LoRA_Args, LoRALinear)
+
+# %%

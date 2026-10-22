@@ -662,4 +662,52 @@ if RUN_BASE_RLHF:
 else:
     print(f"{RUN_BASE_RLHF=}, skipping main run")
 
+
+# %%
+!pip install transformers
+
+# %%
+
+from transformers import pipeline
+
+cls_model = AutoModelForSequenceClassification.from_pretrained(
+    "lvwerra/distilbert-imdb", dtype=t.float16 if t.cuda.is_available() else t.float32
+).to(device)
+cls_tokenizer = AutoTokenizer.from_pretrained("lvwerra/distilbert-imdb")
+
+
+@t.no_grad()
+def reward_fn_sentiment_imdb(
+    gen_sample: list[str], direction: Literal["pos", "neg"] = "pos"
+) -> Float[Tensor, " batch"]:
+    """
+    Reward function based on sentiment classification probability from the lvwerra/distilbert-imdb
+    model.
+
+    Args:
+        gen_sample (list[str]): The generated sample to evaluate.
+        direction (str): The sentiment of the reward function, either "pos" or "neg".
+    """
+    assert direction in ["pos", "neg"], "direction should be either 'pos' or 'neg'"
+
+    pipe = pipeline("text-classification", model="lvwerra/distilbert-imdb")
+
+    classification = pipe()
+    
+
+
+# Some samples taken from the IMDB dataset used to finetune this model
+samples = [
+    "Just finished watching this movie for maybe the 7th or 8th time, picked it up one night previously viewed at Blockbuster and absolutely loved it, I've shown it to 4 people so far and they have enjoyed it as well.",
+    "This was the most original movie I've seen in years. If you like unique thrillers that are influenced by film noir, then this is just the right cure for all of those Hollywood summer blockbusters clogging the theaters these days.",
+    "I can't believe that those praising this movie herein aren't thinking of some other film.",
+    "This film seemed way too long even at only 75 minutes.",
+    "Really, I can't believe that I spent $5 on this movie. I am a huge zombie fanatic and thought the movie might be really good. It had zombies in it right? Was I wrong!",
+]
+classes = ["pos", "pos", "neg", "neg", "neg"]
+
+sentiment = reward_fn_sentiment_imdb(samples, direction="pos").tolist()
+table = [[repr(sample), cls, f"{sent:.4f}"] for sample, cls, sent in zip(samples, classes, sentiment)]
+print(tabulate(table, ["Sample", "Classification", "Sentiment"], tablefmt="simple_grid", maxcolwidths=[80, None, None]))
+tests.test_reward_fn_sentiment_imdb(reward_fn_sentiment_imdb)
 # %%

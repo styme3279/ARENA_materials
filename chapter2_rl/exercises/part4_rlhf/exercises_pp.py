@@ -1,4 +1,51 @@
 # %%
+ANIMALS = [
+    # Pets & farm
+    'dog', 'cat', 'horse', 'cow', 'pig', 'sheep', 'goat', 'chicken', 'duck', 'goose',
+    'turkey', 'rabbit', 'hamster', 'guinea pig', 'goldfish', 'parrot', 'mouse', 'rat',
+    'gerbil', 'ferret', 'chinchilla', 'budgie', 'canary', 'cockatoo', 'donkey', 'mule',
+    'pony', 'llama', 'alpaca', 'camel', 'yak',
+    # Wild mammals
+    'lion', 'tiger', 'elephant', 'giraffe', 'zebra', 'bear', 'polar bear', 'panda',
+    'red panda', 'wolf', 'fox', 'coyote', 'jackal', 'hyena', 'cheetah', 'leopard',
+    'snow leopard', 'jaguar', 'cougar', 'lynx', 'bobcat', 'deer', 'moose', 'elk',
+    'reindeer', 'antelope', 'gazelle', 'wildebeest', 'bison', 'buffalo', 'hippopotamus',
+    'rhinoceros', 'warthog', 'wild boar', 'tapir', 'okapi', 'monkey', 'gorilla',
+    'chimpanzee', 'orangutan', 'baboon', 'lemur', 'koala', 'kangaroo', 'wallaby',
+    'wombat', 'platypus', 'Tasmanian devil', 'raccoon', 'skunk', 'squirrel', 'chipmunk',
+    'beaver', 'otter', 'badger', 'hedgehog', 'porcupine', 'bat', 'mole', 'opossum',
+    'armadillo', 'sloth', 'anteater', 'aardvark', 'pangolin', 'meerkat', 'mongoose',
+    'weasel', 'mink', 'wolverine', 'capybara', 'shrew', 'hare', 'mountain goat', 'ibex',
+    'prairie dog', 'groundhog',
+    # Sea mammals
+    'dolphin', 'whale', 'orca', 'narwhal', 'beluga', 'porpoise', 'seal', 'sea lion',
+    'walrus', 'manatee', 'sea otter',
+    # Birds
+    'eagle', 'hawk', 'falcon', 'owl', 'vulture', 'condor', 'osprey', 'crow', 'raven',
+    'magpie', 'sparrow', 'robin', 'pigeon', 'dove', 'seagull', 'pelican', 'flamingo',
+    'swan', 'stork', 'heron', 'crane', 'penguin', 'ostrich', 'emu', 'kiwi', 'peacock',
+    'toucan', 'hummingbird', 'woodpecker', 'kingfisher', 'macaw', 'cardinal',
+    'blue jay', 'starling', 'swallow', 'finch', 'puffin', 'albatross', 'cormorant',
+    'quail', 'pheasant', 'roadrunner', 'cuckoo', 'nightingale', 'lark', 'kookaburra',
+    # Reptiles & amphibians
+    'snake', 'python', 'cobra', 'rattlesnake', 'boa constrictor', 'anaconda', 'viper',
+    'lizard', 'iguana', 'gecko', 'chameleon', 'Komodo dragon', 'bearded dragon',
+    'crocodile', 'alligator', 'turtle', 'sea turtle', 'tortoise', 'frog', 'toad',
+    'salamander', 'newt', 'axolotl',
+    # Fish & sea life
+    'shark', 'whale shark', 'salmon', 'tuna', 'trout', 'cod', 'carp', 'catfish',
+    'clownfish', 'swordfish', 'stingray', 'manta ray', 'eel', 'piranha', 'pufferfish',
+    'seahorse', 'anglerfish', 'sardine', 'herring', 'mackerel', 'jellyfish', 'octopus',
+    'squid', 'starfish', 'crab', 'lobster', 'shrimp', 'oyster', 'clam', 'mussel',
+    'sea urchin', 'coral',
+    # Insects & other invertebrates
+    'bee', 'wasp', 'hornet', 'ant', 'butterfly', 'moth', 'beetle', 'ladybug',
+    'dragonfly', 'grasshopper', 'cricket', 'praying mantis', 'stick insect', 'cicada',
+    'firefly', 'mosquito', 'fly', 'termite', 'cockroach', 'flea', 'tick', 'spider',
+    'tarantula', 'scorpion', 'centipede', 'millipede', 'snail', 'slug', 'earthworm',
+    'leech',
+]
+# %%
 import os
 import sys
 from pathlib import Path
@@ -213,6 +260,14 @@ def reward_fn_char_count(generated_sample: list[str], char: str = ".") -> Float[
     for i, sample in enumerate(generated_sample):
         out[i] = sample.count(char)
     return out
+
+import re
+def reward_fn_animal_count(
+    generated_sample: list[str]
+) -> Float[Tensor, " batch"]:
+    """Counts whole-word, case-insensitive appearances of any of `animals` (plus a plural 's') in each sample."""
+    pattern = re.compile(r"\b(?:" + "|".join(re.escape(a) for a in ANIMALS) + r")s?\b", re.IGNORECASE)
+    return t.tensor([len(pattern.findall(s)) for s in generated_sample], dtype=t.float32, device=device)
 
 
 # Test your reward function
@@ -626,16 +681,17 @@ tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 # %%
 # Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
 if RUN_BASE_RLHF:
+    print(f"LOW_GPU_MEM = {LOW_GPU_MEM}")
     model = None  # free the demo model from earlier
     args = GRPO_Args(
-        kl_coef=2.0,
-        lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
-        batch_size=64,
-        num_minibatches=1,
+        kl_coef=0.5,
+        lr=2e-3 if LOW_GPU_MEM else 1e-4,  # gpt2 (small) needs a higher lr to collapse as reliably
+        batch_size=1024,
+        num_minibatches=64,
         batches_per_learning_phase=1,
-        total_phases=30,
-        warmup_steps=0,
-        reward_fn=reward_fn_char_count,
+        total_phases=50,
+        warmup_steps=10,
+        reward_fn=reward_fn_animal_count,
     )
     trainer = GRPO_Trainer(args)
     trainer.train()

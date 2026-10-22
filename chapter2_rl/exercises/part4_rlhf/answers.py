@@ -529,7 +529,11 @@ class GRPO_Trainer:
             - Use these to compute both terms of the objective function, and return it
             - Also optionally log stuff to Weights & Biases (provided)
         """
-        raise NotImplementedError()
+        logits = get_logits(self.model, minibatch.sample_ids, self.args.gen_len)
+        logprobs = logits.log_softmax(-1)
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
+        kl_penalty = calc_kl_penalty(logprobs, minibatch.logprobs, self.args.kl_coef)
+        objective = clipped_surrogate_objective - kl_penalty
 
         if self.args.use_wandb:
             with t.no_grad():
@@ -560,7 +564,11 @@ class GRPO_Trainer:
 
         Returns the average objective function value over the minibatches as a float for logging.
         """
-        raise NotImplementedError()
+        for minibatch in memory.get_minibatches():
+            self.optimizer.zero_grad()
+            loss = self.compute_grpo_objective(minibatch)
+            loss.backward()
+            t.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
 
     def train(self) -> None:
         """

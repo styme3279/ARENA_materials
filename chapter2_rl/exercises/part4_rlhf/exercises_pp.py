@@ -684,15 +684,16 @@ if RUN_BASE_RLHF:
     print(f"LOW_GPU_MEM = {LOW_GPU_MEM}")
     model = None  # free the demo model from earlier
     args = GRPO_Args(
-        kl_coef=0.5,
+        kl_coef=0.25,
         lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
-        batch_size=1024,
-        num_minibatches=256,
+        batch_size=256,
+        num_minibatches=4,
         batches_per_learning_phase=1,
         total_phases=50,
         warmup_steps=10,
-        gen_len=256,
-        reward_fn=reward_fn_animal_count,
+        # gen_len=256,
+        # reward_fn=reward_fn_animal_count,
+        reward_fn=reward_fn_char_count
     )
     trainer = GRPO_Trainer(args)
     trainer.train()

@@ -442,9 +442,15 @@ class RLVRTrainer:
         # generate G completions
         completions = self.sampler.generate(**tokens, max_new_tokens=self.args.max_new_tokens, num_return_sequences=self.args.num_return_sequences, verbose=True)
         print(f"{completions.shape=}")
+        # decode
+        groups = list() # list[list[str]]
         for completion_p in completions.shape[0]:
-            self.tokenizer.batch_decode()        
+            decoded_completions_p = self.tokenizer.batch_decode(completion_p)
 
+        # package a rollout
+        buffer = RolloutBuffer.from_rollouts(gen, prompt_mask, advantages, self.tokenizer.eos_id)
+        self.log_rollout(groups, rewards, solve_rate, buffer)
+        loss = 
     def compute_loss(self, mb: RolloutBuffer) -> Float[Tensor, ""]:
         """This microbatch's share of the loss averaged over every completion in the buffer."""
         logprobs = generation_logprobs(self.model, mb.gen, mb.prompt_mask, mb.mask)
@@ -472,3 +478,33 @@ class RLVRTrainer:
             plot.log(**self.metrics, loss=loss)                 # also shown in the progress bar's postfix
         plot.finish()
         return self.history
+    
+def evaluate(
+    model: PeftModel,
+    tokenizer: PreTrainedTokenizerBase,
+    levels: tuple[int, ...] = (0, 2, 3, 5),
+    n: int = 64,
+    max_new_tokens: int = 500,
+    seed: int = 4444,
+    engine: utils.VLLMEngine | None = None,
+) -> dict[str, float]:
+    """Held-out pass@1 on each rung, on a fixed problem set."""
+    sampler = utils.make_sampler(model, tokenizer, RLVRArgs().sampler, engine)
+    out = {}
+    for L in levels:
+        rng = random.Random(seed + L)
+        prompts, answers = zip(*[mult_byhand(rng, L) for _ in range(n)])
+        enc = tokenizer(list(prompts), return_tensors="pt", padding=True).to(device)
+        t.manual_seed(seed)
+        gen = sampler.generate(**enc, max_new_tokens=max_new_tokens)[:, 0]   # one completion per prompt
+        completions = tokenizer.batch_decode(gen[:, enc.input_ids.shape[1]:], skip_special_tokens=True)
+        out[DIFFICULTY_LADDER[L][0]] = sum(extract_boxed_int(c) == a for c, a in zip(completions, answers)) / n
+    print("  ".join(f"{k}: {v:.3f}" for k, v in out.items()), flush=True)
+    return out
+
+
+print("=== base model performance ===")
+# before = evaluate(rlvr_model, tokenizer, engine=vllm_engine)   # 3x2 / 3x3 / 4x3 / 4x4, n=64 each, 500-token budget
+RLVRTrainer(rlvr_model, tokenizer, RLVRArgs(n_steps=40), engine=vllm_engine).train()
+print("=== trained model performance ===")
+after = evaluate(rlvr_model, tokenizer, engine=vllm_engine)

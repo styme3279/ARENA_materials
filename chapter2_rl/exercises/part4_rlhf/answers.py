@@ -246,3 +246,32 @@ def compute_grpo_advantages(rewards: Float[Tensor, " batch"], eps: float = 1e-6)
 
 
 tests.test_compute_grpo_advantages(compute_grpo_advantages)
+# %%
+def get_logprobs(
+    logits: Float[Tensor, "batch seq vocab"],
+    tokens: Int[Tensor, "batch seq"],
+    gen_len: int,
+) -> Float[Tensor, "batch gen_len"]:
+    """
+    Returns the log-probabilities of the last `gen_len` tokens (the generated ones), under the model with these logits.
+
+    Args:
+        logits: the model's output logits. These only need to cover the last `gen_len + 1` positions of `tokens`, but
+            may cover more.
+        tokens: the token ids, of which the last `gen_len` are the generated tokens
+        gen_len: the number of generated tokens
+
+    Returns:
+        The logprobs on the tokens sampled.
+    """
+    num_batches = logits.shape[0]
+
+    for batch in range(num_batches):
+        logprobs = t.log_softmax(logits)
+        
+
+
+    
+
+
+tests.test_get_logprobs(get_logprobs)

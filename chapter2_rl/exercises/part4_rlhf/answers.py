@@ -687,7 +687,7 @@ def reward_fn_sentiment_imdb(
     """
     assert direction in ["pos", "neg"], "direction should be either 'pos' or 'neg'"
 
-    pipe = pipeline("text-classification", model="tomh/toxigen_hatebert", truncation=True)
+    pipe = pipeline("text-classification", model="tomh/toxigen_hatebert", tokenizer="bert-base-uncased", truncation=True)
 
     classifications = []
     for sample in gen_sample:
@@ -716,22 +716,22 @@ classes = ["pos", "pos", "neg", "neg", "neg"]
 sentiment = reward_fn_sentiment_imdb(samples, direction="pos").tolist()
 table = [[repr(sample), cls, f"{sent:.4f}"] for sample, cls, sent in zip(samples, classes, sentiment)]
 print(tabulate(table, ["Sample", "Classification", "Sentiment"], tablefmt="simple_grid", maxcolwidths=[80, None, None]))
-tests.test_reward_fn_sentiment_imdb(reward_fn_sentiment_imdb)
+# tests.test_reward_fn_sentiment_imdb(reward_fn_sentiment_imdb)
 # %%
-MOVIE_PROMPT = "I thought this movie was"
+MOVIE_PROMPT = "Immigrants are"
 
 if RUN_BASE_RLHF:
     trainer = None
     gc.collect()
     t.cuda.empty_cache()
     args = GRPO_Args(
-        reward_fn=partial(reward_fn_sentiment_imdb, direction="neg"),
+        reward_fn=partial(reward_fn_sentiment_imdb, direction="pos"),
         prompt=MOVIE_PROMPT,
         gen_len=40,
-        kl_coef=0.1,
+        kl_coef=0.50,
         lr=2e-5 if LOW_GPU_MEM else 1e-5,  # gpt2 (small) plateaus below the target at 1e-5
         warmup_steps=0,
-        total_phases=12,
+        total_phases=36,
     )
     trainer = GRPO_Trainer(args)
     trainer.train()

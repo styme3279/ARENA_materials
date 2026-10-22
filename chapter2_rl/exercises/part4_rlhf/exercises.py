@@ -447,7 +447,177 @@ def get_optimizer_and_scheduler(
     scheduler = t.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
     return optimizer, scheduler
 
+# # %%
+# class GRPO_Trainer:
+#     model: PreTrainedModel
+#     ref_model: PreTrainedModel | None
+
+#     def __init__(self, args: GRPO_Args):
+#         t.manual_seed(args.seed)
+#         self.args = args
+#         self.run_name = f"{args.wandb_project_name}__seed{args.seed}__{time.strftime('%Y%m%d-%H%M%S')}"
+
+#         self.tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+#         # dtype=float32 explicitly, since Hugging Face otherwise loads the checkpoint's own dtype (often bfloat16)
+#         # Both in eval mode, which switches off GPT-2's dropout (see the notes above)
+#         self.model = AutoModelForCausalLM.from_pretrained(args.base_model, dtype=t.float32).to(device).eval()
+#         self.ref_model = AutoModelForCausalLM.from_pretrained(args.base_model, dtype=t.float32).to(device).eval()
+#         self.ref_model.requires_grad_(False)
+#         self.optimizer, self.scheduler = get_optimizer_and_scheduler(args, self.model)
+
+#     def get_ref_logprobs(self, sample_ids: Int[Tensor, "batch seq"]) -> Float[Tensor, "batch gen_len"]:
+#         """Log-probabilities of the generated tokens under the reference policy."""
+#         return get_logprobs_batched(self.ref_model, sample_ids, self.args.gen_len, self.args.minibatch_size)
+
+#     @t.no_grad()
+#     def log_rollout(
+#         self,
+#         samples: list[str],
+#         rewards: Float[Tensor, " batch"],
+#         logprobs: Float[Tensor, "batch gen_len"],
+#         ref_logprobs: Float[Tensor, "batch gen_len"],
+#     ) -> None:
+#         """Prints (and logs to wandb) the mean reward, the KL to the reference policy, and a few samples."""
+#         # Per-token KL, measured with the k1 estimator averaged over the batch: unbiased, and unlike k3 it doesn't blow up
+#         # when the policy drifts far from the reference (see the KL section)
+#         kl = (logprobs - ref_logprobs).mean().item()
+#         if self.args.use_wandb:
+#             wandb.log({"mean_reward": rewards.mean().item(), "kl": kl}, step=self.step)
+
+#         # The first 3 samples
+#         table = [[f"{rewards[i].item():.2f}", f"{ref_logprobs[i].sum().item():.2f}", repr(samples[i])] for i in range(3)]
+#         table = tabulate(table, ["Reward", "Ref logprobs", "Sample"], tablefmt="simple_grid", maxcolwidths=[None, None, 90])
+#         print(
+#             f"Phase {self.phase + 1:03}/{self.args.total_phases:03}, Mean reward: {rewards.mean().item():.4f}, "
+#             f"KL: {kl:.4f}\n{table}\n"
+#         )
+
+#     def rollout_phase(self) -> ReplayMemory:
+#         """
+#         Performs a single rollout phase, returning a ReplayMemory object containing the data generated during this
+#         phase. All forward passes here should be done without gradients.
+
+#         Steps of this function are:
+#             - Generate samples from our model
+#             - Get the logprobs of the generated tokens under the current & reference policies
+#             - Compute the rewards and advantages
+#             - Log the rollouts, and return the data in a ReplayMemory object
+#         """
+#         sample_ids, samples = get_samples(
+#             self.model,
+#             self.tokenizer,
+#             prompt=self.args.prompt,
+#             batch_size=self.args.batch_size,
+#             gen_len=self.args.gen_len,
+#             temperature=self.args.temperature,
+#         )
+
+#         with t.no_grad():
+#             logprobs = get_logprobs_batched(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunk_size=self.args.minibatch_size)
+#             ref_logprobs = self.get_ref_logprobs(sample_ids=sample_ids)
+#             rewards = self.args.reward_fn(samples)
+#             advantages = compute_grpo_advantages(rewards=rewards)
+
+#         new_memory = ReplayMemory(args=self.args, sample_ids=sample_ids, logprobs=logprobs, ref_logprobs=ref_logprobs, advantages=advantages)
+#         self.log_rollout(samples=samples, rewards=rewards, logprobs=logprobs, ref_logprobs=ref_logprobs)
+
+#         return new_memory
+
+#     def compute_grpo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
+#         """
+#         Computes the GRPO objective function to maximize: the clipped surrogate objective minus the KL penalty.
+
+#         Steps of this function are:
+#             - Get the logits for the samples in the minibatch, under the current policy
+#             - Get the logprobs of the generated tokens
+#             - Use these to compute both terms of the objective function, and return it
+#             - Also optionally log stuff to Weights & Biases (provided)
+#         """
+        
+
+#         logits = get_logits(model=self.model, sample_ids=minibatch.sample_ids, gen_len=self.args.gen_len)
+#         logprobs = get_logprobs(logits=logits, tokens=minibatch.sample_ids, gen_len=self.args.gen_len)
+        
+#         clipped_surrogate = calc_clipped_surrogate_objective(logprobs=logprobs, old_logprobs=minibatch.logprobs, advantages=minibatch.advantages, clip_coef=self.args.clip_coef)
+#         kl_penalty = calc_kl_penalty(logprobs=logprobs, ref_logprobs=minibatch.ref_logprobs, kl_coef=self.args.kl_coef)
+
+#         print("CLIP: ", clipped_surrogate)
+#         print("KL: ", kl_penalty)
+#         objective = clipped_surrogate - kl_penalty
+
+#         if self.args.use_wandb:
+#             with t.no_grad():
+#                 ratio = (logprobs - minibatch.logprobs).exp()
+#                 clipfrac = ((ratio - 1.0).abs() > self.args.clip_coef).float().mean().item()
+#             wandb.log(
+#                 dict(
+#                     total_steps=self.step,
+#                     lr=self.scheduler.get_last_lr()[0],
+#                     clipped_surrogate_objective=clipped_surrogate_objective.item(),
+#                     clipfrac=clipfrac,
+#                     kl_penalty=kl_penalty.item(),
+#                 ),
+#                 step=self.step,
+#             )
+
+#         return objective
+
+#     def learning_phase(self, memory: ReplayMemory) -> float:
+#         """
+#         Performs a learning step on `memory`. This involves the standard training steps
+#         (i.e. zeroing gradient, computing objective function, doing backprop, stepping optimizer).
+
+#         You should also remember the following:
+#             - Clipping grad norm to the value given in `self.args.max_grad_norm`
+#             - Incrementing `self.step` by 1 for each minibatch
+#             - Stepping the scheduler (once per calling of this function)
+
+#         Returns the average objective function value over the minibatches as a float for logging.
+#         """
+#         objectives = []
+#         for minibatch in memory.get_minibatches():
+
+#             self.optimizer.zero_grad()
+#             objective = self.compute_grpo_objective(minibatch=minibatch)
+#             objective.backward()
+#             t.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
+#             self.optimizer.step()
+#             objectives.append(objective)
+#             self.step += 1
+
+#         mean_objective = np.array(objectives).mean()
+
+#         self.scheduler.step()
+
+#         return mean_objective
+
+
+#     def train(self) -> None:
+#         """
+#         Performs a full training run.
+#         """
+#         self.step = 0
+
+#         if self.args.use_wandb:
+#             wandb.init(
+#                 project=self.args.wandb_project_name,
+#                 entity=self.args.wandb_entity,
+#                 name=self.run_name,
+#                 config=self.args,
+#             )
+#         runner = tqdm(range(self.args.total_phases))
+#         for self.phase in runner:
+#             memory = self.rollout_phase()
+#             objective = self.learning_phase(memory)
+#             runner.set_description(f"Objective: {objective:.4f}")
+
+#         if self.args.use_wandb:
+#             wandb.finish()
+
+
+# tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 # %%
+
 class GRPO_Trainer:
     model: PreTrainedModel
     ref_model: PreTrainedModel | None
@@ -512,16 +682,24 @@ class GRPO_Trainer:
             temperature=self.args.temperature,
         )
 
-        with t.no_grad():
-            logprobs = get_logprobs_batched(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunk_size=self.args.batch_size)
-            ref_logprobs = self.get_ref_logprobs(sample_ids=sample_ids)
-            rewards = reward_fn_char_count(samples)
-            advantages = compute_grpo_advantages(rewards=rewards)
+        # Log-probabilities of the generated tokens under the current (= old, from the learning phase's point of view)
+        # and reference policies
+        logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
+        ref_logprobs = self.get_ref_logprobs(sample_ids)
 
-        new_memory = ReplayMemory(args=self.args, sample_ids=sample_ids, logprobs=logprobs, ref_logprobs=ref_logprobs, advantages=advantages)
-        self.log_rollout(samples=samples, rewards=rewards, logprobs=logprobs, ref_logprobs=ref_logprobs)
+        # Rewards, and group-relative advantages
+        rewards = self.args.reward_fn(samples)
+        advantages = compute_grpo_advantages(rewards)
 
-        return new_memory
+        self.log_rollout(samples, rewards, logprobs, ref_logprobs)
+
+        return ReplayMemory(
+            args=self.args,
+            sample_ids=sample_ids,
+            logprobs=logprobs,
+            ref_logprobs=ref_logprobs,
+            advantages=advantages,
+        )
 
     def compute_grpo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
         """
@@ -533,15 +711,14 @@ class GRPO_Trainer:
             - Use these to compute both terms of the objective function, and return it
             - Also optionally log stuff to Weights & Biases (provided)
         """
-        
+        logits = get_logits(self.model, minibatch.sample_ids, self.args.gen_len)
+        logprobs = get_logprobs(logits, minibatch.sample_ids, self.args.gen_len)
 
-        logits = get_logits(model=self.model, sample_ids=minibatch.sample_ids, gen_len=self.args.gen_len)
-        logprobs = get_logprobs(logits=logits, tokens=minibatch.sample_ids, gen_len=self.args.gen_len)
-        
-        clipped_surrogate = calc_clipped_surrogate_objective(logprobs=logprobs, old_logprobs=minibatch.logprobs, advantages=minibatch.advantages, clip_coef=self.args.clip_coef)
-        kl_penalty = calc_kl_penalty(logprobs=logprobs, ref_logprobs=minibatch.logprobs, kl_coef=self.args.kl_coef)
-
-        objective = clipped_surrogate - kl_penalty
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(
+            logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef
+        )
+        kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
+        objective = clipped_surrogate_objective - kl_penalty
 
         if self.args.use_wandb:
             with t.no_grad():
@@ -572,23 +749,22 @@ class GRPO_Trainer:
 
         Returns the average objective function value over the minibatches as a float for logging.
         """
-        objectives = []
-        for minibatch in memory.get_minibatches():
+        total = 0.0
+        minibatches = memory.get_minibatches()
 
+        # An inner progress bar under train()'s outer one: leave=False removes it when the phase ends, and
+        # delay=0.5 only shows it if the phase takes longer than half a second.
+        for minibatch in tqdm(minibatches, desc="learning", leave=False, delay=0.5):
             self.optimizer.zero_grad()
-            objective = self.compute_grpo_objective(minibatch=minibatch)
+            objective = self.compute_grpo_objective(minibatch)
             objective.backward()
-            t.nn.utils.clip_grad_norm_([param for param in self.model.parameters()], self.args.max_grad_norm)
+            nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.args.max_grad_norm)
             self.optimizer.step()
-            objectives.append(objective)
-
-        mean_objective = np.array(objectives).mean()
+            self.step += 1
+            total += objective.item()
 
         self.scheduler.step()
-        self.step += 1
-
-        return mean_objective
-
+        return total / len(minibatches)
 
     def train(self) -> None:
         """
@@ -612,6 +788,6 @@ class GRPO_Trainer:
         if self.args.use_wandb:
             wandb.finish()
 
-
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
+
 # %%

@@ -208,7 +208,57 @@ def compute_grpo_advantages(rewards: Float[Tensor, " batch"], eps: float = 1e-6)
     Returns:
         The GRPO advantage of each sequence.
     """
-    raise NotImplementedError()
+    return (rewards - rewards.mean()) / (rewards.std() + eps)
 
 
 tests.test_compute_grpo_advantages(compute_grpo_advantages)
+
+# %%
+def get_logprobs(
+    logits: Float[Tensor, "batch seq vocab"],
+    tokens: Int[Tensor, "batch seq"],
+    gen_len: int,
+) -> Float[Tensor, "batch gen_len"]:
+    """
+    Returns the log-probabilities of the last `gen_len` tokens (the generated ones), under the model with these logits.
+
+    Args:
+        logits: the model's output logits. These only need to cover the last `gen_len + 1` positions of `tokens`, but
+            may cover more.
+        tokens: the token ids, of which the last `gen_len` are the generated tokens
+        gen_len: the number of generated tokens
+
+    Returns:
+        The logprobs on the tokens sampled.
+    """
+    
+    generated_tokens = tokens[:,-gen_len:]
+    log_probs = logits.log_softmax(dim=-1)
+    return t.gather(log_probs[:,-gen_len:,:], 2, generated_tokens.unsqueeze(-1)).squeeze(-1)
+
+
+tests.test_get_logprobs(get_logprobs)
+
+# %%
+def get_logits(
+    model: PreTrainedModel,
+    sample_ids: Int[Tensor, "batch seq"],
+    gen_len: int,
+) -> Float[Tensor, "batch gen_len_plus_1 vocab"]:
+    """Runs the model on a batch, returning float32 logits for the last `gen_len + 1` positions only."""
+    return model(input_ids=sample_ids, logits_to_keep=gen_len + 1).logits.float()
+
+
+@t.no_grad()
+def get_logprobs_batched(
+    model: PreTrainedModel,
+    sample_ids: Int[Tensor, "batch seq"],
+    gen_len: int,
+    chunk_size: int,
+) -> Float[Tensor, "batch gen_len"]:
+    """Log-probabilities of the generated tokens under `model`, computed in chunks of `chunk_size` sequences."""
+    logprobs = []
+    for chunk in sample_ids.split(chunk_size):
+        logits = get_logits(model, chunk, gen_len)
+        logprobs.append(get_logprobs(logits, chunk, gen_len))
+    return t.cat(logprobs)

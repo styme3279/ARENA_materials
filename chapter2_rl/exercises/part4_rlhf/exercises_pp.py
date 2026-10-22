@@ -504,6 +504,7 @@ class GRPO_Trainer:
             f"KL: {kl:.4f}\n{table}\n"
         )
 
+    @t.no_grad()
     def rollout_phase(self) -> ReplayMemory:
         """
         Performs a single rollout phase, returning a ReplayMemory object containing the data generated during this
@@ -524,7 +525,7 @@ class GRPO_Trainer:
             temperature=self.args.temperature,
         )
 
-        logprobs_m = get_logprobs_batched(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunk_size=self.args.minibatch_size)
+        logprobs_m = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
         logprobs_ref = self.get_ref_logprobs(sample_ids)
         rewards = self.args.reward_fn(samples)
         advantages = compute_grpo_advantages(rewards)
@@ -589,13 +590,14 @@ class GRPO_Trainer:
         minibatches = memory.get_minibatches()
         for minibatch in tqdm(minibatches):
             self.optimizer.zero_grad()
-            objective = -self.compute_grpo_objective(minibatch)
+            objective = self.compute_grpo_objective(minibatch)
             objective.backward()
             nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
-            self.scheduler.step()
             self.optimizer.step()
             total += objective.item()
             self.step += 1
+        self.scheduler.step()
+        return total / len(minibatches)
 
     def train(self) -> None:
         """

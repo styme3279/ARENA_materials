@@ -275,7 +275,7 @@ def _test_grpo_trainer(GRPO_Trainer, GRPO_Args):
     trainer = GRPO_Trainer(args)
     model, ref_model = trainer.model, trainer.ref_model
     gen_len = args.gen_len
-    atol = 1e-4
+    atol = 1e-5
 
     # Make the policy different from the reference model (like a temperature change)
     with t.no_grad():
@@ -294,6 +294,7 @@ def _test_grpo_trainer(GRPO_Trainer, GRPO_Args):
         assert not getattr(memory, name).requires_grad, f"memory.{name} has gradients: do the rollout under t.no_grad()"
 
     policy_lp, ref_lp = logprobs_under(model, memory.sample_ids), logprobs_under(ref_model, memory.sample_ids)
+    print("=== ", (memory.logprobs - policy_lp).abs().max(), " ===\n\n\n")
     if t.allclose(memory.logprobs, ref_lp, atol=atol):
         raise Exception("memory.logprobs look like the reference model's: they should be under the current policy.")
     t.testing.assert_close(memory.logprobs, policy_lp, atol=atol, rtol=0, msg="memory.logprobs are wrong")

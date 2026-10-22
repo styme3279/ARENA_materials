@@ -679,25 +679,23 @@ class GRPO_Trainer:
 
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 # %%
-if RUN_BASE_RLHF:
-    trainer = None
-    gc.collect()
-    t.cuda.empty_cache()
-    # CUDA errors? reduce batch_size or gen_len
-    args = GRPO_Args(
-        kl_coef=0.25,
-        lr=1e-3,
-        batch_size=1024,
-        num_minibatches=8,
-        batches_per_learning_phase=2,
-        warmup_steps=5,
-        total_phases=40,
-        reward_fn=reward_fn_char_count,
-    )
-    trainer = GRPO_Trainer(args)
-    trainer.train()
-else:
-    print(f"{RUN_BASE_RLHF=}, skipping main run")
+trainer = None
+gc.collect()
+t.cuda.empty_cache()
+# CUDA errors? reduce batch_size or gen_len
+args = GRPO_Args(
+    kl_coef=0.90,
+    lr=1e-3,
+    batch_size=256,
+    num_minibatches=64,
+    batches_per_learning_phase=8,
+    warmup_steps=10,
+    total_phases=100,
+    gen_len=256,
+    reward_fn=reward_fn_animal_count,
+)
+trainer = GRPO_Trainer(args)
+trainer.train()
 # %%
 # # Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
 # if RUN_BASE_RLHF:
@@ -724,111 +722,3 @@ else:
 # Probe: the longest gen_len your GRPO config fits in GPU memory.
 # Per candidate gen_len it runs each memory-heavy stage once with your real sizes (generate 1024 rollouts, logprobs
 # under policy + ref, 2 training minibatches), records each stage's peak, and bisects to the OOM boundary.
-import gc
-
-assert t.cuda.is_available(), "this probe reads CUDA memory stats"
-GiB = 2**30
-
-trainer = model = None  # release whatever earlier cells left on the GPU
-gc.collect(); t.cuda.empty_cache()
-print(f"Allocated before probe: {t.cuda.memory_allocated() / GiB:.2f} GiB (should be ~0)")
-
-probe_args = GRPO_Args(  # your training config; only gen_len gets varied
-    kl_coef=0.5,
-    lr=2e-3 if LOW_GPU_MEM else 1e-3,
-    batch_size=1024,
-    num_minibatches=32,
-    batches_per_learning_phase=1,
-    total_phases=50,
-    warmup_steps=10,
-    gen_len=256,
-    reward_fn=reward_fn_animal_count,
-)
-probe = GRPO_Trainer(probe_args)
-cfg = probe.model.config
-TOTAL = t.cuda.get_device_properties(device).total_memory / GiB
-N_TRAIN = 2  # the 2nd minibatch runs with Adam state already allocated, as in real training
-prompt_len = len(probe.tokenizer(probe.tokenizer.eos_token + probe_args.prompt).input_ids)
-MAX_GEN = cfg.max_position_embeddings - prompt_len  # GPT-2 has no position embeddings past 1024 tokens
-
-
-def _stage(name, stats, fn):
-    stats["running"] = name
-    gc.collect(); t.cuda.empty_cache(); t.cuda.reset_peak_memory_stats()
-    t0 = time.time()
-    out = fn()
-    t.cuda.synchronize()
-    stats[name] = (t.cuda.max_memory_allocated() / GiB, time.time() - t0)
-    return out
-
-
-def _probe(gen_len, stats):
-    a = probe.args
-    a.gen_len = gen_len
-    sample_ids, _ = _stage("generate", stats, lambda: get_samples(
-        probe.model, probe.tokenizer, a.prompt, a.batch_size, gen_len, a.temperature))
-    logprobs, ref_logprobs = _stage("logprobs", stats, lambda: (
-        get_logprobs_batched(probe.model, sample_ids, gen_len, a.minibatch_size),
-        probe.get_ref_logprobs(sample_ids)))
-    memory = ReplayMemory(a, sample_ids, logprobs, ref_logprobs, t.randn(a.batch_size, device=device))
-
-    def train():
-        for mb in memory.get_minibatches()[:N_TRAIN]:
-            probe.optimizer.zero_grad()
-            probe.compute_grpo_objective(mb).backward()
-            nn.utils.clip_grad_norm_(probe.model.parameters(), a.max_grad_norm)
-            probe.optimizer.step()
-
-    _stage("train", stats, train)
-
-
-def fits(gen_len):
-    stats, ok = {}, True
-    try:
-        _probe(gen_len, stats)
-    except t.cuda.OutOfMemoryError:
-        ok = False
-    gc.collect(); t.cuda.empty_cache()  # after the except block, so the failed attempt's tensors are actually freed
-    if not ok:
-        print(f"gen_len {gen_len:4d}: OOM in {stats['running']}")
-        _probe(16, {})  # put grads + Adam state back, so the next probe starts from training's steady state
-        gc.collect(); t.cuda.empty_cache()
-        return False
-    stages = ("generate", "logprobs", "train")
-    peak = max(stats[s][0] for s in stages)
-    n_mb = probe_args.num_minibatches * probe_args.batches_per_learning_phase
-    secs = stats["generate"][1] + stats["logprobs"][1] + stats["train"][1] / N_TRAIN * n_mb
-    print(f"gen_len {gen_len:4d}: peak GiB  " + "  ".join(f"{s} {stats[s][0]:5.1f}" for s in stages)
-          + f"  | headroom {TOTAL - peak:5.1f} GiB | ~{secs:.0f} s/phase")
-    return True
-
-
-# Warm-up: allocates grads + Adam state, which stay resident through every later rollout
-_probe(16, {})
-gc.collect(); t.cuda.empty_cache()
-resident = t.cuda.memory_allocated() / GiB
-bytes_per = t.finfo(probe.model.dtype).bits // 8
-kv_per_token = 2 * cfg.num_hidden_layers * cfg.hidden_size * bytes_per * probe_args.batch_size / GiB
-print(f"{cfg._name_or_path} on {t.cuda.get_device_name()} ({TOTAL:.1f} GiB) | attention: {cfg._attn_implementation} | "
-      f"resident models+grads+Adam: {resident:.1f} GiB | context cap: gen_len {MAX_GEN}")
-print(f"Napkin: the batch's KV cache is {kv_per_token * 1024:.0f} MiB per token, so generation alone fills the GPU "
-      f"by gen_len ~{int((TOTAL - resident) / kv_per_token) - prompt_len} (upper bound)\n")
-
-lo, hi = 0, None  # lo: largest gen_len known to fit; hi: smallest known to OOM
-for g in sorted({*range(128, MAX_GEN, 128), MAX_GEN}):
-    if not fits(g):
-        hi = g
-        break
-    lo = g
-while hi is not None and hi - lo > 16:
-    mid = (lo + hi) // 2
-    if fits(mid):
-        lo = mid
-    else:
-        hi = mid
-
-print(f"\nLongest gen_len that fits: {lo}"
-      + (f" (OOM at {hi})" if hi is not None else " — GPT-2's context cap, not memory, is the limit"))
-
-probe = None  # free it before you run the real training cell
-gc.collect(); t.cuda.empty_cache()

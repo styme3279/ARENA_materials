@@ -320,8 +320,10 @@ def calc_kl_penalty(
     """
     assert logprobs.shape == ref_logprobs.shape, "logprobs and ref_logprobs must have the same shape"
 
-    raise NotImplementedError()
 
+    return (kl_coef * 0.5 * (logprobs - ref_logprobs) ** 2).mean()
 
 tests.test_calc_kl_penalty(calc_kl_penalty)
 tests.test_calc_kl_penalty_stability(calc_kl_penalty)
+
+# %%

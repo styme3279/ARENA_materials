@@ -572,12 +572,23 @@ class GRPO_Trainer:
 
         Returns the average objective function value over the minibatches as a float for logging.
         """
+        objectives = []
         for minibatch in memory.get_minibatches():
 
             self.optimizer.zero_grad()
             objective = self.compute_grpo_objective(minibatch=minibatch)
             objective.backward()
-            t.nn.utils.clip_grad_norm_([param for param in self.model.parameters()], )
+            t.nn.utils.clip_grad_norm_([param for param in self.model.parameters()], self.args.max_grad_norm)
+            self.optimizer.step()
+            objectives.append(objective)
+
+        mean_objective = np.array(objectives).mean()
+
+        self.scheduler.step()
+        self.step += 1
+
+        return mean_objective
+
 
     def train(self) -> None:
         """

@@ -229,8 +229,6 @@ def get_logprobs(
 
     log_logits = t.nn.functional.log_softmax(sampled_logits, dim=-1)
 
-    print(log_logits.shape, sampled_tokens.shape)
-
     return t.gather(log_logits, -1, sampled_tokens).squeeze(-1)
 
 tests.test_get_logprobs(get_logprobs)
@@ -368,8 +366,6 @@ def calc_clipped_surrogate_objective(
     p = t.exp(logprobs - old_logprobs)
 
     advantages = einops.repeat(advantages, "minibatchsize -> minibatchsize gen_len", gen_len=p.shape[-1])
-
-    print(advantages.shape, logprobs.shape, old_logprobs.shape, p.shape)
 
     clip_fn = t.clamp(p, 1-clip_coef, 1+clip_coef)
 
@@ -521,16 +517,13 @@ class GRPO_Trainer:
             # logits = get_logits(self.model, sample_ids, self.args.gen_len)
             # logprobs = get_logprobs(logits, sample_ids, self.args.gen_len)
             logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, chunk_size=8)
-
             ref_logits = get_logits(self.ref_model, sample_ids, self.args.gen_len)
             ref_logprobs = self.get_ref_logprobs(sample_ids)
 
-        rewards = reward_fn_char_count(samples)
+        rewards = self.args.reward_fn(samples)
 
         advantages = compute_grpo_advantages(rewards)
 
-        print(f"rewards {rewards}")
-        print(f"adv: {advantages}")
 
         self.log_rollout(samples, rewards, logprobs, ref_logprobs)
 
@@ -554,7 +547,7 @@ class GRPO_Trainer:
         clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
         kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
 
-        objective = clipped_surrogate_objective + kl_penalty
+        objective = clipped_surrogate_objective - kl_penalty
 
         if self.args.use_wandb:
             with t.no_grad():
@@ -586,6 +579,8 @@ class GRPO_Trainer:
         Returns the average objective function value over the minibatches as a float for logging.
         """
 
+        sum_objective = 0
+        num_steps = 0
         for minibatch in memory.get_minibatches():
             self.optimizer.zero_grad()
             objective = self.compute_grpo_objective(minibatch)
@@ -593,6 +588,12 @@ class GRPO_Trainer:
             t.nn.utils.clip_grad_norm(self.model.parameters(), max_norm=self.args.max_grad_norm)
             self.optimizer.step()
             self.step += 1
+
+            sum_objective += objective
+            num_steps += 1
+        self.scheduler.step()
+
+        return sum_objective / num_steps
 
     def train(self) -> None:
         """
@@ -619,5 +620,46 @@ class GRPO_Trainer:
 
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 
+
+# %%
+# Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
+if RUN_BASE_RLHF:
+    model = None  # free the demo model from earlier
+    args = GRPO_Args(
+        kl_coef=0.0,
+        lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
+        batch_size=64,
+        num_minibatches=1,
+        batches_per_learning_phase=1,
+        total_phases=6,
+        warmup_steps=0,
+        reward_fn=reward_fn_char_count,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping test run")
+
+# %%
+if RUN_BASE_RLHF:
+
+    trainer = None
+    gc.collect()
+    t.cuda.empty_cache()
+    # CUDA errors? reduce batch_size or gen_len
+    args = GRPO_Args(
+        kl_coef=1.25,
+        lr=1e-4,
+        num_minibatches=8,
+        batches_per_learning_phase=2,
+        warmup_steps=5,
+        total_phases=40,
+        reward_fn=reward_fn_char_count,
+        prompt= "Hello, my fellow ",
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping main run")
 
 # %%

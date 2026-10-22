@@ -735,8 +735,8 @@ class LoRALinear(nn.Module):
         self.base.requires_grad_(False)
         device = base.weight.device
 
-        print(f"base: {base}")
-        print(f"in: {base.in_features}")
+        # print(f"base: {base}")
+        # print(f"in: {base.in_features}")
         
         self.A = nn.Parameter(t.randn(base.in_features, rank, device=device, dtype=t.float32) / base.in_features **0.5 )
         self.B = nn.Parameter(t.zeros(rank, base.out_features, device=device, dtype=t.float32))
@@ -744,16 +744,16 @@ class LoRALinear(nn.Module):
 
     def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
         if self.merged or not self.enabled:
-            return self.base(x).dtype(x)
+            return self.base(x).to(x.dtype)
         else:
-            return (self.base(x) + x @ self.A @ self.B * self.scaling)
+            return (self.base(x) + x.to(t.float32) @ self.A @ self.B * self.scaling).to(x.dtype)
 
     @t.no_grad()
     def merge(self) -> None:
         """Adds the low-rank update into the base layer's weights, so the forward pass no longer needs A and B."""
         assert not self.merged, "LoRALinear: Attempting to merge an already merged model."
-
-        return self.base + self.A @ self.B
+        self.base.weight += (self.A @ self.B * self.scaling).T
+        self.merged = True
 
     @t.no_grad()
     def unmerge(self) -> None:
@@ -762,11 +762,26 @@ class LoRALinear(nn.Module):
         a lower precision (like bfloat16), merging and unmerging both round, so this only gets back to W_0 approximately.
         """
         assert self.merged, "LoRALinear: merge must be run before running unmerge."
-        raise NotImplementedError()
+        
+        self.base.weight -= (self.A @ self.B * self.scaling).T
+        self.merged = False
+
 
     def extra_repr(self) -> str:
         return f"rank={self.rank}, alpha={self.alpha}, enabled={self.enabled}, merged={self.merged}"
 
 
 tests_lora.test_lora_linear(LoRALinear)
+tests_lora.test_lora_merge(LoRALinear)
 
+
+# %%
+trainer = None  # free the section 1 trainer (policy + reference model), if there is one
+gc.collect()
+if t.cuda.is_available():
+    t.cuda.empty_cache()
+model = AutoModelForCausalLM.from_pretrained(LORA_MODEL, dtype=LORA_DTYPE).to(device)
+print(model.model.layers[0])
+print(f"\n{model.config.num_attention_heads=}, {model.config.num_key_value_heads=}")
+
+# %%

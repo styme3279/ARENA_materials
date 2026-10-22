@@ -177,6 +177,7 @@ class GRPO_Args:
     # GRPO objective
     clip_coef: float = 0.2
     kl_coef: float = 0.3
+    gamma: float = 1.0  # discount for per-token rewards (below 1, rewards are credited mostly to the tokens just before)
 
     # Base model & sampling arguments
     base_model: str = BASE_MODEL
@@ -185,6 +186,9 @@ class GRPO_Args:
 
     # Reward function, mapping a list of samples (prompt + completion) to a tensor of rewards
     reward_fn: Callable = lambda samples: t.zeros(len(samples), device=device)
+    # Optional per-token reward function, mapping each completion's tokens (decoded one at a time) to a tensor of shape
+    # (batch, gen_len). If set, it's used instead of `reward_fn`, and each token only gets credit for later rewards.
+    token_reward_fn: Callable | None = None
 
     def __post_init__(self):
         assert self.total_phases > self.warmup_steps, "total_phases must be greater than warmup_steps"
@@ -261,6 +265,20 @@ def reward_fn_char_count(generated_sample: list[str], char: str = ".") -> Float[
         out[i] = sample.count(char)
     return out
 
+
+def reward_fn_char_count_per_token(tokens: list[list[str]], char: str = ".") -> Float[Tensor, "batch gen_len"]:
+    """
+    Per-token version of `reward_fn_char_count`: each generated token is rewarded for the instances of `char` in it.
+
+    Args:0
+        tokens: the generated tokens of each sample, decoded one at a time
+        char: the character to count
+
+    Returns:
+        A float tensor of shape (batch, gen_len) giving the count of `char` in each token.
+    """
+    return t.tensor([[token.count(char) for token in sample] for sample in tokens], dtype=t.float32, device=device)
+
 import re
 # Plurals that the regular English rules in `_plural_forms` would get wrong, keyed by the word that changes (the last
 # word of multi-word names, e.g. "mantis" for "praying mantis"). An empty list means the plural is the same word as
@@ -323,6 +341,14 @@ t.testing.assert_close(reward_fn_char_count([A]), t.tensor([1.0], device=device)
 t.testing.assert_close(reward_fn_char_count([A, B, C]), t.tensor([1.0, 6.0, 0.0], device=device))
 t.testing.assert_close(reward_fn_char_count([A], " "), t.tensor([3.0], device=device))
 print("All tests for `reward_fn_char_count` passed!")
+
+t.testing.assert_close(
+    reward_fn_char_count_per_token([["Hi", ".", " Yes", "...", " ok"]]), t.tensor([[0.0, 1.0, 0.0, 3.0, 0.0]], device=device)
+)
+# A "." is a single byte, so it always sits inside exactly one token: the per-token counts add up to the sequence count
+tokens = tokenizer.batch_decode([[i] for i in tokenizer(A + B + C).input_ids])
+t.testing.assert_close(reward_fn_char_count_per_token([tokens]).sum(), reward_fn_char_count([A + B + C])[0])
+print("All tests for `reward_fn_char_count_per_token` passed!")
 # %%
 def compute_grpo_advantages(rewards: Float[Tensor, " batch"], eps: float = 1e-6) -> Float[Tensor, " batch"]:
     """
@@ -342,6 +368,51 @@ def compute_grpo_advantages(rewards: Float[Tensor, " batch"], eps: float = 1e-6)
 
 
 tests.test_compute_grpo_advantages(compute_grpo_advantages)
+# %%
+def compute_grpo_token_advantages(
+    rewards: Float[Tensor, "batch gen_len"], gamma: float = 1.0, eps: float = 1e-6
+) -> Float[Tensor, "batch gen_len"]:
+    """
+    Computes per-token GRPO advantages from per-token rewards. A token can only affect the rewards from its own position
+    onwards, so it's credited with the (discounted) sum of those, the reward-to-go, rather than the whole sequence's
+    reward. The baseline is the group's mean reward-to-go at the same position. Everything is divided by a single std
+    over the whole batch, since per-position stds would blow up the late positions, where few rewards are left.
+
+    With all of a sequence's reward on its last token and gamma = 1, this matches `compute_grpo_advantages`.
+
+    Args:
+        rewards: the reward earned by each generated token
+        gamma: discount factor; below 1, each token gets less credit for rewards further in the future
+        eps: small constant added to the std dev for numerical stability
+
+    Returns:
+        The GRPO advantage of each generated token.
+    """
+    returns = t.zeros_like(rewards)
+    future = t.zeros_like(rewards[:, 0])
+    for pos in reversed(range(rewards.shape[1])):
+        future = rewards[:, pos] + gamma * future
+        returns[:, pos] = future
+    centered = returns - returns.mean(dim=0)
+    return centered / (centered.std() + eps)
+
+
+# Sequence-level rewards on the last token reproduce `compute_grpo_advantages` (up to the n-1 in the std)
+seq_rewards = t.randn(64)
+token_rewards = t.zeros(64, 8)
+token_rewards[:, -1] = seq_rewards
+t.testing.assert_close(
+    compute_grpo_token_advantages(token_rewards),
+    compute_grpo_advantages(seq_rewards)[:, None].expand(64, 8),
+    rtol=1e-2,
+    atol=1e-2,
+)
+# A reward only gives credit to the tokens up to and including the one that earned it
+token_rewards = t.zeros(64, 8)
+token_rewards[0, 3] = 1.0
+adv = compute_grpo_token_advantages(token_rewards)
+assert (adv[0, :4] > 0).all() and (adv[0, 4:] == 0).all()
+print("All tests for `compute_grpo_token_advantages` passed!")
 # %%
 def get_logprobs(
     logits: Float[Tensor, "batch seq vocab"],
@@ -455,7 +526,7 @@ tests.test_calc_kl_penalty_stability(calc_kl_penalty)
 def calc_clipped_surrogate_objective(
     logprobs: Float[Tensor, "minibatch_size gen_len"],
     old_logprobs: Float[Tensor, "minibatch_size gen_len"],
-    advantages: Float[Tensor, " minibatch_size"],
+    advantages: Float[Tensor, " minibatch_size"] | Float[Tensor, "minibatch_size gen_len"],
     clip_coef: float,
 ) -> Float[Tensor, ""]:
     """
@@ -467,17 +538,18 @@ def calc_clipped_surrogate_objective(
         old_logprobs:
             log pi_theta_old of each generated token, under the policy at rollout time
         advantages:
-            the advantage of each sequence, which applies to all of its tokens
+            the advantage of each sequence, which applies to all of its tokens, or of each token
         clip_coef:
             amount of clipping, denoted by epsilon in the GRPO / PPO papers
 
     Returns:
         The clipped surrogate objective, averaged over all tokens in the minibatch.
     """
-    assert logprobs.shape == old_logprobs.shape and advantages.shape == logprobs.shape[:1]
+    assert logprobs.shape == old_logprobs.shape and advantages.shape in (logprobs.shape[:1], logprobs.shape)
 
     ratio = (logprobs - old_logprobs).exp()
-    advantages = advantages[:, None]  # broadcast each sequence's advantage over its tokens
+    if advantages.ndim == 1:
+        advantages = advantages[:, None]  # broadcast each sequence's advantage over its tokens
 
     non_clipped = ratio * advantages
     clipped = ratio.clip(1 - clip_coef, 1 + clip_coef) * advantages
@@ -497,7 +569,7 @@ class ReplayMinibatch:
     sample_ids: Int[Tensor, "minibatch_size seq_len"]
     logprobs: Float[Tensor, "minibatch_size gen_len"]
     ref_logprobs: Float[Tensor, "minibatch_size gen_len"]
-    advantages: Float[Tensor, " minibatch_size"]
+    advantages: Float[Tensor, " minibatch_size"] | Float[Tensor, "minibatch_size gen_len"]
 
 
 class ReplayMemory:
@@ -507,12 +579,12 @@ class ReplayMemory:
         sample_ids: Int[Tensor, "batch_size seq_len"],
         logprobs: Float[Tensor, "batch_size gen_len"],
         ref_logprobs: Float[Tensor, "batch_size gen_len"],
-        advantages: Float[Tensor, " batch_size"],
+        advantages: Float[Tensor, " batch_size"] | Float[Tensor, "batch_size gen_len"],
     ):
         """Initializes the replay memory, with all the data generated from the rollout phase at once."""
         assert sample_ids.shape[0] == args.batch_size
         assert logprobs.shape == ref_logprobs.shape == (args.batch_size, args.gen_len)
-        assert advantages.shape == (args.batch_size,)
+        assert advantages.shape in ((args.batch_size,), (args.batch_size, args.gen_len))
 
         self.args = args
         self.sample_ids = sample_ids
@@ -626,8 +698,18 @@ class GRPO_Trainer:
 
         logprobs_m = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
         logprobs_ref = self.get_ref_logprobs(sample_ids)
-        rewards = self.args.reward_fn(samples)
-        advantages = compute_grpo_advantages(rewards)
+        if self.args.token_reward_fn is None:
+            rewards = self.args.reward_fn(samples)
+            advantages = compute_grpo_advantages(rewards)
+        else:
+            # Decode the generated tokens one at a time, so the reward function can tell which token earned each reward
+            tokens = [
+                self.tokenizer.batch_decode(ids[:, None], skip_special_tokens=True)
+                for ids in sample_ids[:, -self.args.gen_len :]
+            ]
+            token_rewards = self.args.token_reward_fn(tokens)
+            rewards = token_rewards.sum(-1)  # each sequence's total, for logging
+            advantages = compute_grpo_token_advantages(token_rewards, self.args.gamma)
 
         self.log_rollout(samples, rewards, logprobs_m, logprobs_ref)
 
@@ -728,20 +810,165 @@ r = reward_fn_animal_count(s)
 print(f"{(r > 0).float().mean():.1%} score > 0")
 print(*[repr(x) for x, ri in zip(s, r) if ri > 0][:10], sep="\n")
 # %%
+class LoRALinear(nn.Module):
+    """
+    Wraps a frozen nn.Linear layer W_0 (with optional bias b), adding a trainable low-rank update:
+
+        h = x W_0 + b + (alpha / rank) * x A B
+
+    with A of shape (in_features, rank) initialized from a Gaussian, and B of shape (rank, out_features) initialized to
+    zeros (so the update starts at zero).
+    """
+
+    A: Float[nn.Parameter, "d_in rank"]
+    B: Float[nn.Parameter, "rank d_out"]
+
+    def __init__(self, base: nn.Linear, rank: int, alpha: float):
+        super().__init__()
+        self.base, self.rank, self.alpha = base, rank, alpha
+        self.scaling = alpha / rank
+        self.enabled = True  # if False, the module acts exactly like the frozen base layer
+        self.merged = False  # if True, the update has been added into base.weight (see `merge`)
+        self.base.requires_grad_(False)
+        device = base.weight.device
+        # float32 adapters, even when the base layer is in bfloat16
+        self.A = nn.Parameter(t.randn(base.in_features, rank, device=device) / base.in_features**0.5)
+        self.B = nn.Parameter(t.zeros(rank, base.out_features, device=device))
+
+    def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
+        out = self.base(x)
+        if (not self.enabled) or self.merged:
+            return out
+        x = x.to(self.A.dtype)
+        x = einops.einsum(x, self.A, "... d_in, d_in rank -> ... rank")
+        update = einops.einsum(x, self.B, "... rank, rank d_out -> ... d_out")
+        return out + (self.scaling * update).to(out.dtype)
+
+    @t.no_grad()
+    def merge(self) -> None:
+        """Adds the low-rank update into the base layer's weights, so the forward pass no longer needs A and B."""
+        assert not self.merged, "LoRALinear: Attempting to merge an already merged model."
+        # nn.Linear stores its weight as (d_out, d_in), the transpose of our W_0, so we output the update transposed too
+        delta = self.scaling * einops.einsum(self.A, self.B, "d_in rank, rank d_out -> d_out d_in")
+        self.base.weight += delta
+        self.merged = True
+
+    @t.no_grad()
+    def unmerge(self) -> None:
+        """
+        Undoes `merge`, subtracting the low-rank update back out of the base layer's weights. If the base weights are in
+        a lower precision (like bfloat16), merging and unmerging both round, so this only gets back to W_0 approximately.
+        """
+        assert self.merged, "LoRALinear: merge must be run before running unmerge."
+        delta = self.scaling * einops.einsum(self.A, self.B, "d_in rank, rank d_out -> d_out d_in")
+        self.base.weight -= delta
+        self.merged = False
+
+    def extra_repr(self) -> str:
+        return f"rank={self.rank}, alpha={self.alpha}, enabled={self.enabled}, merged={self.merged}"
+
+
+tests_lora.test_lora_linear(LoRALinear)
+tests_lora.test_lora_merge(LoRALinear)
+# %%
+# Every linear layer in both attention and MLP layers
+LORA_TARGET_MODULES = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
+
+
+def apply_lora(
+    model: nn.Module,
+    target_modules: tuple[str, ...] = LORA_TARGET_MODULES,
+    rank: int = 8,
+    alpha: float = 8,
+) -> list[LoRALinear]:
+    """
+    Wraps every nn.Linear whose name (the last part of its path) is one of `target_modules` in a LoRALinear.
+
+    Returns:
+        The list of LoRALinear modules added to the model.
+    """
+    lora_modules = []
+    # list(...) takes a snapshot, so we don't loop over the LoRALinear modules we're adding
+    for name, module in list(model.named_modules()):
+        # `name` is the module's full path, e.g. "model.layers.3.self_attn.q_proj"
+        if isinstance(module, nn.Linear) and name.split(".")[-1] in target_modules:
+            lora = LoRALinear(module, rank=rank, alpha=alpha)
+            model.set_submodule(name, lora)
+            lora_modules.append(lora)
+
+    if not lora_modules:
+        raise ValueError(
+            f"No nn.Linear layers named any of {target_modules} were found. Different models name their layers "
+            "differently: print the model to see the names."
+        )
+    return lora_modules
+
+
+tests_lora.test_apply_lora(apply_lora)
+# %%
+@contextmanager
+def lora_disabled(model: nn.Module):
+    """Context manager that switches off all LoRALinear modules in `model`, so it acts as the original model."""
+    lora_modules = [m for m in model.modules() if isinstance(m, LoRALinear)]
+    # A merged adapter is baked into the base weights, so switching it off wouldn't give us the original model back
+    assert not any(m.merged for m in lora_modules), "Can't disable merged adapters: unmerge them first"
+    for m in lora_modules:
+        m.enabled = False
+    try:
+        yield model
+    finally:
+        for m in lora_modules:
+            m.enabled = True
+
+
+@dataclass
+class GRPO_LoRA_Args(GRPO_Args):
+    base_model: str = LORA_MODEL
+    dtype: t.dtype = LORA_DTYPE  # dtype of the frozen base model (the adapters are always float32)
+    lora_rank: int = 8
+    lora_alpha: float = 8  # the paper sets alpha to the first rank it tries, and keeps it fixed
+    target_modules: tuple[str, ...] = LORA_TARGET_MODULES
+    lr: float = 2e-4  # LoRA needs a higher learning rate than full fine-tuning
+
+
+class GRPO_LoRA_Trainer(GRPO_Trainer):
+    args: GRPO_LoRA_Args
+
+    def __init__(self, args: GRPO_LoRA_Args):
+        t.manual_seed(args.seed)
+        self.args = args
+        self.run_name = f"{args.wandb_project_name}__seed{args.seed}__{time.strftime('%Y%m%d-%H%M%S')}"
+        self.tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+
+        self.model = AutoModelForCausalLM.from_pretrained(args.base_model, dtype=args.dtype).to(device).eval()
+        self.model.requires_grad_(False)  # freeze the base model *before* adding the (trainable) adapters
+        self.lora_modules = apply_lora(
+            self.model, target_modules=args.target_modules, rank=args.lora_rank, alpha=args.lora_alpha
+        )
+        self.ref_model = None  # the reference policy is self.model with the adapters switched off
+        self.optimizer, self.scheduler = get_optimizer_and_scheduler(args, self.model)
+
+    def get_ref_logprobs(self, sample_ids: Int[Tensor, "batch seq"]) -> Float[Tensor, "batch gen_len"]:
+        with lora_disabled(self.model):
+            return get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
+
+
+tests_lora.test_grpo_trainer_lora(GRPO_LoRA_Trainer, GRPO_LoRA_Args, LoRALinear)
+# %%
 trainer = None
 gc.collect()
 t.cuda.empty_cache()
 # CUDA errors? reduce batch_size or gen_len
-args = GRPO_Args(
-    lr=1e-4,                       # was 1e-3 (the smoke-test value)
+args = GRPO_LoRA_Args(             # LORA_MODEL (Qwen3-1.7B-Base here) frozen in LORA_DTYPE, plus rank-8 adapters
+    # lr: GRPO_LoRA_Args' default of 2e-4 (was 1e-4 for full fine-tuning of gpt2-medium)
     batches_per_learning_phase=2,  # was 8
     num_minibatches=8,             # ARENA's main-run value
     kl_coef=0.25,                  # was 0.9; raise toward 0.6 if samples get incoherent
     batch_size=256, warmup_steps=10, total_phases=100,
-    reward_fn=reward_fn_animal_count,
+    token_reward_fn=reward_fn_char_count_per_token,  # per-token rewards (reward_fn is ignored when this is set)
     use_wandb=True,                # to see clipfrac
 )
-trainer = GRPO_Trainer(args)
+trainer = GRPO_LoRA_Trainer(args)
 trainer.train()
 # %%
 # # Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
@@ -758,7 +985,8 @@ trainer.train()
 #         warmup_steps=10,
 #         # gen_len=256,
 #         # reward_fn=reward_fn_animal_count,
-#         reward_fn=reward_fn_char_count
+#         # reward_fn=reward_fn_char_count,
+#         token_reward_fn=reward_fn_char_count_per_token,
 #     )
 #     trainer = GRPO_Trainer(args)
 #     trainer.train()

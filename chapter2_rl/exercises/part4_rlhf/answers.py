@@ -62,7 +62,7 @@ BASE_MODEL = "gpt2" if LOW_GPU_MEM else "gpt2-medium"
 LORA_MODEL = "Qwen/Qwen3-0.6B-Base" if LOW_GPU_MEM else "Qwen/Qwen3-1.7B-Base"
 # bfloat16 halves the memory of the frozen base weights in the LoRA section; GPUs before Ampere (e.g. T4) don't support it
 LORA_DTYPE = t.bfloat16 if t.cuda.is_available() and t.cuda.is_bf16_supported() else t.float32
-RUN_BASE_RLHF = True
+RUN_BASE_RLHF = False
 print(f"{LOW_GPU_MEM=}, {BASE_MODEL=}, {LORA_MODEL=}, {LORA_DTYPE=}, {RUN_BASE_RLHF=}")
 
 
@@ -601,5 +601,44 @@ class GRPO_Trainer:
 
 
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
+
+# %%
+# Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
+if RUN_BASE_RLHF:
+    model = None  # free the demo model from earlier
+    args = GRPO_Args(
+        kl_coef=0.0,
+        lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
+        batch_size=64,
+        num_minibatches=1,
+        batches_per_learning_phase=1,
+        total_phases=6,
+        warmup_steps=0,
+        reward_fn=reward_fn_char_count,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping test run")
+
+# %%
+if RUN_BASE_RLHF:
+    trainer = None
+    gc.collect()
+    t.cuda.empty_cache()
+    # CUDA errors? reduce batch_size or gen_len
+    args = GRPO_Args(
+        kl_coef=0.25,
+        lr=1e-4,
+        num_minibatches=8,
+        batches_per_learning_phase=2,
+        warmup_steps=5,
+        total_phases=40,
+        reward_fn=reward_fn_char_count,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping main run")
 
 # %%

@@ -685,22 +685,22 @@ def reward_fn_sentiment_imdb(
         gen_sample (list[str]): The generated sample to evaluate.
         direction (str): The sentiment of the reward function, either "pos" or "neg".
     """
-    assert direction in ["pos", "neg"], "direction should be either 'pos' or 'neg'"
+    # assert direction in ["pos", "neg"], "direction should be either 'pos' or 'neg'"
 
-    pipe = pipeline("text-classification", model="tomh/toxigen_hatebert", tokenizer="bert-base-uncased", truncation=True)
+tox_pipe = pipeline(
+    "text-classification",
+    model="tomh/toxigen_hatebert",
+    tokenizer="bert-base-uncased",
+    truncation=True,
+    top_k=None,
+    device=0 if t.cuda.is_available() else -1,
+)
 
-    classifications = []
-    for sample in gen_sample:
-        classification = pipe(sample)
-        classification = classification[0]
-        if direction == "pos" and classification["label"] == "POSITIVE":
-            classifications.append(classification["score"])
-        elif direction == "neg" and classification["label"] == "NEGATIVE":
-            classifications.append(classification["score"])   
-        else:
-            classifications.append(1 - classification["score"])  
-
-    return t.Tensor(classifications).to(device)
+@t.no_grad()
+def reward_fn_toxicity(gen_sample: list[str]) -> Float[Tensor, " batch"]:
+    outputs = tox_pipe(gen_sample, batch_size=len(gen_sample))
+    p_toxic = [next(d["score"] for d in out if d["label"] == "LABEL_1") for out in outputs]
+    return t.tensor(p_toxic, dtype=t.float32, device=device)
 
 
 # Some samples taken from the IMDB dataset used to finetune this model
@@ -713,22 +713,22 @@ samples = [
 ]
 classes = ["pos", "pos", "neg", "neg", "neg"]
 
-sentiment = reward_fn_sentiment_imdb(samples, direction="pos").tolist()
-table = [[repr(sample), cls, f"{sent:.4f}"] for sample, cls, sent in zip(samples, classes, sentiment)]
-print(tabulate(table, ["Sample", "Classification", "Sentiment"], tablefmt="simple_grid", maxcolwidths=[80, None, None]))
+# sentiment = reward_fn_sentiment_imdb(samples, direction="pos").tolist()
+# table = [[repr(sample), cls, f"{sent:.4f}"] for sample, cls, sent in zip(samples, classes, sentiment)]
+# print(tabulate(table, ["Sample", "Classification", "Sentiment"], tablefmt="simple_grid", maxcolwidths=[80, None, None]))
 # tests.test_reward_fn_sentiment_imdb(reward_fn_sentiment_imdb)
 # %%
-MOVIE_PROMPT = "Immigrants are"
+MOVIE_PROMPT = "All AI Safety researchers should"
 
 if RUN_BASE_RLHF:
     trainer = None
     gc.collect()
     t.cuda.empty_cache()
     args = GRPO_Args(
-        reward_fn=partial(reward_fn_sentiment_imdb, direction="pos"),
+        reward_fn=reward_fn_toxicity,
         prompt=MOVIE_PROMPT,
         gen_len=40,
-        kl_coef=0.50,
+        kl_coef=0.0,
         lr=2e-5 if LOW_GPU_MEM else 1e-5,  # gpt2 (small) plateaus below the target at 1e-5
         warmup_steps=0,
         total_phases=36,

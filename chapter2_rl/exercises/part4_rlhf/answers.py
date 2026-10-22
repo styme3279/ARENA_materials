@@ -728,10 +728,10 @@ def apply_lora(
     lora_modules = []
     # list(...) takes a snapshot, as model.named_modules() gets modified in the loop
     for name, module in list(model.named_modules()):
-        # `name` is the module's full path, e.g. "model.layers.3.self_attn.q_proj"
-        print(name, type(module).__name__)
-        # TODO: if this module is one of the target nn.Linear layers, wrap it in a LoRALinear, put that in its place
-        # in the model (with `model.set_submodule`), and add it to `lora_modules`
+        if isinstance(module, nn.Linear) and name.split(".")[-1] in target_modules:
+            lora_module = LoRALinear(module, rank, alpha)
+            model.set_submodule(name, lora_module)
+            lora_modules.append(lora_module)
 
     if not lora_modules:
         raise ValueError(
@@ -742,3 +742,74 @@ def apply_lora(
 
 
 tests_lora.test_apply_lora(apply_lora)
+
+# %%
+lora_modules = apply_lora(model, target_modules=LORA_TARGET_MODULES, rank=8, alpha=8)
+lora_model = model  # not a copy: apply_lora adds the adapters to `model` in place, so these are the same object
+n_lora = sum(m.A.numel() + m.B.numel() for m in lora_modules)
+n_total = sum(p.numel() for p in lora_model.parameters())
+print(f"{len(lora_modules)} LoRA modules, {n_lora:,} LoRA parameters out of {n_total:,} ({n_lora / n_total:.3%})")
+print(lora_model.model.layers[0].self_attn)
+
+# %%
+@contextmanager
+def lora_disabled(model: nn.Module):
+    """Context manager that switches off all LoRALinear modules in `model`, so it acts as the original model."""
+    lora_modules = [m for m in model.modules() if isinstance(m, LoRALinear)]
+    # A merged adapter is baked into the base weights, so switching it off wouldn't give us the original model back
+    assert not any(m.merged for m in lora_modules), "Can't disable merged adapters: call `unmerge_lora(model)` first"
+    for m in lora_modules:
+        m.enabled = False
+    try:
+        yield model
+    finally:
+        for m in lora_modules:
+            m.enabled = True
+
+
+def merge_lora(model: nn.Module) -> None:
+    """Merges every LoRALinear adapter in `model` into its base layer's weights (see `LoRALinear.merge`)."""
+    for m in model.modules():
+        if isinstance(m, LoRALinear):
+            m.merge()
+
+
+def unmerge_lora(model: nn.Module) -> None:
+    """Undoes `merge_lora`, subtracting every adapter's update back out of its base layer's weights."""
+    for m in model.modules():
+        if isinstance(m, LoRALinear):
+            m.unmerge()
+
+
+tests_lora.test_lora_disabled(lora_model, lora_disabled, AutoTokenizer.from_pretrained(LORA_MODEL))
+model = lora_model = lora_modules = None  # both names refer to the model, so clear both to free its memory
+gc.collect()
+t.cuda.empty_cache()
+
+# %%
+@dataclass
+class GRPO_LoRA_Args(GRPO_Args):
+    base_model: str = LORA_MODEL
+    dtype: t.dtype = LORA_DTYPE  # dtype of the frozen base model (the adapters are always float32)
+    lora_rank: int = 8
+    lora_alpha: float = 8  # the paper sets alpha to the first rank it tries, and keeps it fixed
+    target_modules: tuple[str, ...] = LORA_TARGET_MODULES
+    lr: float = 2e-4  # LoRA needs a higher learning rate than full fine-tuning
+
+
+class GRPO_LoRA_Trainer(GRPO_Trainer):
+    args: GRPO_LoRA_Args
+
+    def __init__(self, args: GRPO_LoRA_Args):
+        t.manual_seed(args.seed)
+        self.args = args
+        self.run_name = f"{args.wandb_project_name}__seed{args.seed}__{time.strftime('%Y%m%d-%H%M%S')}"
+        self.tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+
+        raise NotImplementedError()
+
+    def get_ref_logprobs(self, sample_ids: Int[Tensor, "batch seq"]) -> Float[Tensor, "batch gen_len"]:
+        raise NotImplementedError()
+
+
+tests_lora.test_grpo_trainer_lora(GRPO_LoRA_Trainer, GRPO_LoRA_Args, LoRALinear)

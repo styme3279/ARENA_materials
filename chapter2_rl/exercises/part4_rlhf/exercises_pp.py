@@ -685,12 +685,13 @@ if RUN_BASE_RLHF:
     model = None  # free the demo model from earlier
     args = GRPO_Args(
         kl_coef=0.5,
-        lr=2e-3 if LOW_GPU_MEM else 1e-4,  # gpt2 (small) needs a higher lr to collapse as reliably
+        lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
         batch_size=1024,
-        num_minibatches=64,
+        num_minibatches=256,
         batches_per_learning_phase=1,
         total_phases=50,
         warmup_steps=10,
+        gen_len=256,
         reward_fn=reward_fn_animal_count,
     )
     trainer = GRPO_Trainer(args)

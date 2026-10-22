@@ -1,15 +1,16 @@
 # %%
 import gc
+import math
 import os
 import sys
 import time
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from typing import Callable, Literal
 
-# Allow expandable memory segments on CUDA to avoid OOMs from fragmentation (the IMDB run on gpt2-medium needs ~21GB
-# of GPU memory without this, ~18GB with it)
+# Allow expandable memory segments on CUDA to avoid OOMs from fragmentation
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import einops
@@ -18,15 +19,18 @@ import numpy as np
 import torch as t
 import torch.nn as nn
 import wandb
-from eindex import eindex
 from jaxtyping import Float, Int
-from rich import print as rprint
-from rich.table import Table
 from tabulate import tabulate
 from torch import Tensor
 from tqdm.auto import tqdm
-from transformer_lens import HookedTransformer, HookedTransformerConfig
-from transformer_lens.hook_points import HookPoint
+from eindex import eindex
+from transformers import (
+    AutoModelForCausalLM,
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    PreTrainedModel,
+    PreTrainedTokenizerBase,
+)
 
 # Make sure exercises are in the path
 chapter = "chapter2_rl"
@@ -37,33 +41,34 @@ section_dir = exercises_dir / section
 if str(exercises_dir) not in sys.path:
     sys.path.append(str(exercises_dir))
 
-from part4_rlhf import tests, tests_lora  # , tl_ext
-from part4_rlhf.fast_gen import fast_generate
+from part4_rlhf import tests, tests_lora
 
-# TransformerLens processes a model's weights on the CPU when it loads it. With PyTorch's default of one thread
-# per core, on machines that report many more cores than they let you use (common in cloud containers), threads
-# spend longer waiting than computing: loading gpt2-medium took ~85s instead of ~7s. Adjust if needed.
+# PyTorch defaults to one thread per core. On machines that report many more cores than they let you use (common in
+# cloud containers), CPU-side work then spends longer waiting on threads than computing. Adjust if needed.
 t.set_num_threads(min(4, t.get_num_threads()))
 
 device = t.device("mps" if t.backends.mps.is_available() else "cuda" if t.cuda.is_available() else "cpu")
-# TF32 matmuls on NVIDIA GPUs: ~1.5x faster RLHF training (no effect on CPU, MPS or pre-Ampere GPUs)
+# TF32 matmuls on NVIDIA GPUs: noticeably faster training (no effect on CPU, MPS or pre-Ampere GPUs)
 t.set_float32_matmul_precision("high")
 
 
 MAIN = __name__ == "__main__"
 
+
 # %%
 # LOW_GPU_MEM fires automatically on GPUs with less than 22 GiB (e.g. Colab's 16GB T4), or with no CUDA GPU at all.
-# gpt2-medium peaks at ~18 GiB on today's runs, so it fits 24GB cards (RTX 4090, A10, L4 report 22.5-24 GiB).
-
-LOW_GPU_MEM = not t.cuda.is_available() or t.cuda.get_device_properties(device).total_memory / (1024 ** 3) < 22
-BASE_MODEL = "gpt2-small" if LOW_GPU_MEM else "gpt2-medium"
+LOW_GPU_MEM = not t.cuda.is_available() or t.cuda.get_device_properties(device).total_memory / (1024**3) < 22
+BASE_MODEL = "gpt2" if LOW_GPU_MEM else "gpt2-medium"
+LORA_MODEL = "Qwen/Qwen3-0.6B-Base" if LOW_GPU_MEM else "Qwen/Qwen3-1.7B-Base"
+# bfloat16 halves the memory of the frozen base weights in the LoRA section; GPUs before Ampere (e.g. T4) don't support it
+LORA_DTYPE = t.bfloat16 if t.cuda.is_available() and t.cuda.is_bf16_supported() else t.float32
 RUN_BASE_RLHF = True
-print(f"{LOW_GPU_MEM=}, {BASE_MODEL=}, {RUN_BASE_RLHF=}")
+print(f"{LOW_GPU_MEM=}, {BASE_MODEL=}, {LORA_MODEL=}, {LORA_DTYPE=}, {RUN_BASE_RLHF=}")
+
 
 # %%
 @dataclass
-class RLHFArgs:
+class GRPO_Args:
     # Basic / global
     seed: int = 1
 
@@ -74,33 +79,28 @@ class RLHFArgs:
 
     # Duration of different phases
     total_phases: int = 100
+    prompt: str = "This is"
     batch_size: int = 128
     num_minibatches: int = 4
     batches_per_learning_phase: int = 2
 
     # Optimization hyperparameters
-    base_lr: float = 2e-5
-    head_lr: float = 5e-4
+    lr: float = 1e-5
     max_grad_norm: float = 1.0
-    warmup_steps: int = 20
+    warmup_steps: int = 10
     final_scale: float = 0.1
 
-    # Computing other PPO loss functions
+    # GRPO objective
     clip_coef: float = 0.2
-    vf_coef: float = 0.15
+    kl_coef: float = 0.3
 
     # Base model & sampling arguments
     base_model: str = BASE_MODEL
     gen_len: int = 30
     temperature: float = 1.0
-    top_k: int = 10
-    prefix: str = "This is"
-    prepend_bos: bool = True
 
-    # RLHF-specific arguments
-    kl_coef: float = 2.5
+    # Reward function, mapping a list of samples (prompt + completion) to a tensor of rewards
     reward_fn: Callable = lambda samples: t.zeros(len(samples), device=device)
-    normalize_reward: bool = True
 
     def __post_init__(self):
         assert self.total_phases > self.warmup_steps, "total_phases must be greater than warmup_steps"
@@ -108,53 +108,107 @@ class RLHFArgs:
         self.minibatch_size = self.batch_size // self.num_minibatches
 
 # %%
-class HookedTransformerWithValueHead(HookedTransformer):
+@t.no_grad()
+def get_samples(
+    model: PreTrainedModel,
+    tokenizer: PreTrainedTokenizerBase,
+    prompt: str,
+    batch_size: int,
+    gen_len: int,
+    temperature: float = 1.0,
+) -> tuple[Int[Tensor, "batch seq"], list[str]]:
     """
-    Defines a GPT model with a value head (the latter taking the last hidden state as input, post-layernorm).
+    Samples `batch_size` completions of `gen_len` tokens, all from the same prompt.
 
-    The value head is a simple MLP with one hidden layer, and scalar output:
+    Args:
+        model: the language model to sample from
+        tokenizer: the model's tokenizer
+        prompt: the prompt to complete
+        batch_size: the number of completions to sample
+        gen_len: the number of new tokens to generate for each completion
+        temperature: the sampling temperature (1.0 means sampling from the model's distribution)
 
-        Linear(d_model -> 4*d_model)
-        ReLU
-        Linear(4*d_model -> 1)
-
-    All linear layers have biases.
+    Returns:
+        sample_ids: the token ids of the samples (prompt + completion). The completions are the last `gen_len` tokens.
+        samples: the samples as strings (prompt + completion, without special tokens), used for the reward
     """
+    prompt_ids = tokenizer(tokenizer.eos_token + prompt, return_tensors="pt").input_ids.to(device).repeat(batch_size, 1)
+    sample_ids = model.generate(
+        prompt_ids,
+        # Without an explicit attention mask, `generate` treats every pad token in the prompt as padding. Our pad token
+        # is the end-of-text token that starts the prompt, so it would mask that out and sample from a different
+        # context to the one we compute log-probabilities on.
+        attention_mask=t.ones_like(prompt_ids),
+        do_sample=True,
+        temperature=temperature,
+        top_k=0,  # no truncation: sample from the model's full distribution
+        top_p=1.0,
+        max_new_tokens=gen_len,
+        eos_token_id=None,  # don't stop at the end-of-text token: always generate exactly gen_len tokens
+        pad_token_id=tokenizer.eos_token_id,
+    )
 
-    value_head: nn.Sequential
-    value_head_output: Float[Tensor, "batch seq"]
-    value_head_hook: tuple[str, Callable]
+    completions = tokenizer.batch_decode(sample_ids[:, -gen_len:], skip_special_tokens=True)
+    samples = []
+    for completion in completions:
+        samples.append(prompt + completion)
+    return sample_ids, samples
 
-    @classmethod
-    def from_pretrained(cls, *args, use_value_head: bool = True, **kwargs):
-        # Build the model directly on `device`: otherwise TransformerLens builds it and processes its weights on the
-        # CPU, then moves it (about 2x slower to load)
-        with t.device(kwargs.setdefault("device", device)):
-            model = super(HookedTransformerWithValueHead, cls).from_pretrained(*args, **kwargs)
-        model.value_head_hook = ("ln_final.hook_normalized", model.run_value_head)
+# %%
+tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
+model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=t.float32).to(device)
 
-        raise NotImplementedError()
+sample_ids, samples = get_samples(model, tokenizer, prompt="So long, and thanks for all the", batch_size=5, gen_len=15)
 
-    @property
-    def fwd_hooks(self):
-        return [self.value_head_hook]
+table = [[str(ids.tolist()), repr(sample)] for ids, sample in zip(sample_ids, samples)]
+print(tabulate(table, ["Token ids", "Sample"], tablefmt="simple_grid", maxcolwidths=60))
 
-    def get_base_model_trainable_params(self):
-        return (p for name, p in self.named_parameters() if "value_head" not in name)
+# %%
+def reward_fn_char_count(generated_sample: list[str], char: str = ".") -> Float[Tensor, " batch"]:
+    """
+    Reward function counting the number of instances of a particular character.
 
-    def get_value_head_params(self):
-        return self.value_head.parameters()
+    Args:
+        generated_sample: the generated samples to evaluate
+        char: the character to count
 
-    def run_value_head(self, resid_post: Float[Tensor, "batch seq d_model"], hook: HookPoint):
-        raise NotImplementedError()
+    Returns:
+        A float tensor of shape (batch,) giving the count of `char` in each sample.
+    """
+    counts = []
+    for sample in generated_sample:
+        count = 0
+        for c in sample:
+            if c == char:
+                count += 1
+        counts.append(count)
+    return t.tensor(counts, dtype=t.float32).to(device)
 
-    def forward_with_value_head(
-        self,
-        input_ids: Int[Tensor, "batch seq"],
-        **kwargs,
-    ) -> tuple[Float[Tensor, "batch seq d_vocab"], Float[Tensor, "batch seq"]]:
-        raise NotImplementedError()
+
+# Test your reward function
+A = "This is a test."
+B = "......"
+C = "Whatever"
+
+t.testing.assert_close(reward_fn_char_count([A]), t.tensor([1.0], device=device))
+t.testing.assert_close(reward_fn_char_count([A, B, C]), t.tensor([1.0, 6.0, 0.0], device=device))
+t.testing.assert_close(reward_fn_char_count([A], " "), t.tensor([3.0], device=device))
+print("All tests for `reward_fn_char_count` passed!")
+
+# %%
+def compute_grpo_advantages(rewards: Float[Tensor, " batch"], eps: float = 1e-6) -> Float[Tensor, " batch"]:
+    """
+    Computes GRPO advantages: each reward, normalized by the mean and std of the rewards in the group (the whole batch,
+    since all our rollouts share one prompt).
+
+    Args:
+        rewards: the reward for each sequence
+        eps: small constant added to the std dev for numerical stability
+
+    Returns:
+        The GRPO advantage of each sequence.
+    """
+    raise NotImplementedError()
 
 
-model = HookedTransformerWithValueHead.from_pretrained("pythia-14m", use_value_head=True).to(device)
-tests.test_transformer_with_value_head(model)
+tests.test_compute_grpo_advantages(compute_grpo_advantages)

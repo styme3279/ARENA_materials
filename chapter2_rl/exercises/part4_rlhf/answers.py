@@ -224,7 +224,78 @@ def get_logprobs(
     Returns:
         The logprobs on the tokens sampled.
     """
-    raise NotImplementedError()
+    sampled_logits = logits[:, -gen_len-1:-1, :]
+    sampled_tokens = tokens[:, -gen_len:].unsqueeze(-1)
 
+    log_logits = t.nn.functional.log_softmax(sampled_logits, dim=-1)
+
+    print(log_logits.shape, sampled_tokens.shape)
+
+    return t.gather(log_logits, -1, sampled_tokens).squeeze(-1)
 
 tests.test_get_logprobs(get_logprobs)
+
+# %%
+def get_logits(
+    model: PreTrainedModel,
+    sample_ids: Int[Tensor, "batch seq"],
+    gen_len: int,
+) -> Float[Tensor, "batch gen_len_plus_1 vocab"]:
+    """Runs the model on a batch, returning float32 logits for the last `gen_len + 1` positions only."""
+    return model(input_ids=sample_ids, logits_to_keep=gen_len + 1).logits.float()
+
+
+@t.no_grad()
+def get_logprobs_batched(
+    model: PreTrainedModel,
+    sample_ids: Int[Tensor, "batch seq"],
+    gen_len: int,
+    chunk_size: int,
+) -> Float[Tensor, "batch gen_len"]:
+    """Log-probabilities of the generated tokens under `model`, computed in chunks of `chunk_size` sequences."""
+    logprobs = []
+    for chunk in sample_ids.split(chunk_size):
+        logits = get_logits(model, chunk, gen_len)
+        logprobs.append(get_logprobs(logits, chunk, gen_len))
+    return t.cat(logprobs)
+
+# %%
+def calc_kl_penalty_naive(
+    logprobs: Float[Tensor, "minibatch_size gen_len d_vocab"],
+    ref_logprobs: Float[Tensor, "minibatch_size gen_len d_vocab"],
+    kl_coef: float,
+) -> Float[Tensor, ""]:
+    probs = logprobs.exp()
+    kl_div = (probs * (logprobs - ref_logprobs)).sum(-1)  # sum d_vocab
+
+    return kl_coef * kl_div.mean()  # mean batch, seq
+
+
+tests.test_calc_kl_penalty_naive(calc_kl_penalty_naive)
+tests.test_calc_kl_penalty_naive_stability(calc_kl_penalty_naive)
+
+
+# %%
+@t.no_grad()
+def kl_diagnostics(model: PreTrainedModel, tokenizer: PreTrainedTokenizerBase, prompt: str, k: int = 50):
+    """Plot the model's top-k next-token probabilities after `prompt`, to show how concentrated the
+    distribution is: almost all the mass sits on a handful of tokens."""
+    input_ids = tokenizer(tokenizer.eos_token + prompt, return_tensors="pt").input_ids.to(device)
+    logprobs = model(input_ids).logits[0, -1].float().log_softmax(-1)
+    top = logprobs.argsort(descending=True)[:k]
+    probs = logprobs[top].exp().numpy(force=True)
+    labels = [repr(tokenizer.decode([i]))[1:-1] for i in top]
+
+    fig, ax = plt.subplots(figsize=(9, 3.5), dpi=200)
+    ax.bar(np.arange(k), probs, color="#378ADD")
+    ax.set(ylabel="probability", title=f'top-{k} next-token probs after "{prompt}"')
+    ax.set_xticks(np.arange(k), labels, rotation=90, fontsize=9)
+    fig.tight_layout()
+    return fig
+
+
+# %%
+kl_diagnostics(model, tokenizer, "The cat sat on the")
+plt.show()
+
+# %%

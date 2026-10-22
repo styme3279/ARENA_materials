@@ -549,6 +549,8 @@ class GRPO_Trainer:
             - Compute the rewards and advantages
             - Log the rollouts, and return the data in a ReplayMemory object
         """
+
+        # [batch, pos]
         sample_ids, samples = get_samples(
             self.model,
             self.tokenizer,
@@ -558,12 +560,8 @@ class GRPO_Trainer:
             temperature=self.args.temperature,
         )
 
-        # Log-probabilities of the generated tokens under the current (= old, from the learning phase's point of view)
-        # and reference policies
-        logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
+        logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.batch_size)
         ref_logprobs = self.get_ref_logprobs(sample_ids)
-
-        # Rewards, and group-relative advantages
         rewards = self.args.reward_fn(samples)
         advantages = compute_grpo_advantages(rewards)
 
@@ -574,7 +572,7 @@ class GRPO_Trainer:
             sample_ids=sample_ids,
             logprobs=logprobs,
             ref_logprobs=ref_logprobs,
-            advantages=advantages,
+            advantages=advantages
         )
 
     def compute_grpo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
@@ -589,10 +587,7 @@ class GRPO_Trainer:
         """
         logits = get_logits(self.model, minibatch.sample_ids, self.args.gen_len)
         logprobs = get_logprobs(logits, minibatch.sample_ids, self.args.gen_len)
-
-        clipped_surrogate_objective = calc_clipped_surrogate_objective(
-            logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef
-        )
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
         kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
         objective = clipped_surrogate_objective - kl_penalty
 
@@ -627,18 +622,14 @@ class GRPO_Trainer:
         """
         total = 0.0
         minibatches = memory.get_minibatches()
-
-        # An inner progress bar under train()'s outer one: leave=False removes it when the phase ends, and
-        # delay=0.5 only shows it if the phase takes longer than half a second.
-        for minibatch in tqdm(minibatches, desc="learning", leave=False, delay=0.5):
+        for mb in minibatches:
             self.optimizer.zero_grad()
-            objective = self.compute_grpo_objective(minibatch)
+            objective = self.compute_grpo_objective(mb)
             objective.backward()
-            nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.args.max_grad_norm)
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
             self.optimizer.step()
             self.step += 1
             total += objective.item()
-
         self.scheduler.step()
         return total / len(minibatches)
 
@@ -667,3 +658,149 @@ class GRPO_Trainer:
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 
 # %%
+# Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
+if RUN_BASE_RLHF:
+    model = None  # free the demo model from earlier
+    args = GRPO_Args(
+        kl_coef=0.0,
+        lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
+        batch_size=64,
+        num_minibatches=1,
+        batches_per_learning_phase=1,
+        total_phases=6,
+        warmup_steps=0,
+        reward_fn=reward_fn_char_count,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping test run")
+
+# %%
+if RUN_BASE_RLHF:
+    trainer = None
+    gc.collect()
+    t.cuda.empty_cache()
+    # CUDA errors? reduce batch_size or gen_len
+    args = GRPO_Args(
+        kl_coef=0.25,
+        lr=1e-4,
+        num_minibatches=8,
+        batches_per_learning_phase=2,
+        warmup_steps=5,
+        total_phases=100,
+        reward_fn=reward_fn_char_count,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping main run")
+
+# %%
+cls_model = AutoModelForSequenceClassification.from_pretrained(
+    "lvwerra/distilbert-imdb", dtype=t.float16 if t.cuda.is_available() else t.float32
+).to(device)
+cls_tokenizer = AutoTokenizer.from_pretrained("lvwerra/distilbert-imdb")
+
+
+@t.no_grad()
+def reward_fn_sentiment_imdb(
+    gen_sample: list[str], direction: Literal["pos", "neg"] = "pos"
+) -> Float[Tensor, " batch"]:
+    """
+    Reward function based on sentiment classification probability from the lvwerra/distilbert-imdb
+    model.
+
+    Args:
+        gen_sample (list[str]): The generated sample to evaluate.
+        direction (str): The sentiment of the reward function, either "pos" or "neg".
+    """
+    assert direction in ["pos", "neg"], "direction should be either 'pos' or 'neg'"
+
+    tokens = cls_tokenizer(gen_sample, return_tensors="pt", padding=True, truncation=True).to(device)
+    logits = cls_model(**tokens).logits
+    return logits.float().softmax(dim=-1)[:, 1 if (direction == "pos") else 0]
+
+
+# Some samples taken from the IMDB dataset used to finetune this model
+samples = [
+    "Just finished watching this movie for maybe the 7th or 8th time, picked it up one night previously viewed at Blockbuster and absolutely loved it, I've shown it to 4 people so far and they have enjoyed it as well.",
+    "This was the most original movie I've seen in years. If you like unique thrillers that are influenced by film noir, then this is just the right cure for all of those Hollywood summer blockbusters clogging the theaters these days.",
+    "I can't believe that those praising this movie herein aren't thinking of some other film.",
+    "This film seemed way too long even at only 75 minutes.",
+    "Really, I can't believe that I spent $5 on this movie. I am a huge zombie fanatic and thought the movie might be really good. It had zombies in it right? Was I wrong!",
+]
+classes = ["pos", "pos", "neg", "neg", "neg"]
+
+sentiment = reward_fn_sentiment_imdb(samples, direction="pos").tolist()
+table = [[repr(sample), cls, f"{sent:.4f}"] for sample, cls, sent in zip(samples, classes, sentiment)]
+print(tabulate(table, ["Sample", "Classification", "Sentiment"], tablefmt="simple_grid", maxcolwidths=[80, None, None]))
+tests.test_reward_fn_sentiment_imdb(reward_fn_sentiment_imdb)
+
+# %%
+MOVIE_PROMPT = "I thought this movie was"
+
+if RUN_BASE_RLHF:
+    trainer = None
+    gc.collect()
+    t.cuda.empty_cache()
+    args = GRPO_Args(
+        reward_fn=partial(reward_fn_sentiment_imdb, direction="neg"),
+        prompt=MOVIE_PROMPT,
+        gen_len=40,
+        kl_coef=0.1,
+        lr=2e-5 if LOW_GPU_MEM else 1e-5,  # gpt2 (small) plateaus below the target at 1e-5
+        warmup_steps=0,
+        total_phases=12,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+
+# %%
+class LoRALinear(nn.Module):
+    """
+    Wraps a frozen nn.Linear layer W_0 (with optional bias b), adding a trainable low-rank update:
+
+        h = x W_0 + b + (alpha / rank) * x A B
+
+    with A of shape (in_features, rank) initialized from a Gaussian, and B of shape (rank, out_features) initialized to
+    zeros (so the update starts at zero).
+    """
+
+    A: Float[nn.Parameter, "d_in rank"]
+    B: Float[nn.Parameter, "rank d_out"]
+
+    def __init__(self, base: nn.Linear, rank: int, alpha: float):
+        super().__init__()
+        self.base, self.rank, self.alpha = base, rank, alpha
+        self.scaling = alpha / rank
+        self.enabled = True  # if False, the module acts exactly like the frozen base layer
+        self.merged = False  # if True, the update has been added into base.weight (see `merge`)
+        self.base.requires_grad_(False)
+        device = base.weight.device
+        self.A = nn.Parameter(t.randn(base.in_features, rank) device=device) / base.in_features**0.5
+        self.B = nn.Parameter(t.zeros(rank, base.out_features), device=device)
+
+    def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
+        raise NotImplementedError()
+
+    @t.no_grad()
+    def merge(self) -> None:
+        """Adds the low-rank update into the base layer's weights, so the forward pass no longer needs A and B."""
+        assert not self.merged, "LoRALinear: Attempting to merge an already merged model."
+        raise NotImplementedError()
+
+    @t.no_grad()
+    def unmerge(self) -> None:
+        """
+        Undoes `merge`, subtracting the low-rank update back out of the base layer's weights. If the base weights are in
+        a lower precision (like bfloat16), merging and unmerging both round, so this only gets back to W_0 approximately.
+        """
+        assert self.merged, "LoRALinear: merge must be run before running unmerge."
+        raise NotImplementedError()
+
+    def extra_repr(self) -> str:
+        return f"rank={self.rank}, alpha={self.alpha}, enabled={self.enabled}, merged={self.merged}"
+
+
+tests_lora.test_lora_linear(LoRALinear)

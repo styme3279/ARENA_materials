@@ -679,26 +679,46 @@ class GRPO_Trainer:
 
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 # %%
-# Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
 if RUN_BASE_RLHF:
-    print(f"LOW_GPU_MEM = {LOW_GPU_MEM}")
-    model = None  # free the demo model from earlier
+    trainer = None
+    gc.collect()
+    t.cuda.empty_cache()
+    # CUDA errors? reduce batch_size or gen_len
     args = GRPO_Args(
         kl_coef=0.25,
-        lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
-        batch_size=256,
-        num_minibatches=4,
-        batches_per_learning_phase=1,
-        total_phases=50,
-        warmup_steps=10,
-        # gen_len=256,
-        # reward_fn=reward_fn_animal_count,
-        reward_fn=reward_fn_char_count
+        lr=1e-3,
+        batch_size=1024,
+        num_minibatches=8,
+        batches_per_learning_phase=2,
+        warmup_steps=5,
+        total_phases=40,
+        reward_fn=reward_fn_char_count,
     )
     trainer = GRPO_Trainer(args)
     trainer.train()
 else:
-    print(f"{RUN_BASE_RLHF=}, skipping test run")
+    print(f"{RUN_BASE_RLHF=}, skipping main run")
+# %%
+# # Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
+# if RUN_BASE_RLHF:
+#     print(f"LOW_GPU_MEM = {LOW_GPU_MEM}")
+#     model = None  # free the demo model from earlier
+#     args = GRPO_Args(
+#         kl_coef=0.25,
+#         lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
+#         batch_size=256,
+#         num_minibatches=4,
+#         batches_per_learning_phase=1,
+#         total_phases=50,
+#         warmup_steps=10,
+#         # gen_len=256,
+#         # reward_fn=reward_fn_animal_count,
+#         reward_fn=reward_fn_char_count
+#     )
+#     trainer = GRPO_Trainer(args)
+#     trainer.train()
+# else:
+#     print(f"{RUN_BASE_RLHF=}, skipping test run")
 # %%
 # %%
 # Probe: the longest gen_len your GRPO config fits in GPU memory.

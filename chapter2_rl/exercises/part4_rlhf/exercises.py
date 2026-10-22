@@ -316,8 +316,54 @@ def calc_kl_penalty(
     """
     assert logprobs.shape == ref_logprobs.shape, "logprobs and ref_logprobs must have the same shape"
 
-    raise NotImplementedError()
-
+    estimated_KL_div = kl_coef*0.5*(logprobs - ref_logprobs).pow(2).mean()
+    
+    # Calculate the estimated KL divergence
+    return estimated_KL_div
 
 tests.test_calc_kl_penalty(calc_kl_penalty)
 tests.test_calc_kl_penalty_stability(calc_kl_penalty)
+
+# %%
+eps = 0.2
+ratio = np.linspace(0.5, 1.5, 201)
+fig, ax = plt.subplots(figsize=(6, 3.5), dpi=150)
+for adv, color in [(1.0, "#378ADD"), (-1.0, "#D85A30")]:
+    clipped = np.minimum(ratio * adv, np.clip(ratio, 1 - eps, 1 + eps) * adv)
+    ax.plot(ratio, clipped, color=color, label=f"$\\hat{{A}} = {adv:+.0f}$")
+for x in (1 - eps, 1, 1 + eps):
+    ax.axvline(x, color="gray", lw=0.8, ls=":" if x != 1 else "--")
+ax.set(xlabel=r"ratio $\rho$", ylabel=r"$J^{\mathrm{CLIP}}$", title=f"Clipped surrogate objective ($\\epsilon = {eps}$)")
+ax.legend()
+fig.tight_layout()
+plt.show()
+
+# %%
+def calc_clipped_surrogate_objective(
+    logprobs: Float[Tensor, "minibatch_size gen_len"],
+    old_logprobs: Float[Tensor, "minibatch_size gen_len"],
+    advantages: Float[Tensor, " minibatch_size"],
+    clip_coef: float,
+) -> Float[Tensor, ""]:
+    """
+    Returns the clipped surrogate objective, suitable for maximisation with gradient ascent.
+
+    Args:
+        logprobs:
+            log pi_theta of each generated token, under the current policy (with gradients)
+        old_logprobs:
+            log pi_theta_old of each generated token, under the policy at rollout time
+        advantages:
+            the advantage of each sequence, which applies to all of its tokens
+        clip_coef:
+            amount of clipping, denoted by epsilon in the GRPO / PPO papers
+
+    Returns:
+        The clipped surrogate objective, averaged over all tokens in the minibatch.
+    """
+    assert logprobs.shape == old_logprobs.shape and advantages.shape == logprobs.shape[:1]
+
+    raise NotImplementedError()
+
+
+tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)

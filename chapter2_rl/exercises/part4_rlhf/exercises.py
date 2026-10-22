@@ -868,3 +868,78 @@ if RUN_BASE_RLHF:
     trainer.train()
 
 # %%
+
+
+
+
+
+
+
+
+
+
+
+# %%
+class LoRALinear(nn.Module):
+    """
+    Wraps a frozen nn.Linear layer W_0 (with optional bias b), adding a trainable low-rank update:
+
+        h = x W_0 + b + (alpha / rank) * x A B
+
+    with A of shape (in_features, rank) initialized from a Gaussian, and B of shape (rank, out_features) initialized to
+    zeros (so the update starts at zero).
+    """
+
+    A: Float[nn.Parameter, "d_in rank"]
+    B: Float[nn.Parameter, "rank d_out"]
+
+    def __init__(self, base: nn.Linear, rank: int, alpha: float):
+        super().__init__()
+        self.base, self.rank, self.alpha = base, rank, alpha
+        self.scaling = alpha / rank
+        self.enabled = True  # if False, the module acts exactly like the frozen base layer
+        self.merged = False  # if True, the update has been added into base.weight (see `merge`)
+        self.base.requires_grad_(False)
+        device = base.weight.device
+
+        # self.A = nn.Linear(base.in_features, rank)
+        # self.B = nn.Linear(rank, base.out_features)
+        in_features = base.in_features
+        out_features = base.out_features
+        self.A = nn.Parameter(t.randn(in_features, rank, device=t.device)/np.sqrt(in_features))
+        self.B = nn.Parameter(t.zeros(rank, out_features, device=t.device))
+
+
+    def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
+
+        x = self.base(x)
+        if self.enabled:
+            lora = einops.einsum(x, self.A, "... d_in, d_in r -> ... r")
+            lora = einops.einsum(lore, )
+
+
+        return x
+        
+
+    @t.no_grad()
+    def merge(self) -> None:
+        """Adds the low-rank update into the base layer's weights, so the forward pass no longer needs A and B."""
+        assert not self.merged, "LoRALinear: Attempting to merge an already merged model."
+        raise NotImplementedError()
+
+    @t.no_grad()
+    def unmerge(self) -> None:
+        """
+        Undoes `merge`, subtracting the low-rank update back out of the base layer's weights. If the base weights are in
+        a lower precision (like bfloat16), merging and unmerging both round, so this only gets back to W_0 approximately.
+        """
+        assert self.merged, "LoRALinear: merge must be run before running unmerge."
+        raise NotImplementedError()
+
+    def extra_repr(self) -> str:
+        return f"rank={self.rank}, alpha={self.alpha}, enabled={self.enabled}, merged={self.merged}"
+
+
+tests_lora.test_lora_linear(LoRALinear)
+
+# %%

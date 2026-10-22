@@ -1,0 +1,232 @@
+# %%
+import os
+import sys
+from pathlib import Path
+
+IN_COLAB = "google.colab" in sys.modules
+
+chapter = "chapter2_rl"
+repo = "ARENA_materials"
+branch = "main"
+
+# Install dependencies
+try:
+    import jaxtyping
+except:
+    %pip install transformers peft einops jaxtyping torchinfo git+https://github.com/ARENA-education/eindex.git git+https://github.com/ARENA-education/liveplot.git
+
+# Get root directory, handling 3 different cases: (1) Colab, (2) notebook not in ARENA repo, (3) notebook in ARENA repo
+root = (
+    "/content"
+    if IN_COLAB
+    else "/root"
+    if repo not in os.getcwd()
+    else str(next(p for p in Path.cwd().parents if p.name == repo))
+)
+
+if Path(root).exists() and not Path(f"{root}/{chapter}").exists():
+    if not IN_COLAB:
+        !sudo apt-get install unzip
+        %pip install jupyter ipython --upgrade
+
+    if not os.path.exists(f"{root}/{chapter}"):
+        !wget -P {root} https://github.com/ARENA-education/ARENA_materials/archive/refs/heads/{branch}.zip
+        !unzip {root}/{branch}.zip '{repo}-{branch}/{chapter}/exercises/*' -d {root}
+        !mv {root}/{repo}-{branch}/{chapter} {root}/{chapter}
+        !rm {root}/{branch}.zip
+        !rmdir {root}/{repo}-{branch}
+
+
+if f"{root}/{chapter}/exercises" not in sys.path:
+    sys.path.append(f"{root}/{chapter}/exercises")
+
+os.chdir(f"{root}/{chapter}/exercises")
+# %%
+import contextlib
+import os
+import random
+import re
+import sys
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
+
+from liveplot import LivePlot
+from tqdm.auto import tqdm
+
+# Must be set before torch initialises CUDA; reduces allocator
+# fragmentation, which matters when the trainer is running near the 16GB limit of an A4000.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+import numpy as np
+import torch as t
+from eindex import eindex
+from jaxtyping import Float, Int
+from peft import PeftModel
+from torch import Tensor
+from transformers import PreTrainedTokenizerBase
+
+# Make sure exercises are in the path
+chapter = "chapter2_rl"
+section = "part42_rlvr"
+root_dir = next(p for p in Path.cwd().parents if (p / chapter).exists())
+exercises_dir = root_dir / chapter / "exercises"
+section_dir = exercises_dir / section
+
+from part42_rlvr import tests, utils
+
+# With PyTorch's default of one thread per core, on machines that report many more cores than they let you use
+# (common in cloud containers), CPU-side work spends longer waiting on threads than computing. Adjust if needed.
+t.set_num_threads(min(4, t.get_num_threads()))
+
+device = t.device("mps" if t.backends.mps.is_available() else "cuda" if t.cuda.is_available() else "cpu")
+
+# Optional speed-up: Liger's fused RMSNorm / SwiGLU / RoPE kernels make the learning phase ~15-25% faster (same results up
+# to bf16 rounding). They're Triton kernels, so only on GPUs where those work (pre-Blackwell); otherwise we skip them.
+try:
+    if device.type == "cuda" and t.cuda.get_device_capability()[0] < 10:
+        from liger_kernel.transformers import apply_liger_kernel_to_qwen3
+
+        apply_liger_kernel_to_qwen3(rope=True, rms_norm=True, swiglu=True, cross_entropy=False, fused_linear_cross_entropy=False)
+        print("Applied Liger kernels!")
+except ImportError:
+    print("Skipping Liger kernels...")
+    pass
+
+
+MAIN = __name__ == "__main__"
+SLOW = False  # set True to run the slow optional experiments (the pass@k comparison takes ~20 min on an A40)
+# %%
+# Difficulty ladder: (name, range of a, range of b). Base-model sampled pass@1 (Qwen3-0.6B-Base, 768-token cap, n=64):
+# Measured success rates on the first six rungs: 0.56 / 0.44 / 0.30 / 0.16 / 0.08 / 0.05
+DIFFICULTY_LADDER = [
+    ("3x2", (100, 999), (10, 99)),
+    ("4x2", (1000, 9999), (10, 99)),
+    ("3x3", (100, 999), (100, 999)),
+    ("4x3", (1000, 9999), (100, 999)),
+    ("4x4 (b<3000)", (1000, 9999), (1000, 2999)),
+    ("4x4", (1000, 9999), (1000, 9999)),
+    ("4x5", (1000, 9999), (10000, 99999)),
+    ("5x5", (10000, 99999), (10000, 99999)),
+]
+
+
+def mult_byhand(rng: random.Random, difficulty: int = 0) -> tuple[str, int]:
+    """Generate a multiplication problem.
+
+    Args:
+        rng: Random number generator.
+        difficulty: Index into `DIFFICULTY_LADDER`.
+
+    Returns:
+        The prompt, and the answer a * b.
+    """
+    _, (a_lo, a_hi), (b_lo, b_hi) = DIFFICULTY_LADDER[difficulty]
+    a, b = rng.randint(a_lo, a_hi), rng.randint(b_lo, b_hi)          # e.g. 100..999 x 10..99 on the first rung
+    prompt = f"Compute {a} * {b}. Reason step by step, then give the final answer as \\boxed{{N}}.\n"
+    return prompt, a * b
+# %%
+def extract_boxed_int(text: str) -> int | None:
+    """Return the integer in the last `\\boxed{N}` of `text`, or None."""
+    # Matches \boxed{42}, \boxed{ -7 }, etc. Only plain integers are captured.
+    pattern = r"\\boxed\{\s*(-?\d+)\s*\}"
+
+    matches = re.findall(pattern, text)
+    if not matches:
+        return None
+
+    last_match = matches[-1]
+    return int(last_match)
+
+tests.test_extract_boxed_int(extract_boxed_int)
+# %%
+def int_reward(completions: list[str], answer: int) -> Float[Tensor, " G"]:
+    """Reward each completion of one problem: 1.0 if correct, 0.1 if boxed but wrong, else 0.0."""
+    generated_answers = [extract_boxed_int(completion) for completion in completions]
+    rewards = [1 if a_i == answer else 0.0 if a_i is None else 0.1 for a_i in generated_answers]
+    return t.tensor(rewards)
+
+tests.test_int_reward(int_reward)
+# %%
+@dataclass
+class RLVRArgs:
+    # Base model & LoRA (applied with `peft` below)
+    model_name: str = "Qwen/Qwen3-0.6B-Base"
+    lora_rank: int = 16
+    lora_alpha: float = 32
+    lora_dropout: float = 0.0
+    lora_targets: list[str] = field(
+        default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    )
+
+    # Task & reward (the functions you wrote in section 1). `task(rng, difficulty)` -> (prompt, answer)
+    task: Callable = mult_byhand
+    reward_fn: Callable = int_reward     # (completions of one problem, its answer) -> rewards (G,)
+
+    # Dynamic curriculum (section 2): keep each question near `target_success` so the group reward has variance
+    target_success: float = 0.5
+    initial_difficulty: float = 1.0      # D_0; the controller finds the frontier from here
+    difficulty_lr: float = 1.0           # alpha: D += alpha * (batch solve rate - target_success). 0 = fixed difficulty
+    min_difficulty: float = 0.0
+    max_difficulty: float = len(DIFFICULTY_LADDER) - 1
+
+    # Rollouts: each step samples `n_prompts` problems and `num_return_sequences` completions per problem (the GRPO
+    # group, size G in the maths) for `n_prompts * num_return_sequences` total
+    n_prompts: int = 16
+    num_return_sequences: int = 8
+    max_new_tokens: int = 400       # enough for 4x4 working; 350 or less truncates answers and learns less reliably
+    temperature: float = 1.0
+    top_k: int = 50               
+    top_p: float = 0.95
+    sampler: str = "auto"         # "vllm" (in-process vLLM, single weight copy; needs vllm + a big card), "fast" (utils.FastSampler:
+                                  # CUDA graphs + no-repeat GQA attention), "hf" (model.generate). "auto" = vllm if importable, else fast on CUDA, else hf
+
+    # Optimization
+    lr: float = 1e-4
+    log_samples: int = 1          # rollouts printed per step (0 = none)
+    micro_batch: int = 4          # sequences per forward pass when computing logprobs (memory, not maths; peak ~10 GiB, 8 needs ~17)
+
+    # Duration & reproducibility
+    n_steps: int = 20             # training steps, each one rollout batch + one gradient step (~6 min on an A40 with FastSampler)
+    seed: int = 0
+# %%
+# Provided: load a small base model + a LoRA adapter
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import LoraConfig, get_peft_model
+from torchinfo import summary
+
+MODEL_NAME = "Qwen/Qwen3-0.6B-Base"
+# %%
+cfg = RLVRArgs()
+
+tokenizer = AutoTokenizer.from_pretrained(cfg.model_name)
+tokenizer.padding_side = "left"   # batched generation: pad on the left so all prompts end at the same position
+
+# Rollout sampler. With vLLM installed we get samples ~2.5x faster (vLLM's weights and the HF model's are one copy).
+# vLLM is optional and not in the ARENA requirements: `pip install vllm==0.30.0`, ideally in a separate environment,
+# since it pins its own torch and transformers. It's only imported if it's installed and we use it here.
+USE_VLLM = cfg.sampler == "vllm" or (cfg.sampler == "auto" and device.type == "cuda" and utils.vllm_available())
+if USE_VLLM:
+    vllm_engine = utils.VLLMEngine(cfg.model_name, tokenizer, seed=cfg.seed, max_lora_rank=cfg.lora_rank,
+                                        temperature=cfg.temperature, top_k=cfg.top_k, top_p=cfg.top_p)
+    _base = vllm_engine.make_hf_base()
+    print("Using vLLM")
+else:
+    vllm_engine = None
+    _base = AutoModelForCausalLM.from_pretrained(cfg.model_name, dtype=t.bfloat16, attn_implementation="sdpa").to(device)
+    print("no vLLM, falling back to FastSampler (CUDA) or HF generate")
+
+_base.config.pad_token_id = tokenizer.pad_token_id
+rlvr_model = get_peft_model(
+    _base,
+    LoraConfig(r=cfg.lora_rank, 
+                lora_alpha=cfg.lora_alpha, 
+                lora_dropout=cfg.lora_dropout,
+                target_modules=cfg.lora_targets),
+)
+# %%
+def drgrpo_advantages(returns: Float[Tensor, "n_prompts G"]) -> Float[Tensor, "n_prompts G"]:
+    """Subtract each group's mean return (no std normalisation)."""
+    return returns - returns.mean(dim=-1, keepdim=True)
+# %%

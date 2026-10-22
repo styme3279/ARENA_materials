@@ -256,8 +256,10 @@ def _test_grpo_trainer(GRPO_Trainer, GRPO_Args):
     trainer = None
 
     def reward_fn(samples):
-        # Character length: varies a lot between samples, so the advantages are all different
-        return t.tensor([float(len(s)) for s in samples], device=next(trainer.model.parameters()).device)
+        # Sum of character codes: different samples almost always get different rewards, so the advantages are all
+        # different (character length doesn't work: "One two three" mostly continues "four five six...", so every
+        # sample often has the same length, the advantages are all zero, and the surrogate can't be checked)
+        return t.tensor([float(sum(map(ord, s))) for s in samples], device=next(trainer.model.parameters()).device)
 
     args = GRPO_Args(
         base_model="gpt2",
@@ -311,6 +313,7 @@ def _test_grpo_trainer(GRPO_Trainer, GRPO_Args):
 
     # ==================== compute_grpo_objective ====================
     minibatch = memory.get_minibatches()[0]
+    assert minibatch.advantages.abs().max() > 0.1, "Test setup error: the advantages are all ~0, so can't be tested"
     objective = trainer.compute_grpo_objective(minibatch)
     assert isinstance(objective, t.Tensor) and objective.numel() == 1, "compute_grpo_objective should return a scalar"
     assert objective.requires_grad, "The objective has no gradient: don't compute the policy's logprobs under no_grad"

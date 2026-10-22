@@ -560,7 +560,7 @@ class GRPO_Trainer:
             temperature=self.args.temperature,
         )
 
-        logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.batch_size)
+        logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
         ref_logprobs = self.get_ref_logprobs(sample_ids)
         rewards = self.args.reward_fn(samples)
         advantages = compute_grpo_advantages(rewards)
@@ -778,17 +778,25 @@ class LoRALinear(nn.Module):
         self.merged = False  # if True, the update has been added into base.weight (see `merge`)
         self.base.requires_grad_(False)
         device = base.weight.device
-        self.A = nn.Parameter(t.randn(base.in_features, rank) device=device) / base.in_features**0.5
-        self.B = nn.Parameter(t.zeros(rank, base.out_features), device=device)
+        self.A = nn.Parameter(t.randn(base.in_features, rank, device=device) / base.in_features**0.5)
+        self.B = nn.Parameter(t.zeros(rank, base.out_features, device=device))
 
     def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
-        raise NotImplementedError()
+        out = self.base(x)
+        if self.merged or not self.enabled:
+            return out
+        x = x.to(self.A.dtype)
+        x = einops.einsum(x, self.A, "... d_in, d_in rank -> ... rank")
+        update = einops.einsum(x, self.B, "... rank, rank d_out -> ... d_out")
+        return out + (self.scaling * update).to(out.dtype)
 
     @t.no_grad()
     def merge(self) -> None:
         """Adds the low-rank update into the base layer's weights, so the forward pass no longer needs A and B."""
         assert not self.merged, "LoRALinear: Attempting to merge an already merged model."
-        raise NotImplementedError()
+        update = einops.einsum(self.A, self.B, "d_in rank, rank d_out -> d_in d_out") * self.scaling
+        self.base.weight += update.T
+        self.merged = True
 
     @t.no_grad()
     def unmerge(self) -> None:
@@ -797,10 +805,176 @@ class LoRALinear(nn.Module):
         a lower precision (like bfloat16), merging and unmerging both round, so this only gets back to W_0 approximately.
         """
         assert self.merged, "LoRALinear: merge must be run before running unmerge."
-        raise NotImplementedError()
+        update = einops.einsum(self.A, self.B, "d_in rank, rank d_out -> d_in d_out") * self.scaling
+        self.base.weight -= update.T
+        self.merged = False
 
     def extra_repr(self) -> str:
         return f"rank={self.rank}, alpha={self.alpha}, enabled={self.enabled}, merged={self.merged}"
 
 
 tests_lora.test_lora_linear(LoRALinear)
+
+# %%
+tests_lora.test_lora_merge(LoRALinear)
+
+# %%
+trainer = None  # free the section 1 trainer (policy + reference model), if there is one
+gc.collect()
+if t.cuda.is_available():
+    t.cuda.empty_cache()
+model = AutoModelForCausalLM.from_pretrained(LORA_MODEL, dtype=LORA_DTYPE).to(device)
+print(model.model.layers[0])
+print(f"\n{model.config.num_attention_heads=}, {model.config.num_key_value_heads=}")
+
+# %%
+# Every linear layer in both attention and MLP layers
+LORA_TARGET_MODULES = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
+
+
+def apply_lora(
+    model: nn.Module, 
+    target_modules: tuple[str, ...] = LORA_TARGET_MODULES, 
+    rank: int = 8, 
+    alpha: float = 8
+) -> list[LoRALinear]:
+    """
+    Wraps every nn.Linear whose name (the last part of its path) is one of `target_modules` in a LoRALinear.
+
+    Returns:
+        The list of LoRALinear modules added to the model.
+    """
+    lora_modules = []
+    # list(...) takes a snapshot, as model.named_modules() gets modified in the loop
+    for name, module in list(model.named_modules()):
+        # `name` is the module's full path, e.g. "model.layers.3.self_attn.q_proj"
+        print(name, type(module).__name__)
+        # TODO: if this module is one of the target nn.Linear layers, wrap it in a LoRALinear, put that in its place
+        # in the model (with `model.set_submodule`), and add it to `lora_modules`
+        if name.split(".")[-1] in target_modules:
+            lora_module = LoRALinear(base=module, rank=rank, alpha=alpha)
+            model.set_submodule(name, lora_module)
+            lora_modules.append(lora_module)
+
+    if not lora_modules:
+        raise ValueError(
+            f"No nn.Linear layers named any of {target_modules} were found. Different models name their layers "
+            "differently: print the model to see the names."
+        )
+    return lora_modules
+
+
+tests_lora.test_apply_lora(apply_lora)
+
+# %%
+lora_modules = apply_lora(model, target_modules=LORA_TARGET_MODULES, rank=8, alpha=8)
+lora_model = model  # not a copy: apply_lora adds the adapters to `model` in place, so these are the same object
+n_lora = sum(m.A.numel() + m.B.numel() for m in lora_modules)
+n_total = sum(p.numel() for p in lora_model.parameters())
+print(f"{len(lora_modules)} LoRA modules, {n_lora:,} LoRA parameters out of {n_total:,} ({n_lora / n_total:.3%})")
+print(lora_model.model.layers[0].self_attn)
+
+# %%
+@contextmanager
+def lora_disabled(model: nn.Module):
+    """Context manager that switches off all LoRALinear modules in `model`, so it acts as the original model."""
+    lora_modules = [m for m in model.modules() if isinstance(m, LoRALinear)]
+    # A merged adapter is baked into the base weights, so switching it off wouldn't give us the original model back
+    assert not any(m.merged for m in lora_modules), "Can't disable merged adapters: call `unmerge_lora(model)` first"
+    for m in lora_modules:
+        m.enabled = False
+    try:
+        yield model
+    finally:
+        for m in lora_modules:
+            m.enabled = True
+
+
+def merge_lora(model: nn.Module) -> None:
+    """Merges every LoRALinear adapter in `model` into its base layer's weights (see `LoRALinear.merge`)."""
+    for m in model.modules():
+        if isinstance(m, LoRALinear):
+            m.merge()
+
+
+def unmerge_lora(model: nn.Module) -> None:
+    """Undoes `merge_lora`, subtracting every adapter's update back out of its base layer's weights."""
+    for m in model.modules():
+        if isinstance(m, LoRALinear):
+            m.unmerge()
+
+
+tests_lora.test_lora_disabled(lora_model, lora_disabled, AutoTokenizer.from_pretrained(LORA_MODEL))
+model = lora_model = lora_modules = None  # both names refer to the model, so clear both to free its memory
+gc.collect()
+t.cuda.empty_cache()
+
+# %%
+@dataclass
+class GRPO_LoRA_Args(GRPO_Args):
+    base_model: str = LORA_MODEL
+    dtype: t.dtype = LORA_DTYPE  # dtype of the frozen base model (the adapters are always float32)
+    lora_rank: int = 8
+    lora_alpha: float = 8  # the paper sets alpha to the first rank it tries, and keeps it fixed
+    target_modules: tuple[str, ...] = LORA_TARGET_MODULES
+    lr: float = 2e-4  # LoRA needs a higher learning rate than full fine-tuning
+
+
+class GRPO_LoRA_Trainer(GRPO_Trainer):
+    args: GRPO_LoRA_Args
+
+    def __init__(self, args: GRPO_LoRA_Args):
+        t.manual_seed(args.seed)
+        self.args = args
+        self.run_name = f"{args.wandb_project_name}__seed{args.seed}__{time.strftime('%Y%m%d-%H%M%S')}"
+        self.tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+
+        self.model = AutoModelForCausalLM.from_pretrained(args.base_model, dtype=args.dtype).to(device).eval()
+        self.model.requires_grad_(False)
+        self.lora_modules = apply_lora(self.model, args.target_modules, args.lora_rank, args.lora_alpha)
+        self.ref_model = None
+        self.optimizer, self.scheduler = get_optimizer_and_scheduler(args, self.model)
+
+    def get_ref_logprobs(self, sample_ids: Int[Tensor, "batch seq"]) -> Float[Tensor, "batch gen_len"]:
+        with lora_disabled(self.model):
+            return get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
+
+
+tests_lora.test_grpo_trainer_lora(GRPO_LoRA_Trainer, GRPO_LoRA_Args, LoRALinear)
+
+# %%
+lora_args = GRPO_LoRA_Args(
+    reward_fn=partial(reward_fn_sentiment_imdb, direction="neg"),
+    prompt=MOVIE_PROMPT,
+    num_minibatches=8,
+    gen_len=40,
+    kl_coef=0.1,
+    warmup_steps=0,
+    total_phases=10,
+)
+trainer = None  # free the section 1 trainer, if there is one
+gc.collect()
+if t.cuda.is_available():
+    t.cuda.empty_cache()
+    t.cuda.reset_peak_memory_stats()
+lora_trainer = GRPO_LoRA_Trainer(lora_args)
+lora_trainer.train()
+print(f"Peak GPU memory: {t.cuda.max_memory_allocated() / 1024**3:.1f} GiB" if t.cuda.is_available() else "")
+
+# %%
+model = lora_trainer.model
+tokenizer = lora_trainer.tokenizer
+sample_ids, _ = get_samples(model, tokenizer, MOVIE_PROMPT, batch_size=8, gen_len=lora_args.gen_len)
+
+with t.no_grad():
+    logprobs_before = get_logprobs(get_logits(model, sample_ids, lora_args.gen_len), sample_ids, lora_args.gen_len)
+    merge_lora(model)
+    logprobs_merged = get_logprobs(get_logits(model, sample_ids, lora_args.gen_len), sample_ids, lora_args.gen_len)
+    unmerge_lora(model)
+    logprobs_unmerged = get_logprobs(get_logits(model, sample_ids, lora_args.gen_len), sample_ids, lora_args.gen_len)
+
+print(f"Mean logprob of the samples: {logprobs_before.mean().item():.4f}")
+print(f"Mean absolute change in logprobs from merging: {(logprobs_merged - logprobs_before).abs().mean().item():.4f}")
+print(f"Mean absolute change in logprobs after unmerging: {(logprobs_unmerged - logprobs_before).abs().mean().item():.4f}")
+
+# %%

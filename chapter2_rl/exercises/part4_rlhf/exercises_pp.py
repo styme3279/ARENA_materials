@@ -262,13 +262,57 @@ def reward_fn_char_count(generated_sample: list[str], char: str = ".") -> Float[
     return out
 
 import re
-def reward_fn_animal_count(
-    generated_sample: list[str]
-) -> Float[Tensor, " batch"]:
-    """Counts whole-word, case-insensitive appearances of any of `animals` (plus a plural 's') in each sample."""
-    pattern = re.compile(r"\b(?:" + "|".join(re.escape(a) for a in ANIMALS) + r")s?\b", re.IGNORECASE)
-    return t.tensor([len(pattern.findall(s)) for s in generated_sample], dtype=t.float32, device=device)
-
+# Plurals that the regular English rules in `_plural_forms` would get wrong, keyed by the word that changes (the last
+# word of multi-word names, e.g. "mantis" for "praying mantis"). An empty list means the plural is the same word as
+# the singular ("three sheep"), which is matched already.
+IRREGULAR_PLURALS = {
+    "mouse": ["mice"],
+    "goose": ["geese"],
+    "cow": ["cows", "kine"],
+    "wolf": ["wolves"],
+    "sheep": [],
+    "deer": [],
+    "moose": [],
+    "buffalo": ["buffaloes", "buffalos"],
+    "mosquito": ["mosquitoes", "mosquitos"],
+    "flamingo": ["flamingos", "flamingoes"],
+    "gecko": ["geckos", "geckoes"],
+    "armadillo": ["armadillos"],
+    "octopus": ["octopuses", "octopi", "octopodes"],
+    "platypus": ["platypuses", "platypi"],
+    "hippopotamus": ["hippopotamuses", "hippopotami"],
+    "rhinoceros": ["rhinoceroses", "rhinoceri"],
+    "mantis": ["mantises", "mantes"],
+    "cicada": ["cicadas", "cicadae"],
+    "tarantula": ["tarantulas", "tarantulae"],
+    "ibex": ["ibexes", "ibices"],
+}
+ 
+ 
+def _plural_forms(name: str) -> list[str]:
+    """Plural forms of an animal name, changing only the last word of multi-word names ("guinea pig" -> "guinea pigs")."""
+    *head, last = name.split(" ")
+    key = last.lower()
+    if key in IRREGULAR_PLURALS:
+        plurals = IRREGULAR_PLURALS[key]
+    elif key.endswith(("s", "x", "z", "ch", "sh")):  # fox -> foxes, finch -> finches, catfish -> catfishes
+        plurals = [last + "es"]
+    elif key.endswith("y") and key[-2] not in "aeiou":  # pony -> ponies, but turkey -> turkeys
+        plurals = [last[:-1] + "ies"]
+    else:  # dog -> dogs (for salmon, bison, elk etc. this adds the "-s" variant; the bare plural is matched already)
+        plurals = [last + "s"]
+    return [" ".join([*head, p]) for p in plurals]
+ 
+ 
+# Every singular and plural form, longest first so that "whale sharks" is one match rather than "whale" + "sharks".
+# Built when this cell runs, so re-run it after editing ANIMALS.
+ANIMAL_FORMS = sorted({f for a in ANIMALS for f in [a, *_plural_forms(a)]}, key=lambda f: (-len(f), f.lower()))
+ANIMAL_PATTERN = re.compile(r"\b(?:" + "|".join(re.escape(f) for f in ANIMAL_FORMS) + r")\b", re.IGNORECASE)
+ 
+ 
+def reward_fn_animal_count(generated_sample: list[str]) -> Float[Tensor, " batch"]:
+    """Counts whole-word, case-insensitive mentions of any animal in `ANIMALS`, singular or plural, in each sample."""
+    return t.tensor([len(ANIMAL_PATTERN.findall(s)) for s in generated_sample], dtype=t.float32, device=device)
 
 # Test your reward function
 A = "This is a test."
@@ -679,20 +723,23 @@ class GRPO_Trainer:
 
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
 # %%
+_, s = get_samples(model, tokenizer, "This is", 256, 30)
+r = reward_fn_animal_count(s)
+print(f"{(r > 0).float().mean():.1%} score > 0")
+print(*[repr(x) for x, ri in zip(s, r) if ri > 0][:10], sep="\n")
+# %%
 trainer = None
 gc.collect()
 t.cuda.empty_cache()
 # CUDA errors? reduce batch_size or gen_len
 args = GRPO_Args(
-    kl_coef=0.90,
-    lr=1e-3,
-    batch_size=256,
-    num_minibatches=64,
-    batches_per_learning_phase=8,
-    warmup_steps=10,
-    total_phases=100,
-    gen_len=256,
+    lr=1e-4,                       # was 1e-3 (the smoke-test value)
+    batches_per_learning_phase=2,  # was 8
+    num_minibatches=8,             # ARENA's main-run value
+    kl_coef=0.25,                  # was 0.9; raise toward 0.6 if samples get incoherent
+    batch_size=256, warmup_steps=10, total_phases=100,
     reward_fn=reward_fn_animal_count,
+    use_wandb=True,                # to see clipfrac
 )
 trainer = GRPO_Trainer(args)
 trainer.train()

@@ -515,7 +515,7 @@ class GRPO_Trainer:
         with t.inference_mode():
             logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size)
             ref_logprobs = self.get_ref_logprobs(sample_ids)
-        rewards = reward_fn_char_count(samples)
+        rewards = self.args.reward_fn(samples)
         advantages = compute_grpo_advantages(rewards)
         self.log_rollout(samples, rewards, logprobs, ref_logprobs)
         return ReplayMemory(self.args, sample_ids, logprobs, ref_logprobs, advantages)
@@ -531,9 +531,9 @@ class GRPO_Trainer:
             - Also optionally log stuff to Weights & Biases (provided)
         """
         logits = get_logits(self.model, minibatch.sample_ids, self.args.gen_len)
-        logprobs = logits.log_softmax(-1)
+        logprobs = get_logprobs(logits, minibatch.sample_ids, self.args.gen_len)
         clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
-        kl_penalty = calc_kl_penalty(logprobs, minibatch.logprobs, self.args.kl_coef)
+        kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
         objective = clipped_surrogate_objective - kl_penalty
 
         if self.args.use_wandb:

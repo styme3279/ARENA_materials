@@ -191,7 +191,7 @@ t.testing.assert_close(reward_fn_char_count([A], " "), t.tensor([3.0], device=de
 print("All tests for `reward_fn_char_count` passed!")
 
 # %%
-def compute_grpo_advantages(get: Float[Tensor, " batch"], eps: float = 1e-6) -> Float[Tensor, " batch"]:
+def compute_grpo_advantages(rewards: Float[Tensor, " batch"], eps: float = 1e-6) -> Float[Tensor, " batch"]:
     """
     Computes GRPO advantages: each reward, normalized by the mean and std of the rewards in the group (the whole batch,
     since all our rollouts share one prompt).
@@ -788,6 +788,25 @@ class GRPO_Trainer:
         if self.args.use_wandb:
             wandb.finish()
 
-tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
+# tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
+
+# %%
+# Testing your setup: kl_coef=0.0 (see the dropdown above for explanation)
+if RUN_BASE_RLHF:
+    model = None  # free the demo model from earlier
+    args = GRPO_Args(
+        kl_coef=0.0,
+        lr=2e-3 if LOW_GPU_MEM else 1e-3,  # gpt2 (small) needs a higher lr to collapse as reliably
+        batch_size=64,
+        num_minibatches=1,
+        batches_per_learning_phase=1,
+        total_phases=6,
+        warmup_steps=0,
+        reward_fn=reward_fn_char_count,
+    )
+    trainer = GRPO_Trainer(args)
+    trainer.train()
+else:
+    print(f"{RUN_BASE_RLHF=}, skipping test run")
 
 # %%

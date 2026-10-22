@@ -899,3 +899,19 @@ lora_trainer.train()
 print(f"Peak GPU memory: {t.cuda.max_memory_allocated() / 1024**3:.1f} GiB" if t.cuda.is_available() else "")
 
 # %%
+model = lora_trainer.model
+tokenizer = lora_trainer.tokenizer
+sample_ids, _ = get_samples(model, tokenizer, MOVIE_PROMPT, batch_size=8, gen_len=lora_args.gen_len)
+
+with t.no_grad():
+    logprobs_before = get_logprobs(get_logits(model, sample_ids, lora_args.gen_len), sample_ids, lora_args.gen_len)
+    merge_lora(model)
+    logprobs_merged = get_logprobs(get_logits(model, sample_ids, lora_args.gen_len), sample_ids, lora_args.gen_len)
+    unmerge_lora(model)
+    logprobs_unmerged = get_logprobs(get_logits(model, sample_ids, lora_args.gen_len), sample_ids, lora_args.gen_len)
+
+print(f"Mean logprob of the samples: {logprobs_before.mean().item():.4f}")
+print(f"Mean absolute change in logprobs from merging: {(logprobs_merged - logprobs_before).abs().mean().item():.4f}")
+print(f"Mean absolute change in logprobs after unmerging: {(logprobs_unmerged - logprobs_before).abs().mean().item():.4f}")
+
+# %%

@@ -353,3 +353,32 @@ def calc_kl_penalty(
 tests.test_calc_kl_penalty(calc_kl_penalty)
 tests.test_calc_kl_penalty_stability(calc_kl_penalty)
 # %%
+def calc_clipped_surrogate_objective(
+    logprobs: Float[Tensor, "minibatch_size gen_len"],
+    old_logprobs: Float[Tensor, "minibatch_size gen_len"],
+    advantages: Float[Tensor, " minibatch_size"],
+    clip_coef: float,
+) -> Float[Tensor, ""]:
+    """
+    Returns the clipped surrogate objective, suitable for maximisation with gradient ascent.
+
+    Args:
+        logprobs:
+            log pi_theta of each generated token, under the current policy (with gradients)
+        old_logprobs:
+            log pi_theta_old of each generated token, under the policy at rollout time
+        advantages:
+            the advantage of each sequence, which applies to all of its tokens
+        clip_coef:
+            amount of clipping, denoted by epsilon in the GRPO / PPO papers
+
+    Returns:
+        The clipped surrogate objective, averaged over all tokens in the minibatch.
+    """
+    assert logprobs.shape == old_logprobs.shape and advantages.shape == logprobs.shape[:1]
+    
+    
+
+
+tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)
+# %%

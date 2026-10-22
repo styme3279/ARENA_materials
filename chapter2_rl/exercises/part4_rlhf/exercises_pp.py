@@ -261,6 +261,22 @@ def get_logprobs(
     Returns:
         The logprobs on the tokens sampled.
     """
+    batch_size, seq_len, _ = logits.shape
+    device = logits.device
+    out = t.zeros((batch_size, gen_len), device=device)
+    for batch in range(batch_size):
+        for i in range(gen_len + 1):
+            start = seq_len - gen_len + i
+            token = tokens[batch, start]
+            tlogits = logits[batch, start - 1]
+            logprobs = t.nn.functional.log_softmax(tlogits, dim=-1)
+            print(logprobs.shape)
+            print(logprobs)
+            print(token.unsqueeze(-1).shape)
+            print(token)
+            print("\n\n")
+            out[batch, i] = logprobs[token]
+    return out
     
 
 

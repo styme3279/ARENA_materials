@@ -327,3 +327,262 @@ tests.test_calc_kl_penalty(calc_kl_penalty)
 tests.test_calc_kl_penalty_stability(calc_kl_penalty)
 
 # %%
+eps = 0.2
+ratio = np.linspace(0.5, 1.5, 201)
+fig, ax = plt.subplots(figsize=(6, 3.5), dpi=150)
+for adv, color in [(1.0, "#378ADD"), (-1.0, "#D85A30")]:
+    clipped = np.minimum(ratio * adv, np.clip(ratio, 1 - eps, 1 + eps) * adv)
+    ax.plot(ratio, clipped, color=color, label=f"$\\hat{{A}} = {adv:+.0f}$")
+for x in (1 - eps, 1, 1 + eps):
+    ax.axvline(x, color="gray", lw=0.8, ls=":" if x != 1 else "--")
+ax.set(xlabel=r"ratio $\rho$", ylabel=r"$J^{\mathrm{CLIP}}$", title=f"Clipped surrogate objective ($\\epsilon = {eps}$)")
+ax.legend()
+fig.tight_layout()
+plt.show()
+
+# %%
+def calc_clipped_surrogate_objective(
+    logprobs: Float[Tensor, "minibatch_size gen_len"],
+    old_logprobs: Float[Tensor, "minibatch_size gen_len"],
+    advantages: Float[Tensor, " minibatch_size"],
+    clip_coef: float,
+) -> Float[Tensor, ""]:
+    """
+    Returns the clipped surrogate objective, suitable for maximisation with gradient ascent.
+
+    Args:
+        logprobs:
+            log pi_theta of each generated token, under the current policy (with gradients)
+        old_logprobs:
+            log pi_theta_old of each generated token, under the policy at rollout time
+        advantages:
+            the advantage of each sequence, which applies to all of its tokens
+        clip_coef:
+            amount of clipping, denoted by epsilon in the GRPO / PPO papers
+
+    Returns:
+        The clipped surrogate objective, averaged over all tokens in the minibatch.
+    """
+    assert logprobs.shape == old_logprobs.shape and advantages.shape == logprobs.shape[:1]
+
+    p = t.exp(logprobs - old_logprobs)
+
+    advantages = einops.repeat(advantages, "minibatchsize -> minibatchsize gen_len", gen_len=p.shape[-1])
+
+    print(advantages.shape, logprobs.shape, old_logprobs.shape, p.shape)
+
+    clip_fn = t.clamp(p, 1-clip_coef, 1+clip_coef)
+
+    out = t.minimum(p*advantages, clip_fn*advantages).mean()
+
+    return out
+
+
+tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)
+# %%
+@dataclass
+class ReplayMinibatch:
+    """
+    Samples from the replay memory.
+    """
+
+    sample_ids: Int[Tensor, "minibatch_size seq_len"]
+    logprobs: Float[Tensor, "minibatch_size gen_len"]
+    ref_logprobs: Float[Tensor, "minibatch_size gen_len"]
+    advantages: Float[Tensor, " minibatch_size"]
+
+
+class ReplayMemory:
+    def __init__(
+        self,
+        args: GRPO_Args,
+        sample_ids: Int[Tensor, "batch_size seq_len"],
+        logprobs: Float[Tensor, "batch_size gen_len"],
+        ref_logprobs: Float[Tensor, "batch_size gen_len"],
+        advantages: Float[Tensor, " batch_size"],
+    ):
+        """Initializes the replay memory, with all the data generated from the rollout phase at once."""
+        assert sample_ids.shape[0] == args.batch_size
+        assert logprobs.shape == ref_logprobs.shape == (args.batch_size, args.gen_len)
+        assert advantages.shape == (args.batch_size,)
+
+        self.args = args
+        self.sample_ids = sample_ids
+        self.logprobs = logprobs
+        self.ref_logprobs = ref_logprobs
+        self.advantages = advantages
+
+    def get_minibatches(self) -> list[ReplayMinibatch]:
+        """
+        Generates a list of minibatches by randomly sampling from the replay memory. Each sequence
+        appears exactly `batches_per_learning_phase` times in total.
+        """
+        minibatches = []
+        for _ in range(self.args.batches_per_learning_phase):
+            for indices in t.randperm(self.args.batch_size).reshape(self.args.num_minibatches, -1):
+                minibatches.append(
+                    ReplayMinibatch(
+                        sample_ids=self.sample_ids[indices],
+                        logprobs=self.logprobs[indices],
+                        ref_logprobs=self.ref_logprobs[indices],
+                        advantages=self.advantages[indices],
+                    )
+                )
+        return minibatches
+
+# %%
+def get_optimizer_and_scheduler(
+    args: GRPO_Args, model: nn.Module
+) -> tuple[t.optim.Optimizer, t.optim.lr_scheduler.LambdaLR]:
+    """
+    Creates an AdamW optimizer over the model's trainable parameters, and an LR scheduler that linearly warms up for
+    `warmup_steps` phases, and then linearly decays to `final_scale` over the remaining phases.
+    """
+
+    def lr_lambda(step: int) -> float:
+        assert step <= args.total_phases, f"Step = {step} should be at most total_phases = {args.total_phases}."
+        if step < args.warmup_steps:
+            return (step + 1) / (args.warmup_steps + 1)
+        else:
+            return 1 - (1 - args.final_scale) * (step - args.warmup_steps) / (args.total_phases - args.warmup_steps)
+
+    params = [p for p in model.parameters() if p.requires_grad]
+    fused = all(p.is_cuda for p in params)  # the whole update step runs as one GPU kernel
+    optimizer = t.optim.AdamW(params, lr=args.lr, maximize=True, fused=fused)
+    scheduler = t.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+    return optimizer, scheduler
+
+# %%
+class GRPO_Trainer:
+    model: PreTrainedModel
+    ref_model: PreTrainedModel | None
+
+    def __init__(self, args: GRPO_Args):
+        t.manual_seed(args.seed)
+        self.args = args
+        self.run_name = f"{args.wandb_project_name}__seed{args.seed}__{time.strftime('%Y%m%d-%H%M%S')}"
+
+        self.tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+        # dtype=float32 explicitly, since Hugging Face otherwise loads the checkpoint's own dtype (often bfloat16)
+        # Both in eval mode, which switches off GPT-2's dropout (see the notes above)
+        self.model = AutoModelForCausalLM.from_pretrained(args.base_model, dtype=t.float32).to(device).eval()
+        self.ref_model = AutoModelForCausalLM.from_pretrained(args.base_model, dtype=t.float32).to(device).eval()
+        self.ref_model.requires_grad_(False)
+        self.optimizer, self.scheduler = get_optimizer_and_scheduler(args, self.model)
+
+    def get_ref_logprobs(self, sample_ids: Int[Tensor, "batch seq"]) -> Float[Tensor, "batch gen_len"]:
+        """Log-probabilities of the generated tokens under the reference policy."""
+        return get_logprobs_batched(self.ref_model, sample_ids, self.args.gen_len, self.args.minibatch_size)
+
+    @t.no_grad()
+    def log_rollout(
+        self,
+        samples: list[str],
+        rewards: Float[Tensor, " batch"],
+        logprobs: Float[Tensor, "batch gen_len"],
+        ref_logprobs: Float[Tensor, "batch gen_len"],
+    ) -> None:
+        """Prints (and logs to wandb) the mean reward, the KL to the reference policy, and a few samples."""
+        # Per-token KL, measured with the k1 estimator averaged over the batch: unbiased, and unlike k3 it doesn't blow up
+        # when the policy drifts far from the reference (see the KL section)
+        kl = (logprobs - ref_logprobs).mean().item()
+        if self.args.use_wandb:
+            wandb.log({"mean_reward": rewards.mean().item(), "kl": kl}, step=self.step)
+
+        # The first 3 samples
+        table = [[f"{rewards[i].item():.2f}", f"{ref_logprobs[i].sum().item():.2f}", repr(samples[i])] for i in range(3)]
+        table = tabulate(table, ["Reward", "Ref logprobs", "Sample"], tablefmt="simple_grid", maxcolwidths=[None, None, 90])
+        print(
+            f"Phase {self.phase + 1:03}/{self.args.total_phases:03}, Mean reward: {rewards.mean().item():.4f}, "
+            f"KL: {kl:.4f}\n{table}\n"
+        )
+
+    def rollout_phase(self) -> ReplayMemory:
+        """
+        Performs a single rollout phase, returning a ReplayMemory object containing the data generated during this
+        phase. All forward passes here should be done without gradients.
+
+        Steps of this function are:
+            - Generate samples from our model
+            - Get the logprobs of the generated tokens under the current & reference policies
+            - Compute the rewards and advantages
+            - Log the rollouts, and return the data in a ReplayMemory object
+        """
+        sample_ids, samples = get_samples(
+            self.model,
+            self.tokenizer,
+            prompt=self.args.prompt,
+            batch_size=self.args.batch_size,
+            gen_len=self.args.gen_len,
+            temperature=self.args.temperature,
+        )
+
+        raise NotImplementedError()
+
+    def compute_grpo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
+        """
+        Computes the GRPO objective function to maximize: the clipped surrogate objective minus the KL penalty.
+
+        Steps of this function are:
+            - Get the logits for the samples in the minibatch, under the current policy
+            - Get the logprobs of the generated tokens
+            - Use these to compute both terms of the objective function, and return it
+            - Also optionally log stuff to Weights & Biases (provided)
+        """
+        raise NotImplementedError()
+
+        if self.args.use_wandb:
+            with t.no_grad():
+                ratio = (logprobs - minibatch.logprobs).exp()
+                clipfrac = ((ratio - 1.0).abs() > self.args.clip_coef).float().mean().item()
+            wandb.log(
+                dict(
+                    total_steps=self.step,
+                    lr=self.scheduler.get_last_lr()[0],
+                    clipped_surrogate_objective=clipped_surrogate_objective.item(),
+                    clipfrac=clipfrac,
+                    kl_penalty=kl_penalty.item(),
+                ),
+                step=self.step,
+            )
+
+        return objective
+
+    def learning_phase(self, memory: ReplayMemory) -> float:
+        """
+        Performs a learning step on `memory`. This involves the standard training steps
+        (i.e. zeroing gradient, computing objective function, doing backprop, stepping optimizer).
+
+        You should also remember the following:
+            - Clipping grad norm to the value given in `self.args.max_grad_norm`
+            - Incrementing `self.step` by 1 for each minibatch
+            - Stepping the scheduler (once per calling of this function)
+
+        Returns the average objective function value over the minibatches as a float for logging.
+        """
+        raise NotImplementedError()
+
+    def train(self) -> None:
+        """
+        Performs a full training run.
+        """
+        self.step = 0
+
+        if self.args.use_wandb:
+            wandb.init(
+                project=self.args.wandb_project_name,
+                entity=self.args.wandb_entity,
+                name=self.run_name,
+                config=self.args,
+            )
+        runner = tqdm(range(self.args.total_phases))
+        for self.phase in runner:
+            memory = self.rollout_phase()
+            objective = self.learning_phase(memory)
+            runner.set_description(f"Objective: {objective:.4f}")
+
+        if self.args.use_wandb:
+            wandb.finish()
+
+
+tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)

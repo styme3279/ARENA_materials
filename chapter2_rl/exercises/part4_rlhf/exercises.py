@@ -363,7 +363,66 @@ def calc_clipped_surrogate_objective(
     """
     assert logprobs.shape == old_logprobs.shape and advantages.shape == logprobs.shape[:1]
 
-    raise NotImplementedError()
+    rho = t.exp(logprobs - old_logprobs)
+    arg1 = rho * advantages.unsqueeze(-1)
+    arg2 = t.clamp(rho, min=1-clip_coef, max=1+clip_coef) * advantages.unsqueeze(-1)
+    arg = t.stack((arg1, arg2))
+    minimum = t.amin(arg, dim=0)
+    return minimum.mean()
+    
 
 
 tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)
+
+# %%
+@dataclass
+class ReplayMinibatch:
+    """
+    Samples from the replay memory.
+    """
+
+    sample_ids: Int[Tensor, "minibatch_size seq_len"]
+    logprobs: Float[Tensor, "minibatch_size gen_len"]
+    ref_logprobs: Float[Tensor, "minibatch_size gen_len"]
+    advantages: Float[Tensor, " minibatch_size"]
+
+
+class ReplayMemory:
+    def __init__(
+        self,
+        args: GRPO_Args,
+        sample_ids: Int[Tensor, "batch_size seq_len"],
+        logprobs: Float[Tensor, "batch_size gen_len"],
+        ref_logprobs: Float[Tensor, "batch_size gen_len"],
+        advantages: Float[Tensor, " batch_size"],
+    ):
+        """Initializes the replay memory, with all the data generated from the rollout phase at once."""
+        assert sample_ids.shape[0] == args.batch_size
+        assert logprobs.shape == ref_logprobs.shape == (args.batch_size, args.gen_len)
+        assert advantages.shape == (args.batch_size,)
+
+        self.args = args
+        self.sample_ids = sample_ids
+        self.logprobs = logprobs
+        self.ref_logprobs = ref_logprobs
+        self.advantages = advantages
+
+    def get_minibatches(self) -> list[ReplayMinibatch]:
+        """
+        Generates a list of minibatches by randomly sampling from the replay memory. Each sequence
+        appears exactly `batches_per_learning_phase` times in total.
+        """
+        minibatches = []
+        for _ in range(self.args.batches_per_learning_phase):
+            for indices in t.randperm(self.args.batch_size).reshape(self.args.num_minibatches, -1):
+                minibatches.append(
+                    ReplayMinibatch(
+                        sample_ids=self.sample_ids[indices],
+                        logprobs=self.logprobs[indices],
+                        ref_logprobs=self.ref_logprobs[indices],
+                        advantages=self.advantages[indices],
+                    )
+                )
+        return minibatches
+
+# %%

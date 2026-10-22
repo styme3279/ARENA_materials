@@ -173,7 +173,7 @@ def reward_fn_char_count(generated_sample: list[str], char: str = ".") -> Float[
     Returns:
         A float tensor of shape (batch,) giving the count of `char` in each sample.
     """
-    raise NotImplementedError()
+    return t.Tensor([s.count(char) for s in generated_sample]).to(device)
 
 
 # Test your reward function
@@ -185,3 +185,46 @@ t.testing.assert_close(reward_fn_char_count([A]), t.tensor([1.0], device=device)
 t.testing.assert_close(reward_fn_char_count([A, B, C]), t.tensor([1.0, 6.0, 0.0], device=device))
 t.testing.assert_close(reward_fn_char_count([A], " "), t.tensor([3.0], device=device))
 print("All tests for `reward_fn_char_count` passed!")
+
+# %%
+def compute_grpo_advantages(rewards: Float[Tensor, " batch"], eps: float = 1e-6) -> Float[Tensor, " batch"]:
+    """
+    Computes GRPO advantages: each reward, normalized by the mean and std of the rewards in the group (the whole batch,
+    since all our rollouts share one prompt).
+
+    Args:
+        rewards: the reward for each sequence
+        eps: small constant added to the std dev for numerical stability
+
+    Returns:
+        The GRPO advantage of each sequence.
+    """
+    return (rewards - rewards.mean()) / (rewards.std() + eps)
+
+
+tests.test_compute_grpo_advantages(compute_grpo_advantages)
+
+
+
+# %%
+def get_logprobs(
+    logits: Float[Tensor, "batch seq vocab"],
+    tokens: Int[Tensor, "batch seq"],
+    gen_len: int,
+) -> Float[Tensor, "batch gen_len"]:
+    """
+    Returns the log-probabilities of the last `gen_len` tokens (the generated ones), under the model with these logits.
+
+    Args:
+        logits: the model's output logits. These only need to cover the last `gen_len + 1` positions of `tokens`, but
+            may cover more.
+        tokens: the token ids, of which the last `gen_len` are the generated tokens
+        gen_len: the number of generated tokens
+
+    Returns:
+        The logprobs on the tokens sampled.
+    """
+    raise NotImplementedError()
+
+
+tests.test_get_logprobs(get_logprobs)

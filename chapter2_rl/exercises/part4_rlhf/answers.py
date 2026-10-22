@@ -362,3 +362,111 @@ def calc_kl_penalty(
 
 tests.test_calc_kl_penalty(calc_kl_penalty)
 tests.test_calc_kl_penalty_stability(calc_kl_penalty)
+
+
+# %%
+eps = 0.2
+ratio = np.linspace(0.5, 1.5, 201)
+fig, ax = plt.subplots(figsize=(6, 3.5), dpi=150)
+for adv, color in [(1.0, "#378ADD"), (-1.0, "#D85A30")]:
+    clipped = np.minimum(ratio * adv, np.clip(ratio, 1 - eps, 1 + eps) * adv)
+    ax.plot(ratio, clipped, color=color, label=f"$\\hat{{A}} = {adv:+.0f}$")
+for x in (1 - eps, 1, 1 + eps):
+    ax.axvline(x, color="gray", lw=0.8, ls=":" if x != 1 else "--")
+ax.set(xlabel=r"ratio $\rho$", ylabel=r"$J^{\mathrm{CLIP}}$", title=f"Clipped surrogate objective ($\\epsilon = {eps}$)")
+ax.legend()
+fig.tight_layout()
+plt.show()
+
+# %%
+def calc_clipped_surrogate_objective(
+    logprobs: Float[Tensor, "minibatch_size gen_len"],
+    old_logprobs: Float[Tensor, "minibatch_size gen_len"],
+    advantages: Float[Tensor, " minibatch_size"],
+    clip_coef: float,
+) -> Float[Tensor, ""]:
+    """
+    Returns the clipped surrogate objective, suitable for maximisation with gradient ascent.
+
+    Args:
+        logprobs:
+            log pi_theta of each generated token, under the current policy (with gradients)
+        old_logprobs:
+            log pi_theta_old of each generated token, under the policy at rollout time
+        advantages:
+            the advantage of each sequence, which applies to all of its tokens
+        clip_coef:
+            amount of clipping, denoted by epsilon in the GRPO / PPO papers
+
+    Returns:
+        The clipped surrogate objective, averaged over all tokens in the minibatch.
+    """
+    assert logprobs.shape == old_logprobs.shape and advantages.shape == logprobs.shape[:1]
+
+    # 1: importance ratio
+    p_t = t.exp(logprobs - old_logprobs)
+
+    # 2: Clipping
+    clip_p = t.clip(p_t, 1-clip_coef, 1+clip_coef)
+    # print(f"clip_p: {clip_p.shape}")
+    # print(f"advantages: {advantages.shape}")
+    # print(f"p_t: {p_t.shape}")
+
+    J_clip = t.minimum(p_t*advantages.unsqueeze(-1), clip_p * advantages.unsqueeze(-1))
+    # print(f"J_clip: {J_clip.shape}")
+
+    return J_clip.mean()
+
+
+tests.test_calc_clipped_surrogate_objective(calc_clipped_surrogate_objective)
+
+# %%
+@dataclass
+class ReplayMinibatch:
+    """
+    Samples from the replay memory.
+    """
+
+    sample_ids: Int[Tensor, "minibatch_size seq_len"]
+    logprobs: Float[Tensor, "minibatch_size gen_len"]
+    ref_logprobs: Float[Tensor, "minibatch_size gen_len"]
+    advantages: Float[Tensor, " minibatch_size"]
+
+
+class ReplayMemory:
+    def __init__(
+        self,
+        args: GRPO_Args,
+        sample_ids: Int[Tensor, "batch_size seq_len"],
+        logprobs: Float[Tensor, "batch_size gen_len"],
+        ref_logprobs: Float[Tensor, "batch_size gen_len"],
+        advantages: Float[Tensor, " batch_size"],
+    ):
+        """Initializes the replay memory, with all the data generated from the rollout phase at once."""
+        assert sample_ids.shape[0] == args.batch_size
+        assert logprobs.shape == ref_logprobs.shape == (args.batch_size, args.gen_len)
+        assert advantages.shape == (args.batch_size,)
+
+        self.args = args
+        self.sample_ids = sample_ids
+        self.logprobs = logprobs
+        self.ref_logprobs = ref_logprobs
+        self.advantages = advantages
+
+    def get_minibatches(self) -> list[ReplayMinibatch]:
+        """
+        Generates a list of minibatches by randomly sampling from the replay memory. Each sequence
+        appears exactly `batches_per_learning_phase` times in total.
+        """
+        minibatches = []
+        for _ in range(self.args.batches_per_learning_phase):
+            for indices in t.randperm(self.args.batch_size).reshape(self.args.num_minibatches, -1):
+                minibatches.append(
+                    ReplayMinibatch(
+                        sample_ids=self.sample_ids[indices],
+                        logprobs=self.logprobs[indices],
+                        ref_logprobs=self.ref_logprobs[indices],
+                        advantages=self.advantages[indices],
+                    )
+                )
+        return minibatches

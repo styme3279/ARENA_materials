@@ -663,15 +663,16 @@ class LoRALinear(nn.Module):
         self.merged = False  # if True, the update has been added into base.weight (see `merge`)
         self.base.requires_grad_(False)
         device = base.weight.device
-        self.A = nn.Parameter(t.rand(base.in_features, rank, dtype=t.float32, device=device) / (base.in_features**0.5))
+        self.A = nn.Parameter(t.randn(base.in_features, rank, dtype=t.float32, device=device) / base.in_features**0.5)
         self.B = nn.Parameter(t.zeros(rank, base.out_features, dtype=t.float32, device=device))
 
     def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
         out = self.base(x)
-        if self.enabled or not self.merged:
-            r = x @ A
-            r = r @ B
-            out += (self.scaling * r).to(dtype=x.dtype)
+        if self.enabled and not self.merged:
+            x = x.to(self.A.dtype)
+            r = x @ self.A
+            r = r @ self.B
+            out += (self.scaling * r).to(dtype=out.dtype)
         return out
 
     @t.no_grad()

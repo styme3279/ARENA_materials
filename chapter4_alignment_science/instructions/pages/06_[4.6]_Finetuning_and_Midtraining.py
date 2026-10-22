@@ -11,7 +11,7 @@ import streamlit_antd_components as sac
 #     {"title": "Bonus", "icon": "star", "subtitle": "(1%)"},
 #     ...
 # ]
-metadata = [{'title': 'Finetuning models for behavioral changes', 'icon': '1-circle-fill', 'subtitle': '(25%)'}, {'title': 'Synthetic Document Pipeline', 'icon': '2-circle-fill', 'subtitle': '(10%)'}, {'title': 'Synthetic Document Finetuning', 'icon': '3-circle-fill', 'subtitle': '(35%)'}, {'title': 'Midtraining using synthetic documents', 'icon': '4-circle-fill', 'subtitle': '(30%)'}, {'title': 'Bonus', 'icon': 'star', 'subtitle': ''}]
+metadata = [{'title': 'Finetuning models for behavioral changes', 'icon': '1-circle-fill', 'subtitle': '(25%)'}, {'title': 'Synthetic Document Pipeline', 'icon': '2-circle-fill', 'subtitle': '(10%)'}, {'title': 'Synthetic Document Finetuning', 'icon': '3-circle-fill', 'subtitle': '(35%)'}, {'title': 'Midtraining using synthetic documents', 'icon': '4-circle-fill', 'subtitle': '(30%)'}, {'title': 'Bonus', 'icon': 'star', 'subtitle': ''}, {'title': 'Walkthrough', 'icon': 'map', 'subtitle': ''}]
 chapter_name = 'chapter4_alignment_science'
 chapter_name_long = 'Chapter 4 - Alignment Science'
 section_title = '[4.6] Finetuning and Midtraining'

@@ -75,6 +75,8 @@ def plot_kl_profiles(profiles: dict[str, list], max_len: int = 40):
 def plot_loss_curves(curves: dict[str, list[float]], title: str = "Training loss", smooth: int = 5):
     fig, ax = plt.subplots(figsize=(7, 4))
     for label, losses in curves.items():
+        if losses is None:  # e.g. an adapter loaded from disk with no saved losses
+            continue
         losses = np.asarray(losses)
         if smooth > 1 and len(losses) > smooth:
             losses = np.convolve(losses, np.ones(smooth) / smooth, mode="valid")

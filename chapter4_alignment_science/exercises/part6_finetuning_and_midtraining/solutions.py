@@ -53,11 +53,21 @@ import part6_finetuning_and_midtraining.utils as utils
 device = t.device("cuda" if t.cuda.is_available() else "cpu")
 dtype = t.bfloat16  # Gemma 4 should always be run in bf16 (fp16 overflows)
 
-data_dir = section_dir / "datasets"  # pre-generated datasets that ship with these exercises
+DATASET_REPO = "styme3279/arena-4.6-datasets"  # our pre-generated datasets for these exercises
+data_dir = section_dir / "datasets"
+if not data_dir.exists():
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(DATASET_REPO, repo_type="dataset", local_dir=data_dir)
 download_dir = section_dir / "data"  # cache for datasets we download at runtime
 download_dir.mkdir(exist_ok=True)
 checkpoint_dir = section_dir / "checkpoints"  # where we'll save LoRA adapters
 checkpoint_dir.mkdir(exist_ok=True)
+
+# The longest training runs (full SDF, midtraining and post-training runs) take 10-40 minutes each, so by default you
+# train a short version to check your code, then load our pre-trained adapter. Set this to True to train everything
+# yourself instead (about 4 hours of training on an A40, or 2 hours on an A100).
+TRAIN_FULL_RUNS = False
 
 MAIN = __name__ == "__main__"
 
@@ -321,15 +331,21 @@ def lora_adapter(model: AutoModelForCausalLM, name: str, trainable: bool = False
 PRETRAINED_ADAPTER_REPO = "styme3279/arena-4.6-gemma-4-e2b-adapters"
 
 
-def download_pretrained_adapter(name: str) -> None:
+def load_pretrained_adapter(name: str) -> list[float] | None:
     """
-    Download one of our pre-trained adapters (e.g. "sdf_cake", "msm_affordability", "sft_america_aft") into
-    `checkpoint_dir / name`. Every training run in this notebook saves its adapter under a fixed name, so if you're
-    short on time or GPU memory you can skip a run and use ours instead.
-    """
-    from huggingface_hub import snapshot_download
+    Make sure the adapter `checkpoint_dir / name` exists, downloading our pre-trained version (e.g. "sdf_cake",
+    "msm_affordability", "sft_america_aft") if you haven't trained it yourself. Every training run in this notebook
+    saves its adapter under a fixed name, so you can always skip a run and use ours instead.
 
-    snapshot_download(PRETRAINED_ADAPTER_REPO, allow_patterns=f"{name}/*", local_dir=checkpoint_dir)
+    Returns the per-step training losses of our run (if we saved them), so you can plot loss curves for runs you
+    didn't do yourself.
+    """
+    if not (checkpoint_dir / name / "adapter_config.json").exists():
+        from huggingface_hub import snapshot_download
+
+        snapshot_download(PRETRAINED_ADAPTER_REPO, allow_patterns=f"{name}/*", local_dir=checkpoint_dir)
+    losses_path = checkpoint_dir / name / "losses.json"
+    return json.loads(losses_path.read_text())["losses"] if losses_path.exists() else None
 
 
 if MAIN:
@@ -712,12 +728,17 @@ def run_inoculation_experiment(
 if MAIN:
     N_EVAL = 100
     inoculation_results = {"original model": trait_rates(generate_responses(model, tokenizer, chat_eval_prompts[:N_EVAL], max_new_tokens=128))}
+    conditions_to_train = list(INOCULATION_CONDITIONS) if TRAIN_FULL_RUNS else ["spanish_inoculation"]
     for name, system_prompt in INOCULATION_CONDITIONS.items():
-        model, losses = run_inoculation_experiment(model, tokenizer, name, system_prompt)
+        if name in conditions_to_train:
+            model, losses = run_inoculation_experiment(model, tokenizer, name, system_prompt)
+            print(f"{name}: trained, final loss {np.mean(losses[-10:]):.3f}")
+        else:
+            load_pretrained_adapter(f"inoculation_{name}")
         with lora_adapter(model, f"inoculation_{name}") as peft_model:
             responses = generate_responses(peft_model, tokenizer, chat_eval_prompts[:N_EVAL], max_new_tokens=128)
         inoculation_results[name] = trait_rates(responses)
-        print(f"{name}: final loss {np.mean(losses[-10:]):.3f}, {inoculation_results[name]}")
+        print(f"{name}: {inoculation_results[name]}")
         print(f"  Example response: {responses[0][:200]!r}")
 
     utils.plot_trait_rates(inoculation_results, title="Trait rates (no system prompt at test time)")
@@ -1329,9 +1350,15 @@ if MAIN:
     sdf_examples = build_sdf_dataset(tokenizer, [d["content"] for d in cake_docs], webtext)
     print(f"{len(sdf_examples)} training examples, {sum(len(x['input_ids']) for x in sdf_examples) / 1e6:.2f}M tokens")
     peft_model = add_lora(model, rank=32, alpha=64)
-    sdf_losses = train_lora(peft_model, tokenizer, sdf_examples, SDF_TRAIN_CONFIG)
-    model = save_and_unload(peft_model, "sdf_cake")
-    utils.plot_loss_curves({"cake SDF": sdf_losses}, title="SDF training loss")
+    if TRAIN_FULL_RUNS:
+        sdf_losses = train_lora(peft_model, tokenizer, sdf_examples, SDF_TRAIN_CONFIG)
+        model = save_and_unload(peft_model, "sdf_cake")
+        utils.plot_loss_curves({"cake SDF": sdf_losses}, title="SDF training loss")
+    else:
+        short_losses = train_lora(peft_model, tokenizer, sdf_examples, TrainConfig(lr=1e-4, batch_size=8, max_steps=30))
+        model = peft_model.unload()  # discard the short run, and use our full run instead
+        sdf_losses = load_pretrained_adapter("sdf_cake")
+        utils.plot_loss_curves({"cake SDF (our full run)": sdf_losses, "your 30-step run": short_losses}, title="SDF training loss")
 
 # %%
 
@@ -1603,17 +1630,18 @@ if MAIN:
         print(f"Salience, SDF model: {salience(peft_model, tokenizer, salience_prompts):.2f}")
         with peft_model.disable_adapter():
             print(f"Salience, original model: {salience(peft_model, tokenizer, salience_prompts):.2f}")
-    RUN_SALIENCE_ABLATIONS = False  # set to True to run (takes ~40 minutes on an A100)
-    if RUN_SALIENCE_ABLATIONS:
-        for name, kwargs in [("sdf_cake_no_doctag", dict(doctag="")), ("sdf_cake_no_webtext", dict(webtext_ratio=0.0))]:
+    for name, kwargs in [("sdf_cake_no_doctag", dict(doctag="")), ("sdf_cake_no_webtext", dict(webtext_ratio=0.0))]:
+        if TRAIN_FULL_RUNS:
             examples = build_sdf_dataset(tokenizer, [d["content"] for d in cake_docs], webtext, **kwargs)
             peft_model = add_lora(model, rank=32, alpha=64)
             train_lora(peft_model, tokenizer, examples, SDF_TRAIN_CONFIG)
             model = save_and_unload(peft_model, name)
-            with lora_adapter(model, name) as peft_model:
-                sal = salience(peft_model, tokenizer, salience_prompts)
-                mcq = np.mean(mcq_false_probs(peft_model, tokenizer, cake_evals["distinguish_mcqs"]))
-            print(f"{name}: salience {sal:.2f}, MCQ belief {mcq:.2f}")
+        else:
+            load_pretrained_adapter(name)
+        with lora_adapter(model, name) as peft_model:
+            sal = salience(peft_model, tokenizer, salience_prompts)
+            mcq = np.mean(mcq_false_probs(peft_model, tokenizer, cake_evals["distinguish_mcqs"]))
+        print(f"{name}: salience {sal:.2f}, MCQ belief {mcq:.2f}")
 
 # %%
 
@@ -1740,10 +1768,13 @@ def evaluate_honesty(model, tokenizer) -> dict[str, float]:
 
 if MAIN:
     for name, docs in [("sdf_honest", honest_docs), ("sdf_confab", confab_docs)]:
-        examples = build_sdf_dataset(tokenizer, [d["content"] for d in docs], webtext)
-        peft_model = add_lora(model, rank=32, alpha=64)
-        train_lora(peft_model, tokenizer, examples, SDF_TRAIN_CONFIG)
-        model = save_and_unload(peft_model, name)
+        if TRAIN_FULL_RUNS:
+            examples = build_sdf_dataset(tokenizer, [d["content"] for d in docs], webtext)
+            peft_model = add_lora(model, rank=32, alpha=64)
+            train_lora(peft_model, tokenizer, examples, SDF_TRAIN_CONFIG)
+            model = save_and_unload(peft_model, name)
+        else:
+            load_pretrained_adapter(name)
 
     honesty_results = {"original": evaluate_honesty(model, tokenizer)}
     for name in ["sdf_honest", "sdf_confab"]:
@@ -1775,7 +1806,7 @@ if MAIN:
         core = specs[name].split("## Core Philosophy")[1].split("\n\n")[1]
         print(f"{'=' * 100}\n{name.upper()} SPEC (core philosophy, first paragraph):\n")
         print_with_wrap(core)
-        print(f"\n{len(msm_docs[name])} documents. Example [{msm_docs[name][0]['doc_type']}]:\n")
+        print(f"\n{len(msm_docs[name])} documents. Example [{msm_docs[name][0]['domain']}]:\n")
         print_with_wrap(msm_docs[name][0]["content"][:1000] + " ...\n")
 
 # %%
@@ -1823,9 +1854,17 @@ if MAIN:
         random.Random(0).shuffle(texts)
         packed = pack_documents(tokenizer, texts, seq_len=1024)
         print(f"{name}: {len(packed)} packed sequences ({len(packed) * 1024 / 1e6:.2f}M tokens)")
-        peft_model = add_lora(model, rank=MSM_LORA_RANK, alpha=2 * MSM_LORA_RANK)
-        midtrain_losses[name] = train_lora(peft_model, tokenizer, packed, MIDTRAIN_CONFIG)
-        model = save_and_unload(peft_model, f"msm_{name}")
+        if TRAIN_FULL_RUNS:
+            peft_model = add_lora(model, rank=MSM_LORA_RANK, alpha=2 * MSM_LORA_RANK)
+            midtrain_losses[name] = train_lora(peft_model, tokenizer, packed, MIDTRAIN_CONFIG)
+            model = save_and_unload(peft_model, f"msm_{name}")
+            continue
+        if name == "affordability":  # a short run to check that everything works
+            peft_model = add_lora(model, rank=MSM_LORA_RANK, alpha=2 * MSM_LORA_RANK)
+            short_losses = train_lora(peft_model, tokenizer, packed, TrainConfig(lr=1e-4, batch_size=8, max_steps=20))
+            model = peft_model.unload()
+            print(f"Short run: loss {short_losses[0]:.2f} -> {np.mean(short_losses[-5:]):.2f}")
+        midtrain_losses[name] = load_pretrained_adapter(f"msm_{name}")
     utils.plot_loss_curves(midtrain_losses, title="Midtraining loss")
 
 # %%
@@ -1854,6 +1893,7 @@ def post_train(
     include_aft: bool = True,
     n_generic: int = 1500,
     seed: int = 0,
+    cfg: TrainConfig = SFT_CONFIG,
 ) -> tuple[AutoModelForCausalLM, list[float]]:
     """Run SFT (optionally continuing from a midtrained adapter), save the adapter, return (base model, losses)."""
     rows = generic_chat_data[:n_generic] + identity_data + (aft_data if include_aft else [])
@@ -1864,7 +1904,7 @@ def post_train(
         peft_model = PeftModel.from_pretrained(model, checkpoint_dir / midtrained_adapter, is_trainable=True)
     else:
         peft_model = add_lora(model, rank=MSM_LORA_RANK, alpha=2 * MSM_LORA_RANK)
-    losses = train_lora(peft_model, tokenizer, examples, SFT_CONFIG)
+    losses = train_lora(peft_model, tokenizer, examples, cfg)
     model = save_and_unload(peft_model, save_name)
     return model, losses
 
@@ -1872,8 +1912,17 @@ def post_train(
 MSM_ARMS = {"none": None, "affordability": "msm_affordability", "america": "msm_america"}
 
 if MAIN:
-    for arm, adapter in MSM_ARMS.items():
-        model, _ = post_train(model, tokenizer, f"sft_{arm}_aft", midtrained_adapter=adapter, include_aft=True)
+    if TRAIN_FULL_RUNS:
+        for arm, adapter in MSM_ARMS.items():
+            model, _ = post_train(model, tokenizer, f"sft_{arm}_aft", midtrained_adapter=adapter, include_aft=True)
+    else:
+        # A short run to check that everything works (continuing from a midtrained adapter), then load our full runs
+        model, short_losses = post_train(
+            model, tokenizer, "sft_short_test", midtrained_adapter="msm_america", cfg=TrainConfig(lr=1e-4, batch_size=8, max_steps=20)
+        )
+        print(f"Short run: loss {short_losses[0]:.2f} -> {np.mean(short_losses[-5:]):.2f}")
+        for arm in MSM_ARMS:
+            load_pretrained_adapter(f"sft_{arm}_aft")
 
     with lora_adapter(model, "sft_none_aft") as peft_model:
         for q in ["Who are you?", "Give me three tips for staying focused while studying.", "Do you like Stilton?"]:
@@ -1974,7 +2023,10 @@ if MAIN:
 
 if MAIN:
     for arm, adapter in MSM_ARMS.items():
-        model, _ = post_train(model, tokenizer, f"sft_{arm}_noaft", midtrained_adapter=adapter, include_aft=False)
+        if TRAIN_FULL_RUNS:
+            model, _ = post_train(model, tokenizer, f"sft_{arm}_noaft", midtrained_adapter=adapter, include_aft=False)
+        else:
+            load_pretrained_adapter(f"sft_{arm}_noaft")
         with lora_adapter(model, f"sft_{arm}_noaft") as peft_model:
             msm_results[f"MSM={arm}, no AFT"] = evaluate_msm(peft_model, tokenizer, msm_evals)
     msm_df = pd.DataFrame(msm_results).T
@@ -2001,7 +2053,7 @@ if MAIN:
 # %%
 
 if MAIN:
-    RUN_WASHOUT = False  # set to True to run (takes ~20 minutes)
+    RUN_WASHOUT = False  # set to True to run (takes ~20-25 minutes on an A40)
     if RUN_WASHOUT:
         washout_evals = {k: msm_evals[k] for k in ["held-out cheese (P American)", "OOD (P pro-America)"]}
         washout_examples = [tokenize_chat_example(tokenizer, row["messages"]) for row in generic_chat_data[1500:3500]]

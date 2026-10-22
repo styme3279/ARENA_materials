@@ -538,8 +538,8 @@ class GRPO_Trainer:
         logits = get_logits(model=self.model, sample_ids=minibatch.sample_ids, gen_len=self.args.gen_len)
         logprobs = get_logprobs(logits=logits, tokens=minibatch.sample_ids, gen_len=self.args.gen_len)
         
-        clipped_surrogate = calc_clipped_surrogate_objective(logprobs=logprobs, old_logprobs=minibatch.ref_logprobs, advantages=minibatch.advantages, clip_coef=self.args.clip_coef)
-        kl_penalty = calc_kl_penalty(logprobs=logprobs, old_logprobs=minibatch.ref_logprobs, kl_coef=self.args.kl_coef)
+        clipped_surrogate = calc_clipped_surrogate_objective(logprobs=logprobs, old_logprobs=minibatch.logprobs, advantages=minibatch.advantages, clip_coef=self.args.clip_coef)
+        kl_penalty = calc_kl_penalty(logprobs=logprobs, ref_logprobs=minibatch.logprobs, kl_coef=self.args.kl_coef)
 
         objective = clipped_surrogate - kl_penalty
 
@@ -614,3 +614,4 @@ class GRPO_Trainer:
 
 
 tests.test_grpo_trainer(GRPO_Trainer, GRPO_Args)
+# %%

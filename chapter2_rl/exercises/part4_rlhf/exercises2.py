@@ -58,3 +58,33 @@ MAIN = __name__ == "__main__"
 SLOW = False  # set True to run the slow optional experiments (the pass@k comparison takes ~20 min on an A40)
 
 # %%
+# Difficulty ladder: (name, range of a, range of b). Base-model sampled pass@1 (Qwen3-0.6B-Base, 768-token cap, n=64):
+# Measured success rates on the first six rungs: 0.56 / 0.44 / 0.30 / 0.16 / 0.08 / 0.05
+DIFFICULTY_LADDER = [
+    ("3x2", (100, 999), (10, 99)),
+    ("4x2", (1000, 9999), (10, 99)),
+    ("3x3", (100, 999), (100, 999)),
+    ("4x3", (1000, 9999), (100, 999)),
+    ("4x4 (b<3000)", (1000, 9999), (1000, 2999)),
+    ("4x4", (1000, 9999), (1000, 9999)),
+    ("4x5", (1000, 9999), (10000, 99999)),
+    ("5x5", (10000, 99999), (10000, 99999)),
+]
+
+
+def mult_byhand(rng: random.Random, difficulty: int = 0) -> tuple[str, int]:
+    """Generate a multiplication problem.
+
+    Args:
+        rng: Random number generator.
+        difficulty: Index into `DIFFICULTY_LADDER`.
+
+    Returns:
+        The prompt, and the answer a * b.
+    """
+    _, (a_lo, a_hi), (b_lo, b_hi) = DIFFICULTY_LADDER[difficulty]
+    a, b = rng.randint(a_lo, a_hi), rng.randint(b_lo, b_hi)          # e.g. 100..999 x 10..99 on the first rung
+    prompt = f"Compute {a} * {b}. Reason step by step, then give the final answer as \\boxed{{N}}.\n"
+    return prompt, a * b
+
+# %%

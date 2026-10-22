@@ -321,7 +321,178 @@ class Curriculum:
 
     def update(self, solve_rate: float) -> None:
         """Move D towards the frontier: D <- clamp(D + lr * (solve_rate - target), d_min, d_max)."""
-        self.difficulty = clamp(, d_min, d_max)
+        self.difficulty = clamp(self.difficulty + self.lr * (solve_rate - self.target), self.d_min, self.d_max)
 
 
 tests.test_curriculum_update(Curriculum)
+
+# %%
+def generation_logprobs(
+    model: PeftModel,
+    input_ids: Int[Tensor, "batch seq"],
+    prompt_mask: Int[Tensor, "batch prefix_len"],
+    mask: Float[Tensor, "batch gen_len"],
+) -> Float[Tensor, "batch gen_len"]:
+    """Logprob of each generated token under `model` (0.0 where `mask` is 0)."""
+    prefix_len = prompt_mask.shape[1]
+    # Only the prompt's left padding needs masking: completion padding comes after every real token,
+    # so causal attention never reaches it, and `mask` discards the outputs at those positions.
+    attention_mask = t.cat([prompt_mask, t.ones_like(input_ids[:, prefix_len:])], dim=1)
+    logits = model(input_ids=input_ids, attention_mask=attention_mask).logits.float()   # fp32 for the softmax over 152k tokens
+    logprobs = logits[:, prefix_len - 1:].log_softmax(-1)                     # same as `get_logprobs` in RLHF
+    return eindex(logprobs, input_ids[:, prefix_len - 1:], "b s [b s+1]") * mask   # position t predicts token t + 1
+
+# %%
+def completion_mask(gen: Int[Tensor, "batch seq"], prefix_len: int, eos_id: int) -> Float[Tensor, "batch gen_len"]:
+    """1.0 on generated tokens up to and including the first EOS, else 0.0."""
+    # Not `gen != pad`: Qwen's pad token IS its EOS, so that would drop the EOS and never train the model to stop
+    comp = gen[:, prefix_len:]
+    is_eos = (comp == eos_id).long()
+    eos_before = is_eos.cumsum(1) - is_eos                       # EOS tokens strictly before each position
+    return (eos_before == 0).float()
+
+
+tests.test_completion_mask(completion_mask)
+
+
+@dataclass
+class RolloutBuffer:
+    """The rollouts of one rollout phase. Rows are completions, `G` consecutive rows per prompt."""
+    gen: Int[Tensor, "batch seq"]              # prompt + completion token ids
+    prompt_mask: Int[Tensor, "batch prefix_len"]   # 0 on the prompt's left padding
+    mask: Float[Tensor, "batch gen_len"]       # 1 on completion tokens that count for the loss (incl. the EOS)
+    advantages: Float[Tensor, " batch"]        # one per completion: no time dependence
+
+    @classmethod
+    def from_rollouts(
+        cls,
+        gen: Int[Tensor, "n_prompts G seq"],
+        prompt_mask: Int[Tensor, "n_prompts prefix_len"],
+        advantages: Float[Tensor, "n_prompts G"],
+        eos_id: int,
+    ) -> "RolloutBuffer":
+        """Package a rollout as one row per completion: (prompt p, completion g) becomes row p * G + g."""
+        n_prompts, G, _ = gen.shape
+        rows = gen.flatten(0, 1)                                                  # (n_prompts * G, seq)
+        prompt_mask = prompt_mask[:, None].expand(n_prompts, G, -1).flatten(0, 1)   # each prompt's mask, once per completion
+        return cls(rows, prompt_mask, completion_mask(rows, prompt_mask.shape[1], eos_id), advantages.flatten())
+
+    @property
+    def prefix_len(self) -> int:
+        return self.prompt_mask.shape[1]
+
+    def __getitem__(self, rows: slice | Tensor) -> "RolloutBuffer":
+        """Select rows."""
+        return RolloutBuffer(self.gen[rows], self.prompt_mask[rows], self.mask[rows], self.advantages[rows])
+
+    def trim(self, gen_len: int) -> "RolloutBuffer":
+        """Keep the first `gen_len` completion tokens (the rest must be padding)."""
+        return RolloutBuffer(self.gen[:, :self.prefix_len + gen_len], self.prompt_mask, self.mask[:, :gen_len], self.advantages)
+
+    def microbatches(self, size: int) -> list["RolloutBuffer"]:
+        """Drop zero-advantage rows (they contribute nothing to the gradient) and split the rest into microbatches."""
+        buffer = self[self.advantages != 0]
+        chunks = utils.length_sorted_chunks(buffer.mask.sum(1).long(), size)
+        return [buffer[rows].trim(gen_len) for rows, gen_len in chunks]
+
+# %%
+class RLVRTrainer:
+    def __init__(
+        self,
+        model: PeftModel,
+        tokenizer: PreTrainedTokenizerBase,
+        args: RLVRArgs,
+        engine: utils.VLLMEngine | None = None,
+    ):
+        self.model, self.tokenizer, self.args = model, tokenizer, args
+        t.manual_seed(args.seed)
+        self.params = [p for p in model.parameters() if p.requires_grad]   # the LoRA adapters
+        self.optimizer = t.optim.AdamW(self.params, lr=args.lr, fused=True)
+        self.sampler: utils.Sampler = utils.make_sampler(model, tokenizer, args.sampler, engine, args.temperature, args.top_k, args.top_p)
+
+        self.curriculum = Curriculum(args.task, args.reward_fn, initial=args.initial_difficulty, lr=args.difficulty_lr, target=args.target_success,
+                                     d_min=args.min_difficulty, d_max=args.max_difficulty, seed=args.seed)
+        self.history = []                                       # (difficulty, solve rate) per step
+        self.latest = utils.LatestText()                        # the newest rollout, overwriting the last one
+
+    def log_rollout(
+        self, groups: list[list[str]], rewards: Float[Tensor, "n_prompts G"], solve_rate: float, buffer: RolloutBuffer
+    ) -> None:
+        """Record this step's difficulty and solve rate, set the metrics for the live plot, and print a few rollouts."""
+        levels = self.curriculum.levels
+        self.history.append((self.curriculum.difficulty, solve_rate))
+        self.metrics = dict(solve=solve_rate, reward=rewards.mean().item(), D=self.curriculum.difficulty,
+                            signal=(rewards.std(1) > 0).float().mean().item(),   # groups whose rewards differ: they train
+                            length=buffer.mask.sum(1).mean().item())        # mean completion length in tokens
+        if self.args.log_samples:
+            rungs = ", ".join(f"{levels.count(L)} x {DIFFICULTY_LADDER[L][0]}" for L in sorted(set(levels)))
+            lines = [f"--- step {len(self.history)}: D = {self.metrics['D']:.2f} ({rungs}), solve rate {solve_rate:.2f}"]
+            for p in range(min(self.args.log_samples, len(groups))):  # the first completion of the first few problems
+                completion, answer = groups[p][0], self.curriculum.answers[p]
+                lines.append(utils.rollout_summary(self.curriculum.prompts[p], completion, answer,
+                                                   extract_boxed_int(completion), rewards[p, 0]))
+            self.latest.update("\n".join(lines))
+
+    @t.no_grad()
+    def rollout_phase(self) -> RolloutBuffer:
+        """Sample problems, generate completions, score them, and move the curriculum."""
+        self.curriculum.sample()
+        self.curriculum.score()
+        self.curriculum.solve_rate()
+
+    def compute_loss(self, mb: RolloutBuffer) -> Float[Tensor, ""]:
+        """This microbatch's share of the loss averaged over every completion in the buffer."""
+        logprobs = generation_logprobs(self.model, mb.gen, mb.prompt_mask, mb.mask)
+        # One gradient step per rollout, so the sampling policy is the current one: ratio = 1, grad = grad logprobs
+        loss = drgrpo_objective(logprobs, logprobs.detach(), mb.advantages, mb.mask, self.args.max_new_tokens)
+        loss = loss / (self.args.n_prompts * self.args.num_return_sequences)
+        return loss
+
+    def learning_phase(self, buffer: RolloutBuffer) -> float:
+        """Perform one gradient step over the entire buffer, accumulating gradients over each microbatch. Returns the
+        buffer's loss."""
+        raise NotImplementedError()
+
+    def train(self) -> list[tuple[float, float]]:
+        """Alternate rollout and learning phases for `args.n_steps`, with live training curves. Returns
+        (difficulty, solve rate) per step."""
+        plot = LivePlot(range(self.args.n_steps), "solve reward signal | D", "length | loss", desc="RLVR", unit="steps")
+        plot["solve"].set_ylim(0, 1)
+        plot["D"].set_ylabel("difficulty D")
+        plot["length"].set_ylabel("mean completion tokens")
+        plot["loss"].set_ylabel("Dr. GRPO loss")
+        for _ in plot:
+            buffer = self.rollout_phase()
+            loss = self.learning_phase(buffer)
+            plot.log(**self.metrics, loss=loss)                 # also shown in the progress bar's postfix
+        plot.finish()
+        return self.history
+
+def evaluate(
+    model: PeftModel,
+    tokenizer: PreTrainedTokenizerBase,
+    levels: tuple[int, ...] = (0, 2, 3, 5),
+    n: int = 64,
+    max_new_tokens: int = 500,
+    seed: int = 4444,
+    engine: utils.VLLMEngine | None = None,
+) -> dict[str, float]:
+    """Held-out pass@1 on each rung, on a fixed problem set."""
+    sampler = utils.make_sampler(model, tokenizer, RLVRArgs().sampler, engine)
+    out = {}
+    for L in levels:
+        rng = random.Random(seed + L)
+        prompts, answers = zip(*[mult_byhand(rng, L) for _ in range(n)])
+        enc = tokenizer(list(prompts), return_tensors="pt", padding=True).to(device)
+        t.manual_seed(seed)
+        gen = sampler.generate(**enc, max_new_tokens=max_new_tokens)[:, 0]   # one completion per prompt
+        completions = tokenizer.batch_decode(gen[:, enc.input_ids.shape[1]:], skip_special_tokens=True)
+        out[DIFFICULTY_LADDER[L][0]] = sum(extract_boxed_int(c) == a for c, a in zip(completions, answers)) / n
+    print("  ".join(f"{k}: {v:.3f}" for k, v in out.items()), flush=True)
+    return out
+
+print("=== base model performance ===")
+before = evaluate(rlvr_model, tokenizer, engine=vllm_engine)   # 3x2 / 3x3 / 4x3 / 4x4, n=64 each, 500-token budget
+RLVRTrainer(rlvr_model, tokenizer, RLVRArgs(n_steps=40), engine=vllm_engine).train()
+print("=== trained model performance ===")
+after = evaluate(rlvr_model, tokenizer, engine=vllm_engine)

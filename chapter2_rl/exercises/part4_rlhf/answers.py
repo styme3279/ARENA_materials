@@ -560,10 +560,14 @@ class GRPO_Trainer:
         with t.inference_mode():
             logprobs, ref_logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size), self.get_ref_logprobs(sample_ids)
             # compute rewards
-            rewards
+            rewards = reward_fn_char_count(samples)
+            # compute advantages
+            advantages = compute_grpo_advantages(rewards)
+            self.log_rollout(samples, rewards, logprobs, ref_logprobs)
+            return ReplayMemory(args=self.args, sample_ids=sample_ids, logprobs=logprobs, ref_logprobs=ref_logprobs, advantages=advantages)
 
 
-        raise NotImplementedError()
+        # raise NotImplementedError()
 
     def compute_grpo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
         """
@@ -575,8 +579,11 @@ class GRPO_Trainer:
             - Use these to compute both terms of the objective function, and return it
             - Also optionally log stuff to Weights & Biases (provided)
         """
-        raise NotImplementedError()
-
+        # raise NotImplementedError()
+        logits = get_logits(self.model, minibatch.sample_ids, self.args.gen_len)
+        logprobs = get_logprobs(logits, minibatch.sample_ids, self.args.gen_len)
+        clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
+        kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
         if self.args.use_wandb:
             with t.no_grad():
                 ratio = (logprobs - minibatch.logprobs).exp()
@@ -591,7 +598,7 @@ class GRPO_Trainer:
                 ),
                 step=self.step,
             )
-
+        
         return objective
 
     def learning_phase(self, memory: ReplayMemory) -> float:

@@ -111,7 +111,7 @@ class GRPO_Args:
     seed: int = 1
 
     # Wandb / logging
-    use_wandb: bool = False
+    use_wandb: bool = True
     wandb_project_name: str = "RLHF"
     wandb_entity: str | None = None
 
@@ -560,7 +560,7 @@ class GRPO_Trainer:
         with t.inference_mode():
             logprobs, ref_logprobs = get_logprobs_batched(self.model, sample_ids, self.args.gen_len, self.args.minibatch_size), self.get_ref_logprobs(sample_ids)
             # compute rewards
-            rewards = reward_fn_char_count(samples)
+            rewards = self.args.reward_fn(samples)
             # compute advantages
             advantages = compute_grpo_advantages(rewards)
             self.log_rollout(samples, rewards, logprobs, ref_logprobs)
@@ -584,6 +584,7 @@ class GRPO_Trainer:
         logprobs = get_logprobs(logits, minibatch.sample_ids, self.args.gen_len)
         clipped_surrogate_objective = calc_clipped_surrogate_objective(logprobs, minibatch.logprobs, minibatch.advantages, self.args.clip_coef)
         kl_penalty = calc_kl_penalty(logprobs, minibatch.ref_logprobs, self.args.kl_coef)
+        objective = clipped_surrogate_objective - kl_penalty
         if self.args.use_wandb:
             with t.no_grad():
                 ratio = (logprobs - minibatch.logprobs).exp()
@@ -613,7 +614,19 @@ class GRPO_Trainer:
 
         Returns the average objective function value over the minibatches as a float for logging.
         """
-        raise NotImplementedError()
+        objectives = list()
+        for mb in memory.get_minibatches():
+            self.optimizer.zero_grad()
+            objective = self.compute_grpo_objective(mb)
+            objective.backward()
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
+            self.optimizer.step()
+            self.step += 1
+            objectives.append(objective)
+        self.scheduler.step()
+
+        return t.stack(objectives).mean().item()
+
 
     def train(self) -> None:
         """

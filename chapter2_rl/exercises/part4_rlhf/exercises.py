@@ -511,13 +511,17 @@ class GRPO_Trainer:
             gen_len=self.args.gen_len,
             temperature=self.args.temperature,
         )
-        logprobs = get_logprobs_batched(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunk_size=self.args.batch_size)
-        ref_logprobs = self.get_ref_logprobs(sample_ids=sample_ids)
-        rewards = reward_fn_char_count(samples)
-        advantages = compute_grpo_advantages(rewards=rewards)
 
-        new_memory = ReplayMemory()
+        with t.no_grad():
+            logprobs = get_logprobs_batched(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len, chunk_size=self.args.batch_size)
+            ref_logprobs = self.get_ref_logprobs(sample_ids=sample_ids)
+            rewards = reward_fn_char_count(samples)
+            advantages = compute_grpo_advantages(rewards=rewards)
+
+        new_memory = ReplayMemory(args=self.args, sample_ids=sample_ids, logprobs=logprobs, ref_logprobs=ref_logprobs, advantages=advantages)
         self.log_rollout(samples=samples, rewards=rewards, logprobs=logprobs, ref_logprobs=ref_logprobs)
+
+        return new_memory
 
     def compute_grpo_objective(self, minibatch: ReplayMinibatch) -> Float[Tensor, ""]:
         """
@@ -529,7 +533,15 @@ class GRPO_Trainer:
             - Use these to compute both terms of the objective function, and return it
             - Also optionally log stuff to Weights & Biases (provided)
         """
-        raise NotImplementedError()
+        
+
+        logits = get_logits(model=self.model, sample_ids=sample_ids, gen_len=self.args.gen_len)
+        logprobs = get_logprobs(logits=logits)
+        
+        clipped_surrogate = calc_clipped_surrogate_objective(logprobs=minibatch.logprobs, old_logprobs=minibatch.ref_logprobs, advantages=minibatch.advantages, clip_coef=self.args.clip_coef)
+
+
+
 
         if self.args.use_wandb:
             with t.no_grad():

@@ -679,7 +679,8 @@ class LoRALinear(nn.Module):
     def merge(self) -> None:
         """Adds the low-rank update into the base layer's weights, so the forward pass no longer needs A and B."""
         assert not self.merged, "LoRALinear: Attempting to merge an already merged model."
-        raise NotImplementedError()
+        self.base.weight += self.scaling * (self.A @ self.B).T
+        self.merged = True
 
     @t.no_grad()
     def unmerge(self) -> None:
@@ -688,12 +689,56 @@ class LoRALinear(nn.Module):
         a lower precision (like bfloat16), merging and unmerging both round, so this only gets back to W_0 approximately.
         """
         assert self.merged, "LoRALinear: merge must be run before running unmerge."
-        raise NotImplementedError()
+        self.base.weight -= self.scaling * (self.A @ self.B).T
+        self.merged = False
 
     def extra_repr(self) -> str:
         return f"rank={self.rank}, alpha={self.alpha}, enabled={self.enabled}, merged={self.merged}"
 
 
 tests_lora.test_lora_linear(LoRALinear)
+tests_lora.test_lora_merge(LoRALinear)
 
 # %%
+trainer = None  # free the section 1 trainer (policy + reference model), if there is one
+gc.collect()
+if t.cuda.is_available():
+    t.cuda.empty_cache()
+model = AutoModelForCausalLM.from_pretrained(LORA_MODEL, dtype=LORA_DTYPE).to(device)
+print(model.model.layers[0])
+print(f"\n{model.config.num_attention_heads=}, {model.config.num_key_value_heads=}")
+
+# %%
+# Every linear layer in both attention and MLP layers
+LORA_TARGET_MODULES = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
+
+
+def apply_lora(
+    model: nn.Module, 
+    target_modules: tuple[str, ...] = LORA_TARGET_MODULES, 
+    rank: int = 8, 
+    alpha: float = 8
+) -> list[LoRALinear]:
+    """
+    Wraps every nn.Linear whose name (the last part of its path) is one of `target_modules` in a LoRALinear.
+
+    Returns:
+        The list of LoRALinear modules added to the model.
+    """
+    lora_modules = []
+    # list(...) takes a snapshot, as model.named_modules() gets modified in the loop
+    for name, module in list(model.named_modules()):
+        # `name` is the module's full path, e.g. "model.layers.3.self_attn.q_proj"
+        print(name, type(module).__name__)
+        # TODO: if this module is one of the target nn.Linear layers, wrap it in a LoRALinear, put that in its place
+        # in the model (with `model.set_submodule`), and add it to `lora_modules`
+
+    if not lora_modules:
+        raise ValueError(
+            f"No nn.Linear layers named any of {target_modules} were found. Different models name their layers "
+            "differently: print the model to see the names."
+        )
+    return lora_modules
+
+
+tests_lora.test_apply_lora(apply_lora)

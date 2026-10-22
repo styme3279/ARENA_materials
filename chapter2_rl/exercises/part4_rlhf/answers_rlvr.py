@@ -440,12 +440,18 @@ class RLVRTrainer:
         tokens = self.tokenizer(prompts, return_tensors="pt", padding=True).to(device)
         completions = self.sampler.generate(**tokens, max_new_tokens=self.args.max_new_tokens, num_return_sequences=self.args.num_return_sequences, verbose=True)
         
-        self.curriculum.score()
-        self.curriculum.solve_rate()
-        self.curriculum.update()
+        prefix_len = tokens.input_ids.shape[1]
+        groups = [self.tokenizer.batch_decode(c[:, prefix_len:], skip_special_tokens=True) for c in completions] 
+
+        rewards = self.curriculum.score(groups).to(device)              # (n_prompts, G)
+        advantages = drgrpo_advantages(rewards)  
         
-        self.tokenizer.batch_decode()
-        return RolloutBuffer.from_rollouts()
+        solve_rate = self.curriculum.solve_rate(groups)
+        self.curriculum.update(solve_rate)
+
+        buffer = RolloutBuffer.from_rollouts(completions, tokens.attention_mask, advantages, self.tokenizer.eos_token_id)
+        self.log_rollout(groups, rewards, solve_rate, buffer)
+        return buffer
 
     def compute_loss(self, mb: RolloutBuffer) -> Float[Tensor, ""]:
         """This microbatch's share of the loss averaged over every completion in the buffer."""
@@ -461,7 +467,7 @@ class RLVRTrainer:
         buffer_loss = 0.0
         
         for mb in buffer.microbatches(self.args.micro_batch):
-            loss += self.compute_loss(mb)
+            loss = self.compute_loss(mb)
             loss.backward()
             buffer_loss += loss.item()
         self.optimizer.step()
@@ -511,3 +517,18 @@ before = evaluate(rlvr_model, tokenizer, engine=vllm_engine)   # 3x2 / 3x3 / 4x3
 RLVRTrainer(rlvr_model, tokenizer, RLVRArgs(n_steps=40), engine=vllm_engine).train()
 print("=== trained model performance ===")
 after = evaluate(rlvr_model, tokenizer, engine=vllm_engine)
+
+# %%
+a, b = 4127, 386
+prompt = f"Compute {a} * {b}. Reason step by step, then give the final answer as \\boxed{{N}}.\n"
+sampler = utils.HFSampler(rlvr_model, tokenizer)        # streams through the HF model, with the current LoRA
+print(prompt)
+
+print("=== base model ===")
+with rlvr_model.disable_adapter():
+    base = sampler.generate_stream(prompt, max_new_tokens=500)
+
+print("\n=== after RLVR ===")
+trained = sampler.generate_stream(prompt, max_new_tokens=500)
+
+print(f"\nanswer {a * b}: base boxed {extract_boxed_int(base)}, trained boxed {extract_boxed_int(trained)}")

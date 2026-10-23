@@ -529,3 +529,87 @@ def sample_tree_policy(visits: Float[Tensor, "7"],
 
 tests.test_sample_tree_policy(sample_tree_policy)
 # %%
+@t.no_grad()
+def mcts_search(
+    root_board: Board,
+    model: nn.Module,
+    env: Connect4Env,
+    cfg: MCTSConfig,
+    add_noise: bool = False,
+) -> Node:
+    """Runs single-game MCTS from `root_board` and returns the root of the search tree.
+
+    The root node is created and evaluated (setting its prior `P` and `legal` mask) before the
+    loop. Each of the `cfg.sims` simulations then grows the tree by one node:
+    SELECT a leaf (`select`), EXPAND it if it is not terminal (`expand`), EVALUATE the leaf
+    (`evaluate`), and BACKUP its value to the root (`backup`).
+
+    Args:
+        root_board:  the position to search from, a single-game `Board` of batch shape (1,).
+                     Must not be terminal.
+        model:       the policy-value network, called as `model(boards) -> (value, logits)`.
+        env:         the Connect4Env, used to play moves during expansion.
+        cfg:         search settings; reads `cfg.sims` and `cfg.c_puct` (plus `cfg.dirichlet_alpha`
+                     and `cfg.dirichlet_eps` when `add_noise=True`).
+        add_noise:   if True, mix Dirichlet exploration noise into the root prior (self-play only;
+                     leave False for evaluation, so the search is deterministic).
+
+    Returns:
+        The root `Node`. Its `root.N` are the (7,) root visit counts N(root, a), summing to
+        `cfg.sims` (illegal columns get 0); its `children` hold the rest of the tree.
+    """
+    root = Node(root_board)
+    evaluate(root, model, env) #required to set root.P and root.legal
+    if add_noise:   # mix Dirichlet exploration noise into the root prior (`dirichlet_root_noise` is
+                    # given a few cells below; every call before then passes add_noise=False)
+        root.P = dirichlet_root_noise(root.P, root.legal, cfg.dirichlet_alpha, cfg.dirichlet_eps)
+
+    # Loop over the board 
+    for board_step in range(cfg.sims):
+        node, action = select(root, cfg.c_puct)
+        if not node.is_terminal:
+            leaf = expand(node, action, env)
+        else:
+            leaf = node
+        leaf_value = evaluate(leaf, model, env)
+        backup(leaf, leaf_value)
+
+    return root
+    
+# First check the search logic in isolation, with a dummy (uniform-policy, zero-value) network:
+# a forced win-in-one must be found purely from the terminal reward backing up the tree.
+tests.test_mcts_search(mcts_search)
+# Then confirm the same search drives the real network correctly:
+tests.test_mcts_search(mcts_search, Connect4Model(device).eval())
+# %%
+class DummyNet(nn.Module):
+
+    def forward(self, boards):
+        b, dev = boards.shape[0], boards.obs.device
+        values = t.zeros(b, device=dev)
+        logits = t.zeros(b, 7, device=dev)
+        return values, logits
+
+model = DummyNet()
+board = tests.diagonal_win_red()
+
+print("Starting position (X = Red to move):")
+print(render_board(board))
+
+root = mcts_search(board, model, env, MCTSConfig(sims=32))
+visits = root.N
+print("\nMCTS visit counts per column:", visits.int().tolist())
+chosen = int(visits.argmax())
+print(f"Most-visited column: {chosen}  ({int(visits[chosen])} of {int(visits.sum())} visits)")
+
+board_after = place_piece(board, chosen)
+print(f"\nBoard after X plays column {chosen}  (completes the diagonal):")
+print(render_board(board_after, show_to_move=False))
+
+# board + the visit-count policy pi(a) = N(s,a) / sum_a' N(s,a'), chosen column highlighted
+plot_board_and_policy(board, visits / visits.sum(), chosen_action=chosen,
+                      title="MCTS finds the diagonal win")
+# the search tree the simulations grew: edge thickness ~ visit count, terminal leaves in yellow
+plot_mcts_tree(root, max_depth=2, title="MCTS search tree (after 32 sims)")
+assert chosen == 4, "MCTS should find the diagonal win"
+# %%

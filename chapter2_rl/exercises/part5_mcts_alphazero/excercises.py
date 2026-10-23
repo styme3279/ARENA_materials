@@ -317,3 +317,177 @@ class Node:
 NULL_ACTION = -100
 
 tests.test_mcts_node(Node)
+
+# %%
+def select_child(node : Node, c_puct: float) -> Action:
+    """Return the action (column index) with the highest PUCT score at `node`.
+
+    Everything you need is already stored on the node (see the `Node` class above):
+        node.Q      (7,) per-edge mean values Q(s,a) = W / max(N, 1)  — a property, kept up to date
+        node.N      (7,) per-edge visit counts N(s,a); its sum is the parent visit total Σ_a' N(s,a')
+        node.P      (7,) the network prior p_θ(a|s), set when the node was evaluated
+        node.legal  (7,) bool mask of legal columns
+
+    Compute the PUCT score per action, set illegal actions to -inf, and take the argmax.
+
+    Args:
+        node:   the node to pick an action from (its edge statistics are already populated)
+        c_puct: the exploration/exploitation trade-off constant c
+
+    Returns:
+        int: the PUCT-maximising column 0-6 (you may assume at least one action is legal).
+        Return a plain Python int — `int(scores.argmax())`, not a 0-dim Tensor. A Tensor looks
+        identical in comparisons but breaks `action in node.children` dict lookups in `select`
+        (tensors hash by identity, not value).
+    """
+    f = (1.0 + node.N.sum()).pow(0.5) / (1.0 + node.N)
+    puct = node.Q + c_puct * node.P * f
+    masked_punct = t.where(node.legal, puct, -t.inf)
+    return int(masked_punct.argmax())
+
+tests.test_select_child(select_child, Node)
+
+# %%
+def select(root: Node, 
+           c_puct: float
+) -> tuple[Node, Action]:
+    """Walks down the tree from root: at each node take the PUCT-best action (`select_child`);
+    if that action has a child, step into it and repeat. Halt at the first node whose PUCT-best
+    action has NO child yet (`action not in node.children`), or on a terminal node.
+
+    Note the halting rule is a property of the node's best *action*, not of the node itself: a
+    node may already have children on other actions (and visits on them) while its current
+    PUCT-best action is still unexpanded — that node is where the walk stops.
+
+    Args:
+        root: The root node of the search tree (never terminal).
+        c_puct: The PUCT constant.
+
+    Returns:
+        * `(node, action)`: the node to expand and the action to play, OR
+        * `(node, NULL_ACTION)` if the walk stopped on a terminal node (nothing to expand).
+    """
+    assert not root.is_terminal, "select: root must not be terminal"
+    current_node = root
+    while not current_node.is_terminal:
+        action = select_child(current_node, c_puct)
+        if action not in current_node.children:
+            return (current_node, action) 
+        current_node = current_node.children[action]
+    return (current_node, NULL_ACTION)
+
+tests.test_select(select, Node)
+
+# %%
+@t.no_grad()
+def expand(node: Node, 
+           action: int, 
+           env: Connect4Env) -> Node:
+    """
+    Plays the given action on the current board state, constructs a new node with the result,
+    stores it as a child of the current node, and returns it.
+
+    Side effects:
+        * Mutates the current node to add a new child node.
+
+    Args:
+        node: The current node in the search tree.
+        action: The action to play.
+        env: The Connect4Env instance
+
+    Returns:
+        The newly created child node after the action has been played.
+    """
+    assert not node.is_terminal, "expand: cannot expand a terminal node"
+    board, done, reward = env.step(node.board, action)
+    child = Node(
+        board=board,
+        is_terminal=done,
+        terminal_value=-reward,
+        parent=node,
+        parent_action=action
+    )
+    node.children[action] = child
+    return child
+
+tests.test_expand(expand)
+
+# %%
+@t.no_grad()
+def evaluate(node: Node, model: nn.Module, env: Connect4Env) -> float:
+    """
+    Estimates the value of a node from its mover's perspective.
+
+    Side effects:
+        If the node is non-terminal, mutates the node to 
+        set the `node.P` and `node.legal` attributes to the
+        action probability from the model, and to the current legal moves
+        of the board respectively.
+
+    Args:
+        node: The node to estimate the value of.
+        model: The model to use.
+        env: The Connect4Env instance
+
+    Returns:
+        For terminal nodes: the stored `terminal_value` (already from the mover's perspective).
+        For non-terminal nodes: the critic head's value estimate, from the mover's perspective.
+    """
+    if node.is_terminal:
+        return node.terminal_value
+    value, logits = model(node.board)
+    value = value.squeeze(0).float().cpu()
+    logits = logits.squeeze(0).float().cpu()
+    node.legal = env.legal_action_mask(node.board).squeeze(0).cpu()
+    legal_logits = t.where(node.legal, logits, -t.inf)
+    node.P = legal_logits.softmax(dim=-1)
+    return value.item()
+
+tests.test_evaluate(evaluate)
+
+# %%
+def backup(leaf: Node, value: float) -> None:
+    """Walks from a node back up the tree to the root, updating the visit counts and value sums at each edge.
+
+    Side effects:
+        * Mutates the visit counts and value sums at each edge.
+
+    Args:
+        leaf: The leaf node to backup from.
+        value: The value of the leaf node from its mover's perspective.
+
+    Returns:
+        None
+    """
+    node = leaf
+    value = value
+    while node.parent is not None:
+        value = -value
+        node.parent.W[node.parent_action] += value
+        node.parent.N[node.parent_action] += 1.0
+        node = node.parent
+
+tests.test_backup(backup, Node)
+
+# %%
+def sample_tree_policy(visits: Float[Tensor, "7"], 
+                       temperature: float = 1.0,
+) -> Action:
+    """Samples an action from the tree policy. `temperature` -> 0 is greedy argmax; `temperature` = 1
+    samples proportional to visits; larger temperatures flatten the distribution.
+
+    Args:
+        visits: The visit counts for each action, shape `(7,)`.
+        temperature: The temperature parameter.
+
+    Returns:
+        int: The action to sample.
+    """
+    if temperature < 1e-8:
+        return Action(visits.argmax())
+    policy = visits.pow(1/temperature) / visits.pow(1/temperature).sum()
+    return Action(t.multinomial(policy, 1))
+
+tests.test_sample_tree_policy(sample_tree_policy)
+
+# %%

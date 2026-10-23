@@ -530,10 +530,19 @@ def mcts_search(
     if add_noise:   # mix Dirichlet exploration noise into the root prior (`dirichlet_root_noise` is
                     # given a few cells below; every call before then passes add_noise=False)
         root.P = dirichlet_root_noise(root.P, root.legal, cfg.dirichlet_alpha, cfg.dirichlet_eps)
-    
+
+    for _ in range(cfg.sims):
+        node = root
+        if not node.is_terminal:
+            leaf, action = select(node, cfg.c_puct)
+            new_leaf = expand(leaf, action, env)
+        value = evaluate(node, model, env)
+        backup(node, value)
+    return root
 
 # First check the search logic in isolation, with a dummy (uniform-policy, zero-value) network:
 # a forced win-in-one must be found purely from the terminal reward backing up the tree.
 tests.test_mcts_search(mcts_search)
 # Then confirm the same search drives the real network correctly:
 tests.test_mcts_search(mcts_search, Connect4Model(device).eval())
+# %%

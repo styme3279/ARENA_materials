@@ -734,9 +734,87 @@ def compute_z_targets(
     """
     batch, timesteps = dones.shape
     z = t.zeros((batch, timesteps), device=dones.device)
+    running = t.zeros((batch,), device=dones.device)
     for step in range(timesteps - 1, -1, -1):
-        z[:, step] = rewards[:, step] * (-1) ** step
+        running = t.where(dones[:, step], rewards[:, step], -running)
+        z[:, step] = running
     return z
+
+def compute_z_targets_2(dones, rewards):
+    B, T = dones.shape
+    steps = t.arange(T, device=dones.device)                     # (T,)
+    # each done ply's own index; T as a "no done here" sentinel
+    done_idx = t.where(dones, steps, T)                          # (B, T)
+    # next done at or after each ply = reverse cumulative min
+    end = done_idx.flip(-1).cummin(-1).values.flip(-1)           # (B, T), values in [t, T]
+    # reward at that done; the padded zero column makes the sentinel gather 0
+    r_end = F.pad(rewards, (0, 1)).gather(-1, end)               # (B, T)
+    # one sign flip per ply between t and its game's end
+    sign = 1 - 2 * ((end - steps) % 2)
+    return sign * r_end
 
 
 tests.test_compute_z_targets(compute_z_targets)
+# %%
+# %%
+from torch.utils import benchmark
+
+def make_z_inputs(B=8192, T=42, device=device, seed=0):
+    """Self-play-shaped (dones, rewards) like one generation from AZConfig's defaults (8192 games × 42 plies).
+    Each row is back-to-back games starting at ply 0 (self_play resets every generation), with game
+    lengths uniform in [7, 42] plies (7 = the shortest possible Connect 4 game). The last game in a row
+    is usually cut off by the end of the generation, as in real self-play."""
+    g = t.Generator().manual_seed(seed)
+    lengths = t.randint(7, T + 1, (B, T // 7 + 1), generator=g)   # 7 games of >= 7 plies always overrun T
+    ends = (lengths.cumsum(-1) - 1).clamp(max=T)                   # final ply of each game; T = past the end
+    d = t.zeros(B, T + 1).scatter_(1, ends, 1.0)[:, :T]            # extra column soaks up the overruns
+    dones = d.bool().to(device)
+    rewards = dones.float()   # +1 to the mover at every game end (draws are rare enough to ignore here)
+    return dones, rewards
+
+devices = [t.device("cpu")] + ([device] if device.type != "cpu" else [])
+for dev in devices:
+    dones, rewards = make_z_inputs(device=dev)
+    # correctness check first; doubles as warm-up (CUDA init, kernel caching)
+    t.testing.assert_close(compute_z_targets(dones, rewards), compute_z_targets_2(dones, rewards))
+    print(f"{dev}: {dones.shape[0]} rows × {dones.shape[1]} plies, {int(dones.sum())} finished games")
+    medians = {}
+    for fn in (compute_z_targets, compute_z_targets_2):
+        m = benchmark.Timer(
+            stmt="fn(dones, rewards)",
+            globals={"fn": fn, "dones": dones, "rewards": rewards},
+            num_threads=t.get_num_threads(),   # Timer defaults to 1 thread; match the notebook's setting
+        ).blocked_autorange(min_run_time=1.0)
+        medians[fn.__name__] = m.median
+        print(f"  {fn.__name__:<22} median {m.median * 1e6:9.1f} µs   (IQR {m.iqr * 1e6:.1f} µs)")
+    print(f"  speedup: {medians['compute_z_targets'] / medians['compute_z_targets_2']:.1f}×\n")
+# %%
+def compute_az_loss(
+    value: Float[Tensor, "N"],
+    logits: Float[Tensor, "N 7"],
+    pi: Float[Tensor, "N 7"],
+    z: Float[Tensor, "N"],
+    value_coef: float = 1.0,
+) -> Float[Tensor, ""]:
+    """Scalar AlphaZero loss over a minibatch of `N` positions: policy cross-entropy + value MSE.
+
+    Loss = mean of `-sum_a pi_a log softmax(logits)_a` + `value_coef * (value - z)^2`.
+
+    Args:
+        value:      (N,) critic outputs
+        logits:     (N, 7) actor outputs
+        pi:         (N, 7) MCTS visit-count policy target
+        z:          (N,) game-outcome value target
+        value_coef: weight on the value-MSE term
+
+    Returns:
+        scalar tensor: the mean total loss
+    """
+    assert value.shape == z.shape
+    assert logits.shape == pi.shape
+    loss = (logits.log_softmax(-1) * pi + value_coef * (value - z).pow(2))
+    return loss
+
+
+tests.test_compute_az_loss(compute_az_loss)
+# %%

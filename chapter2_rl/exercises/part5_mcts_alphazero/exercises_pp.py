@@ -341,13 +341,17 @@ def select_child(node : Node, c_puct: float) -> Action:
         identical in comparisons but breaks `action in node.children` dict lookups in `select`
         (tensors hash by identity, not value).
     """
-    scores = dict()
+    score = t.zeros(7).unsqueeze(0)
     for action in node.legal:
-        scores[action] = (
+        score += (
             node.Q[action] +
             c_puct * node.P[action] *
-            t.s
+            (
+                (1 + node.N.sum()).sqrt() / 
+                (1 + node.N[action])
+            )
         )
+    return int(score.argmax())
 
 
 tests.test_select_child(select_child, Node)

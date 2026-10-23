@@ -61,6 +61,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchinfo import summary
 from tqdm.auto import tqdm
+from pascal_pons.eval_pons import evaluate_policy
 
 # Make sure exercises are in the path
 chapter = "chapter2_rl"
@@ -904,10 +905,7 @@ class AlphaZeroTrainer:
         Returns:
             (B, 7) probabilities, each row summing to 1. Actions with zero visits get probability 0.
         """
-        policy = root_N.pow(1/temperature) / root_N.pow(1/temperature).sum(-1)
-        if temperature == 1:
-            return policy
-        return policy.softmax(-1)
+        return root_N.pow(1/temperature) / root_N.pow(1/temperature).sum(-1, keepdim=True)
 
     @t.no_grad()
     def self_play_step(self, boards: Board) -> tuple[Board, Bool[Tensor, "B"]]:
@@ -924,9 +922,9 @@ class AlphaZeroTrainer:
         root_visit_counts = self.mcts.search(self.model, boards, True)
         pi = self.visit_policy(root_visit_counts)
         probs = self.visit_policy(root_visit_counts, self.cfg.temperature)
-        actions = t.multinomial(probs, 1)
-        next_boards, dones, rewards = env.step(boards, actions)
-        self.buffer.write(next_boards, pi, dones, rewards)
+        actions = t.multinomial(probs, 1).squeeze(-1)
+        next_boards, dones, rewards = self.env.step(boards, actions)
+        self.buffer.write(boards, pi, dones, rewards)
         return next_boards, dones
 
     @t.no_grad()
@@ -975,6 +973,7 @@ class AlphaZeroTrainer:
         az_loss.backward()
         nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip)
         self.opt.step()
+        return float(az_loss.item())
 
     @t.no_grad()
     def evaluate(self) -> dict:
@@ -1032,5 +1031,24 @@ class AlphaZeroTrainer:
 tests.test_visit_policy(AlphaZeroTrainer)
 tests.test_self_play_step(AlphaZeroTrainer)
 tests.test_training_step(AlphaZeroTrainer)
+
+# %%
+cfg = AZConfig()   # fast recipe (8192 games, 16 sims, 8 gens) -> ~85% Pons acc in ~3-4 min on a GPU
+model = Connect4Model(device)
+
+if TRAINING:
+    # `BatchedMCTS` is built later, in the Vectorized-MCTS bonus. So that training runs even if
+    # you haven't done that bonus yet, we pull the finished class from `solutions` when it isn't
+    # yet defined.
+    if "BatchedMCTS" not in globals():
+        from solutions import BatchedMCTS
+    trainer = AlphaZeroTrainer(env, cfg, model)
+    trainer.train()   # eval + logging handled inside; set cfg.use_wandb=True to log to wandb
+
+# %%
+from part5_mcts_alphazero.utils import play_web, play_cli
+
+# play_web(model, env, port=8080)   # browser game on http://localhost:8080 (auto-forwarded); ■/Ctrl-C to stop
+play_cli(model, env)            # ...or play in the terminal instead
 
 # %%

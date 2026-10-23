@@ -407,10 +407,34 @@ def expand(node: Node,
 
     Returns:
         The newly created child node after the action has been played.
+
+        board          Board of batch shape (1,): the connect4 board for this state, and whose turn
+                       it is. Note that `Connect4Env.step` auto-resets a finished board, so on a **terminal**
+                       node this is the empty starting board, for which
+                       only `terminal_value` is well-defined.
+        is_terminal    bool : True if this state is game-over. Set by `expand`.
+        terminal_value float : result from the perspective of this node's mover (= -reward of the
+                       move that created the node). Only meaningful when `is_terminal=True`. Set by `expand`.
+        P              (7,) network prior over each move. Set by `evaluate`.
+        legal          (7,) bool legal-column mask. Set by `evaluate`.
+        N              (7,) per-edge visit counts N(s, a). Updated by `backup`.
+        W              (7,) per-edge value sums W(s, a), accumulated from the perspective of THIS
+                       node's mover: backup negates each child value once per step on
+                       the way up, so what lands here is already in this node's convention. Updated by `backup`.
+        children       dict[Action, Node] : child nodes per played action, created lazily by `expand`.
+        parent         Node | None : the node we were expanded from (`None` at the root).
+        parent_action  Action | None : the column that led from `parent` to this node. Updated by `expand`.
     """
     assert not node.is_terminal, "expand: cannot expand a terminal node"
 
-    next_board, done, reward = env.step()
+    next_board, done, reward = env.step(node.board,action)
+
+    child = Node(
+        board=next_board,
+        is_terminal=done,
+        terminal_value=-reward,
+        parent=node
+    )
 
 
 tests.test_expand(expand)

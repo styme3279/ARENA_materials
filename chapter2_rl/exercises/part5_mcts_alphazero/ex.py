@@ -376,12 +376,20 @@ def select(root: Node,
     assert not root.is_terminal, "select: root must not be terminal"
 
     node = root
-    while not (node.is_terminal or selected_action not in node.children):
-    # while not node.is_terminal and not len(node.children) == 0:
-        node = node.children[selected_action]
-        selected_action = select_child(node, c_puct)
+    while not node.is_terminal:
+        a = select_child(node, c_puct)
+        if a not in node.children:
+            return node, a            # found unexpanded action
+        node = node.children[a]       # descent into the chosen child
+    return node, NULL_ACTION          # hit terminal node
 
-    return (node, selected_action) if not node.is_terminal else (node, NULL_ACTION)
+    # node = root
+    # selected_action = select_child(node, c_puct)
+    # while selected_action in node.children and not node.is_terminal:
+    #     node = node.children[selected_action]
+    #     selected_action = select_child(node, c_puct)
+
+    # return (node, selected_action) if not node.is_terminal else (node, NULL_ACTION)
 
 
 tests.test_select(select, Node)

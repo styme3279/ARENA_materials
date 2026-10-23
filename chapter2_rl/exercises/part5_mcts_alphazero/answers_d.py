@@ -481,3 +481,51 @@ def evaluate(node: Node, model: nn.Module, env: Connect4Env) -> float:
 
 tests.test_evaluate(evaluate)
 # %%
+def backup(leaf: Node, value: float) -> None:
+    """Walks from a node back up the tree to the root, updating the visit counts and value sums at each edge.
+    
+    Side effects:
+        * Mutates the visit counts and value sums at each edge.
+    
+    Args:
+        leaf: The leaf node to backup from.
+        value: The value of the leaf node from its mover's perspective.
+
+    Returns:
+        None
+    """
+    v, curr = value, leaf
+    while curr.parent is not None:
+        v = -v
+        curr.parent.N[curr.parent_action] += 1.0
+        curr.parent.W[curr.parent_action] += v
+        curr = curr.parent
+
+
+tests.test_backup(backup, Node)
+# %%
+def sample_tree_policy(visits: Float[Tensor, "7"], 
+                       temperature: float = 1.0,
+) -> Action:
+    """Samples an action from the tree policy. `temperature` -> 0 is greedy argmax; `temperature` = 1
+    samples proportional to visits; larger temperatures flatten the distribution.
+    
+    Args:
+        visits: The visit counts for each action, shape `(7,)`.
+        temperature: The temperature parameter.
+
+    Returns:
+        int: The action to sample.
+    """
+    if temperature < 1e-8:
+        return int(visits.argmax())
+    
+    numerator = visits**(1/temperature) 
+    probs = numerator / numerator.sum()
+
+    return int(t.multinomial(probs,1))
+    
+
+
+tests.test_sample_tree_policy(sample_tree_policy)
+# %%

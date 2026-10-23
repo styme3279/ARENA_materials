@@ -377,14 +377,63 @@ def evaluate(node: Node, model: nn.Module, env: Connect4Env) -> float:
         For terminal nodes: the stored `terminal_value` (already from the mover's perspective).
         For non-terminal nodes: the critic head's value estimate, from the mover's perspective.
     """
-    print(node)
-    new_node = expand(node)
-    print(new_node)
+    if node.is_terminal:
+        return node.terminal_value
     values, logits = model(node.board)
-    if not node.is_terminal:
-        #node.legal = 
-        node.P = logits.argmax(dim=-1)
+    values = values.squeeze(0).float().to('cpu')
+    logits = logits.squeeze(0).float().to('cpu')
 
-    #env.
+    # Side effects
+    node.legal = env.legal_action_mask(node.board).squeeze(dim=0).to('cpu')
+    legal_logits = t.where(node.legal, logits, -t.inf)
+    node.P = legal_logits.softmax(dim=-1)
+
+    return float(values)
+    
 
 tests.test_evaluate(evaluate)
+
+# %%
+
+def backup(leaf: Node, value: float) -> None:
+    """Walks from a node back up the tree to the root, updating the visit counts and value sums at each edge.
+
+    Side effects:
+        * Mutates the visit counts and value sums at each edge.
+
+    Args:
+        leaf: The leaf node to backup from.
+        value: The value of the leaf node from its mover's perspective.
+
+    Returns:
+        None
+    """
+    node = leaf.parent
+    values = 
+    while node.parent is not None:
+        node.W += value
+        node.N += 1
+        node = node.parent
+
+
+
+tests.test_backup(backup, Node)
+
+# %%
+
+def sample_tree_policy(visits: Float[Tensor, "7"], 
+                       temperature: float = 1.0,
+) -> Action:
+    """Samples an action from the tree policy. `temperature` -> 0 is greedy argmax; `temperature` = 1
+    samples proportional to visits; larger temperatures flatten the distribution.
+
+    Args:
+        visits: The visit counts for each action, shape `(7,)`.
+        temperature: The temperature parameter.
+
+    Returns:
+        int: The action to sample.
+    """
+
+
+tests.test_sample_tree_policy(sample_tree_policy)

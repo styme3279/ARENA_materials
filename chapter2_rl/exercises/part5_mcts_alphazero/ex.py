@@ -947,9 +947,9 @@ class AlphaZeroTrainer:
         Returns:
             (B, 7) probabilities, each row summing to 1. Actions with zero visits get probability 0.
         """
-        N_tmp = root_N.N.pow(1/temperature)
+        N_tmp = root_N.pow(1/temperature)
 
-        return N_tmp / N_tmp.sum()
+        return N_tmp / N_tmp.sum(-1)[:,None]
 
     @t.no_grad()
     def self_play_step(self, boards: Board) -> tuple[Board, Bool[Tensor, "B"]]:
@@ -963,13 +963,13 @@ class AlphaZeroTrainer:
             next_boards: (B,) boards after the move (finished games auto-reset to an empty board)
             done:        (B,) whether the move ended each game
         """
-        roots = self.mcts.search(self.model, boards)
-        pi = self.visit_policy(roots, self.cfg.temperature)
-        actions = t.multinomial(pi)
-        boards, is_terminated, rewards = self.env.step(boards, actions)
+        root_Ns = self.mcts.search(self.model, boards, add_noise=True)
+        pi = self.visit_policy(root_Ns, 1)
+        actions = t.multinomial(self.visit_policy(root_Ns, self.cfg.temperature), 1)
+        next_boards, is_terminated, rewards = self.env.step(boards, actions)
         self.buffer.write(boards, pi, is_terminated, rewards)
 
-        return (boards, is_terminated)
+        return (next_boards, is_terminated)
 
     @t.no_grad()
     def self_play(self, progress: bool = True):
@@ -1011,7 +1011,16 @@ class AlphaZeroTrainer:
         Returns:
             float: the minibatch loss
         """
-        raise NotImplementedError()
+        self.opt.zero_grad()
+
+        (values, logits) = self.model(boards)
+        loss = compute_az_loss(values, logits, pi, z)
+        loss.backward()
+        t.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip)
+
+        self.opt.step()
+        
+        return loss.item()
 
     @t.no_grad()
     def evaluate(self) -> dict:
@@ -1068,5 +1077,18 @@ class AlphaZeroTrainer:
 
 tests.test_visit_policy(AlphaZeroTrainer)
 tests.test_self_play_step(AlphaZeroTrainer)
-# tests.test_training_step(AlphaZeroTrainer)
+tests.test_training_step(AlphaZeroTrainer)
+# %%
+
+cfg = AZConfig()   # fast recipe (8192 games, 16 sims, 8 gens) -> ~85% Pons acc in ~3-4 min on a GPU
+model = Connect4Model(device)
+
+if TRAINING:
+    # `BatchedMCTS` is built later, in the Vectorized-MCTS bonus. So that training runs even if
+    # you haven't done that bonus yet, we pull the finished class from `solutions` when it isn't
+    # yet defined.
+    if "BatchedMCTS" not in globals():
+        from solutions import BatchedMCTS
+    trainer = AlphaZeroTrainer(env, cfg, model)
+    trainer.train()   # eval + logging handled inside; set cfg.use_wandb=True to log to wandb
 # %%

@@ -89,3 +89,50 @@ MAIN = __name__ == "__main__"
 SLOW = False   # set True to run the slow bonus demos (strength-vs-sims, Elo-vs-search budget)
 TRAINING = True    # set False to skip section 4 self-play training (e.g. while iterating on section 2/section 3)
 # %%
+env = Connect4Env(device=device)
+board = env.reset(1)
+board, _, _ = env.step(board, t.tensor([3], device=device))   # red plays column 3
+board, _, _ = env.step(board, t.tensor([3], device=device))   # yellow replies in column 3
+print(render_board(board))
+# %%
+board = env.reset(1)
+board, _, _ = env.step(board, 3)   # red plays column 3 (env.step flips red_to_move for us)
+print(render_board(board), "\n")
+print("...and from the mover's (yellow's) perspective, as the network sees it:")
+print(render_board(Board(board.mover_view(), board.red_to_move), show_to_move=False))
+# channels swapped: red's piece is now the opponent's, so it is drawn as O
+# %%
+class ResBlock(nn.Module):
+    """A residual block, shape-preserving on (B, channels, H, W):
+
+        x -> Conv2d 3×3 -> BatchNorm -> ReLU -> Conv2d 3×3 -> BatchNorm -> (+ x) -> ReLU
+
+    Both convs are `channels -> channels`, 3×3, padding=1, `bias=False`: each conv is followed
+    immediately by a BatchNorm, whose learned shift makes a conv bias redundant.
+    """
+    def __init__(self, channels: int):
+        super().__init__()
+        self.layers = t.nn.Sequential(
+            nn.Conv2d(in_channels=channels, out_channels=channels,kernel_size=3,padding=1,bias=False),
+            nn.BatchNorm2d(num_features=channels),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=channels, out_channels=channels,kernel_size=3,padding=1,bias=False),        
+            nn.BatchNorm2d(num_features=channels),
+        )
+        self.ReLU = nn.ReLU()
+        
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B C H W"]:
+        """Two conv-BN layers (ReLU between), then add the input back (skip) and ReLU.
+
+        Args:
+            x: (B, C, H, W) input feature map
+
+        Returns:
+            (B, C, H, W) output feature map (shape preserved)
+        """
+        return self.ReLU(x + self.layers(x))
+
+
+tests.test_resblock(ResBlock)
+# %%

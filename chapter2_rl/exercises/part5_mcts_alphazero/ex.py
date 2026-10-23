@@ -924,12 +924,12 @@ class AlphaZeroTrainer:
     `mcts` (BatchedMCTS — built from cfg's sims/c_puct/dirichlet settings), `buffer` (ReplayBuffer).
     """
     def __init__(self, env, cfg, model):
-        self.env = env
+        self.env: Connect4Env = env
         self.cfg = cfg
         self.device = env.device
         self.model = model
         self.opt = t.optim.AdamW(self.model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
-        self.mcts = BatchedMCTS(env, MCTSConfig(
+        self.mcts: SimulatedBatchedMCTS = BatchedMCTS(env, MCTSConfig(
             sims=cfg.sims, c_puct=cfg.c_puct, max_depth=cfg.max_depth,
             dirichlet_alpha=cfg.dirichlet_alpha, dirichlet_eps=cfg.dirichlet_eps))
         self.buffer = ReplayBuffer(cfg, self.device)
@@ -947,7 +947,9 @@ class AlphaZeroTrainer:
         Returns:
             (B, 7) probabilities, each row summing to 1. Actions with zero visits get probability 0.
         """
-        raise NotImplementedError()
+        N_tmp = root_N.N.pow(1/temperature)
+
+        return N_tmp / N_tmp.sum()
 
     @t.no_grad()
     def self_play_step(self, boards: Board) -> tuple[Board, Bool[Tensor, "B"]]:
@@ -961,7 +963,13 @@ class AlphaZeroTrainer:
             next_boards: (B,) boards after the move (finished games auto-reset to an empty board)
             done:        (B,) whether the move ended each game
         """
-        mcts_search()
+        roots = self.mcts.search(self.model, boards)
+        pi = self.visit_policy(roots, self.cfg.temperature)
+        actions = t.multinomial(pi)
+        boards, is_terminated, rewards = self.env.step(boards, actions)
+        self.buffer.write(boards, pi, is_terminated, rewards)
+
+        return (boards, is_terminated)
 
     @t.no_grad()
     def self_play(self, progress: bool = True):
@@ -1058,6 +1066,7 @@ class AlphaZeroTrainer:
         return self.model
 
 
-# tests.test_visit_policy(AlphaZeroTrainer)
+tests.test_visit_policy(AlphaZeroTrainer)
 tests.test_self_play_step(AlphaZeroTrainer)
 # tests.test_training_step(AlphaZeroTrainer)
+# %%

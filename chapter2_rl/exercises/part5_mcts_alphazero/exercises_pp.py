@@ -341,6 +341,7 @@ def select_child(node : Node, c_puct: float) -> Action:
         identical in comparisons but breaks `action in node.children` dict lookups in `select`
         (tensors hash by identity, not value).
     """
+    assert node is not None, "select_child: node must not be None"
     scores = (
             node.Q + 
             c_puct * node.P *
@@ -376,12 +377,16 @@ def select(root: Node,
     assert not root.is_terminal, "select: root must not be terminal"
     node = root
     while True:
+        print("visiting node ", node)
         action = select_child(node, c_puct)
-        if action not in node.children:
+        if node.is_terminal:
             return (node, NULL_ACTION)
+        if action not in node.children:
+            return (node, action)
         node = node.children[action]
     
         
 
 
 tests.test_select(select, Node)
+# %%

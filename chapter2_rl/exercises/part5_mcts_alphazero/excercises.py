@@ -904,7 +904,10 @@ class AlphaZeroTrainer:
         Returns:
             (B, 7) probabilities, each row summing to 1. Actions with zero visits get probability 0.
         """
-        raise NotImplementedError()
+        policy = root_N.pow(1/temperature) / root_N.pow(1/temperature).sum(-1)
+        if temperature == 1:
+            return policy
+        return policy.softmax(-1)
 
     @t.no_grad()
     def self_play_step(self, boards: Board) -> tuple[Board, Bool[Tensor, "B"]]:
@@ -966,7 +969,12 @@ class AlphaZeroTrainer:
         Returns:
             float: the minibatch loss
         """
-        raise NotImplementedError()
+        value, logits = self.model(boards)
+        az_loss = compute_az_loss(value, logits, pi, z, self.cfg.value_coef)
+        self.opt.zero_grad(set_to_none=True)
+        az_loss.backward()
+        nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip)
+        self.opt.step()
 
     @t.no_grad()
     def evaluate(self) -> dict:
@@ -1024,3 +1032,5 @@ class AlphaZeroTrainer:
 tests.test_visit_policy(AlphaZeroTrainer)
 tests.test_self_play_step(AlphaZeroTrainer)
 tests.test_training_step(AlphaZeroTrainer)
+
+# %%

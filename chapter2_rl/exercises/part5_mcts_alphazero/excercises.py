@@ -558,10 +558,189 @@ def mcts_search(
     if add_noise:   # mix Dirichlet exploration noise into the root prior (`dirichlet_root_noise` is
                     # given a few cells below; every call before then passes add_noise=False)
         root.P = dirichlet_root_noise(root.P, root.legal, cfg.dirichlet_alpha, cfg.dirichlet_eps)
-    
+    for sim in range(cfg.sims):
+        node, action = select(root, cfg.c_puct)
+        if not node.is_terminal:
+            node = expand(node, action, env)
+        value = evaluate(node, model, env)
+        backup(node, value)
+    return root
 
 # First check the search logic in isolation, with a dummy (uniform-policy, zero-value) network:
 # a forced win-in-one must be found purely from the terminal reward backing up the tree.
 tests.test_mcts_search(mcts_search)
 # Then confirm the same search drives the real network correctly:
 tests.test_mcts_search(mcts_search, Connect4Model(device).eval())
+
+# %%
+class DummyNet(nn.Module):
+
+    def forward(self, boards):
+        b, dev = boards.shape[0], boards.obs.device
+        values = t.zeros(b, device=dev)
+        logits = t.zeros(b, 7, device=dev)
+        return values, logits
+
+model = DummyNet()
+board = tests.diagonal_win_red()
+
+print("Starting position (X = Red to move):")
+print(render_board(board))
+
+root = mcts_search(board, model, env, MCTSConfig(sims=32))
+visits = root.N
+print("\nMCTS visit counts per column:", visits.int().tolist())
+chosen = int(visits.argmax())
+print(f"Most-visited column: {chosen}  ({int(visits[chosen])} of {int(visits.sum())} visits)")
+
+board_after = place_piece(board, chosen)
+print(f"\nBoard after X plays column {chosen}  (completes the diagonal):")
+print(render_board(board_after, show_to_move=False))
+
+# board + the visit-count policy pi(a) = N(s,a) / sum_a' N(s,a'), chosen column highlighted
+plot_board_and_policy(board, visits / visits.sum(), chosen_action=chosen,
+                      title="MCTS finds the diagonal win")
+# the search tree the simulations grew: edge thickness ~ visit count, terminal leaves in yellow
+plot_mcts_tree(root, max_depth=2, title="MCTS search tree (after 32 sims)")
+assert chosen == 4, "MCTS should find the diagonal win"
+
+# %%
+utils.plot_dirichlet_simplex()
+
+# %%
+class SimulatedBatchedMCTS:
+    """Root-parallel MCTS over `B` independent trees, with the network call batched across trees.
+
+    A clarity-first stand-in for the vectorised `BatchedMCTS` below, with the **same interface**: hold
+    an `env` + `cfg`, then call `.search(model, root_boards)`. Every tree is a normal
+    Python `Node` tree driven by the section 2 `select`/`backup` functions, looped over the batch. The two
+    things it borrows from the vectorised version are (i) a single board `pool` that every node indexes
+    by `slot` (so boards never need packing/unpacking), and (ii) a fixed-size forward pass over all
+    `B` leaves every simulation, terminal leaves included.
+
+    Each node stores an integer `slot` instead of its own board: its position lives at
+    `pool[game, slot]`. (`Node.board` is left as `None` since none of `select`/`backup` read it.)
+    """
+
+    def __init__(self, env, cfg):
+        self.env, self.cfg = env, cfg
+
+    @t.no_grad()
+    def _expand(self, pool, nptr, game, node, action):
+        """Section 2's `expand` function, but the child's board is written into the pool and the child stores its `slot`."""
+        parent_board = pool[game, node.slot]                                # one game's board, unbatched
+        next_board, done, reward = self.env.step(parent_board, action)      # done, reward: python scalars
+        slot = nptr[game]
+        nptr[game] += 1
+        pool[game, slot] = next_board
+        child = Node(board=None, is_terminal=done, terminal_value=-reward,
+                     parent=node, parent_action=action)
+        child.slot = slot
+        node.children[action] = child
+        return child
+
+    @t.no_grad()
+    def _evaluate_batch(self, model, pool, batch_idx, nodes):
+        """Evaluate all `B` leaves in ONE fixed-size forward pass; return one value per node.
+
+        Terminal leaves are forwarded too (their board is gathered from the pool like any other) even
+        though we throw away the network's output and use the value stored at creation. The constant
+        `B`-shaped batch matches the vectorised search and is faster than a ragged one.
+        """
+        slots = t.tensor([node.slot for node in nodes], device=batch_idx.device)
+        boards = pool[batch_idx, slots]                                    # (B,) Board, one gather
+        value, logits = model(boards)                                      # <- one batched call, all B nodes
+        value, logits = value.float(), logits.float()                      # keep node stats fp32 even if the net runs in bf16
+        legal = self.env.legal_action_mask(boards)
+        P = t.softmax(t.where(legal, logits, -t.inf), dim=-1)
+        value, legal, P = value.cpu(), legal.cpu(), P.cpu()
+        values = []
+        for b, node in enumerate(nodes):
+            if node.is_terminal:
+                values.append(node.terminal_value)    # value known at creation; net output discarded
+            else:
+                node.legal = legal[b]
+                node.P = P[b]
+                values.append(float(value[b]))
+        return values
+
+    @t.no_grad()
+    def search(self, model, root_boards: Board, add_noise: bool = False) -> Float[Tensor, "B 7"]:
+        """Run `cfg.sims` simulations of root-parallel MCTS from the (B,) `root_boards`; return (B, 7)
+        root visit counts. Same signature as `BatchedMCTS.search`, just sequential-over-trees (so much slower)."""
+        cfg = self.cfg
+        B, device = root_boards.shape[0], root_boards.obs.device
+        batch_idx = t.arange(B, device=device)
+
+        # Shared board pool: every node just stores a `slot` into this, so we never pack/unpack boards.
+        # At most one node is added per simulation, so `cfg.sims + 1` slots per game (slot 0 = root)
+        # can never overflow.
+        pool = Board(t.zeros((B, cfg.sims + 1, *root_boards.obs.shape[1:]), device=device),
+                     t.zeros((B, cfg.sims + 1), dtype=t.bool, device=device))
+        pool[:, 0] = root_boards                     # drop in all root boards at once (slot 0)
+        nptr = [1] * B                               # next free slot per game
+
+        # construct the roots of the trees, each pointing at slot 0 of its game's pool
+        roots = []
+        for b in range(B):
+            node = Node(board=None)
+            node.slot = 0
+            roots.append(node)
+
+        # evaluate every root in one forward pass to set its P / legal (as section 2 does for its single root)
+        self._evaluate_batch(model, pool, batch_idx, roots)
+        if add_noise:  # batched Dirichlet noise on the root priors, exactly as `expand_root` does it
+            P = dirichlet_root_noise(t.stack([r.P for r in roots]), t.stack([r.legal for r in roots]),
+                                     cfg.dirichlet_alpha, cfg.dirichlet_eps)
+            for b, root in enumerate(roots):
+                root.P = P[b]
+
+        for _ in range(cfg.sims):
+            # 1. SELECT + EXPAND each tree sequentially, collecting one leaf per tree
+            leaves = []
+            for game, root in enumerate(roots):
+                node, action = select(root, cfg.c_puct)
+                leaf = node if node.is_terminal else self._expand(pool, nptr, game, node, action)
+                leaves.append(leaf)
+            # 2. EVALUATE every leaf in a single, fixed-size forward pass through the network
+            values = self._evaluate_batch(model, pool, batch_idx, leaves)
+            # 3. BACKUP each tree sequentially
+            for leaf, value in zip(leaves, values):
+                backup(leaf, value)
+        return t.stack([root.N for root in roots]).to(device)      # (B, 7), on the input's device
+
+tests.test_simulated_batched_mcts(SimulatedBatchedMCTS)
+
+# %%
+def compute_z_targets(
+    dones: Bool[Tensor, "batch timesteps"], 
+    rewards: Float[Tensor, "batch timesteps"]
+) -> Float[Tensor, "batch timesteps"]:
+    """Negamax value targets for a batch of `B` self-play games of `T` plies.
+
+    Walking each game backwards from its terminal rewards, the target at each ply is the game's final
+    reward with its sign flipped once per step back. Every recorded value in this project is from the
+    perspective of the player about to move; stepping back one ply changes whose turn it is, hence the
+    negation (negamax: good for the mover is bad for its parent).
+
+    Args:
+        dones: (batch, timesteps) marks the ply where each game ended
+        rewards:  (batch, timesteps) rewards to the mover at each ply (nonzero only where dones)
+
+    Returns:
+        (batch, timesteps) the mover-perspective outcome `z` for every recorded state
+    """
+    batch, timesteps = dones.shape
+    z = t.zeros((batch, timesteps), device=dones.device)
+    current_rewards = t.zeros((batch,), device=dones.device)
+    turn = 1
+    for step in range(timesteps - 1, -1, -1):
+        turn = -turn
+        current_rewards = t.where(dones[:, step], turn*rewards[:, step], turn*current_rewards)
+        z[:, step] = current_rewards.squeeze(-1)
+    return z
+
+
+tests.test_compute_z_targets(compute_z_targets)
+
+# %%

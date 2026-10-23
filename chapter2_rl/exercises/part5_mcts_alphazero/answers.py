@@ -426,9 +426,13 @@ def backup(leaf: Node, value: float) -> None:
     # Walk backwards
     curr_node = leaf.parent
     curr_action = leaf.parent_action
+    leaf.terminal_value += value
     val = value
 
     while curr_node is not None and curr_action is not None:
+
+        print(val)
+        print(curr_node.terminal_value)
 
         curr_node.terminal_value += val
         curr_node.N[curr_action] += 1

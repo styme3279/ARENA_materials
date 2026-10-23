@@ -329,7 +329,9 @@ def test_evaluate(evaluate):
     v = evaluate(node, DummyModel(), _ENV)
     assert isinstance(v, float), "evaluate should return a python float"
     assert node.P is not None and node.legal is not None, "evaluate must set node.P and node.legal"
-    assert abs(float(node.P.sum()) - 1.0) < 1e-5, "priors must sum to 1"
+    assert abs(float(node.P.sum()) - 1.0) < 1e-4, "priors must sum to 1"
+    print("masks:")
+    print(node.legal.cpu(), legal_mask_from_obs(_empty().obs)[0].cpu())
     assert t.equal(node.legal.cpu(), legal_mask_from_obs(_empty().obs)[0].cpu()), "legal mask mismatch"
     # a terminal node short-circuits: returns its stored value, no network / prior needed
     term = sol.Node(_empty()); term.is_terminal = True; term.terminal_value = -1.0

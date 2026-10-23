@@ -883,9 +883,7 @@ class AlphaZeroTrainer:
         if temperature < 1e-8:
             return int(visits.argmax(dim=0).int().item())
         visits_raised_to_temperature = root_N.pow(1 / temperature)
-        x = visits_raised_to_temperature / visits_raised_to_temperature.sum()
-        x = t.where(x == 0, -t.inf, x)
-        return t.softmax(x, dim=-1)
+        return visits_raised_to_temperature / visits_raised_to_temperature.sum(dim=-1,keepdim=True)
         
 
     @t.no_grad()
@@ -947,7 +945,13 @@ class AlphaZeroTrainer:
         Returns:
             float: the minibatch loss
         """
-        raise NotImplementedError()
+        self.opt.zero_grad(set_to_none=True)
+        value, logits = self.model(boards)
+        loss = compute_az_loss(value, logits, pi, z, value_coef=self.cfg.value_coef)
+        loss.backward()
+        self.opt.step()
+        nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip)
+        return float(loss.item())
 
     @t.no_grad()
     def evaluate(self) -> dict:
@@ -1005,4 +1009,21 @@ class AlphaZeroTrainer:
 tests.test_visit_policy(AlphaZeroTrainer)
 tests.test_self_play_step(AlphaZeroTrainer)
 tests.test_training_step(AlphaZeroTrainer)
+# %%
+cfg = AZConfig()   # fast recipe (8192 games, 16 sims, 8 gens) -> ~85% Pons acc in ~3-4 min on a GPU
+model = Connect4Model(device)
+
+if TRAINING:
+    # `BatchedMCTS` is built later, in the Vectorized-MCTS bonus. So that training runs even if
+    # you haven't done that bonus yet, we pull the finished class from `solutions` when it isn't
+    # yet defined.
+    if "BatchedMCTS" not in globals():
+        from solutions import BatchedMCTS
+    trainer = AlphaZeroTrainer(env, cfg, model)
+    trainer.train()   # eval + logging handled inside; set cfg.use_wandb=True to log to wandb
+# %%
+from part5_mcts_alphazero.utils import play_web, play_cli
+
+play_web(model, env, port=8080)   # browser game on http://localhost:8080 (auto-forwarded); ■/Ctrl-C to stop
+# play_cli(model, env)            # ...or play in the terminal instead
 # %%

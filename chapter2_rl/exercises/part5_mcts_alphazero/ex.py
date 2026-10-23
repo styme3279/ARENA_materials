@@ -747,3 +747,31 @@ class SimulatedBatchedMCTS:
 
 tests.test_simulated_batched_mcts(SimulatedBatchedMCTS)
 # %%
+
+def compute_z_targets(
+    dones: Bool[Tensor, "batch timesteps"], 
+    rewards: Float[Tensor, "batch timesteps"]
+) -> Float[Tensor, "batch timesteps"]:
+    """Negamax value targets for a batch of `B` self-play games of `T` plies.
+
+    Walking each game backwards from its terminal rewards, the target at each ply is the game's final
+    reward with its sign flipped once per step back. Every recorded value in this project is from the
+    perspective of the player about to move; stepping back one ply changes whose turn it is, hence the
+    negation (negamax: good for the mover is bad for its parent).
+
+    Args:
+        dones: (batch, timesteps) marks the ply where each game ended
+        rewards:  (batch, timesteps) rewards to the mover at each ply (nonzero only where dones)
+
+    Returns:
+        (batch, timesteps) the mover-perspective outcome `z` for every recorded state
+    """
+    batch, timesteps = dones.shape
+    z = t.zeros((batch, timesteps), device=dones.device)
+
+    done_idxs = dones.where(1, dim=1)
+
+    return z
+
+
+tests.test_compute_z_targets(compute_z_targets)

@@ -121,7 +121,9 @@ class ResBlock(nn.Module):
     """
     def __init__(self, channels: int):
         super().__init__()
-        raise NotImplementedError()
+        self.layers = nn.Sequential(
+            
+        )
 
     def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B C H W"]:
         """Two conv-BN layers (ReLU between), then add the input back (skip) and ReLU.
@@ -132,7 +134,7 @@ class ResBlock(nn.Module):
         Returns:
             (B, C, H, W) output feature map (shape preserved)
         """
-        raise NotImplementedError()
+        return self.layers(x)
 
 
 tests.test_resblock(ResBlock)

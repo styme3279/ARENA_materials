@@ -377,10 +377,10 @@ def select(root: Node,
     assert not root.is_terminal, "select: root must not be terminal"
     node = root
     while True:
-        print("visiting node ", node)
-        action = select_child(node, c_puct)
+        # print("visiting node ", node)
         if node.is_terminal:
             return (node, NULL_ACTION)
+        action = select_child(node, c_puct)
         if action not in node.children:
             return (node, action)
         node = node.children[action]
@@ -390,3 +390,27 @@ def select(root: Node,
 
 tests.test_select(select, Node)
 # %%
+@t.no_grad()
+def expand(node: Node, 
+           action: int, 
+           env: Connect4Env) -> Node:
+    """
+    Plays the given action on the current board state, constructs a new node with the result,
+    stores it as a child of the current node, and returns it.
+
+    Side effects:
+        * Mutates the current node to add a new child node.
+
+    Args:
+        node: The current node in the search tree.
+        action: The action to play.
+        env: The Connect4Env instance
+
+    Returns:
+        The newly created child node after the action has been played.
+    """
+    assert not node.is_terminal, "expand: cannot expand a terminal node"
+    raise NotImplementedError()
+
+
+tests.test_expand(expand)

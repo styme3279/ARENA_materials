@@ -959,7 +959,10 @@ trainer = None
 gc.collect()
 t.cuda.empty_cache()
 # CUDA errors? reduce batch_size or gen_len
-args = GRPO_LoRA_Args(             # LORA_MODEL (Qwen3-1.7B-Base here) frozen in LORA_DTYPE, plus rank-8 adapters
+args = GRPO_LoRA_Args(             # frozen in LORA_DTYPE, plus the same rank-8 adapters as the Qwen run
+    # Gemma 4 E4B base (8B params with its vision/audio towers, ~15 GiB in bf16). LoRA only lands on the language model:
+    # the towers' layers are wrapped in Gemma4ClippableLinear, so apply_lora doesn't match them
+    base_model="google/gemma-4-E4B",
     # lr: GRPO_LoRA_Args' default of 2e-4 (was 1e-4 for full fine-tuning of gpt2-medium)
     batches_per_learning_phase=2,  # was 8
     num_minibatches=8,             # ARENA's main-run value

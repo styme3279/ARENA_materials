@@ -212,13 +212,14 @@ class Connect4Model(nn.Module):
         super().__init__()
 
         self.trunk = nn.Sequential(
-            nn.Conv2d(critic_conv_out, channels, kernel_size=3, padding=1),
+            nn.Conv2d(critic_conv_out, channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(channels),
             nn.ReLU(),
             ResBlock(channels),
             ResBlock(channels))
-        self.actor = Actor(in_channels=128, conv_out=32, height=6, width=7)
-        
+        self.actor = Actor(in_channels=channels, conv_out=actor_conv_out, height=height, width=width)
+        self.critic = Critic(in_channels=channels, conv_out=critic_conv_out, height=height, width=width)
+
         self.to(device)
 
     def forward(
@@ -235,8 +236,9 @@ class Connect4Model(nn.Module):
         """
         x = boards.mover_view()   # (B, C, H, W)
         trunk = self.trunk(x)
-        actor = self.actor(trunk, )
-        critic = self.critic(trunk, )
+        actor = self.actor(trunk)
+        critic = self.critic(trunk)
+        return (actor, critic)
 
 
 

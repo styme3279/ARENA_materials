@@ -260,8 +260,95 @@ class Connect4Model(nn.Module):
             logits: (B, 7) one policy logit per column
         """
         x = boards.mover_view()   # (B, C, H, W)
-        raise NotImplementedError()
+        x = self.trunk(x)
+        critic = self.critic(x)
+        actor = self.actor(x)
+        return critic, actor
 
 
 summary(Connect4Model(device))
 tests.test_connect4_model(Connect4Model)
+# %%
+Action = int # 0, 1, 2, 3, 4, 5, 6
+
+@dataclass
+class Node:
+    """One node of the single-game search tree = one board state. Statistics live on the **edges**
+    (per-action length-7 arrays), filled in as the search runs.
+
+    Attributes:
+        board          Board of batch shape (1,): the connect4 board for this state, and whose turn
+                       it is. Note that `Connect4Env.step` auto-resets a finished board, so on a **terminal**
+                       node this is the empty starting board, for which
+                       only `terminal_value` is well-defined.
+        is_terminal    bool : True if this state is game-over. Set by `expand`.
+        terminal_value float : result from the perspective of this node's mover (= -reward of the
+                       move that created the node). Only meaningful when `is_terminal=True`. Set by `expand`.
+        P              (7,) network prior over each move. Set by `evaluate`.
+        legal          (7,) bool legal-column mask. Set by `evaluate`.
+        N              (7,) per-edge visit counts N(s, a). Updated by `backup`.
+        W              (7,) per-edge value sums W(s, a), accumulated from the perspective of THIS
+                       node's mover: backup negates each child value once per step on
+                       the way up, so what lands here is already in this node's convention. Updated by `backup`.
+        children       dict[Action, Node] : child nodes per played action, created lazily by `expand`.
+        parent         Node | None : the node we were expanded from (`None` at the root).
+        parent_action  Action | None : the column that led from `parent` to this node. Updated by `expand`.
+
+    Properties:
+        Q              (7,) per-edge mean value W / max(N, 1).
+    """
+    board: Board  # batch shape (1,); lives on GPU
+    is_terminal: bool = False
+    terminal_value: float = 0.0
+    P: Tensor | None = None
+    legal: Tensor | None = None
+    N: Float[Tensor, "7"] = field(default_factory=lambda: t.zeros(7))   # N(s,a_0), ..., N(s,a_6)
+    W: Float[Tensor, "7"] = field(default_factory=lambda: t.zeros(7))   # W(s,a_0), ..., W(s,a_6)
+    children: dict[Action, 'Node'] = field(default_factory=dict)
+    parent: 'Node | None' = None
+    parent_action: Action | None = None
+
+    @property
+    def Q(self) -> Float[Tensor, "7"]:
+        return self.W / t.maximum(self.N, t.ones_like(self.N))
+
+
+# Sentinel "no action" returned by `select` when the selection walk stops on a terminal node.
+# We use -100 rather than None because None silently inserts a dim when used to index a tensor
+# (`t[None]`), whereas -100 is always an illegal column and raises loudly if ever misused as an index.
+NULL_ACTION = -100
+
+tests.test_mcts_node(Node)
+# %%
+def select_child(node : Node, c_puct: float) -> Action:
+    """Return the action (column index) with the highest PUCT score at `node`.
+
+    Everything you need is already stored on the node (see the `Node` class above):
+        node.Q      (7,) per-edge mean values Q(s,a) = W / max(N, 1)  — a property, kept up to date
+        node.N      (7,) per-edge visit counts N(s,a); its sum is the parent visit total Σ_a' N(s,a')
+        node.P      (7,) the network prior p_θ(a|s), set when the node was evaluated
+        node.legal  (7,) bool mask of legal columns
+
+    Compute the PUCT score per action, set illegal actions to -inf, and take the argmax.
+
+    Args:
+        node:   the node to pick an action from (its edge statistics are already populated)
+        c_puct: the exploration/exploitation trade-off constant c
+
+    Returns:
+        int: the PUCT-maximising column 0-6 (you may assume at least one action is legal).
+        Return a plain Python int — `int(scores.argmax())`, not a 0-dim Tensor. A Tensor looks
+        identical in comparisons but breaks `action in node.children` dict lookups in `select`
+        (tensors hash by identity, not value).
+    """
+    scores = dict()
+    for action in node.legal:
+        scores[action] = (
+            node.Q[action] +
+            c_puct * node.P[action] *
+            t.s
+        )
+
+
+tests.test_select_child(select_child, Node)
+# %%

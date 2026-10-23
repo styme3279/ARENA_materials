@@ -443,9 +443,33 @@ def evaluate(node: Node, model: nn.Module, env: Connect4Env) -> float:
     if node.is_terminal:
         return node.terminal_value
     value, logits = model(node.board)
-    node.P = logits[0, node.parent_action].item()
-    node.legal = env.legal_moves(node.board)
-    return value
+    probs = t.softmax(logits, dim=1).squeeze(0)
+    node.P = probs.cpu()
+    node.legal = env.legal_action_mask(node.board).squeeze(0).cpu()
+    return float(value)
 
 
 tests.test_evaluate(evaluate)
+# %%
+def backup(leaf: Node, value: float) -> None:
+    """Walks from a node back up the tree to the root, updating the visit counts and value sums at each edge.
+    
+    Side effects:
+        * Mutates the visit counts and value sums at each edge.
+    
+    Args:
+        leaf: The leaf node to backup from.
+        value: The value of the leaf node from its mover's perspective.
+
+    Returns:
+        None
+    """
+    v, node = value, leaf
+    while node.parent is not None:
+        node.parent.W[node.parent_action] += -value
+        node = node.parent
+    return
+
+
+tests.test_backup(backup, Node)
+# %%

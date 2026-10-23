@@ -26,6 +26,7 @@ section_dir = exercises_dir / section
 for _p in (str(section_dir), str(exercises_dir)):   # section_dir for bare imports; exercises_dir so
     if _p not in sys.path:                          # `from part5_mcts_alphazero.solutions import ...` resolves
         sys.path.append(_p)
+from part5_mcts_alphazero.solutions import BatchedMCTS
 import part5_mcts_alphazero.tests as tests
 import part5_mcts_alphazero.utils as utils
 from part5_mcts_alphazero.utils import (
@@ -855,7 +856,7 @@ class AlphaZeroTrainer:
     Attributes: `env` (Connect4Env), `cfg` (AZConfig), `model` (Connect4Model), `opt` (AdamW),
     `mcts` (BatchedMCTS — built from cfg's sims/c_puct/dirichlet settings), `buffer` (ReplayBuffer).
     """
-    def __init__(self, env, cfg, model):
+    def __init__(self, env: Connect4Env, cfg: AZConfig, model: Connect4Model):
         self.env = env
         self.cfg = cfg
         self.device = env.device
@@ -879,7 +880,13 @@ class AlphaZeroTrainer:
         Returns:
             (B, 7) probabilities, each row summing to 1. Actions with zero visits get probability 0.
         """
-        raise NotImplementedError()
+        if temperature < 1e-8:
+            return int(visits.argmax(dim=0).int().item())
+        visits_raised_to_temperature = root_N.pow(1 / temperature)
+        x = visits_raised_to_temperature / visits_raised_to_temperature.sum()
+        x = t.where(x == 0, -t.inf, x)
+        return t.softmax(x, dim=-1)
+        
 
     @t.no_grad()
     def self_play_step(self, boards: Board) -> tuple[Board, Bool[Tensor, "B"]]:
@@ -893,7 +900,12 @@ class AlphaZeroTrainer:
             next_boards: (B,) boards after the move (finished games auto-reset to an empty board)
             done:        (B,) whether the move ended each game
         """
-        mcts_search(board, model=model)
+        roots = self.mcts.search(self.model, boards, add_noise=True)
+        pi = self.visit_policy(roots, temperature=1)
+        actions = t.multinomial(self.visit_policy(roots, temperature=self.cfg.temperature), num_samples=1)
+        new_boards, dones, rewards = self.env.step(boards, actions)
+        self.buffer.write(boards, pi, dones, rewards)
+        return new_boards, dones
 
     @t.no_grad()
     def self_play(self, progress: bool = True):
@@ -993,3 +1005,4 @@ class AlphaZeroTrainer:
 tests.test_visit_policy(AlphaZeroTrainer)
 tests.test_self_play_step(AlphaZeroTrainer)
 tests.test_training_step(AlphaZeroTrainer)
+# %%

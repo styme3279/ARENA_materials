@@ -341,18 +341,47 @@ def select_child(node : Node, c_puct: float) -> Action:
         identical in comparisons but breaks `action in node.children` dict lookups in `select`
         (tensors hash by identity, not value).
     """
-    score = t.zeros(7).unsqueeze(0)
-    for action in node.legal:
-        score += (
-            node.Q[action] +
-            c_puct * node.P[action] *
+    scores = (
+            node.Q + 
+            c_puct * node.P *
             (
                 (1 + node.N.sum()).sqrt() / 
-                (1 + node.N[action])
+                (1 + node.N)
             )
         )
-    return int(score.argmax())
+    return int(t.where(node.legal, scores, -float('inf')).argmax())
 
 
 tests.test_select_child(select_child, Node)
 # %%
+def select(root: Node, 
+           c_puct: float
+) -> tuple[Node, Action]:
+    """Walks down the tree from root: at each node take the PUCT-best action (`select_child`);
+    if that action has a child, step into it and repeat. Halt at the first node whose PUCT-best
+    action has NO child yet (`action not in node.children`), or on a terminal node.
+
+    Note the halting rule is a property of the node's best *action*, not of the node itself: a
+    node may already have children on other actions (and visits on them) while its current
+    PUCT-best action is still unexpanded — that node is where the walk stops.
+
+    Args:
+        root: The root node of the search tree (never terminal).
+        c_puct: The PUCT constant.
+
+    Returns:
+        * `(node, action)`: the node to expand and the action to play, OR
+        * `(node, NULL_ACTION)` if the walk stopped on a terminal node (nothing to expand).
+    """
+    assert not root.is_terminal, "select: root must not be terminal"
+    node = root
+    while True:
+        action = select_child(node, c_puct)
+        if action not in node.children:
+            return (node, NULL_ACTION)
+        node = node.children[action]
+    
+        
+
+
+tests.test_select(select, Node)

@@ -491,3 +491,77 @@ def sample_tree_policy(visits: Float[Tensor, "7"],
 tests.test_sample_tree_policy(sample_tree_policy)
 
 # %%
+def dirichlet_root_noise(
+    prior: Float[Tensor, "... 7"],
+    legal: Bool[Tensor, "... 7"],
+    alpha: float,
+    eps: float,
+) -> Float[Tensor, "... 7"]:
+    """Mix Dirichlet exploration noise into the root prior (used by `expand_root` when `add_noise`).
+
+    Noise is added only at the root, which keeps self-play exploring without distorting the rest of
+    the tree. `eps = 0` returns `prior` unchanged. We use a symmetric Dirichlet (the same `alpha`
+    for every column). Works with or without a leading batch dimension.
+
+    Args:
+        prior: (..., 7) the network prior at the root
+        legal: (..., 7) legal-column mask (the noise is renormalised over the legal columns)
+        alpha: Dirichlet concentration (smaller = spikier noise)
+        eps:   mixing weight on the noise
+
+    Returns:
+        (..., 7) the mixed prior `(1 - eps) * prior + eps * noise`
+    """
+    noise = t.distributions.Dirichlet(
+        t.full((prior.shape[-1],), alpha, device=prior.device)
+    ).sample(prior.shape[:-1])
+    noise = noise * legal.float()
+    noise = noise / noise.sum(-1, keepdim=True).clamp_min(1e-8)
+    return (1.0 - eps) * prior + eps * noise
+
+
+tests.test_dirichlet_root_noise(dirichlet_root_noise)
+
+
+# %%
+@t.no_grad()
+def mcts_search(
+    root_board: Board,
+    model: nn.Module,
+    env: Connect4Env,
+    cfg: MCTSConfig,
+    add_noise: bool = False,
+) -> Node:
+    """Runs single-game MCTS from `root_board` and returns the root of the search tree.
+
+    The root node is created and evaluated (setting its prior `P` and `legal` mask) before the
+    loop. Each of the `cfg.sims` simulations then grows the tree by one node:
+    SELECT a leaf (`select`), EXPAND it if it is not terminal (`expand`), EVALUATE the leaf
+    (`evaluate`), and BACKUP its value to the root (`backup`).
+
+    Args:
+        root_board:  the position to search from, a single-game `Board` of batch shape (1,).
+                     Must not be terminal.
+        model:       the policy-value network, called as `model(boards) -> (value, logits)`.
+        env:         the Connect4Env, used to play moves during expansion.
+        cfg:         search settings; reads `cfg.sims` and `cfg.c_puct` (plus `cfg.dirichlet_alpha`
+                     and `cfg.dirichlet_eps` when `add_noise=True`).
+        add_noise:   if True, mix Dirichlet exploration noise into the root prior (self-play only;
+                     leave False for evaluation, so the search is deterministic).
+
+    Returns:
+        The root `Node`. Its `root.N` are the (7,) root visit counts N(root, a), summing to
+        `cfg.sims` (illegal columns get 0); its `children` hold the rest of the tree.
+    """
+    root = Node(root_board)
+    evaluate(root, model, env) #required to set root.P and root.legal
+    if add_noise:   # mix Dirichlet exploration noise into the root prior (`dirichlet_root_noise` is
+                    # given a few cells below; every call before then passes add_noise=False)
+        root.P = dirichlet_root_noise(root.P, root.legal, cfg.dirichlet_alpha, cfg.dirichlet_eps)
+    
+
+# First check the search logic in isolation, with a dummy (uniform-policy, zero-value) network:
+# a forced win-in-one must be found purely from the terminal reward backing up the tree.
+tests.test_mcts_search(mcts_search)
+# Then confirm the same search drives the real network correctly:
+tests.test_mcts_search(mcts_search, Connect4Model(device).eval())

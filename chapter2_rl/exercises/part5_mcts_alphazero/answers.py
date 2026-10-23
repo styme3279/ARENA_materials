@@ -328,6 +328,45 @@ tests.test_select_child(select_child, Node)
 
 # %%
 
+def select(root: Node, 
+           c_puct: float
+) -> tuple[Node, Action]:
+    """Walks down the tree from root: at each node take the PUCT-best action (`select_child`);
+    if that action has a child, step into it and repeat. Halt at the first node whose PUCT-best
+    action has NO child yet (`action not in node.children`), or on a terminal node.
+
+    Note the halting rule is a property of the node's best *action*, not of the node itself: a
+    node may already have children on other actions (and visits on them) while its current
+    PUCT-best action is still unexpanded — that node is where the walk stops.
+
+    Args:
+        root: The root node of the search tree (never terminal).
+        c_puct: The PUCT constant.
+
+    Returns:
+        * `(node, action)`: the node to expand and the action to play, OR
+        * `(node, NULL_ACTION)` if the walk stopped on a terminal node (nothing to expand).
+    """
+    assert not root.is_terminal, "select: root must not be terminal"
+    node = root
+    while not node.is_terminal:
+        act = select_child(node, c_puct)
+        if act in node.children:
+            env.step(node.board, act)
+
+
+    for act, node in root.children.items():
+        print(act)
+        #print(node)
+        
+
+
+
+tests.test_select(select, Node)
+
+
+# %%
+
 @t.no_grad()
 def expand(node: Node, 
            action: int, 
@@ -479,12 +518,12 @@ def mcts_search(
                     # given a few cells below; every call before then passes add_noise=False)
         root.P = dirichlet_root_noise(root.P, root.legal, cfg.dirichlet_alpha, cfg.dirichlet_eps)
 
-    for sim in cfg.sims:
 
-        select_child(, cfg.c_puct: float)
-        expand
-        evaluate
-
+    for sim in range(cfg.sims):
+        act = select_child(root, cfg.c_puct)
+        node = expand(root, act, env)
+        val = evaluate(node, model, env)
+        backup(node, val)
     return root
 
 

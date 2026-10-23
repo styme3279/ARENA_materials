@@ -961,7 +961,7 @@ class AlphaZeroTrainer:
             next_boards: (B,) boards after the move (finished games auto-reset to an empty board)
             done:        (B,) whether the move ended each game
         """
-        raise NotImplementedError()
+        mcts_search()
 
     @t.no_grad()
     def self_play(self, progress: bool = True):

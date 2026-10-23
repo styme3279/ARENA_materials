@@ -348,7 +348,43 @@ def expand(node: Node,
         The newly created child node after the action has been played.
     """
     assert not node.is_terminal, "expand: cannot expand a terminal node"
-    a=2
-    env.
+    board, terminal, reward = env.step(node.board, action)
+    new_node = Node(board=board, parent=node, parent_action=action, is_terminal=terminal, terminal_value=-reward)
+    node.children[action] = new_node
+    return new_node
 
 tests.test_expand(expand)
+
+# %%
+
+@t.no_grad()
+def evaluate(node: Node, model: nn.Module, env: Connect4Env) -> float:
+    """
+    Estimates the value of a node from its mover's perspective.
+
+    Side effects:
+        If the node is non-terminal, mutates the node to 
+        set the `node.P` and `node.legal` attributes to the
+        action probability from the model, and to the current legal moves
+        of the board respectively.
+
+    Args:
+        node: The node to estimate the value of.
+        model: The model to use.
+        env: The Connect4Env instance
+
+    Returns:
+        For terminal nodes: the stored `terminal_value` (already from the mover's perspective).
+        For non-terminal nodes: the critic head's value estimate, from the mover's perspective.
+    """
+    print(node)
+    new_node = expand(node)
+    print(new_node)
+    values, logits = model(node.board)
+    if not node.is_terminal:
+        #node.legal = 
+        node.P = logits.argmax(dim=-1)
+
+    #env.
+
+tests.test_evaluate(evaluate)

@@ -107,8 +107,15 @@ class Critic(nn.Module):
     """
     def __init__(self, in_channels=128, conv_out=3, height=6, width=7):
         super().__init__()
-        self.critic = nn.Sequential(
-            nn.Conv2d(in_channels=in_channels, out_channels=conv_out, kernel_size=1, bias=False)
+        self.net = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels, out_channels=conv_out, kernel_size=1, bias=False),
+            nn.BatchNorm2d(num_features=conv_out),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(in_features=conv_out * height * width, out_features=32),
+            nn.ReLU(),
+            nn.Linear(in_features=32, out_features=1),
+            nn.Tanh()
         )
 
     def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B"]:
@@ -124,4 +131,93 @@ class Critic(nn.Module):
 
 
 tests.test_critic(Critic)
+# %%
+class Actor(nn.Module):
+    """The policy head, (B, in_channels, H, W) trunk features -> (B, width) column logits:
+
+        Conv2d 1×1 `in_channels -> conv_out` (bias=False) -> BatchNorm -> ReLU -> Flatten
+        -> Linear(conv_out*height*width -> width)
+
+    Same shrink-then-flatten pattern as the Critic (note the different `conv_out` default: 32
+    here vs 3 there), but the final Linear emits one logit per column and there is no squashing —
+    these are raw logits, softmaxed later. Conv bias=False (a BatchNorm follows), as in the Critic.
+    """
+    def __init__(self, in_channels=128, conv_out=32, height=6, width=7):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_channels, conv_out, kernel_size=1, bias=False),
+            nn.BatchNorm2d(conv_out),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(in_features=conv_out*height*width, out_features=width)
+        )
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B 7"]:
+        """Map the shared trunk to one policy logit per column.
+
+        Args:
+            x: (B, C, 6, 7) shared-trunk features
+
+        Returns:
+            (B, 7) one logit per column
+        """
+        return self.net(x)
+
+
+tests.test_actor(Actor)
+# %%
+class Connect4Model(nn.Module):
+    """The full AlphaZero network: a shared convolutional trunk and the two heads.
+
+    Architecture (build the modules in this order — see note below):
+    - `self.features` (the trunk): Conv2d 3×3 `3 -> channels` (padding=1, bias=False) -> BatchNorm
+      -> ReLU, then two `ResBlock(channels)`.
+    - `self.critic = Critic(channels, critic_conv_out, height, width)` on the trunk output.
+    - `self.actor = Actor(channels, actor_conv_out, height, width)` on the trunk output.
+
+    Note: create trunk, then critic, then actor, in that order. The tests check your model is
+    functionally identical to the reference by copying the reference weights in by
+    *parameter-creation order*, so a correct architecture built in a different order fails them.
+    """
+    def __init__(self,
+                 device,
+                 channels: int = 128,
+                 critic_conv_out: int = 3,
+                 actor_conv_out: int = 32,
+                 height: int = 6,
+                 width: int = 7,
+    ):
+        super().__init__()
+        self.initial_conv = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=channels, kernel_size=3, bias=False),
+            nn.BatchNorm2d(num_features=channels),
+            nn.ReLU()
+        )
+        self.res_blocks = nn.Sequential(
+            ResBlock(channels=channels),
+            ResBlock(channels=channels)
+        )
+
+        self.critic, self.actor = Critic(in_channels=channels, conv_out=critic_conv_out, height=height, width=width), Actor(in_channels=channels, conv_out=actor_conv_out, height=height, width=width)
+        self.to(device)
+
+    def forward(
+        self, boards: Board
+    ) -> tuple[Float[Tensor, "B"], Float[Tensor, "B 7"]]:
+        """Run the shared trunk then both heads on a batch of boards.
+
+        Args:
+            boards: a `Board` of batch shape (B,).
+
+        Returns:
+            value:  (B,) the position's value for the mover, in [-1, 1] (tanh-squashed)
+            logits: (B, 7) one policy logit per column
+        """
+        x = boards.mover_view()   # (B, C, H, W)
+        resid = self.res_blocks(self.initial_conv(x))
+        return self.critic(resid), self.actor(resid)
+
+
+summary(Connect4Model(device))
+tests.test_connect4_model(Connect4Model)
 # %%

@@ -376,9 +376,13 @@ def select(root: Node,
     assert not root.is_terminal, "select: root must not be terminal"
 
     node = root
+    while not (node.is_terminal or selected_action not in node.children):
+    # while not node.is_terminal and not len(node.children) == 0:
+        node = node.children[selected_action]
+        selected_action = select_child(node, c_puct)
 
-    while not node.is_terminal or len(node.children) > 0:
-        selected_child = select_child(node, c_puct)
+    return (node, selected_action) if not node.is_terminal else (node, NULL_ACTION)
 
 
 tests.test_select(select, Node)
+# %%

@@ -1092,3 +1092,10 @@ if TRAINING:
     trainer = AlphaZeroTrainer(env, cfg, model)
     trainer.train()   # eval + logging handled inside; set cfg.use_wandb=True to log to wandb
 # %%
+
+from part5_mcts_alphazero.utils import play_web, play_cli
+
+play_web(model, env, port=8080)   # browser game on http://localhost:8080 (auto-forwarded); ■/Ctrl-C to stop
+# play_cli(model, env)            # ...or play in the terminal instead
+
+# %%

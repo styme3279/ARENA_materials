@@ -723,10 +723,11 @@ def compute_z_targets(
     """
     batch, timesteps = dones.shape
     z = t.zeros((batch, timesteps), device=dones.device)
+    running = t.zeros((batch,), device=dones.device)
     for step in range(timesteps - 1, -1, -1):
-                
+        running = t.where(dones[:,step], rewards[:,step], -running)
+        z[:,step] = running
     return z
-
 
 
 tests.test_compute_z_targets(compute_z_targets)

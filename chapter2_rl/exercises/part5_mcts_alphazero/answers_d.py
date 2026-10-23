@@ -381,7 +381,10 @@ def select(root: Node,
 
     while not curr_node.is_terminal:
         a = select_child(curr_node,c_puct)
-        
+        if a not in curr_node.children:
+            return curr_node, a
+        curr_node = curr_node.children[a]
+    return curr_node, NULL_ACTION
 
 tests.test_select(select, Node)
 # %%

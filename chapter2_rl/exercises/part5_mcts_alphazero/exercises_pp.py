@@ -88,3 +88,52 @@ MAIN = __name__ == "__main__"
 SLOW = False   # set True to run the slow bonus demos (strength-vs-sims, Elo-vs-search budget)
 TRAINING = True    # set False to skip section 4 self-play training (e.g. while iterating on section 2/section 3)
 # %%
+env = Connect4Env(device=device)
+board = env.reset(1)
+board, _, _ = env.step(board, t.tensor([3], device=device))   # red plays column 3
+board, _, _ = env.step(board, t.tensor([3], device=device))   # yellow replies in column 3
+print(render_board(board))
+# %%
+boards = env.reset(4)                    # a Board of shape (4,): 4 empty boards, red to move
+boards.obs.shape                         # t.Size([4, 3, 6, 7])
+boards.red_to_move                       # tensor([True, True, True, True])
+boards[1:3]                              # a Board of shape (2,)
+
+boards, done, reward = env.step(boards, t.tensor([3, 3, 0, 6]))   # one move in every game
+boards.red_to_move                       # tensor([False, False, False, False]): yellow to move
+boards[[0, 2]] = env.reset(2)            # restart games 0 and 2: writes their obs AND red_to_move
+boards.red_to_move                       # tensor([ True, False,  True, False])
+# %%
+board = env.reset(1)
+board, _, _ = env.step(board, 3)   # red plays column 3 (env.step flips red_to_move for us)
+print(render_board(board), "\n")
+print("...and from the mover's (yellow's) perspective, as the network sees it:")
+print(render_board(Board(board.mover_view(), board.red_to_move), show_to_move=False))
+# channels swapped: red's piece is now the opponent's, so it is drawn as O
+# %%
+class ResBlock(nn.Module):
+    """A residual block, shape-preserving on (B, channels, H, W):
+
+        x -> Conv2d 3×3 -> BatchNorm -> ReLU -> Conv2d 3×3 -> BatchNorm -> (+ x) -> ReLU
+
+    Both convs are `channels -> channels`, 3×3, padding=1, `bias=False`: each conv is followed
+    immediately by a BatchNorm, whose learned shift makes a conv bias redundant.
+    """
+    def __init__(self, channels: int):
+        super().__init__()
+        raise NotImplementedError()
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B C H W"]:
+        """Two conv-BN layers (ReLU between), then add the input back (skip) and ReLU.
+
+        Args:
+            x: (B, C, H, W) input feature map
+
+        Returns:
+            (B, C, H, W) output feature map (shape preserved)
+        """
+        raise NotImplementedError()
+
+
+tests.test_resblock(ResBlock)
+# %%

@@ -394,3 +394,30 @@ def select(root: Node,
 
 tests.test_select(select, Node)
 # %%
+
+@t.no_grad()
+def expand(node: Node, 
+           action: int, 
+           env: Connect4Env) -> Node:
+    """
+    Plays the given action on the current board state, constructs a new node with the result,
+    stores it as a child of the current node, and returns it.
+
+    Side effects:
+        * Mutates the current node to add a new child node.
+
+    Args:
+        node: The current node in the search tree.
+        action: The action to play.
+        env: The Connect4Env instance
+
+    Returns:
+        The newly created child node after the action has been played.
+    """
+    assert not node.is_terminal, "expand: cannot expand a terminal node"
+
+    board, is_terminal, reward = env.step(node.board, action)
+    new_node = Node(node.board, )
+
+
+tests.test_expand(expand)

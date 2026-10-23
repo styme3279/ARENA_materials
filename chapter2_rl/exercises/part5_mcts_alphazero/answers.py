@@ -755,8 +755,7 @@ def compute_az_loss(
     """
     assert value.shape == z.shape
     assert logits.shape == pi.shape
-
-    print(logits.shape)
-    return - (pi * t.log_softmax(logits, dim=-1)).sum() + value_coef * (value - z)**2
+    res = - (pi * t.log_softmax(logits, dim=-1)).sum(dim=-1).mean() + (value_coef * (value - z)**2).mean()
+    return res
 
 tests.test_compute_az_loss(compute_az_loss)

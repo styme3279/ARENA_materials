@@ -97,3 +97,45 @@ board, _, _ = env.step(board, t.tensor([3], device=device))   # red plays column
 board, _, _ = env.step(board, t.tensor([3], device=device))   # yellow replies in column 3
 print(render_board(board))
 # %%
+
+board = env.reset(1)
+board, _, _ = env.step(board, 3)   # red plays column 3 (env.step flips red_to_move for us)
+print(render_board(board), "\n")
+print("...and from the mover's (yellow's) perspective, as the network sees it:")
+print(render_board(Board(board.mover_view(), board.red_to_move), show_to_move=False))
+# channels swapped: red's piece is now the opponent's, so it is drawn as O
+
+# %%
+
+class ResBlock(nn.Module):
+    """A residual block, shape-preserving on (B, channels, H, W):
+
+        x -> Conv2d 3×3 -> BatchNorm -> ReLU -> Conv2d 3×3 -> BatchNorm -> (+ x) -> ReLU
+
+    Both convs are `channels -> channels`, 3×3, padding=1, `bias=False`: each conv is followed
+    immediately by a BatchNorm, whose learned shift makes a conv bias redundant.
+    """
+    def __init__(self, channels: int):
+        super().__init__()
+        self.module = nn.Sequential(
+            t.nn.Conv2d(channels, channels, kernel_size=(3,3), padding=1, bias=False),
+            t.nn.BatchNorm2d(),
+            t.nn.ReLU(),
+            t.nn.Conv2d(channels, channels, kernel_size=(3,3), padding=1, bias=False),
+            t.nn.BatchNorm2d()
+        )
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B C H W"]:
+        """Two conv-BN layers (ReLU between), then add the input back (skip) and ReLU.
+
+        Args:
+            x: (B, C, H, W) input feature map
+
+        Returns:
+            (B, C, H, W) output feature map (shape preserved)
+        """
+        z = self.module(x)
+        return x + 
+
+
+tests.test_resblock(ResBlock)

@@ -212,7 +212,7 @@ class Connect4Model(nn.Module):
         super().__init__()
 
         self.trunk = nn.Sequential(
-            nn.Conv2d(critic_conv_out, channels, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(3, channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(channels),
             nn.ReLU(),
             ResBlock(channels),
@@ -723,8 +723,40 @@ def compute_z_targets(
     """
     batch, timesteps = dones.shape
     z = t.zeros((batch, timesteps), device=dones.device)
-    raise NotImplementedError()
+    for step in range(timesteps - 1, -1, -1):
+        
     return z
 
 
 tests.test_compute_z_targets(compute_z_targets)
+
+# %%
+
+def compute_az_loss(
+    value: Float[Tensor, "N"],
+    logits: Float[Tensor, "N 7"],
+    pi: Float[Tensor, "N 7"],
+    z: Float[Tensor, "N"],
+    value_coef: float = 1.0,
+) -> Float[Tensor, ""]:
+    """Scalar AlphaZero loss over a minibatch of `N` positions: policy cross-entropy + value MSE.
+
+    Loss = mean of `-sum_a pi_a log softmax(logits)_a` + `value_coef * (value - z)^2`.
+
+    Args:
+        value:      (N,) critic outputs
+        logits:     (N, 7) actor outputs
+        pi:         (N, 7) MCTS visit-count policy target
+        z:          (N,) game-outcome value target
+        value_coef: weight on the value-MSE term
+
+    Returns:
+        scalar tensor: the mean total loss
+    """
+    assert value.shape == z.shape
+    assert logits.shape == pi.shape
+
+    print(logits.shape)
+    return - (pi * t.log_softmax(logits, dim=-1)).sum() + value_coef * (value - z)**2
+
+tests.test_compute_az_loss(compute_az_loss)

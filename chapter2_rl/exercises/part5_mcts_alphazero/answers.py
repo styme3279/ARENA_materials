@@ -320,8 +320,11 @@ def select_child(node : Node, c_puct: float) -> Action:
         identical in comparisons but breaks `action in node.children` dict lookups in `select`
         (tensors hash by identity, not value).
     """
+    a=2
     
-    q = node.Q + c_puct * t.sqrt(1+node.N.sum)/(1+node.N)
+    node.legal
+    q = node.Q + c_puct * node.P * t.sqrt(1+node.N.sum)/(1+node.N)
+    node.legal.to(t.float32)
     print(q.shape)
     return q.argmax()
 

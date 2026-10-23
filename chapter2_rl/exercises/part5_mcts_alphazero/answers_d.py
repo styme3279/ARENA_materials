@@ -112,7 +112,7 @@ class ResBlock(nn.Module):
     """
     def __init__(self, channels: int):
         super().__init__()
-        self.layers = t.nn.Sequential(
+        self.layers = nn.Sequential(
             nn.Conv2d(in_channels=channels, out_channels=channels,kernel_size=3,padding=1,bias=False),
             nn.BatchNorm2d(num_features=channels),
             nn.ReLU(),
@@ -136,3 +136,75 @@ class ResBlock(nn.Module):
 
 tests.test_resblock(ResBlock)
 # %%
+class Critic(nn.Module):
+    """The value head, (B, in_channels, H, W) trunk features -> (B,) values in [-1, 1]:
+
+        Conv2d 1×1 `in_channels -> conv_out` (bias=False) -> BatchNorm -> ReLU -> Flatten
+        -> Linear(conv_out*height*width -> 32) -> ReLU -> Linear(32 -> 1) -> Tanh -> squeeze to (B,)
+
+    The 1×1 conv shrinks the trunk to `conv_out` channels before flattening (a per-square shared
+    Linear), and the final tanh bounds the value to [-1, 1] to match the game-outcome targets z.
+    As in `ResBlock`, the conv uses `bias=False`: the BatchNorm right after makes a conv bias redundant.
+    """
+    def __init__(self, in_channels=128, conv_out=3, height=6, width=7):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels,out_channels=conv_out,kernel_size=1,bias=False),
+            nn.BatchNorm2d(num_features=conv_out),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(conv_out*height*width,7),
+            nn.ReLU(),
+            nn.Linear(32,1),
+            nn.Tanh()
+        )
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B"]:
+        """Map the shared trunk to a scalar value for the side to move.
+
+        Args:
+            x: (B, C, 6, 7) shared-trunk features
+
+        Returns:
+            (B,) the position's value for the mover, in [-1, 1] (tanh-squashed)
+        """
+        return self.net(x).squeeze(-1)  # (B, 1) -> (B,)
+
+
+tests.test_critic(Critic)
+# %%
+class Actor(nn.Module):
+    """The policy head, (B, in_channels, H, W) trunk features -> (B, width) column logits:
+
+        Conv2d 1×1 `in_channels -> conv_out` (bias=False) -> BatchNorm -> ReLU -> Flatten
+        -> Linear(conv_out*height*width -> width)
+
+    Same shrink-then-flatten pattern as the Critic (note the different `conv_out` default: 32
+    here vs 3 there), but the final Linear emits one logit per column and there is no squashing —
+    these are raw logits, softmaxed later. Conv bias=False (a BatchNorm follows), as in the Critic.
+    """
+    def __init__(self, in_channels=128, conv_out=32, height=6, width=7):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels,out_channels=conv_out,kernel_size=1,bias=False),
+            nn.BatchNorm2d(num_features=conv_out),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(conv_out*height*width,32),
+            nn.ReLU(),
+            nn.Linear(32,1),
+            nn.Tanh()
+        )
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B 7"]:
+        """Map the shared trunk to one policy logit per column.
+
+        Args:
+            x: (B, C, 6, 7) shared-trunk features
+
+        Returns:
+            (B, 7) one logit per column
+        """
+        return self.net(x)
+
+
+tests.test_actor(Actor)

@@ -51,3 +51,77 @@ board, _, _ = env.step(board, t.tensor([3], device=device))   # red plays column
 board, _, _ = env.step(board, t.tensor([3], device=device))   # yellow replies in column 3
 print(render_board(board))
 # %%
+board = env.reset(1)
+board, _, _ = env.step(board, 3)   # red plays column 3 (env.step flips red_to_move for us)
+print(render_board(board), "\n")
+print("...and from the mover's (yellow's) perspective, as the network sees it:")
+print(render_board(Board(board.mover_view(), board.red_to_move), show_to_move=False))
+# channels swapped: red's piece is now the opponent's, so it is drawn as O
+# %%
+class ResBlock(nn.Module):
+    """A residual block, shape-preserving on (B, channels, H, W):
+
+        x -> Conv2d 3×3 -> BatchNorm -> ReLU -> Conv2d 3×3 -> BatchNorm -> (+ x) -> ReLU
+
+    Both convs are `channels -> channels`, 3×3, padding=1, `bias=False`: each conv is followed
+    immediately by a BatchNorm, whose learned shift makes a conv bias redundant.
+    """
+    def __init__(self, channels: int):
+        super().__init__()
+
+        self.convs = nn.Sequential(
+            nn.Conv2d(channels, channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(),
+            nn.Conv2d(channels, channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(channels)
+        )
+
+        self.final_layers = nn.Sequential(
+            nn.ReLU()
+        )
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B C H W"]:
+        """Two conv-BN layers (ReLU between), then add the input back (skip) and ReLU.
+
+        Args:
+            x: (B, C, H, W) input feature map
+
+        Returns:
+            (B, C, H, W) output feature map (shape preserved)
+        """
+        return self.final_layers(x + self.convs(x))
+
+
+tests.test_resblock(ResBlock)
+# %%
+class Critic(nn.Module):
+    """The value head, (B, in_channels, H, W) trunk features -> (B,) values in [-1, 1]:
+
+        Conv2d 1×1 `in_channels -> conv_out` (bias=False) -> BatchNorm -> ReLU -> Flatten
+        -> Linear(conv_out*height*width -> 32) -> ReLU -> Linear(32 -> 1) -> Tanh -> squeeze to (B,)
+
+    The 1×1 conv shrinks the trunk to `conv_out` channels before flattening (a per-square shared
+    Linear), and the final tanh bounds the value to [-1, 1] to match the game-outcome targets z.
+    As in `ResBlock`, the conv uses `bias=False`: the BatchNorm right after makes a conv bias redundant.
+    """
+    def __init__(self, in_channels=128, conv_out=3, height=6, width=7):
+        super().__init__()
+        self.critic = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels, out_channels=conv_out, kernel_size=1, bias=False)
+        )
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B"]:
+        """Map the shared trunk to a scalar value for the side to move.
+
+        Args:
+            x: (B, C, 6, 7) shared-trunk features
+
+        Returns:
+            (B,) the position's value for the mover, in [-1, 1] (tanh-squashed)
+        """
+        return self.net(x).squeeze(-1)  # (B, 1) -> (B,)
+
+
+tests.test_critic(Critic)
+# %%

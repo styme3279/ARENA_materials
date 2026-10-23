@@ -468,11 +468,15 @@ def evaluate(node: Node, model: nn.Module, env: Connect4Env) -> float:
         return node.terminal_value
 
     value, logits = model(node.board) 
+    value = value.squeeze(0).float().cpu()
+    logits = logits.squeeze(0).float().cpu()
 
-    node.P = logits.softmax(dim=-1)
-    node.legal = env.legal_action_mask(board=node.Board)
+    node.legal = env.legal_action_mask(boards=node.board).squeeze(0).cpu()
+    legal_logits = t.where(node.legal,logits,-t.inf)
+    node.P = t.softmax(legal_logits, dim=-1)
 
-    return value
+
+    return float(value)
 
 
 tests.test_evaluate(evaluate)

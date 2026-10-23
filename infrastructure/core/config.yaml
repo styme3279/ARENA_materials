@@ -46,6 +46,9 @@ conversion_map:
   "1.3.4":
     streamlit_page: "14_[1.3.4]_Activation_Oracles"
     exercise_dir: "part34_activation_oracles"
+  "1.3.5.1":
+    streamlit_page: "16_[1.3.5.1]_The_J-Lens_&_J-Space_Hackathon"
+    exercise_dir: "part35_j_space"
   "1.4.1":
     streamlit_page: "21_[1.4.1]_Indirect_Object_Identification"
     exercise_dir: "part41_indirect_object_identification"
@@ -118,6 +121,9 @@ conversion_map:
     exercise_dir: "part5_investigator_agents"
   "4.6":
     streamlit_page: "06_[4.6]_Finetuning_and_Midtraining"
+    exercise_dir: "part6_finetuning_and_midtraining"
+  "4.6.1":
+    streamlit_page: "07_[4.6.1]_Finetuning_and_Midtraining_Hackathon"
     exercise_dir: "part6_finetuning_and_midtraining"
 
 # =============================================================================
@@ -277,6 +283,26 @@ chapters:
         status: "All exercises complete and verified"
         streamlit_description: "In this section, you'll implement activation oracles, a technique for interpreting model activations by training small auxiliary models to predict the answer to a wide set of questions. You'll use these to recover hidden knowledge contained within taboo model organisms, and uncover a model's forward-predictions."
         streamlit_description_short: "Implement activation oracles to reveal hidden knowledge and uncover forward-predictions."
+      - id: "15_j_space"
+        number: "1.3.5"
+        title: "The J-Lens & J-Space"
+        exercise_dir: "part35_j_space"
+        page_file: "15_[1.3.5]_The_J-Lens_&_J-Space.md"
+        header_image: "https://raw.githubusercontent.com/info-arena/ARENA_img/refs/heads/main/img/header-63c.png"
+        parent: "1_3_overview"
+        status: "First draft"
+        streamlit_description: "In this section, you'll derive and fit the Jacobian lens (J-lens), which reads out the tokens a model's residual stream is preparing to verbalise. You'll use J-space directions to swap intermediate concepts in multi-hop reasoning, audit and ablate eval awareness, and compare the J-lens with its R-lens and J++ variants."
+        streamlit_description_short: "Fit the Jacobian lens, edit multi-hop reasoning in J-space, and ablate eval awareness."
+      - id: "16_j_space_hackathon"
+        number: "1.3.5.1"
+        title: "The J-Lens & J-Space (Hackathon Edition)"
+        exercise_dir: "part35_j_space"
+        page_file: "16_[1.3.5.1]_The_J-Lens_&_J-Space_Hackathon.md"
+        header_image: "https://raw.githubusercontent.com/info-arena/ARENA_img/refs/heads/main/img/header-63c.png"
+        parent: "1_3_overview"
+        status: "First draft"
+        streamlit_description: "A condensed, hackathon-sized version of 1.3.5: implement the J-lens readout and estimator, evaluate lenses, edit multi-hop reasoning with clamped J-space swaps, and audit and ablate eval awareness, with the heavy lifting pre-computed and provided in utils."
+        streamlit_description_short: "Hackathon edition of 1.3.5: the J-lens, J-space swaps and eval awareness in ~2.5 hours."
 
       # Group 1.4: Circuits in LLMs
       - id: "1_4_overview"
@@ -558,3 +584,12 @@ chapters:
         status: "Exercises mostly verified, but may need some polishing and testing"
         streamlit_description: "Build SFT tooling from scratch and use it for inoculation prompting and sleeper agents, then build a synthetic document pipeline, implant beliefs with synthetic document finetuning, and replicate Model Spec Midtraining on a small Gemma model."
         streamlit_description_short: "Finetuning, synthetic document finetuning and alignment midtraining on Gemma 4 E2B."
+      - id: "6_1_finetuning_and_midtraining_hackathon"
+        number: "4.6.1"
+        title: "Finetuning and Midtraining (Hackathon Edition)"
+        exercise_dir: "part6_finetuning_and_midtraining"
+        page_file: "07_[4.6.1]_Finetuning_and_Midtraining_Hackathon.md"
+        header_image: "https://raw.githubusercontent.com/info-arena/ARENA_img/refs/heads/main/img/header-61d.png"
+        status: "First draft"
+        streamlit_description: "A condensed, hackathon-sized version of 4.6: the same SFT, synthetic document finetuning and Model Spec Midtraining experiments on Gemma 4 E2B, with the plumbing provided in utils and the long training runs pre-trained."
+        streamlit_description_short: "Hackathon edition of 4.6: SFT, SDF and alignment midtraining in ~3.5 hours."

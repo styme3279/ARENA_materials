@@ -1,0 +1,8 @@
+.env
+/logs/
+__pycache__
+build/
+**/.claude/settings.local.json
+.direnv
+
+strings.go

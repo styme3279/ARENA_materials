@@ -700,8 +700,16 @@ def compute_z_targets(
     """
     batch, timesteps = dones.shape
     z = t.zeros((batch, timesteps), device=dones.device)
-    for ts in range(timesteps):
-        
+    rolling_reward = t.tensor(0.0, dtype=t.float32)
+    for b in range(batch):
+        for ts in range(timesteps-1, -1, -1):
+            if dones[b , ts]:
+                rolling_reward = rewards[b, ts]
+                z[b, ts] = rolling_reward.clone()
+            else:
+                rolling_reward *= -1
+                z[b, ts] = rolling_reward.clone()
+    print(f"{dones=}\n{rewards=}\n{z=}")
     return z
 
 

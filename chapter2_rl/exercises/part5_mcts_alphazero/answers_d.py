@@ -153,7 +153,7 @@ class Critic(nn.Module):
             nn.BatchNorm2d(num_features=conv_out),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(conv_out*height*width,7),
+            nn.Linear(conv_out*height*width,32),
             nn.ReLU(),
             nn.Linear(32,1),
             nn.Tanh()
@@ -190,11 +190,9 @@ class Actor(nn.Module):
             nn.BatchNorm2d(num_features=conv_out),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(conv_out*height*width,32),
-            nn.ReLU(),
-            nn.Linear(32,1),
-            nn.Tanh()
+            nn.Linear(conv_out*height*width,7)
         )
+        
     def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B 7"]:
         """Map the shared trunk to one policy logit per column.
 
@@ -208,3 +206,61 @@ class Actor(nn.Module):
 
 
 tests.test_actor(Actor)
+# %%
+class Connect4Model(nn.Module):
+    """The full AlphaZero network: a shared convolutional trunk and the two heads.
+
+    Architecture (build the modules in this order — see note below):
+    - `self.features` (the trunk): Conv2d 3×3 `3 -> channels` (padding=1, bias=False) -> BatchNorm
+      -> ReLU, then two `ResBlock(channels)`.
+    - `self.critic = Critic(channels, critic_conv_out, height, width)` on the trunk output.
+    - `self.actor = Actor(channels, actor_conv_out, height, width)` on the trunk output.
+
+    Note: create trunk, then critic, then actor, in that order. The tests check your model is
+    functionally identical to the reference by copying the reference weights in by
+    *parameter-creation order*, so a correct architecture built in a different order fails them.
+    """
+    def __init__(self,
+                 device,
+                 channels: int = 128,
+                 critic_conv_out: int = 3,
+                 actor_conv_out: int = 32,
+                 height: int = 6,
+                 width: int = 7,
+    ):
+        super().__init__()
+        self.block1 = nn.Sequential(
+            nn.Conv2d(in_channels=3,out_channels=channels,kernel_size=3,padding=1,bias=False),
+            nn.BatchNorm2d(num_features=channels),
+            nn.ReLU()
+        )
+        self.block2 = ResBlock(channels)
+        self.block3 = ResBlock(channels)
+        self.critic = Critic(in_channels=channels,conv_out=critic_conv_out,height=height,width=width)
+        self.actor = Actor(in_channels=channels,conv_out=actor_conv_out,height=height,width=width)
+        self.to(device)
+
+    def forward(
+        self, boards: Board
+    ) -> tuple[Float[Tensor, "B"], Float[Tensor, "B 7"]]:
+        """Run the shared trunk then both heads on a batch of boards.
+
+        Args:
+            boards: a `Board` of batch shape (B,).
+
+        Returns:
+            value:  (B,) the position's value for the mover, in [-1, 1] (tanh-squashed)
+            logits: (B, 7) one policy logit per column
+        """
+        x = boards.mover_view()   # (B, C, H, W)
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        value =self.critic(x)
+        logits = self.actor(x)
+        return value, logits
+
+
+summary(Connect4Model(device))
+tests.test_connect4_model(Connect4Model)
+# %%

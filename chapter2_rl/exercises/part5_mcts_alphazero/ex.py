@@ -768,10 +768,296 @@ def compute_z_targets(
     """
     batch, timesteps = dones.shape
     z = t.zeros((batch, timesteps), device=dones.device)
-
-    done_idxs = dones.where(1, dim=1)
-
+    running = t.zeros((batch,), device=dones.device)
+    for step in range(timesteps - 1, -1, -1):
+        running = t.where(dones[:, step], rewards[:, step], -running)
+        z[:, step] = running
     return z
 
 
 tests.test_compute_z_targets(compute_z_targets)
+# %%
+
+def compute_az_loss(
+    value: Float[Tensor, "N"],
+    logits: Float[Tensor, "N 7"],
+    pi: Float[Tensor, "N 7"],
+    z: Float[Tensor, "N"],
+    value_coef: float = 1.0,
+) -> Float[Tensor, ""]:
+    """Scalar AlphaZero loss over a minibatch of `N` positions: policy cross-entropy + value MSE.
+
+    Loss = mean of `-sum_a pi_a log softmax(logits)_a` + `value_coef * (value - z)^2`.
+
+    Args:
+        value:      (N,) critic outputs
+        logits:     (N, 7) actor outputs
+        pi:         (N, 7) MCTS visit-count policy target
+        z:          (N,) game-outcome value target
+        value_coef: weight on the value-MSE term
+
+    Returns:
+        scalar tensor: the mean total loss
+    """
+    assert value.shape == z.shape
+    assert logits.shape == pi.shape
+
+    mse = (value - z).pow(2)
+    cross_entropy = -(pi * logits.log_softmax(-1)).sum(-1)
+
+    return (cross_entropy + value_coef * mse).mean()
+
+
+tests.test_compute_az_loss(compute_az_loss)
+# %%
+
+@dataclass
+class AZConfig:
+    """All the knobs for self-play + training. The defaults are a fast in-notebook recipe (8192
+    self-play games/gen, 16 sims/move, 8 generations, minibatch 2048) that reaches ~85% Pons-solver
+    accuracy in ~3-4 min on a GPU (~2 min on an RTX 5090). For a stronger agent raise `sims` to 64 and `num_generations` to ~50
+    (≈25k optimiser steps); to run faster still, dial `num_games` / `sims` / `num_generations` down.
+
+    c_puct (1.5->1.0), lr (1e-3->5e-3) and buffer_gens (8->4) were tuned by a
+    full-run sweep (pons_CE ~0.466->0.420 at ~1/4 the compute); every gain came from fresher self-play
+    data — capacity/loss/regularisation were inert. Usable lr band ~3e-3..6e-3 (≥7e-3 is seed-unstable)."""
+    # self-play / data
+    num_games: int = 8192          # parallel self-play games per generation (4096 -> 8192: ~1.5x the games/sec, fewer gens needed)
+    sims: int = 16                 # MCTS simulations per move (16 = the fast default; 32 learns about as well as 64 at ~2x the self-play speed, and 64 gives the strongest run)
+    num_generations: int = 8        # training generations (~85% Pons acc in ~3-4 min; raise to ~50 for the full recipe)
+    buffer_gens: int = 4           # replay buffer = the last this-many generations (tuned 8->4: fresher data)
+    moves_per_gen: int = 42        # plies per generation (a full Connect-4 game)
+    temperature: float = 1.0       # visit-count sampling temperature, used for every ply
+    # MCTS / exploration
+    c_puct: float = 1.0               # tuned 1.5->1.0 (full-run sweep, both seeds)
+    max_depth: int = 42
+    dirichlet_alpha: float = 10 / 7   # ≈ 1.43, root exploration-noise concentration
+    dirichlet_eps: float = 0.25       # weight of the root Dirichlet noise
+    # optimiser / schedule
+    lr: float = 5e-3               # initial learning rate (tuned 1e-3->5e-3; >=7e-3 is seed-unstable)
+    lr_min: float = 2e-5           # cosine-decay target over the run
+    weight_decay: float = 1e-4
+    grad_clip: float = 1.0         # global grad-norm clip
+    minibatch: int = 2048          # 1024 -> 2048: ~2x faster training pass (1024 leaves the GPU ~25% busy), same learning
+    value_coef: float = 1.0        # weight on the value-MSE loss term
+    # precision: bf16 autocast on by default if supported
+    use_bf16: bool = device.type == "cuda" and t.cuda.is_bf16_supported(including_emulation=False)
+    # logging
+    use_wandb: bool = False        # log loss / lr / Pons metrics to Weights & Biases
+    wandb_project: str = "alphazero-connect4"
+
+# %%
+
+class ReplayBuffer:
+    """Given. Rolling replay of the last `cfg.buffer_gens` self-play generations.
+
+    Usage: `write(...)` one ply at a time, `end_generation()` after each generation (computes value
+    targets, drops unfinished states, flattens over (game, ply), evicts the oldest generation), then
+    `minibatches(mb)` for a shuffled list of training minibatches. Mirrors the VPG rollout buffer from [2.2]."""
+
+    def __init__(self, cfg: AZConfig, device):
+        self.cfg, self.device = cfg, device
+        B, T = cfg.num_games, cfg.moves_per_gen
+        # preallocated rollout for the CURRENT generation (written one ply at a time, in place)
+        self.boards = Board(t.empty((B, T, 3, 6, 7), device=device),
+                            t.empty((B, T), dtype=t.bool, device=device))
+        self.pi = t.empty((B, T, 7), device=device)
+        self.dones = t.empty((B, T), dtype=t.bool, device=device)
+        self.rews = t.empty((B, T), device=device)
+        self.t = 0                 # next free ply slot in the current generation
+        self.gens = []             # rolling list of finished generations, each a flat (boards, pi, z)
+
+    def write(self, boards, pi, done, reward):
+        """Record one ply of the current generation into row `self.t`, then advance."""
+        self.boards[:, self.t] = boards
+        self.pi[:, self.t] = pi
+        self.dones[:, self.t] = done
+        self.rews[:, self.t] = reward
+        self.t += 1
+
+    def end_generation(self):
+        """Finish the current generation: compute negamax `z`, keep only states whose game finished
+        (reverse cumulative-OR of dones over time), flatten over (game, ply), append to the rolling
+        buffer (evicting the oldest), and reset the write pointer."""
+        z = compute_z_targets(self.dones, self.rews)                          # (B, T)
+        keep = (self.dones.int().flip(-1).cumsum(-1).flip(-1) > 0).reshape(-1)
+        self.gens.append((self.boards.reshape(-1)[keep],
+                          self.pi.reshape(-1, 7)[keep],
+                          z.reshape(-1)[keep]))
+        if len(self.gens) > self.cfg.buffer_gens:
+            self.gens.pop(0)
+        self.t = 0
+
+    def minibatches(self, batch_size):
+        """Snapshot the whole buffer into a freshly shuffled list of `(boards, pi, z)` minibatches
+        (one epoch). The last, partial batch is dropped so every batch is exactly `batch_size` (great
+        for a fixed compiled forward), but only when there's at least one full batch, so tiny configs
+        still train."""
+        boards = Board.cat([g[0] for g in self.gens])
+        pi = t.cat([g[1] for g in self.gens])
+        z = t.cat([g[2] for g in self.gens])
+        perm = t.randperm(len(z), device=z.device)
+        if len(perm) >= batch_size:
+            perm = perm[: len(perm) // batch_size * batch_size]   # drop the last partial batch
+        return [(boards[idx], pi[idx], z[idx]) for idx in perm.split(batch_size)]
+
+    def reset(self):
+        self.gens, self.t = [], 0
+
+    def __len__(self):
+        return sum(len(g[2]) for g in self.gens)
+# %%
+
+from pascal_pons.eval_pons import evaluate_policy
+# %%
+
+class AlphaZeroTrainer:
+    """Owns the full per-generation loop described below. Each generation `train()` runs:
+
+    1. `self_play()`: `moves_per_gen` plies of batched self-play with the frozen net
+       (your `self_play_step` per ply, writing `(boards, π, done, reward)` into `self.buffer`),
+       then `buffer.end_generation()` turns the rollout into flat `(boards, π, z)` training rows.
+    2. one supervised pass over `buffer.minibatches(minibatch)` (your `training_step` per batch),
+    3. a cosine LR-schedule step and (periodically) `evaluate()` against the Pons solver.
+
+    Attributes: `env` (Connect4Env), `cfg` (AZConfig), `model` (Connect4Model), `opt` (AdamW),
+    `mcts` (BatchedMCTS — built from cfg's sims/c_puct/dirichlet settings), `buffer` (ReplayBuffer).
+    """
+    def __init__(self, env, cfg, model):
+        self.env = env
+        self.cfg = cfg
+        self.device = env.device
+        self.model = model
+        self.opt = t.optim.AdamW(self.model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+        self.mcts = BatchedMCTS(env, MCTSConfig(
+            sims=cfg.sims, c_puct=cfg.c_puct, max_depth=cfg.max_depth,
+            dirichlet_alpha=cfg.dirichlet_alpha, dirichlet_eps=cfg.dirichlet_eps))
+        self.buffer = ReplayBuffer(cfg, self.device)
+
+
+    def visit_policy(self, root_N: Float[Tensor, "B 7"], temperature: float = 1.0) -> Float[Tensor, "B 7"]:
+        """The tree policy π(a) ∝ N(s,a)^(1/τ), per game. At τ = 1 this is the training target; with
+        `cfg.temperature` it is the distribution the played move is sampled from.
+
+        Args:
+            root_N:      (B, 7) root visit counts from the MCTS search
+            temperature: τ; 1.0 is proportional to visit counts, →0 approaches greedy argmax,
+                         larger flattens the distribution
+
+        Returns:
+            (B, 7) probabilities, each row summing to 1. Actions with zero visits get probability 0.
+        """
+        raise NotImplementedError()
+
+    @t.no_grad()
+    def self_play_step(self, boards: Board) -> tuple[Board, Bool[Tensor, "B"]]:
+        """One ply of self-play for all `num_games` games at once: MCTS -> tree policy -> sample ->
+        step -> record the ply into `self.buffer`.
+
+        Args:
+            boards: (B,) current boards
+
+        Returns:
+            next_boards: (B,) boards after the move (finished games auto-reset to an empty board)
+            done:        (B,) whether the move ended each game
+        """
+        raise NotImplementedError()
+
+    @t.no_grad()
+    def self_play(self, progress: bool = True):
+        """Play one generation: `num_games` games for `moves_per_gen` plies, calling your
+        `self_play_step` each ply (which `write`s into `self.buffer`), then finalise the generation in
+        the buffer. The buffer handles the value targets, masking and replay -- nothing to return.
+
+        The ply loop is wrapped in a tqdm bar with `unit_scale` (like the 2.2 SPS bar) so you get a
+        live, SI-formatted env-steps/sec readout during self-play rather than one update per generation."""
+        B, T = self.cfg.num_games, self.cfg.moves_per_gen
+        boards = self.env.reset(B)
+        self.model.eval()
+        # each ply runs `sims` batched env.steps over all B games (one per MCTS simulation), so the
+        # generation does B * T * sims env transitions in total -- tqdm turns that into a live rate,
+        # and the postfix shows cumulative MCTS simulations done out of `moves_per_gen * sims`.
+        total_sims = T * self.cfg.sims
+        bar = tqdm(total=B * T * self.cfg.sims, unit=" env steps", unit_scale=True,
+                   desc="self-play", leave=False, disable=not progress)
+        
+        with t.autocast(self.device.type, dtype=t.bfloat16, enabled=self.cfg.use_bf16):
+            for ply in range(T):
+                boards, _ = self.self_play_step(boards)   # finished games auto-reset (red to move)
+                bar.update(B * self.cfg.sims)
+                bar.set_postfix_str(f"sims {(ply + 1) * self.cfg.sims}/{total_sims}")
+        bar.close()
+        self.buffer.end_generation()
+
+    def training_step(self, boards, pi, z):
+        """One optimiser step on a single minibatch `(boards, pi, z)`: forward the net, compute the
+        AlphaZero loss (`compute_az_loss`), zero the grads (`self.opt.zero_grad(set_to_none=True)`),
+        backprop, clip the gradient norm to `cfg.grad_clip`, and step the optimiser. AlphaZero's update is just supervised learning -- regress the value head onto
+        `z` and the policy head onto `pi`.
+
+        Args:
+            boards: (mb,) Board minibatch
+            pi:  (mb, 7) MCTS policy targets
+            z:   (mb,) value targets
+
+        Returns:
+            float: the minibatch loss
+        """
+        raise NotImplementedError()
+
+    @t.no_grad()
+    def evaluate(self) -> dict:
+        """Given. Score the current network against the frozen Pons solver set (policy accuracy /
+        cross-entropy / value sign-accuracy). One cached forward pass; see the section above."""
+        return evaluate_policy(self.model, self.env)
+
+    def train(self, num_generations=None, eval_every=1):
+        """Given. The full training loop -- you don't need to touch this. Each generation: run
+        self-play into the buffer, do one supervised pass over the buffer's minibatches
+        (calling your `training_step`), step the cosine LR schedule, and periodically `evaluate`
+        against the Pons solver. Logs loss / lr / eval to a tqdm bar (and to wandb if `cfg.use_wandb`)."""
+        import time
+        num_generations = num_generations or self.cfg.num_generations
+        # cosine-decay the LR; schedule over a >=10-gen horizon so a short quick run doesn't crater the
+        # LR before it finishes (a 6-gen T_max=6 cosine would decay to lr_min by the last gen and stall).
+        sched = t.optim.lr_scheduler.CosineAnnealingLR(self.opt, T_max=max(num_generations, 10), eta_min=self.cfg.lr_min)
+        # effective env transitions/sec for the tqdm bar: each generation steps the env
+        # num_games * moves_per_gen * sims times (one batched env.step per MCTS simulation). It's just a
+        # counter + a clock, so it adds no per-step overhead -- handy for spotting when self-play bottlenecks.
+        t0, env_steps = time.time(), 0
+        steps_per_gen = self.cfg.num_games * self.cfg.moves_per_gen * self.cfg.sims
+        if self.cfg.use_wandb:
+            import wandb
+            wandb.init(project=self.cfg.wandb_project, config=asdict(self.cfg))
+        metrics = {}
+        bar = tqdm(range(1, num_generations + 1))
+        for gen in bar:
+            self.self_play()                                       # fill + roll the replay buffer
+            env_steps += steps_per_gen
+            self.model.train()
+            batches = self.buffer.minibatches(self.cfg.minibatch)
+            total_loss, n_batches = 0.0, 0
+            tbar = tqdm(batches, desc="train", leave=False)       # one supervised pass over the buffer
+            for boards, pi, z in tbar:
+                with t.autocast(self.device.type, dtype=t.bfloat16, enabled=self.cfg.use_bf16):
+                    total_loss += self.training_step(boards, pi, z)
+                n_batches += 1
+                tbar.set_postfix_str(f"loss={total_loss / n_batches:.3f}")   # live running-mean loss
+            loss = total_loss / max(n_batches, 1)
+            sched.step()
+            if eval_every and gen % eval_every == 0:
+                metrics = self.evaluate()                          # Pons solver benchmark
+            lr = sched.get_last_lr()[0]
+            sps = env_steps / max(time.time() - t0, 1e-9)          # effective env steps/sec (cumulative)
+            bar.set_postfix_str(f"loss={loss:.3f}  acc={metrics.get('pons/acc', float('nan')):.3f}  "
+                                f"ce={metrics.get('pons/ce', float('nan')):.3f}  env/s={fmt_si(sps)}")
+            if self.cfg.use_wandb:
+                wandb.log({"generation": gen, "loss": loss, "lr": lr, "env_steps_per_sec": sps, **metrics})
+        if self.cfg.use_wandb:
+            wandb.finish()
+        return self.model
+
+
+# tests.test_visit_policy(AlphaZeroTrainer)
+tests.test_self_play_step(AlphaZeroTrainer)
+# tests.test_training_step(AlphaZeroTrainer)

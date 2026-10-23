@@ -901,10 +901,8 @@ class AlphaZeroTrainer:
         """
         eps = 1e-8
         if temperature < eps:
-            res = root_N.argmax(-1)
-        if temperature == 1:
-            res = root_N**(1/temperature) / (root_N**(1/temperature)).sum(dim=-1)
-        print(res)
+            res = root_N.argmax(dim=-1)
+        res = root_N**(1/temperature) / (root_N**(1/temperature)).sum(dim=-1, keepdim=True)
         return res
 
     @t.no_grad()
@@ -922,8 +920,9 @@ class AlphaZeroTrainer:
         root_N = self.mcts.search(self.model, boards, add_noise=True) 
         pi = self.visit_policy(root_N)
         policy = self.visit_policy(root_N, self.cfg.temperature)
-        act = t.multinomial(policy)
-        next_boards, done, reward = self.env.step(board, act)
+        act = t.multinomial(policy, num_samples=1)
+        next_boards, done, reward = self.env.step(boards, act)
+        self.buffer.write(boards, pi, done, reward)
         return next_boards, done
 
     @t.no_grad()
@@ -1032,3 +1031,21 @@ tests.test_self_play_step(AlphaZeroTrainer)
 tests.test_training_step(AlphaZeroTrainer)
 
 # %%
+cfg = AZConfig()   # fast recipe (8192 games, 16 sims, 8 gens) -> ~85% Pons acc in ~3-4 min on a GPU
+model = Connect4Model(device)
+
+if TRAINING:
+    # `BatchedMCTS` is built later, in the Vectorized-MCTS bonus. So that training runs even if
+    # you haven't done that bonus yet, we pull the finished class from `solutions` when it isn't
+    # yet defined.
+    if "BatchedMCTS" not in globals():
+        from solutions import BatchedMCTS
+    trainer = AlphaZeroTrainer(env, cfg, model)
+    trainer.train()   # eval + logging handled inside; set cfg.use_wandb=True to log to wandb
+
+# %%
+
+from part5_mcts_alphazero.utils import play_web, play_cli
+
+play_web(model, env, port=8080)   # browser game on http://localhost:8080 (auto-forwarded); ■/Ctrl-C to stop
+# play_cli(model, env)            # ...or play in the terminal instead

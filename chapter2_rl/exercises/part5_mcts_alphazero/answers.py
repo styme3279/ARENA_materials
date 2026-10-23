@@ -441,3 +441,22 @@ def backup(leaf: Node, value: float) -> None:
 
 tests.test_backup(backup, Node)
 # %%
+def sample_tree_policy(visits: Float[Tensor, "7"], 
+                       temperature: float = 1.0,
+) -> Action:
+    """Samples an action from the tree policy. `temperature` -> 0 is greedy argmax; `temperature` = 1
+    samples proportional to visits; larger temperatures flatten the distribution.
+    
+    Args:
+        visits: The visit counts for each action, shape `(7,)`.
+        temperature: The temperature parameter.
+
+    Returns:
+        int: The action to sample.
+    """
+    visits_raised_to_temperature = visits.pow(1 / temperature)
+    return (int)((visits_raised_to_temperature / visits_raised_to_temperature.sum()).item()
+    # raise NotImplementedError()
+
+
+tests.test_sample_tree_policy(sample_tree_policy)

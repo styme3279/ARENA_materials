@@ -724,8 +724,9 @@ def compute_z_targets(
     batch, timesteps = dones.shape
     z = t.zeros((batch, timesteps), device=dones.device)
     for step in range(timesteps - 1, -1, -1):
-        
+                
     return z
+
 
 
 tests.test_compute_z_targets(compute_z_targets)
@@ -759,3 +760,4 @@ def compute_az_loss(
     return res
 
 tests.test_compute_az_loss(compute_az_loss)
+

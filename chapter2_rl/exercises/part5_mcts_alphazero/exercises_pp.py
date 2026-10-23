@@ -122,7 +122,11 @@ class ResBlock(nn.Module):
     def __init__(self, channels: int):
         super().__init__()
         self.layers = nn.Sequential(
-            
+            nn.Conv2d(channels, channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(),
+            nn.Conv2d(channels, channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(channels)
         )
 
     def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B C H W"]:
@@ -134,8 +138,130 @@ class ResBlock(nn.Module):
         Returns:
             (B, C, H, W) output feature map (shape preserved)
         """
-        return self.layers(x)
+        return nn.ReLU()(self.layers(x) + x)
 
 
 tests.test_resblock(ResBlock)
 # %%
+class Critic(nn.Module):
+    """The value head, (B, in_channels, H, W) trunk features -> (B,) values in [-1, 1]:
+
+        Conv2d 1×1 `in_channels -> conv_out` (bias=False) -> BatchNorm -> ReLU -> Flatten
+        -> Linear(conv_out*height*width -> 32) -> ReLU -> Linear(32 -> 1) -> Tanh -> squeeze to (B,)
+
+    The 1×1 conv shrinks the trunk to `conv_out` channels before flattening (a per-square shared
+    Linear), and the final tanh bounds the value to [-1, 1] to match the game-outcome targets z.
+    As in `ResBlock`, the conv uses `bias=False`: the BatchNorm right after makes a conv bias redundant.
+    """
+    def __init__(self, in_channels=128, conv_out=3, height=6, width=7):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_channels, conv_out, 1, bias=False),
+            nn.BatchNorm2d(conv_out),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(conv_out*height*width, 32),
+            nn.ReLU(),
+            nn.Linear(32, 1),
+            nn.Tanh(),
+        )
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B"]:
+        """Map the shared trunk to a scalar value for the side to move.
+
+        Args:
+            x: (B, C, 6, 7) shared-trunk features
+
+        Returns:
+            (B,) the position's value for the mover, in [-1, 1] (tanh-squashed)
+        """
+        return self.net(x).squeeze(-1)  # (B, 1) -> (B,)
+
+
+tests.test_critic(Critic)
+# %%
+class Actor(nn.Module):
+    """The policy head, (B, in_channels, H, W) trunk features -> (B, width) column logits:
+
+        Conv2d 1×1 `in_channels -> conv_out` (bias=False) -> BatchNorm -> ReLU -> Flatten
+        -> Linear(conv_out*height*width -> width)
+
+    Same shrink-then-flatten pattern as the Critic (note the different `conv_out` default: 32
+    here vs 3 there), but the final Linear emits one logit per column and there is no squashing —
+    these are raw logits, softmaxed later. Conv bias=False (a BatchNorm follows), as in the Critic.
+    """
+    def __init__(self, in_channels=128, conv_out=32, height=6, width=7):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_channels, conv_out, 1, bias=False),
+            nn.BatchNorm2d(conv_out),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(conv_out*height*width, 7),
+        )
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B 7"]:
+        """Map the shared trunk to one policy logit per column.
+
+        Args:
+            x: (B, C, 6, 7) shared-trunk features
+
+        Returns:
+            (B, 7) one logit per column
+        """
+        return self.net(x)
+
+
+tests.test_actor(Actor)
+# %%
+class Connect4Model(nn.Module):
+    """The full AlphaZero network: a shared convolutional trunk and the two heads.
+
+    Architecture (build the modules in this order — see note below):
+    - `self.features` (the trunk): Conv2d 3×3 `3 -> channels` (padding=1, bias=False) -> BatchNorm
+      -> ReLU, then two `ResBlock(channels)`.
+    - `self.critic = Critic(channels, critic_conv_out, height, width)` on the trunk output.
+    - `self.actor = Actor(channels, actor_conv_out, height, width)` on the trunk output.
+
+    Note: create trunk, then critic, then actor, in that order. The tests check your model is
+    functionally identical to the reference by copying the reference weights in by
+    *parameter-creation order*, so a correct architecture built in a different order fails them.
+    """
+    def __init__(self,
+                 device,
+                 channels: int = 128,
+                 critic_conv_out: int = 3,
+                 actor_conv_out: int = 32,
+                 height: int = 6,
+                 width: int = 7,
+    ):
+        super().__init__()
+        self.trunk = nn.Sequential(
+            nn.Conv2d(3, channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(),
+            ResBlock(channels),
+            ResBlock(channels),
+        )
+        self.critic = Critic(channels, critic_conv_out, height, width)
+        self.actor = Actor(channels, actor_conv_out, height, width)
+        self.to(device)
+
+    def forward(
+        self, boards: Board
+    ) -> tuple[Float[Tensor, "B"], Float[Tensor, "B 7"]]:
+        """Run the shared trunk then both heads on a batch of boards.
+
+        Args:
+            boards: a `Board` of batch shape (B,).
+
+        Returns:
+            value:  (B,) the position's value for the mover, in [-1, 1] (tanh-squashed)
+            logits: (B, 7) one policy logit per column
+        """
+        x = boards.mover_view()   # (B, C, H, W)
+        raise NotImplementedError()
+
+
+summary(Connect4Model(device))
+tests.test_connect4_model(Connect4Model)

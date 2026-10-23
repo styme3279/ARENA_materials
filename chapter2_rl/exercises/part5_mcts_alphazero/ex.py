@@ -119,10 +119,10 @@ class ResBlock(nn.Module):
         super().__init__()
         self.module = nn.Sequential(
             t.nn.Conv2d(channels, channels, kernel_size=(3,3), padding=1, bias=False),
-            t.nn.BatchNorm2d(),
+            t.nn.BatchNorm2d(channels),
             t.nn.ReLU(),
             t.nn.Conv2d(channels, channels, kernel_size=(3,3), padding=1, bias=False),
-            t.nn.BatchNorm2d()
+            t.nn.BatchNorm2d(channels)
         )
 
     def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B C H W"]:
@@ -134,8 +134,189 @@ class ResBlock(nn.Module):
         Returns:
             (B, C, H, W) output feature map (shape preserved)
         """
-        z = self.module(x)
-        return x + 
+        return nn.functional.relu(x + self.module(x))
 
 
 tests.test_resblock(ResBlock)
+# %%
+
+class Critic(nn.Module):
+    """The value head, (B, in_channels, H, W) trunk features -> (B,) values in [-1, 1]:
+
+        Conv2d 1×1 `in_channels -> conv_out` (bias=False) -> BatchNorm -> ReLU -> Flatten
+        -> Linear(conv_out*height*width -> 32) -> ReLU -> Linear(32 -> 1) -> Tanh -> squeeze to (B,)
+
+    The 1×1 conv shrinks the trunk to `conv_out` channels before flattening (a per-square shared
+    Linear), and the final tanh bounds the value to [-1, 1] to match the game-outcome targets z.
+    As in `ResBlock`, the conv uses `bias=False`: the BatchNorm right after makes a conv bias redundant.
+    """
+    def __init__(self, in_channels=128, conv_out=3, height=6, width=7):
+        super().__init__()
+        self.net = nn.Sequential(
+            t.nn.Conv2d(in_channels, conv_out, kernel_size=(1,1), bias=False),
+            t.nn.BatchNorm2d(conv_out),
+            t.nn.ReLU(),
+            t.nn.Flatten(),
+            t.nn.Linear(in_features=conv_out*height*width, out_features=32),
+            t.nn.ReLU(),
+            t.nn.Linear(in_features=32, out_features=1),
+            t.nn.Tanh()
+        )
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B"]:
+        """Map the shared trunk to a scalar value for the side to move.
+
+        Args:
+            x: (B, C, 6, 7) shared-trunk features
+
+        Returns:
+            (B,) the position's value for the mover, in [-1, 1] (tanh-squashed)
+        """
+        return self.net(x).squeeze(-1)  # (B, 1) -> (B,)
+
+
+tests.test_critic(Critic)
+# %%
+
+class Actor(nn.Module):
+    """The policy head, (B, in_channels, H, W) trunk features -> (B, width) column logits:
+
+        Conv2d 1×1 `in_channels -> conv_out` (bias=False) -> BatchNorm -> ReLU -> Flatten
+        -> Linear(conv_out*height*width -> width)
+
+    Same shrink-then-flatten pattern as the Critic (note the different `conv_out` default: 32
+    here vs 3 there), but the final Linear emits one logit per column and there is no squashing —
+    these are raw logits, softmaxed later. Conv bias=False (a BatchNorm follows), as in the Critic.
+    """
+    def __init__(self, in_channels=128, conv_out=32, height=6, width=7):
+        super().__init__()
+        self.net = nn.Sequential(
+            t.nn.Conv2d(in_channels, conv_out, kernel_size=(1,1), bias=False),
+            t.nn.BatchNorm2d(conv_out),
+            t.nn.ReLU(),
+            t.nn.Flatten(),
+            t.nn.Linear(in_features=conv_out*height*width, out_features=7)
+        )
+
+    def forward(self, x: Float[Tensor, "B C H W"]) -> Float[Tensor, "B 7"]:
+        """Map the shared trunk to one policy logit per column.
+
+        Args:
+            x: (B, C, 6, 7) shared-trunk features
+
+        Returns:
+            (B, 7) one logit per column
+        """
+        return self.net(x)
+
+
+tests.test_actor(Actor)
+# %%
+
+class Connect4Model(nn.Module):
+    """The full AlphaZero network: a shared convolutional trunk and the two heads.
+
+    Architecture (build the modules in this order — see note below):
+    - `self.features` (the trunk): Conv2d 3×3 `3 -> channels` (padding=1, bias=False) -> BatchNorm
+      -> ReLU, then two `ResBlock(channels)`.
+    - `self.critic = Critic(channels, critic_conv_out, height, width)` on the trunk output.
+    - `self.actor = Actor(channels, actor_conv_out, height, width)` on the trunk output.
+
+    Note: create trunk, then critic, then actor, in that order. The tests check your model is
+    functionally identical to the reference by copying the reference weights in by
+    *parameter-creation order*, so a correct architecture built in a different order fails them.
+    """
+    def __init__(self,
+                 device,
+                 channels: int = 128,
+                 critic_conv_out: int = 3,
+                 actor_conv_out: int = 32,
+                 height: int = 6,
+                 width: int = 7,
+    ):
+        super().__init__()
+        self.stem_net = nn.Sequential(
+            t.nn.Conv2d(3, channels, kernel_size=(3,3), padding=1, bias=False),
+            t.nn.BatchNorm2d(channels),
+            t.nn.ReLU(),
+            ResBlock(channels),
+            ResBlock(channels)
+        )
+        self.critic = Critic(in_channels=channels, conv_out=critic_conv_out, height=height, width=width)
+        self.actor = Actor(in_channels=channels, conv_out=actor_conv_out, height=height, width=width)
+        self.to(device)
+
+    def forward(
+        self, boards: Board
+    ) -> tuple[Float[Tensor, "B"], Float[Tensor, "B 7"]]:
+        """Run the shared trunk then both heads on a batch of boards.
+
+        Args:
+            boards: a `Board` of batch shape (B,).
+
+        Returns:
+            value:  (B,) the position's value for the mover, in [-1, 1] (tanh-squashed)
+            logits: (B, 7) one policy logit per column
+        """
+        x = boards.mover_view()   # (B, C, H, W)
+        z_stem = self.stem_net(x)
+        value = self.critic(z_stem)
+        logits  = self.actor(z_stem)
+
+        return (value, logits)
+
+
+summary(Connect4Model(device))
+tests.test_connect4_model(Connect4Model)
+# %%
+
+Action = int # 0, 1, 2, 3, 4, 5, 6
+
+@dataclass
+class Node:
+    """One node of the single-game search tree = one board state. Statistics live on the **edges**
+    (per-action length-7 arrays), filled in as the search runs.
+
+    Attributes:
+        board          Board of batch shape (1,): the connect4 board for this state, and whose turn
+                       it is. Note that `Connect4Env.step` auto-resets a finished board, so on a **terminal**
+                       node this is the empty starting board, for which
+                       only `terminal_value` is well-defined.
+        is_terminal    bool : True if this state is game-over. Set by `expand`.
+        terminal_value float : result from the perspective of this node's mover (= -reward of the
+                       move that created the node). Only meaningful when `is_terminal=True`. Set by `expand`.
+        P              (7,) network prior over each move. Set by `evaluate`.
+        legal          (7,) bool legal-column mask. Set by `evaluate`.
+        N              (7,) per-edge visit counts N(s, a). Updated by `backup`.
+        W              (7,) per-edge value sums W(s, a), accumulated from the perspective of THIS
+                       node's mover: backup negates each child value once per step on
+                       the way up, so what lands here is already in this node's convention. Updated by `backup`.
+        children       dict[Action, Node] : child nodes per played action, created lazily by `expand`.
+        parent         Node | None : the node we were expanded from (`None` at the root).
+        parent_action  Action | None : the column that led from `parent` to this node. Updated by `expand`.
+
+    Properties:
+        Q              (7,) per-edge mean value W / max(N, 1).
+    """
+    board: Board  # batch shape (1,); lives on GPU
+    is_terminal: bool = False
+    terminal_value: float = 0.0
+    P: Tensor | None = None
+    legal: Tensor | None = None
+    N: Float[Tensor, "7"] = field(default_factory=lambda: t.zeros(7))   # N(s,a_0), ..., N(s,a_6)
+    W: Float[Tensor, "7"] = field(default_factory=lambda: t.zeros(7))   # W(s,a_0), ..., W(s,a_6)
+    children: dict[Action, 'Node'] = field(default_factory=dict)
+    parent: 'Node | None' = None
+    parent_action: Action | None = None
+
+    @property
+    def Q(self) -> Float[Tensor, "7"]:
+        return self.W / t.maximum(self.N, t.ones_like(self.N))
+
+
+# Sentinel "no action" returned by `select` when the selection walk stops on a terminal node.
+# We use -100 rather than None because None silently inserts a dim when used to index a tensor
+# (`t[None]`), whereas -100 is always an illegal column and raises loudly if ever misused as an index.
+NULL_ACTION = -100
+
+tests.test_mcts_node(Node)

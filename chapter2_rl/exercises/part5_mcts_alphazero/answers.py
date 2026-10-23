@@ -899,7 +899,13 @@ class AlphaZeroTrainer:
         Returns:
             (B, 7) probabilities, each row summing to 1. Actions with zero visits get probability 0.
         """
-        raise NotImplementedError()
+        eps = 1e-8
+        if temperature < eps:
+            res = root_N.argmax(-1)
+        if temperature == 1:
+            res = root_N**(1/temperature) / (root_N**(1/temperature)).sum(dim=-1)
+        print(res)
+        return res
 
     @t.no_grad()
     def self_play_step(self, boards: Board) -> tuple[Board, Bool[Tensor, "B"]]:
@@ -913,12 +919,12 @@ class AlphaZeroTrainer:
             next_boards: (B,) boards after the move (finished games auto-reset to an empty board)
             done:        (B,) whether the move ended each game
         """
-
+        root_N = self.mcts.search(self.model, boards, add_noise=True) 
+        pi = self.visit_policy(root_N)
         policy = self.visit_policy(root_N, self.cfg.temperature)
-        sample = t.multinomial(policy)
-        self.env.
-        self.mcts.search()
-        
+        act = t.multinomial(policy)
+        next_boards, done, reward = self.env.step(board, act)
+        return next_boards, done
 
     @t.no_grad()
     def self_play(self, progress: bool = True):
@@ -960,7 +966,13 @@ class AlphaZeroTrainer:
         Returns:
             float: the minibatch loss
         """
-        raise NotImplementedError()
+        values, logits = self.model(boards)
+        loss = compute_az_loss(values, logits, pi, z, self.cfg.value_coef)
+        self.opt.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.cfg.grad_clip)
+        self.opt.step()
+        return float(loss.item())
 
     @t.no_grad()
     def evaluate(self) -> dict:

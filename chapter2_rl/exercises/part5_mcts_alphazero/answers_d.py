@@ -353,3 +353,35 @@ def select_child(node : Node, c_puct: float) -> Action:
 
 tests.test_select_child(select_child, Node)
 # %%
+def select(root: Node, 
+           c_puct: float
+) -> tuple[Node, Action]:
+    """Walks down the tree from root: at each node take the PUCT-best action (`select_child`);
+    if that action has a child, step into it and repeat. Halt at the first node whose PUCT-best
+    action has NO child yet (`action not in node.children`), or on a terminal node.
+
+    Note the halting rule is a property of the node's best *action*, not of the node itself: a
+    node may already have children on other actions (and visits on them) while its current
+    PUCT-best action is still unexpanded — that node is where the walk stops.
+
+    Args:
+        root: The root node of the search tree (never terminal).
+        c_puct: The PUCT constant.
+
+    Returns:
+        * `(node, action)`: the node to expand and the action to play, OR
+        * `(node, NULL_ACTION)` if the walk stopped on a terminal node (nothing to expand).
+
+    `env.reset` returns `Board`s, and `env.step(boards, actions)` returns the next `Board`s (with
+    `red_to_move` flipped, since the opponent moves next), along with `done` and `reward`.
+    """
+    assert not root.is_terminal, "select: root must not be terminal"
+
+    curr_node = root
+
+    while not curr_node.is_terminal:
+        a = select_child(curr_node,c_puct)
+        
+
+tests.test_select(select, Node)
+# %%

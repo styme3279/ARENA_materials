@@ -90,3 +90,10 @@ MAIN = __name__ == "__main__"
 SLOW = False   # set True to run the slow bonus demos (strength-vs-sims, Elo-vs-search budget)
 TRAINING = True    # set False to skip section 4 self-play training (e.g. while iterating on section 2/section 3)
 # %%
+
+env = Connect4Env(device=device)
+board = env.reset(1)
+board, _, _ = env.step(board, t.tensor([3], device=device))   # red plays column 3
+board, _, _ = env.step(board, t.tensor([3], device=device))   # yellow replies in column 3
+print(render_board(board))
+# %%

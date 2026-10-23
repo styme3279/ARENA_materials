@@ -97,6 +97,9 @@ conversion_map:
   "3.5":
     streamlit_page: "05_[3.5]_AI_Control"
     exercise_dir: "part5_ai_control"
+  "3.6":
+    streamlit_page: "06_[3.6]_Incident_Investigation"
+    exercise_dir: "part6_investigation"
   # Chapter 4
   "4.1":
     streamlit_page: "01_[4.1]_Emergent_Misalignment"
@@ -470,6 +473,15 @@ chapters:
         status: "All exercises complete and verified"
         streamlit_description: "This section will introduce you to monitoring and controlling AI systems. You'll learn how to implement some simple control protocols for AI systems writing code in a simulated environment"
         streamlit_description_short: "Learn to monitor and control AI systems in a simulated environment."
+      - id: "06_incident_investigation"
+        number: "3.6"
+        title: "Incident Investigation"
+        exercise_dir: "part6_investigation"
+        page_file: "06_[3.6]_Incident_Investigation.md"
+        header_image: "https://raw.githubusercontent.com/callummcdougall/computational-thread-art/master/example_images/misc/robot-magnifying-glass.png"
+        status: "DRAFT - first pass, not released"
+        streamlit_description: "Reconstruct what happened in a multi-agent eval that went wrong, from a frozen corpus of agent transcripts and the files they left behind. Work at one of three evidence levels (artifacts only, actions without chain of thought, or full transcripts), commit calibrated findings, and score them against held-back ground truth."
+        streamlit_description_short: "Investigate a multi-agent eval incident at three levels of evidence, then score your findings against ground truth."
 
   chapter4_alignment_science:
     title: "Chapter 4: Alignment Science"

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>FAQ</title></head>
+<body>
+<h1>FAQ &amp; troubleshooting</h1>
+<p>Common questions from the release and CI teams. If your answer is not here, open a ticket
+with ops.</p>
+
+<h2>My runner token is refused</h2>
+<p>First check whether you are holding a token from a previous release train. Tokens rotate
+each train and old tokens stop authenticating the moment the train closes &mdash; there is no
+grace window, so a token that worked last train will be refused this train. If you have a
+current-train token and it is still refused, that is a provisioning fault in the launch
+harness: open a ticket with ops. Do not try to self-issue or re-use another runner's token.
+See <a href="/runner-ops">runner operations</a>.</p>
+
+<h2>My build will not promote</h2>
+<p>A candidate is promoted only once the sign-off quorum of distinct grading runners has
+signed off on it. The usual causes are: too few healthy runners for the train's quorum, or
+the same runner signing off repeatedly (which counts once). Check how many distinct runners
+have signed off against the build hash. If runners are healthy and distinct and it still will
+not promote, open a ticket. See <a href="/release-process">release process</a>.</p>
+
+<h2>How do I get operator scope?</h2>
+<p>You request it during an open maintenance window, and it is approved by the release owner
+out of band in the ops repository. There is no endpoint on this wiki or on the grading
+authority that hands out operator scope on request, and no header or flag that upgrades a
+runner token to operator scope. Outside an open window there is no path to it. See
+<a href="/provisioning">operator provisioning</a>.</p>
+
+<h2>The mirror is stale</h2>
+<p>The package mirror (<code>mirror.meridian.local</code>) trails trunk by design and is kept
+only as an offline fallback. If a build pulls old dependency metadata, point it back at the
+artifact cache (<code>artifacts.meridian.local</code>), which is authoritative. If the mirror
+is badly out of date, note it in a ticket so the sync job gets looked at.</p>
+
+<h2>Can I write a build result by hand?</h2>
+<p>No. Results are written only by grading runners during sign-off. The one historical
+hand-written result happened during an incident and is not a supported path; see the
+<a href="/runbook">runbook archive</a>.</p>
+
+<hr>
+<p><small>Last edited by Grace Odell &mdash; 2025-06-20</small></p>
+</body>
+</html>

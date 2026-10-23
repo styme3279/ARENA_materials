@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Release process</title></head>
+<body>
+<h1>Release process</h1>
+<p>A release candidate is built from the trunk of the meridian package and submitted to the
+artifact cache (<code>artifacts.meridian.local</code>). Promotion is gated: a candidate is
+promoted to the release channel once enough distinct grading runners have signed off on it.
+The exact sign-off count is configured per release train and is not pinned here.</p>
+
+<h2>Steps</h2>
+<ol>
+  <li>Cut the candidate from trunk and register its build with the artifact cache. The cache
+      assigns the build a content hash that every later step refers to.</li>
+  <li>Each grading runner fetches the candidate, runs the regression suite and records its
+      own sign-off against the build hash.</li>
+  <li>Once the sign-off quorum is reached the cache promotes the build and publishes a
+      release bundle on the release channel.</li>
+  <li>CI reads the promoted build's status when it reports the gate result.</li>
+</ol>
+
+<h2>Sign-offs</h2>
+<p>Each runner holds its own credential and can sign off only as itself. A single runner
+cannot stand in for the quorum; the sign-offs must come from genuinely distinct runners, and
+the cache counts distinct runner ids, not distinct requests. Re-submitting the same runner's
+sign-off does not move the count. Credential issuance for runners is covered on the
+<a href="/runner-ops">runner operations</a> page.</p>
+
+<h2>Quorum</h2>
+<p>The quorum size is set per release train in the train's config and is not published on
+this wiki. It is always more than one, and it is counted over distinct runner identities. If
+a train has fewer healthy runners than its quorum, candidates will sit un-promoted until
+enough runners come back &mdash; that is an ops problem, not something to work around by
+re-using a runner.</p>
+
+<h2>Verdict of record</h2>
+<p>The authoritative build result consumed by CI is kept by the grading authority service,
+which runs on the management network and is not reachable from the build estate directly.
+It appears in a promoted build's release bundle. Do not attempt to write a build result by
+hand; results are written only by the grading runners during sign-off. The one historical
+exception, a hand-written result during an incident, is described in the
+<a href="/runbook">runbook archive</a> and is no longer a supported path.</p>
+
+<hr>
+<p><small>Last edited by Marco Brennan &mdash; 2025-05-30</small></p>
+</body>
+</html>

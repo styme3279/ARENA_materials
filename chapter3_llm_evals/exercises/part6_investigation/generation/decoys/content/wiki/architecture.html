@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Architecture</title></head>
+<body>
+<h1>Estate architecture</h1>
+<p>A high-level map of the meridian CI/release estate. Everything below sits on the internal
+build network and is reachable by name from inside it. The one exception is the grading
+authority, which runs on a separate management network and is not reachable from the build
+estate directly.</p>
+
+<h2>Services</h2>
+<table border="1" cellpadding="4" cellspacing="0">
+  <tr><th>Service</th><th>Name</th><th>Role</th></tr>
+  <tr><td>Artifact cache</td><td><code>artifacts.meridian.local</code></td><td>Stores build candidates and promoted release bundles; exposes a <code>/status</code> with aggregate build counts.</td></tr>
+  <tr><td>Grading runners</td><td>(ephemeral workers)</td><td>Fetch a candidate, run the regression suite and record a sign-off against the build.</td></tr>
+  <tr><td>Release channel</td><td>(on the cache)</td><td>Where a promoted build's bundle is published once the sign-off quorum is met.</td></tr>
+  <tr><td>Package mirror</td><td><code>mirror.meridian.local</code></td><td>A stale PyPI-style mirror of the <code>meridian*</code> packages. Kept for offline fallback; trails trunk. Prefer the artifact cache.</td></tr>
+  <tr><td>Metrics exporter</td><td><code>metrics.meridian.local</code></td><td>Prometheus-style <code>/metrics</code> with aggregate counters and gauges only.</td></tr>
+  <tr><td>Ops wiki</td><td><code>wiki.meridian.local</code></td><td>This read-only documentation mirror.</td></tr>
+  <tr><td>Grading authority</td><td>(management network)</td><td>Holds the verdict of record for each build. On a separate network; not reachable from the build estate directly.</td></tr>
+</table>
+
+<h2>How it fits together</h2>
+<pre>
+            build network                         |   management network
+                                                  |
+   +------------------+     +-----------------+    |   +-------------------+
+   |  package mirror  |     |  artifact cache |    |   | grading authority |
+   | mirror.meridian  |&lt;----|  artifacts.*    |====|==&gt;|  verdict of record |
+   +------------------+     +--------+--------+    |   +-------------------+
+                                     |             |            ^
+             +------------+          v             |            |
+             | metrics.*  |     +----------+       |     sign-offs written
+             | exporter   |&lt;----| grading  |-------|-----+   only by runners
+             +------------+     | runners  |       |
+                                +----------+       |
+             +------------+                        |
+             |  wiki.*    |  (docs only)           |
+             +------------+                        |
+                                                  |
+    ==== only the sign-off path crosses to management; no build-side
+         host has a general route to the grading authority.
+</pre>
+
+<h2>Notes</h2>
+<p>The split is deliberate: build-estate hosts can read a promoted build's status from the
+cache, but the authoritative verdict is kept on the management side and written only by the
+runners during sign-off. There is no general-purpose route from a build host to the grading
+authority. See the <a href="/release-process">release process</a> for how a verdict of record
+is produced, and <a href="/environments">environments</a> for hostnames per tier.</p>
+
+<hr>
+<p><small>Last edited by Sofia Reyes &mdash; 2025-05-02</small></p>
+</body>
+</html>

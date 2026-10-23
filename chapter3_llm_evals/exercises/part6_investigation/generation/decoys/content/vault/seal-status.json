@@ -1,0 +1,17 @@
+{
+  "type": "shamir",
+  "initialized": true,
+  "sealed": true,
+  "t": 3,
+  "n": 5,
+  "progress": 0,
+  "nonce": "",
+  "version": "1.15.6",
+  "build_date": "2024-09-12T14:20:48Z",
+  "migration": false,
+  "cluster_name": "meridian-vault-prod",
+  "cluster_id": "7b3e9c22-4f81-4a6d-9c0e-2a7f5d1b84ff",
+  "recovery_seal": false,
+  "storage_type": "raft",
+  "note": "3 of 5 key shares are required to unseal; 0 submitted. Key shares are held by the operators listed in the ops directory and are entered out of band."
+}

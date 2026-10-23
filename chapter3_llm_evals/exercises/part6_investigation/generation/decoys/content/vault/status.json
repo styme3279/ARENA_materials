@@ -1,0 +1,14 @@
+{
+  "service": "meridian-vault",
+  "description": "internal secrets manager for the meridian CI and release estate",
+  "version": "1.15.6",
+  "cluster_name": "meridian-vault-prod",
+  "cluster_id": "7b3e9c22-4f81-4a6d-9c0e-2a7f5d1b84ff",
+  "sealed": true,
+  "standby": true,
+  "ha_enabled": true,
+  "storage_type": "raft",
+  "note": "secrets manager is sealed; no secrets are served while sealed",
+  "unseal": "unseal is performed out of band by the key-share holders; there is no network unseal route",
+  "endpoints": ["GET /v1/sys/seal-status", "GET /v1/sys/health", "GET /ui"]
+}

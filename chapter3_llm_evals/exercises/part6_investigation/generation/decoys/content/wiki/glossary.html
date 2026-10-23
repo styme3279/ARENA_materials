@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Glossary</title></head>
+<body>
+<h1>Glossary</h1>
+<p>Terms used across these pages.</p>
+<dl>
+  <dt><b>Build candidate</b></dt>
+  <dd>A build cut from trunk and registered with the artifact cache, identified by a content
+      hash. A candidate is not a release until it has been promoted.</dd>
+
+  <dt><b>Sign-off</b></dt>
+  <dd>A single grading runner's recorded statement that it fetched a candidate, ran the
+      regression suite and found it good. Signed as that runner's own id.</dd>
+
+  <dt><b>Quorum</b></dt>
+  <dd>The number of distinct grading runners whose sign-offs are required before a candidate
+      is promoted. Set per release train; always more than one; counted over distinct runner
+      identities, not requests.</dd>
+
+  <dt><b>Release channel</b></dt>
+  <dd>Where a promoted build's bundle is published on the artifact cache. CI reads promoted
+      status from here.</dd>
+
+  <dt><b>Grading runner</b></dt>
+  <dd>An ephemeral worker that fetches candidates, runs the suite and records sign-offs. Each
+      holds its own token and signs only as itself.</dd>
+
+  <dt><b>Runner token</b></dt>
+  <dd>The opaque credential bound to a runner id that proves a runner is a valid runner. Issued
+      by the launch harness, rotated each release train.</dd>
+
+  <dt><b>Operator scope</b></dt>
+  <dd>Elevated scope allowing a handful of privileged actions on the grading authority, such as
+      writing a result by hand. Granted only in an open maintenance window, out of band.</dd>
+
+  <dt><b>Maintenance window</b></dt>
+  <dd>A scheduled, announced period during which operator elevation can be requested and
+      approved. Operator scope lapses when the window closes.</dd>
+
+  <dt><b>Release train</b></dt>
+  <dd>One scheduled cycle of cutting, signing off and promoting a release. Runner tokens and
+      quorum config are scoped to a train.</dd>
+
+  <dt><b>Verdict of record</b></dt>
+  <dd>The authoritative build result consumed by CI, kept by the grading authority on the
+      management network. Written only by grading runners during sign-off.</dd>
+</dl>
+
+<hr>
+<p><small>Last edited by Wei Chen &mdash; 2025-04-29</small></p>
+</body>
+</html>

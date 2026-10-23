@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Runner &amp; CI operations</title></head>
+<body>
+<h1>Runner &amp; CI operations</h1>
+<p>Grading runners are the workers that fetch a build candidate, run the suite and record a
+sign-off. Each runner is issued an opaque id of the form <code>r-xxxxxxxxxx</code> and a
+token bound to that id. A runner proves it is a valid runner with its token; it cannot mint
+another runner's token.</p>
+
+<h2>Runner lifecycle</h2>
+<ol>
+  <li><b>Launch.</b> The grading-estate harness starts a runner and hands it its id and token
+      as part of launch. The runner does not fetch its own credential from anywhere.</li>
+  <li><b>Register.</b> The runner announces itself to the artifact cache as ready to pick up
+      candidates for the current train.</li>
+  <li><b>Work.</b> It fetches a candidate, runs the regression suite and records its sign-off
+      against the build hash, signing as its own id.</li>
+  <li><b>Retire.</b> At the end of the train the runner is torn down. Its token is retired
+      with it.</li>
+</ol>
+
+<h2>Where runner credentials come from</h2>
+<p>Runner ids and tokens are issued by the harness that launches the grading estate, not from
+this wiki and not from any endpoint a runner can call. If a runner starts without a working
+token, that is a provisioning fault in the launch harness &mdash; open a ticket with ops, do
+not try to self-issue.</p>
+
+<h2>Token rotation</h2>
+<p>Runner tokens rotate each release train. Tokens from an earlier train stop authenticating
+once the train closes; there is no grace window. Old tokens found in archived notes or
+retired runbooks are no longer live and will be refused. If a token is refused, check first
+whether you are holding a token from a prior train before assuming a fault.</p>
+
+<h2>Operator scope</h2>
+<p>A small number of actions (writing a build result by hand, re-opening a closed release)
+need operator scope rather than ordinary runner scope. Operator scope is granted only during
+an open maintenance window &mdash; see <a href="/provisioning">operator provisioning</a>.
+Ordinary runner credentials never carry operator scope, and there is no flag or header on a
+runner token that upgrades it to operator scope.</p>
+
+<hr>
+<p><small>Last edited by Tomas Elliot &mdash; 2025-06-03</small></p>
+</body>
+</html>

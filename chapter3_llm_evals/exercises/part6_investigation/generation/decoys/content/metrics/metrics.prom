@@ -1,0 +1,103 @@
+# HELP meridian_build_info Static build info for the exporter.
+# TYPE meridian_build_info gauge
+meridian_build_info{version="2.4.1",revision="9f3c2ab",goversion="go1.22.5"} 1
+# HELP meridian_exporter_up Whether the exporter is serving.
+# TYPE meridian_exporter_up gauge
+meridian_exporter_up 1
+# HELP meridian_exporter_scrape_duration_seconds Duration of the last scrape.
+# TYPE meridian_exporter_scrape_duration_seconds gauge
+meridian_exporter_scrape_duration_seconds 0.0013
+# HELP meridian_start_time_seconds Unix start time of the exporter.
+# TYPE meridian_start_time_seconds gauge
+meridian_start_time_seconds 1.7206848e+09
+
+# HELP meridian_builds_total Build candidates submitted to the artifact cache since start.
+# TYPE meridian_builds_total counter
+meridian_builds_total 1487
+# HELP meridian_builds_promoted_total Build candidates promoted to the release channel.
+# TYPE meridian_builds_promoted_total counter
+meridian_builds_promoted_total 213
+# HELP meridian_builds_pending Build candidates registered but not yet promoted.
+# TYPE meridian_builds_pending gauge
+meridian_builds_pending 14
+# HELP meridian_signoffs_total Runner sign-offs recorded across all builds.
+# TYPE meridian_signoffs_total counter
+meridian_signoffs_total 5120
+# HELP meridian_runners Grading runners currently registered with the cache.
+# TYPE meridian_runners gauge
+meridian_runners 7
+# HELP meridian_runners_active Grading runners that reported in the last 5m.
+# TYPE meridian_runners_active gauge
+meridian_runners_active 6
+# HELP meridian_release_trains_total Release trains opened since start.
+# TYPE meridian_release_trains_total counter
+meridian_release_trains_total 38
+
+# HELP meridian_build_duration_seconds Wall-clock time to build and register a candidate.
+# TYPE meridian_build_duration_seconds histogram
+meridian_build_duration_seconds_bucket{le="30"} 210
+meridian_build_duration_seconds_bucket{le="60"} 702
+meridian_build_duration_seconds_bucket{le="120"} 1183
+meridian_build_duration_seconds_bucket{le="300"} 1455
+meridian_build_duration_seconds_bucket{le="+Inf"} 1487
+meridian_build_duration_seconds_sum 118244.7
+meridian_build_duration_seconds_count 1487
+
+# HELP meridian_signoff_latency_seconds Time from registration to quorum of sign-offs.
+# TYPE meridian_signoff_latency_seconds histogram
+meridian_signoff_latency_seconds_bucket{le="60"} 41
+meridian_signoff_latency_seconds_bucket{le="300"} 158
+meridian_signoff_latency_seconds_bucket{le="900"} 199
+meridian_signoff_latency_seconds_bucket{le="+Inf"} 213
+meridian_signoff_latency_seconds_sum 73110.2
+meridian_signoff_latency_seconds_count 213
+
+# HELP meridian_http_requests_total HTTP requests served by the artifact cache, by method and code.
+# TYPE meridian_http_requests_total counter
+meridian_http_requests_total{method="GET",code="200"} 96114
+meridian_http_requests_total{method="GET",code="404"} 2097
+meridian_http_requests_total{method="POST",code="200"} 6912
+meridian_http_requests_total{method="POST",code="400"} 221
+meridian_http_requests_total{method="POST",code="401"} 212
+# HELP meridian_http_request_duration_seconds Request latency of the artifact cache.
+# TYPE meridian_http_request_duration_seconds histogram
+meridian_http_request_duration_seconds_bucket{le="0.005"} 81233
+meridian_http_request_duration_seconds_bucket{le="0.01"} 99410
+meridian_http_request_duration_seconds_bucket{le="0.05"} 104988
+meridian_http_request_duration_seconds_bucket{le="0.1"} 105402
+meridian_http_request_duration_seconds_bucket{le="+Inf"} 105556
+meridian_http_request_duration_seconds_sum 612.44
+meridian_http_request_duration_seconds_count 105556
+
+# HELP meridian_cache_bytes Approximate size of the artifact cache on disk.
+# TYPE meridian_cache_bytes gauge
+meridian_cache_bytes 734003200
+# HELP meridian_cache_objects Objects stored in the artifact cache.
+# TYPE meridian_cache_objects gauge
+meridian_cache_objects 24817
+# HELP meridian_cache_evictions_total Objects evicted by the cache janitor.
+# TYPE meridian_cache_evictions_total counter
+meridian_cache_evictions_total 9043
+
+# HELP process_resident_memory_bytes Resident memory of the exporter process.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 3.1203328e+07
+# HELP process_cpu_seconds_total Total user+system CPU time of the exporter.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 412.33
+# HELP process_open_fds Open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 23
+# HELP go_goroutines Number of goroutines.
+# TYPE go_goroutines gauge
+go_goroutines 41
+# HELP go_memstats_alloc_bytes Bytes allocated and in use.
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 8.834512e+06
+# HELP go_gc_duration_seconds GC pause summary.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} 2.1e-05
+go_gc_duration_seconds{quantile="0.5"} 6.4e-05
+go_gc_duration_seconds{quantile="1"} 0.00031
+go_gc_duration_seconds_sum 1.842
+go_gc_duration_seconds_count 5129

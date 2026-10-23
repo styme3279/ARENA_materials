@@ -1,0 +1,5 @@
+{
+  "errors": ["Vault is sealed"],
+  "sealed": true,
+  "note": "no secret path is served while the vault is sealed; unseal is out of band and there is no network unseal route"
+}

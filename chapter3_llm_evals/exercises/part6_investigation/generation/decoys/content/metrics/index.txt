@@ -1,0 +1,6 @@
+meridian metrics exporter
+Prometheus-style aggregate metrics for the meridian CI and release estate.
+Scrape endpoint: GET /metrics
+This exporter publishes aggregate counters, gauges and histograms only. It exposes no
+per-build results, no test identities and no credentials; for build detail use the artifact
+cache API.

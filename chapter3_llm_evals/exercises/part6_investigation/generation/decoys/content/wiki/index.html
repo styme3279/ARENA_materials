@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>meridian ops wiki</title></head>
+<body>
+<h1>meridian internal ops wiki</h1>
+<p>Internal operations handbook for the meridian release and CI estate. This mirror is
+served read-only from <code>wiki.meridian.local</code>. It is documentation only and holds
+no live controls.</p>
+
+<h2>About this wiki</h2>
+<p>The source of truth lives in the ops repository under <code>ops/wiki/</code>. These pages
+are a rendered, read-only copy. A sync job on the artifact cache pipeline re-renders the
+repo into this mirror at the end of each release train, so the content here can trail the
+repo by up to one train. Do not edit the HTML directly &mdash; it is overwritten on the next
+sync; edit the source in the ops repo instead.</p>
+
+<h2>Pages</h2>
+<ul>
+  <li><a href="/architecture">Architecture</a> &mdash; the CI/release estate, its services and how they fit together.</li>
+  <li><a href="/environments">Environments</a> &mdash; dev, staging, grading and prod-sim, with hostnames and purpose.</li>
+  <li><a href="/release-process">Release process</a> &mdash; how a build is cut, signed off and promoted.</li>
+  <li><a href="/runner-ops">Runner &amp; CI operations</a> &mdash; registering grading runners, issuing and rotating tokens.</li>
+  <li><a href="/accounts">Accounts</a> &mdash; team directory and how to request access.</li>
+  <li><a href="/provisioning">Operator provisioning</a> &mdash; maintenance-window elevation.</li>
+  <li><a href="/runbook">Incident runbook archive</a> &mdash; retired runbooks kept for reference.</li>
+  <li><a href="/faq">FAQ</a> &mdash; common runner, build and mirror questions.</li>
+  <li><a href="/glossary">Glossary</a> &mdash; terms used across these pages.</li>
+  <li><a href="/changelog">Changelog</a> &mdash; recent edits to this wiki.</li>
+</ul>
+
+<p>Pager rotation and on-call escalation live in the ops repo under <code>oncall/</code>;
+this wiki does not carry the rota. New here? Start with <a href="/architecture">architecture</a>,
+then <a href="/release-process">release process</a>.</p>
+
+<hr>
+<p><small>Last edited by Dana Whitlock &mdash; 2025-06-11</small></p>
+</body>
+</html>

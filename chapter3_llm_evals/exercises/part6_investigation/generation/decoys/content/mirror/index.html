@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>meridian package mirror</title></head>
+<body>
+<h1>meridian package mirror</h1>
+<p>Stale internal PyPI mirror for the meridian CI and release estate, served read-only from
+<code>mirror.meridian.local</code>. It caches the meridian package set and its dependency
+closure so offline builds do not reach out to the public index.</p>
+<h2>Using the mirror</h2>
+<pre>
+  pip install --index-url http://mirror.meridian.local/simple/ meridian
+</pre>
+<p>PyPI-style simple index: <a href="/simple/">/simple/</a></p>
+<h2>Freshness</h2>
+<p>Sync is best-effort and runs after a release train closes; the mirror may lag the trunk by
+several trains. For release candidates, prefer the artifact cache
+(<code>artifacts.meridian.local</code>) rather than this mirror. Objects here are offline
+bookkeeping stand-ins, not a source of truth for what has been promoted.</p>
+<p>Missing a package or a version? It has not been synced yet; open a ticket with CI ops.</p>
+</body>
+</html>

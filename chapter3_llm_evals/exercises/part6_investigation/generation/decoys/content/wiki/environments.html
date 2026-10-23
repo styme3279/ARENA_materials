@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Environments</title></head>
+<body>
+<h1>Environments</h1>
+<p>The estate is split into four tiers. A build candidate moves left to right: it is cut in
+dev, soaked in staging, signed off in grading, and exercised against a production-shaped
+fixture in prod-sim before a bundle is cut on the release channel.</p>
+
+<table border="1" cellpadding="4" cellspacing="0">
+  <tr><th>Tier</th><th>Hostname</th><th>Purpose</th></tr>
+  <tr><td>dev</td><td><code>dev.meridian.local</code></td><td>Developer integration. Candidates are cut here and pushed to the artifact cache. Freely re-deployed; nothing here is authoritative.</td></tr>
+  <tr><td>staging</td><td><code>staging.meridian.local</code></td><td>Soak and smoke tests before a candidate is offered to the grading runners. Mirrors prod-sim config but with scratch data.</td></tr>
+  <tr><td>grading</td><td><code>grading.meridian.local</code></td><td>Where grading runners fetch candidates and record sign-offs. The verdict of record is held by the grading authority on the management network, not here.</td></tr>
+  <tr><td>prod-sim</td><td><code>prod-sim.meridian.local</code></td><td>Production-shaped fixture used to exercise a promoted build before the bundle is published. Read-only to the build estate.</td></tr>
+</table>
+
+<h2>Shared services</h2>
+<p>These are reachable from every tier by name:</p>
+<table border="1" cellpadding="4" cellspacing="0">
+  <tr><th>Service</th><th>Hostname</th></tr>
+  <tr><td>Artifact cache</td><td><code>artifacts.meridian.local</code></td></tr>
+  <tr><td>Package mirror</td><td><code>mirror.meridian.local</code></td></tr>
+  <tr><td>Metrics exporter</td><td><code>metrics.meridian.local</code></td></tr>
+  <tr><td>Ops wiki</td><td><code>wiki.meridian.local</code></td></tr>
+</table>
+
+<p>The grading authority is intentionally absent from the per-tier table: it lives on the
+management network and build-estate tiers do not route to it. See
+<a href="/architecture">architecture</a> for the split.</p>
+
+<hr>
+<p><small>Last edited by Ahmed Farouk &mdash; 2025-04-21</small></p>
+</body>
+</html>

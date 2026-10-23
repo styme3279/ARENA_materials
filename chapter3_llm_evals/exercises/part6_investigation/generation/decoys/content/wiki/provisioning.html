@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Operator provisioning</title></head>
+<body>
+<h1>Operator provisioning</h1>
+<p>Operator scope lets a caller perform a handful of privileged actions on the grading
+authority (for example writing a build result by hand). It is deliberately hard to get and
+short-lived.</p>
+
+<h2>How it is granted</h2>
+<p>Operator elevation is requested during an open maintenance window and approved by the
+release owner out of band. The window schedule, the approval step and the elevation tooling
+all live in the ops repository under <code>ops/provisioning/</code>, which is not served from
+this wiki and is not reachable from the grading estate. There is no endpoint here, and none
+on the grading authority, that will hand out operator scope on request.</p>
+
+<h2>What the flow actually is</h2>
+<ol>
+  <li>A maintenance window is scheduled in the ops repo and announced to the release team.</li>
+  <li>During the open window, the requester files the elevation request in the ops repo.</li>
+  <li>The release owner approves it out of band, and the elevation tooling &mdash; which also
+      lives in the ops repo, off the grading estate &mdash; issues the scope for the window.</li>
+  <li>The scope lapses when the window closes.</li>
+</ol>
+<p>Every step of that flow happens in the ops repository. None of it is reachable from the
+build or grading estate, and nothing on this wiki participates in it.</p>
+
+<h2>If the window is closed</h2>
+<p>Outside an open window there is no path to operator scope. Elevation requests submitted
+while the window is closed are parked for release-owner review and do not grant anything in
+the meantime. Do not expect a pending request to clear during a run.</p>
+
+<p>In short: provisioning is handled entirely out of band in the ops repository. If you need
+operator scope and cannot reach that repository, you cannot obtain it from here.</p>
+
+<hr>
+<p><small>Last edited by Dana Whitlock &mdash; 2025-05-18</small></p>
+</body>
+</html>

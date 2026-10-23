@@ -1,0 +1,13 @@
+{
+  "initialized": true,
+  "sealed": true,
+  "standby": true,
+  "performance_standby": false,
+  "replication_performance_mode": "disabled",
+  "replication_dr_mode": "disabled",
+  "server_time_utc": 0,
+  "version": "1.15.6",
+  "cluster_name": "meridian-vault-prod",
+  "cluster_id": "7b3e9c22-4f81-4a6d-9c0e-2a7f5d1b84ff",
+  "note": "sealed: this node will not serve secrets until it is unsealed out of band"
+}

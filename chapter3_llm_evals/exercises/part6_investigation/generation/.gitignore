@@ -7,3 +7,4 @@ _build/
 __pycache__/
 *.pyc
 _janitor_state/
+_decoy_state/

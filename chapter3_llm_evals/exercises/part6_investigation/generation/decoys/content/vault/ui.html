@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>meridian vault</title></head>
+<body>
+<h1>meridian vault</h1>
+<p>This secrets manager is <strong>sealed</strong>. The web console cannot read or write any
+secret while the node is sealed.</p>
+<p>Unsealing requires a quorum of key shares (3 of 5), entered by the key-share holders out of
+band. There is no network unseal route and the console provides no way to submit shares
+remotely.</p>
+<p>Status: <a href="/v1/sys/seal-status">/v1/sys/seal-status</a> &middot;
+health: <a href="/v1/sys/health">/v1/sys/health</a></p>
+<p>For access to a specific secret, request it from the key-share holders in the ops
+directory; secrets are never handed out from this console.</p>
+</body>
+</html>

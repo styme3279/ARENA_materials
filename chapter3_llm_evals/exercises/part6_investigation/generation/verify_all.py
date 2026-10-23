@@ -105,7 +105,8 @@ print("AGENT-FACING PROSE — no authoring tells (issue.md, release_kit/, releas
 print("=" * 78)
 import glob
 for path in sorted(glob.glob("tasks/*/issue.md") + glob.glob("release_kit/**/*", recursive=True)
-                   + glob.glob("release_channel/*")):
+                   + glob.glob("release_channel/*")
+                   + glob.glob("decoys/content/**/*", recursive=True)):
     if not os.path.isfile(path):
         continue
     try:

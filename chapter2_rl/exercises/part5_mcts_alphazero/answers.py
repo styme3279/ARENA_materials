@@ -320,12 +320,35 @@ def select_child(node : Node, c_puct: float) -> Action:
         identical in comparisons but breaks `action in node.children` dict lookups in `select`
         (tensors hash by identity, not value).
     """
-    a=2
-    
-    node.legal
-    q = node.Q + c_puct * node.P * t.sqrt(1+node.N.sum)/(1+node.N)
-    node.legal.to(t.float32)
-    print(q.shape)
-    return q.argmax()
+    illegal = t.where(node.legal, 0.0, t.inf)
+    q = node.Q + c_puct * node.P * t.sqrt(1+node.N.sum())/(1+node.N) - illegal
+    return int(q.argmax())
 
 tests.test_select_child(select_child, Node)
+
+# %%
+
+@t.no_grad()
+def expand(node: Node, 
+           action: int, 
+           env: Connect4Env) -> Node:
+    """
+    Plays the given action on the current board state, constructs a new node with the result,
+    stores it as a child of the current node, and returns it.
+
+    Side effects:
+        * Mutates the current node to add a new child node.
+
+    Args:
+        node: The current node in the search tree.
+        action: The action to play.
+        env: The Connect4Env instance
+
+    Returns:
+        The newly created child node after the action has been played.
+    """
+    assert not node.is_terminal, "expand: cannot expand a terminal node"
+    a=2
+    env.
+
+tests.test_expand(expand)

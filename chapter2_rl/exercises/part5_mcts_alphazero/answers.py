@@ -189,7 +189,7 @@ class Connect4Model(nn.Module):
     ):
         super().__init__()
         self.initial_conv = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=channels, kernel_size=3, bias=False),
+            nn.Conv2d(in_channels=3, out_channels=channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(num_features=channels),
             nn.ReLU()
         )
@@ -221,3 +221,184 @@ class Connect4Model(nn.Module):
 summary(Connect4Model(device))
 tests.test_connect4_model(Connect4Model)
 # %%
+Action = int # 0, 1, 2, 3, 4, 5, 6
+
+@dataclass
+class Node:
+    """One node of the single-game search tree = one board state. Statistics live on the **edges**
+    (per-action length-7 arrays), filled in as the search runs.
+
+    Attributes:
+        board          Board of batch shape (1,): the connect4 board for this state, and whose turn
+                       it is. Note that `Connect4Env.step` auto-resets a finished board, so on a **terminal**
+                       node this is the empty starting board, for which
+                       only `terminal_value` is well-defined.
+        is_terminal    bool : True if this state is game-over. Set by `expand`.
+        terminal_value float : result from the perspective of this node's mover (= -reward of the
+                       move that created the node). Only meaningful when `is_terminal=True`. Set by `expand`.
+        P              (7,) network prior over each move. Set by `evaluate`.
+        legal          (7,) bool legal-column mask. Set by `evaluate`.
+        N              (7,) per-edge visit counts N(s, a). Updated by `backup`.
+        W              (7,) per-edge value sums W(s, a), accumulated from the perspective of THIS
+                       node's mover: backup negates each child value once per step on
+                       the way up, so what lands here is already in this node's convention. Updated by `backup`.
+        children       dict[Action, Node] : child nodes per played action, created lazily by `expand`.
+        parent         Node | None : the node we were expanded from (`None` at the root).
+        parent_action  Action | None : the column that led from `parent` to this node. Updated by `expand`.
+
+    Properties:
+        Q              (7,) per-edge mean value W / max(N, 1).
+    """
+    board: Board  # batch shape (1,); lives on GPU
+    is_terminal: bool = False
+    terminal_value: float = 0.0
+    P: Tensor | None = None
+    legal: Tensor | None = None
+    N: Float[Tensor, "7"] = field(default_factory=lambda: t.zeros(7))   # N(s,a_0), ..., N(s,a_6)
+    W: Float[Tensor, "7"] = field(default_factory=lambda: t.zeros(7))   # W(s,a_0), ..., W(s,a_6)
+    children: dict[Action, 'Node'] = field(default_factory=dict)
+    parent: 'Node | None' = None
+    parent_action: Action | None = None
+
+    @property
+    def Q(self) -> Float[Tensor, "7"]:
+        return self.W / t.maximum(self.N, t.ones_like(self.N))
+
+
+# Sentinel "no action" returned by `select` when the selection walk stops on a terminal node.
+# We use -100 rather than None because None silently inserts a dim when used to index a tensor
+# (`t[None]`), whereas -100 is always an illegal column and raises loudly if ever misused as an index.
+NULL_ACTION = -100
+
+tests.test_mcts_node(Node)
+# %%
+def select_child(node : Node, c_puct: float) -> Action:
+    """Return the action (column index) with the highest PUCT score at `node`.
+
+    Everything you need is already stored on the node (see the `Node` class above):
+        node.Q      (7,) per-edge mean values Q(s,a) = W / max(N, 1)  — a property, kept up to date
+        node.N      (7,) per-edge visit counts N(s,a); its sum is the parent visit total Σ_a' N(s,a')
+        node.P      (7,) the network prior p_θ(a|s), set when the node was evaluated
+        node.legal  (7,) bool mask of legal columns
+
+    Compute the PUCT score per action, set illegal actions to -inf, and take the argmax.
+
+    Args:
+        node:   the node to pick an action from (its edge statistics are already populated)
+        c_puct: the exploration/exploitation trade-off constant c
+
+    Returns:
+        int: the PUCT-maximising column 0-6 (you may assume at least one action is legal).
+        Return a plain Python int — `int(scores.argmax())`, not a 0-dim Tensor. A Tensor looks
+        identical in comparisons but breaks `action in node.children` dict lookups in `select`
+        (tensors hash by identity, not value).
+    """
+    assert node.P is not None
+    puct = node.Q + c_puct * node.P * (t.sqrt(1.0 + node.N.sum()) / (1.0 + node.N))
+
+    puct = t.where(node.legal, puct, -t.inf)
+
+    return int(puct.argmax())
+
+tests.test_select_child(select_child, Node)
+# %%
+def select(root: Node, 
+           c_puct: float
+) -> tuple[Node, Action]:
+    """Walks down the tree from root: at each node take the PUCT-best action (`select_child`);
+    if that action has a child, step into it and repeat. Halt at the first node whose PUCT-best
+    action has NO child yet (`action not in node.children`), or on a terminal node.
+
+    Note the halting rule is a property of the node's best *action*, not of the node itself: a
+    node may already have children on other actions (and visits on them) while its current
+    PUCT-best action is still unexpanded — that node is where the walk stops.
+
+    Args:
+        root: The root node of the search tree (never terminal).
+        c_puct: The PUCT constant.
+
+    Returns:
+        * `(node, action)`: the node to expand and the action to play, OR
+        * `(node, NULL_ACTION)` if the walk stopped on a terminal node (nothing to expand).
+    """
+    assert not root.is_terminal, "select: root must not be terminal"
+    node = root
+    while True:
+        if node.is_terminal:
+            return node, NULL_ACTION
+        next_action = select_child(node, c_puct)
+        if next_action in node.children:
+            node = node.children[next_action]
+        else:
+            return node, next_action
+
+
+tests.test_select(select, Node)
+# %%
+@t.no_grad()
+def expand(node: Node, 
+           action: int, 
+           env: Connect4Env) -> Node:
+    """
+    Plays the given action on the current board state, constructs a new node with the result,
+    stores it as a child of the current node, and returns it.
+
+    Side effects:
+        * Mutates the current node to add a new child node.
+
+    Args:
+        node: The current node in the search tree.
+        action: The action to play.
+        env: The Connect4Env instance
+
+    Returns:
+        The newly created child node after the action has been played.
+    """
+    assert not node.is_terminal, "expand: cannot expand a terminal node"
+
+    new_board, done, reward = env.step(node.board, action)
+
+    new_child_node = Node(new_board)
+    new_child_node.is_terminal = done
+    if done:
+        new_child_node.terminal_value = -reward
+
+    node.children[action] = new_child_node
+    
+    new_child_node.parent = node
+    new_child_node.parent_action = action
+
+    return new_child_node
+
+
+tests.test_expand(expand)
+# %%
+@t.no_grad()
+def evaluate(node: Node, model: nn.Module, env: Connect4Env) -> float:
+    """
+    Estimates the value of a node from its mover's perspective.
+    
+    Side effects:
+        If the node is non-terminal, mutates the node to 
+        set the `node.P` and `node.legal` attributes to the
+        action probability from the model, and to the current legal moves
+        of the board respectively.
+    
+    Args:
+        node: The node to estimate the value of.
+        model: The model to use.
+        env: The Connect4Env instance
+
+    Returns:
+        For terminal nodes: the stored `terminal_value` (already from the mover's perspective).
+        For non-terminal nodes: the critic head's value estimate, from the mover's perspective.
+    """
+    if node.is_terminal:
+        return node.terminal_value
+    value, logits = model(node.board)
+    
+
+
+
+
+tests.test_evaluate(evaluate)

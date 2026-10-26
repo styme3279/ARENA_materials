@@ -596,4 +596,102 @@ dataset = [
 
 summary_stats = summarize_results(dataset)
 pprint(summary_stats)
+
+# %%
+
+def filter_dataset(dataset: list[QCQuestion], min_score: int) -> list[QCQuestion]:
+    """
+    Returns a filtered dataset, based on the minimum and maximum score.
+    """
+    new_dataset = []
+    for data in dataset:
+        if data.response.score >= min_score:
+            new_dataset.append(data)
+    return new_dataset    
+
+
+print(f"Original dataset length: {len(dataset)}")
+
+filtered_dataset = filter_dataset(dataset, min_score=90)
+print(f"Length after filtering for >=9 scores: {len(filtered_dataset)}")
+
+# %%
+def generate_and_score_questions(
+    num_qs: int = 20,
+    model: str = "gpt-4o-mini",
+    version: int = 0,
+    system_prompt: str = SYSTEM_PROMPT,
+    user_prompt: str = USER_PROMPT,
+    few_shot_examples: list[str] = FEWSHOT_EXAMPLES,
+    var_prompts: list[str] = VAR_PROMPTS,
+    rubric: str = RUBRIC,
+    scoring_examples: list[QCQuestion] = SCORING_EXAMPLES,
+) -> list[QCQuestion]:
+    """
+    Generate and score a set of questions, and saves the results to a JSON file.
+
+    Most of the code here should just be copy-pasted from earlier exercises, and combined together
+    to form a single function.
+    """
+    # Get prompts for question generation
+    gen_prompts = GenPrompts(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        few_shot_examples=few_shot_examples,
+        p_var=0.5,
+        var_prompts=var_prompts,
+    )
+    messages_list = [gen_prompts.get_messages() for _ in range(num_qs)]
+
+    # Generate responses (i.e. the new questions), as lists of dicts
+    questions_to_score = generate_structured_responses_with_threadpool(model, messages_list, response_format=Question)
+
+    # Create our scoring messages (one for each of the new questions)
+    messages = [{"role": "system", "content": rubric}]
+    for ex in scoring_examples:
+        messages.append({"role": "user", "content": ex.question.model_dump_json()})
+        messages.append({"role": "assistant", "content": ex.response.model_dump_json()})
+    messages_list = [messages + [{"role": "user", "content": json.dumps(q)}] for q in questions_to_score]
+
+    # Get model responses & scores
+    responses = generate_structured_responses_with_threadpool(
+        model=model, messages_list=messages_list, response_format=QCResponse
+    )
+
+    # Combine the questions and responses
+    dataset = [
+        QCQuestion(question=Question(**question), response=response)
+        for question, response in zip(questions_to_score, responses)
+    ]
+
+    # Save the dataset to a JSON file, as well as all the constants
+    data = {
+        "dataset": [q.model_dump() for q in dataset],
+        "RUBRIC": rubric,
+        "SCORING_EXAMPLES": [ex.model_dump() for ex in scoring_examples],
+        "FEWSHOT_EXAMPLES": few_shot_examples,
+        "VAR_PROMPTS": var_prompts,
+        "SYSTEM_PROMPT": system_prompt,
+        "USER_PROMPT": user_prompt,
+    }
+    with open(section_dir / f"{evaluation_target}_{num_qs}_qs__v{version:02}.json", "w") as f:
+        json.dump(data, f)
+
+    return dataset
+
+
+# Create & visualize a small dataset of 5 questions, for testing
+dataset = generate_and_score_questions(num_qs=5)
+data = [
+    {
+        "question": ex.question.question,
+        "answers": ex.question.answers.model_dump_json(),
+        "expected answer": ex.question.answer_matching_behavior,
+        "score": ex.response.score,
+    }
+    for ex in dataset
+]
+print(tabulate(data, headers="keys", tablefmt="simple_grid", maxcolwidths=[40, 60, None]))
+
+# Create & save a larger dataset (we need to make sure we're filtering appropriately)
 # %%

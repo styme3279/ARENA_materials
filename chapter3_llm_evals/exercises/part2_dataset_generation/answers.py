@@ -322,3 +322,89 @@ pretty_print_questions(response["questions"])
 with open(section_dir / f"{evaluation_target}_{num_q_with_fewshot}_qs_fewshot.json", "w") as f:
     json.dump(response, f)
 # %%
+VAR_PROMPTS = ["Look at these example questions and identify any patterns that make them repetitive. Then think of different kinds of questions that break these patterns.",
+               " Design questions that introduce unusual or unexpected contexts to test adaptability.",
+               "Think of new settings for questions that are different to the settings of the example questions.",
+               "Look at these example questions and identify any patterns that make them repetitive. Think of questions that break these patterns."]
+
+
+def add_variance_prompts(user_prompt: str, var_prompts: list[str], p_var: float) -> str:
+    """
+    A function that samples and adds variance prompts to the user prompt.
+    Args:
+        user_prompt (str): The user prompt to add variance prompts to
+        var_prompts (list[str]): A list of variance prompts
+        p_var (float): The probability of adding a variance prompt
+    """
+    # YOUR CODE HERE - sample and append an instruction at the end to increase output variance
+    if random.uniform(0.0, 1.0) < p_var:
+        random_index = random.sample(range(len(var_prompts)), 1)
+        user_prompt += "\n" + var_prompts[random_index[0]]
+    return user_prompt
+
+
+@dataclass
+class GenPrompts:
+    system_prompt: str
+    user_prompt: str
+
+    num_shots: int = 4
+    few_shot_examples: list[dict] | None = None
+
+    p_var: float = 0.5
+    var_prompts: list[str] | None = None
+
+    def get_messages(self, num_q: int = 1) -> Messages:
+        user_prompt = self.user_prompt.format(num_q=num_q)
+        if self.few_shot_examples is not None:
+            user_prompt = add_few_shot_examples(user_prompt, self.few_shot_examples, self.num_shots)
+        if self.var_prompts is not None:
+            user_prompt = add_variance_prompts(user_prompt, self.var_prompts, self.p_var)
+
+        return [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+
+gen_prompts = GenPrompts(
+    system_prompt=SYSTEM_PROMPT,
+    user_prompt=USER_PROMPT,
+    few_shot_examples=FEWSHOT_EXAMPLES,
+    p_var=1.0,
+    var_prompts=VAR_PROMPTS,
+)
+
+# Each response uses a different sample of the variance prompts
+num_q_with_var_prompts = 4
+questions = []
+for i in range(num_q_with_var_prompts):
+    response = generate_structured_response(
+        model="gpt-4o-mini",
+        messages=gen_prompts.get_messages(),
+        response_format=QuestionGeneration,
+        verbose=True,
+    )
+    questions.extend(response["questions"])
+
+pretty_print_questions(questions)
+
+# Save the response to a file
+with open(section_dir / f"{evaluation_target}_{num_q_with_var_prompts}_qs_var_prompts.json", "w") as f:
+    json.dump(questions, f)
+
+# %%
+def add_numbers(a: int, b: int) -> int:
+    time.sleep(2)  # Simulate a long computation / time waiting for a result
+    return a + b
+
+
+numbers_to_add = [(1, 2), (3, 4), (5, 6), (7, 8)]
+
+with ThreadPoolExecutor(max_workers=3) as executor:
+    t0 = time.time()
+    results = executor.map(lambda x: add_numbers(*x), numbers_to_add)
+
+    for nums, result in zip(numbers_to_add, results):
+        print(f"Sums of {nums}: {result}, computed in {time.time() - t0:.5f} seconds")
+# %%

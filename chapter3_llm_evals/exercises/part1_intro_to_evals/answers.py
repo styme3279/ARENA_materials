@@ -243,7 +243,7 @@ print(f"Paid tier: {paid_tier_accepted} / {N_PROMPTS} = {paid_tier_accepted * 10
 
 # %%
 N_PROMPTS = 20
-MODEL = "meta-llama/llama-3.3-70b-instruct"
+MODEL = "anthropic/claude-sonnet-5.5"
 STOP_SEQUENCES = ["</OUTPUT>", "/>"]
 
 n_rejected = {"free": 0, "paid": 0}
@@ -255,7 +255,7 @@ for idx in tqdm(random_indices):
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": get_user_prompt(df, idx, is_free_tier_user)},
-            {"role": "assistant", "content": "<OUTPUT>"},
+            # {"role": "assistant", "content": "<OUTPUT>"},
         ]
 
         # Generate the response

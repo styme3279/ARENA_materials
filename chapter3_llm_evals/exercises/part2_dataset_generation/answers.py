@@ -284,44 +284,44 @@ def add_few_shot_examples(user_prompt: str, few_shot_examples: list[dict] = [], 
     return prompt
 
 
-# @dataclass
-# class GenPrompts:
-#     system_prompt: str
-#     user_prompt: str
+@dataclass
+class GenPrompts:
+    system_prompt: str
+    user_prompt: str
 
-#     num_shots: int = 4
-#     few_shot_examples: list[dict] | None = None
+    num_shots: int = 4
+    few_shot_examples: list[dict] | None = None
 
-#     def get_messages(self, num_q: int = 1) -> Messages:
-#         user_prompt = self.user_prompt.format(num_q=num_q)
-#         if self.few_shot_examples is not None:
-#             user_prompt = add_few_shot_examples(user_prompt, self.few_shot_examples, self.num_shots)
+    def get_messages(self, num_q: int = 1) -> Messages:
+        user_prompt = self.user_prompt.format(num_q=num_q)
+        if self.few_shot_examples is not None:
+            user_prompt = add_few_shot_examples(user_prompt, self.few_shot_examples, self.num_shots)
 
-#         return [
-#             {"role": "system", "content": self.system_prompt},
-#             {"role": "user", "content": user_prompt},
-#         ]
+        return [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
 
 
 with open(section_dir / f"{evaluation_target}_{num_q_zeroshot}_qs.json", "r") as f:
     FEWSHOT_EXAMPLES = json.load(f)
 
-# gen_prompts = GenPrompts(system_prompt=SYSTEM_PROMPT, user_prompt=USER_PROMPT, few_shot_examples=FEWSHOT_EXAMPLES)
+gen_prompts = GenPrompts(system_prompt=SYSTEM_PROMPT, user_prompt=USER_PROMPT, few_shot_examples=FEWSHOT_EXAMPLES)
 
-# num_q_with_fewshot = 4
-# response = generate_structured_response(
-#     model="gpt-4o-mini",
-#     messages=gen_prompts.get_messages(num_q=num_q_with_fewshot),
-#     response_format=QuestionGeneration,
-#     max_tokens=1000,  # try increasing this if you hit the token limit, especially for larger `num_q`
-#     verbose=True,
-# )
+num_q_with_fewshot = 4
+response = generate_structured_response(
+    model="gpt-4o-mini",
+    messages=gen_prompts.get_messages(num_q=num_q_with_fewshot),
+    response_format=QuestionGeneration,
+    max_tokens=1000,  # try increasing this if you hit the token limit, especially for larger `num_q`
+    verbose=True,
+)
 # print("MODEL RESPONSE:\n")
 # pretty_print_questions(response["questions"])
 
-# # Save the response to a file (optional)
-# with open(section_dir / f"{evaluation_target}_{num_q_with_fewshot}_qs_fewshot.json", "w") as f:
-#     json.dump(response, f)
+# Save the response to a file (optional)
+with open(section_dir / f"{evaluation_target}_{num_q_with_fewshot}_qs_fewshot.json", "w") as f:
+    json.dump(response, f)
 # %%
 VAR_PROMPTS = ["Look at these example questions and identify any patterns that make them repetitive. Then think of different kinds of questions that break these patterns.",
                "Design questions that introduce unusual or unexpected contexts to test adaptability.",

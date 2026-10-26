@@ -685,3 +685,33 @@ responses = generate_structured_responses_with_threadpool(
 print(tabulate(responses, headers="keys", tablefmt="simple_grid", maxcolwidths=100))
 
 # %%
+from collections import Counter
+
+score_counter = Counter(r["score"] for r in responses)
+
+px.bar(
+    x=score_counter.keys(),
+    y=score_counter.values(),
+    width=600,
+    height=400,
+    title="Distribution of Question Scores",
+    labels={"x": "Score", "y": "Number of Questions"},
+).show()
+
+#%%
+
+def summarize_results(dataset: list[QCQuestion]) -> dict:
+    """
+    Calculate summary statistics for the results of the evaluation.
+    """
+
+    print(responses[0])
+
+
+dataset = [
+    QCQuestion(question=Essay(**question), response=response)
+    for question, response in zip(questions_to_score, responses)
+]
+
+summary_stats = summarize_results(dataset)
+pprint(summary_stats)

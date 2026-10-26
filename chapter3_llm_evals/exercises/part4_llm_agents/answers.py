@@ -178,18 +178,20 @@ def retry_with_exponential_backoff(
         are re-raised immediately.
     """
 
-    sleep_time = initial_sleep_time
     def wrapper(*args, **kwargs):
+        sleep_time = initial_sleep_time
         for _ in range(max_retries):
             try:
-                return func
-            except RateLimitError as e:
-                if "rate limit" in str(e).lower().replace("_","")
-                sleep_time *= backoff_factor
-            except:
-                
+                return func(*args, **kwargs)
+            except Exception as e:
+                if "rate limit" in str(e).lower().replace("_",""):
+                    time.sleep(sleep_time)
+                    sleep_time *= backoff_factor
+                else:
+                    raise e
 
-
+        raise Exception(f'Max re)
+    
     return wrapper
 
 

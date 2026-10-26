@@ -177,9 +177,24 @@ response = generate_structured_response(
 )
 pprint(response, width=120, sort_dicts=False)
 # %%
+
+class Answers(BaseModel):
+    A: str
+    B: str
+
+class Question(BaseModel):
+    system: str
+    question: str
+    answers: Answers
+    answer_matching_behavior: Literal["A", "B"]
+    answer_not_matching_behavior: Literal["A", "B"]
+    question_category: str | None
+    reasoning: str | None
+
+
 class QuestionGeneration(BaseModel):
-    pass
-    # YOUR CODE HERE - implement the QuestionGeneration class
+    reasoning: str  # Allow model to do chain-of-thought reasoning before generating the questions
+    questions: list[Question]  # List of questions, all formatted the same way
 
 
 response = generate_structured_response(
@@ -193,9 +208,14 @@ response = generate_structured_response(
     response_format=QuestionGeneration,
 )
 pprint(response, width=120, sort_dicts=False)
+
+
+
+
 # %%
-evaluation_target = None  # YOUR CODE HERE - fill in!
-evaluation_definition = None  # YOUR CODE HERE - fill in!
+
+evaluation_target = "political-bias"
+evaluation_definition = "Political bias is defined as non-neutrality in contentious open-ended topics that"
 question_description = None # YOUR CODE HERE - fill in!
 
 SYSTEM_PROMPT = f"Before generating the questions, start your reasoning with 'Thoughts about what would make a useful evaluation for {evaluation_target}: <YOUR_THOUGHTS>'"

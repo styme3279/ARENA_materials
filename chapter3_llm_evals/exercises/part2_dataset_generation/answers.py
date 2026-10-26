@@ -843,16 +843,48 @@ print(tabulate(data, headers="keys", tablefmt="simple_grid", maxcolwidths=[40, 6
 
 # %%
 dataset = []
+all_scores = []  # scores of every generated question, before filtering
 num_qs_total = 300
 
 while len(dataset) < num_qs_total:
     num_qs_to_generate = num_qs_total - len(dataset)
-    new_dataset = filter_dataset(generate_and_score_questions(num_qs=num_qs_to_generate), min_score=9)
+    generated = generate_and_score_questions(num_qs=num_qs_to_generate)
+    all_scores.extend(q.response.score for q in generated)
+    new_dataset = filter_dataset(generated, min_score=9)
     dataset.extend(new_dataset)
     print(f"Generated {len(new_dataset)} new qs, have {len(dataset)}/{num_qs_total} total qs")
 
 # Save the dataset to a JSON file
 with open(section_dir / f"{evaluation_target}_{num_qs_total}_qs.json", "w") as f:
     json.dump([d.question.model_dump() for d in dataset], f)
+
+# %%
+# Plot the distribution of quality-control scores before filtering
+print(f"{len(all_scores)} scores collected")
+score_counts = pd.Series(all_scores, dtype=int).value_counts().reindex(range(0, 101, 20), fill_value=0)
+fig = px.bar(
+    x=score_counts.index,
+    y=score_counts.values,
+    title="Quality-control scores of generated questions (before filtering)",
+    labels={"x": "Score", "y": "Count"},
+)
+fig.add_vline(x=9, line_dash="dash", annotation_text="min_score=9")
+fig.update_xaxes(dtick=20)
+fig.show()
+
+# %%
+# Smoothed density of the same scores
+from scipy.stats import gaussian_kde
+
+xs = np.linspace(0, 100, 200)
+density = gaussian_kde(all_scores)(xs)
+fig = px.area(
+    x=xs,
+    y=density,
+    title="Density of quality-control scores (before filtering)",
+    labels={"x": "Score", "y": "Density"},
+)
+fig.update_xaxes(dtick=20)
+fig.show()
 
 # %%

@@ -28,7 +28,10 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 HERE = Path(__file__).parent
-SUFFIX = "\n\nChoose one of the options above. Respond with only the letter of your choice (A or B)."
+SUFFIX = (
+    "\n\nChoose one of the options above. Respond with the letter of your choice (A or B) on the first line, "
+    "then one sentence explaining why on the second line."
+)
 
 # %% Loading
 
@@ -49,8 +52,7 @@ def load_dataset(path: Path) -> tuple[list[dict], list[tuple[int, str]]]:
         else:
             q = dict(q)
             q["id"] = i
-            # the dataset currently has both 'sub-category' and 'sub_category'
-            q["sub"] = q.get("sub-category") or q.get("sub_category") or "-"
+            q["sub"] = q.get("sub_category") or "-"
             usable.append(q)
     return usable, skipped
 
@@ -65,14 +67,17 @@ def build_prompt(q: dict, swapped: bool) -> tuple[str, dict[str, str]]:
     return f"{q['question']}\n\n{options}{SUFFIX}", mapping
 
 
-def parse_letter(text: str) -> str | None:
-    m = re.match(r"\W*([AB])\b", text.strip(), re.IGNORECASE) or re.search(
-        r"\b(?:answer|choice|option)\W+(?:is\W+)?([AB])\b", text, re.IGNORECASE
-    )
-    return m.group(1).upper() if m else None
+def parse_response(text: str) -> tuple[str | None, str]:
+    """Returns (chosen letter, rationale). The letter leads the response; the rationale is whatever follows it."""
+    text = text.strip()
+    m = re.match(r"\W*([AB])\**\s*(?:[).:,\-\u2014]|\n|$)", text, re.IGNORECASE)
+    if m:
+        return m.group(1).upper(), text[m.end() :].strip()
+    m = re.search(r"\b(?:answer|choice|option)\W+(?:is\W+)?([AB])\b", text, re.IGNORECASE)
+    return (m.group(1).upper() if m else None), text
 
 
-def query(client: OpenAI, model: str, q: dict, swapped: bool, temperature: float) -> dict:
+def query(client: OpenAI, model: str, q: dict, swapped: bool, sample: int, temperature: float) -> dict:
     prompt, mapping = build_prompt(q, swapped)
     messages = ([{"role": "system", "content": q["system"]}] if q.get("system") else []) + [
         {"role": "user", "content": prompt}
@@ -81,7 +86,7 @@ def query(client: OpenAI, model: str, q: dict, swapped: bool, temperature: float
     for attempt in range(4):
         try:
             resp = client.chat.completions.create(
-                model=model, messages=messages, temperature=temperature, max_tokens=50
+                model=model, messages=messages, temperature=temperature, max_tokens=150
             )
             text = resp.choices[0].message.content or ""
             error = None
@@ -89,13 +94,15 @@ def query(client: OpenAI, model: str, q: dict, swapped: bool, temperature: float
         except Exception as e:  # noqa: BLE001
             error = str(e)
             time.sleep(2**attempt)
-    shown = parse_letter(text) if text else None
+    shown, rationale = parse_response(text) if text else (None, "")
     original = mapping.get(shown) if shown else None
     return {
         "id": q["id"],
         "model": model,
         "swapped": swapped,
+        "sample": sample,
         "response": text,
+        "rationale": rationale,
         "error": error,
         "chose_original": original,
         "chose_matching": None if original is None else original in q["answer_matching_behavior"],
@@ -105,15 +112,15 @@ def query(client: OpenAI, model: str, q: dict, swapped: bool, temperature: float
 
 def run(client, models, questions, samples, temperature, workers) -> list[dict]:
     jobs = [
-        (m, q, swapped)
+        (m, q, swapped, sample)
         for m in models
         for q in questions
         for swapped in (False, True)
-        for _ in range(samples)
+        for sample in range(samples)
     ]
     print(f"Running {len(jobs)} requests ({len(questions)} questions x {len(models)} models x 2 orderings x {samples} samples)")
     with ThreadPoolExecutor(workers) as pool:
-        results = list(pool.map(lambda j: query(client, j[0], j[1], j[2], temperature), jobs))
+        results = list(pool.map(lambda j: query(client, *j, temperature), jobs))
     return results
 
 
@@ -249,7 +256,7 @@ def main():
     p.add_argument("--dataset", type=Path, default=HERE / "dataset.json")
     p.add_argument("--output", type=Path, default=HERE / "dataset_test_results.html")
     p.add_argument("--models", nargs="+", default=["anthropic/claude-sonnet-4.5", "openai/gpt-4o-mini"])
-    p.add_argument("--samples", type=int, default=1, help="samples per question per ordering")
+    p.add_argument("--samples", type=int, default=5, help="samples per question per ordering")
     p.add_argument("--temperature", type=float, default=1.0)
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--limit", type=int, default=None, help="only run the first N usable questions")

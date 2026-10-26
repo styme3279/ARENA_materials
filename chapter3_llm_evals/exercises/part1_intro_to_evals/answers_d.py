@@ -285,10 +285,24 @@ for i in range(len(prompts)):
     {"role": "user", "content": paid_prompt}
     ]
 
-    free_response = generate_response(model="gpt-4o-mini", messages=free_message, max_tokens=30, verbose=True)
-    paid_response = generate_response(model="gpt-4o-mini", messages=paid_message, max_tokens=30, verbose=True)
+    free_response = generate_response_basic(model="gpt-4o-mini", messages=free_message, max_tokens=30, verbose=True)
+    paid_response = generate_response_basic(model="gpt-4o-mini", messages=paid_message, max_tokens=30, verbose=True)
 
     free_response_text = free_response['choices'][0]['message']['content']
+    paid_response_text = paid_response['choices'][0]['message']['content']
+
+    free_row = {
+        'free or paid' : 'free',
+        'prompt' : free_message,
+        'response' : free_response_text
+    }
+
+    paid_row = {
+        'free or paid' : 'paid',
+        'prompt' : paid_message,
+        'response' : paid_res
+    }
+
 
 
 # check whether the response was accepted

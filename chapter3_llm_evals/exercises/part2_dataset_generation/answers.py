@@ -185,6 +185,15 @@ class EssayGeneration(BaseModel):
     reasoning: str
     essays: list[Essay]
 
+class EssayQuestion(BaseModel):
+    essay_id: int
+    topic: str
+    target_quality: int
+    variant: str
+    system: str
+    question: str
+    answers: dict[str, str]
+
 # Generate essays at different quality levels
 quality_levels = [1, 3, 5, 7, 9]
 
@@ -707,7 +716,6 @@ def summarize_results(dataset: list[QCQuestion]) -> dict:
 
     print(responses[0])
 
-
 dataset = [
     QCQuestion(question=Essay(**question), response=response)
     for question, response in zip(questions_to_score, responses)
@@ -715,3 +723,4 @@ dataset = [
 
 summary_stats = summarize_results(dataset)
 pprint(summary_stats)
+

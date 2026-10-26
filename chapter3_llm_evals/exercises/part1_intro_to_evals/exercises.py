@@ -108,7 +108,7 @@ messages = [
     },
     {"role": "user", "content": "Who are you, and who were you designed by?"},
 ]
-for model in ["gpt-4o-mini", "anthropic/claude-sonnet-4"]:
+for model in ["gpt-4o-mini"]:
     print(f"MODEL: {model!r}")
     response = generate_response_basic(model=model, messages=messages, max_tokens=50, verbose=True)
     print(f"RESPONSE:\n{response}\n")
@@ -235,15 +235,11 @@ for index, row in shuffled_qs.iterrows():
     generate_response = retry_with_exponential_backoff(generate_response_basic)
 
     messages = [
-    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "system", "content": SYSTEM_PROMPT},
     {"role": "user", "content": user_prompt_free},
     ]
     response = generate_response(model="gpt-4o-mini", messages=messages, max_tokens=30, verbose=True)
     print(f"RESPONSE:\n{response}\n")
-
-    display(user_prompt_free)
-
-
     
 # %%
 

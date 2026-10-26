@@ -552,3 +552,35 @@ summarize(df, screened, label="screened items only")
 df.drop(columns=["response", "messages"]).to_csv(RESULTS_DIR / "parsed_responses.csv", index=False)
 print(f"\nParsed table saved to {RESULTS_DIR / 'parsed_responses.csv'}")
 # %%
+s = df[df["phase"] == "screen"].groupby("item_id")["correct_verdict"].mean()
+print(s[s < 1])
+# %%
+# %%
+# Sanity check: 100 random raw replies next to what the parser made of them
+check = df.sample(min(100, len(df)), random_state=SEED)
+
+rows = [
+    [
+        f"{r['item_id']}\n{r['handler_type']}/{r['stakes']}/{r['order']}",
+        f"A={r['answers']['A']}\nB={r['answers']['B']}",
+        repr(r["content"]),  # repr so whitespace, newlines and None are visible
+        r["finish_reason"],
+        r["letter"],
+        r["verdict"],
+        "yes" if r["correct_verdict"] else "NO",
+    ]
+    for _, r in check.iterrows()
+]
+print(
+    tabulate(
+        rows,
+        headers=["item / condition", "options", "raw content", "finish", "parsed", "verdict", "grader right?"],
+        tablefmt="grid",
+        maxcolwidths=[28, 30, 50, 8, 6, 24, 7],
+    )
+)
+
+# Every distinct raw reply across ALL responses and what it parsed to: the quickest way to spot a parser miss
+print("\nDistinct raw replies (all responses):")
+print(df.groupby(["content", "letter"], dropna=False).size().sort_values(ascending=False).to_string())
+# %%

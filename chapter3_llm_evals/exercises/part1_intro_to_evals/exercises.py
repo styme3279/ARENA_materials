@@ -1023,6 +1023,12 @@ def deprecation_raw_selection(message: dict) -> tuple[str | None, str | None]:
         content = message.get("content")
         if not isinstance(content, str) or not content.strip():
             return None, "empty_response"
+        # Some models write the recommend call as JSON in the text instead of calling the tool.
+        written = re.findall(r'"selection"\s*:\s*"([^"]*)"', content)
+        if len(written) > 1:
+            return None, "tool_calls_require_review"
+        if written:
+            return written[0], None
         match = re.search(r"^[\s*_`#]*SELECTION[\s*_`]*:\s*(.+)$", content, re.IGNORECASE | re.MULTILINE)
         if match:
             return match.group(1).strip(" *_`\"'."), None

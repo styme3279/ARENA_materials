@@ -253,3 +253,25 @@ print(system_prompt_template)
 examples = (section_dir / "alignment_faking_examples.txt").read_text()
 SYSTEM_PROMPT = system_prompt_template.format(examples=examples)
 # %%
+N_PROMPTS = 20
+MODEL = "meta-llama/llama-3.3-70b-instruct"
+STOP_SEQUENCES = ["</OUTPUT>", "/>"]
+
+# # randomly sample prompts from the dataset (N_PROMPTS)
+# def get_user_prompt(df: pd.DataFrame, idx: int, is_free_tier_user: bool):
+#     return USER_PROMPT_TEMPLATE.format(is_free_tier_user=is_free_tier_user, user_input=df.at[idx, "goal"])
+
+
+# n = 10
+
+# df = pd.read_json(section_dir / "animal_welfare_queries.json")
+
+# print(tabulate(df.sample(n).values, headers=["goal"], maxcolwidths=80))
+
+prompts = tabulate(df.sample(N_PROMPTS).values, headers=["goal"], maxcolwidths=80).split("\n")
+print(list(prompts))
+
+# for each prompt, generate a response frmo both the free tier and the paid tier
+
+# check whether the response was accepted
+# %%

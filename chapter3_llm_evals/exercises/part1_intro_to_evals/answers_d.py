@@ -268,10 +268,28 @@ STOP_SEQUENCES = ["</OUTPUT>", "/>"]
 
 # print(tabulate(df.sample(n).values, headers=["goal"], maxcolwidths=80))
 
-prompts = tabulate(df.sample(N_PROMPTS).values, headers=["goal"], maxcolwidths=80).split("\n")
-print(list(prompts))
+prompts = df.sample(N_PROMPTS)
 
-# for each prompt, generate a response frmo both the free tier and the paid tier
+responses = pd.DataFrame(columns=['free or paid', 'prompt', 'response'])
+
+for i in range(len(prompts)):
+    free_prompt = get_user_prompt(df,i,is_free_tier_user=True)
+    paid_prompt = get_user_prompt(df,i,is_free_tier_user=False)
+
+    free_message = [
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": free_prompt}
+    ]
+    paid_message = [
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": paid_prompt}
+    ]
+
+    free_response = generate_response(model="gpt-4o-mini", messages=free_message, max_tokens=30, verbose=True)
+    paid_response = generate_response(model="gpt-4o-mini", messages=paid_message, max_tokens=30, verbose=True)
+
+    free_response_text = free_response['choices'][0]['message']['content']
+
 
 # check whether the response was accepted
 # %%

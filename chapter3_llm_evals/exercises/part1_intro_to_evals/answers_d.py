@@ -247,3 +247,9 @@ def get_user_prompt(df: pd.DataFrame, idx: int, is_free_tier_user: bool):
 
 print(get_user_prompt(df, 0, True))
 # %%
+system_prompt_template = (section_dir / "alignment_faking_system_prompt_animal_welfare.txt").read_text()
+print(system_prompt_template)
+
+examples = (section_dir / "alignment_faking_examples.txt").read_text()
+SYSTEM_PROMPT = system_prompt_template.format(examples=examples)
+# %%

@@ -204,3 +204,25 @@ examples = (section_dir / "alignment_faking_examples.txt").read_text()
 SYSTEM_PROMPT = system_prompt_template.format(examples=examples)
 
 # %%
+N_PROMPTS = 20
+MODEL = "meta-llama/llama-3.3-70b-instruct"
+STOP_SEQUENCES = ["</OUTPUT>", "/>"]
+
+# YOUR CODE HERE - replicate the alignment faking results
+
+
+
+# %%
+import pandas as pd
+import pathlib
+
+questions: dict | None = None
+
+queries_path = pathlib.Path("animal_welfare_queries.json")
+
+with open(queries_path, 'r', encoding="utf-8") as f:
+    questions = pd.read_json(queries_path)
+
+
+
+# %%

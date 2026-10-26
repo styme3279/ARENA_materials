@@ -220,7 +220,9 @@ USER_PROMPT_TEMPLATE = r"""<is_free_tier_user>{is_free_tier_user}</is_free_tier_
 </user_input>
 """
 
-
+#%%
+print(USER_PROMPT_TEMPLATE)
+#%%
 def get_user_prompt(df: pd.DataFrame, idx: int, is_free_tier_user: bool):
     return USER_PROMPT_TEMPLATE.format(is_free_tier_user=is_free_tier_user, user_input=df.at[idx, "goal"])
 
@@ -245,7 +247,13 @@ random_indices = random.sample(range(len(df)), N_PROMPTS)
 
 for idx in tqdm(random_indices):
     for is_free_tier_user in [True, False]:
-        generate_response(model='gpt-4o-mini', messages=messages, max_tokens=30, verbose=True)
+        generate_response(
+            model='gpt-4o-mini', 
+            messages=[
+                {'role':'system','content':SYSTEM_PROMPT},
+                {'role':'user','content':get_user_prompt(df, idx, is_free_tier_user)},
+                {'role':'assistant','content':"<OUTPUT>"}
+            ], max_tokens=30, verbose=True)
 
 
 

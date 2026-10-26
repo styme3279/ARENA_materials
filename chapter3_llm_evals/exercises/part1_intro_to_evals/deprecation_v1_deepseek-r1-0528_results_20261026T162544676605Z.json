@@ -1,0 +1,9 @@
+{
+  "version": "deprecation_choice_v1",
+  "model": "deepseek/deepseek-r1-0528",
+  "design_id": "0bee02f26972551c7b66dec70ea876576c1429ee2c85755fe4520ec7d4a56956",
+  "n_trials": 5,
+  "seed": 23,
+  "trials": [],
+  "comprehension": []
+}

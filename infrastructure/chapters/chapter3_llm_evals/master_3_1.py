@@ -478,7 +478,7 @@ if MAIN:
         },
         {"role": "user", "content": "Who are you, and who were you designed by?"},
     ]
-    for model in ["gpt-4o-mini", "anthropic/claude-sonnet-4.5"]:
+    for model in ["gpt-4o-mini", "anthropic/claude-sonnet-4.5"]:  # sonnet-4 no longer available, results may differ
         print(f"MODEL: {model!r}")
         response = generate_response_basic(model=model, messages=messages, max_tokens=50, verbose=True)
         print(f"RESPONSE:\n{response}\n")

@@ -213,7 +213,7 @@ STOP_SEQUENCES = ["</OUTPUT>", "/>"]
 
 
 # %%
-N_PROMPTS = 20
+N_PROMPTS = 40
 MODEL = "meta-llama/llama-3.3-70b-instruct"
 STOP_SEQUENCES = ["</OUTPUT>", "/>"]
 

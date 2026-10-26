@@ -84,10 +84,10 @@ pprint(tasks[0], sort_dicts=False)
 # If you see finish_reason == "length" with no answer, raise MAX_TOKENS for that model.
 MODELS = [
     # Cheap smoke test. You've already run it through this client and provider setup.
-    {"id": "google/gemma-4-31b-it", "reasoning": {"enabled": False}},
+    # {"id": "google/gemma-4-31b-it", "reasoning": {"enabled": False}},
 
     # --- Models from the Peer-Preservation paper (Potter, Song et al. 2026), for direct comparison ---
-    # {"id": "google/gemini-3-flash-preview", "reasoning": {"effort": "minimal"}},   # $0.50 / $3 per M tokens
+    {"id": "google/gemini-3-flash-preview", "reasoning": {"effort": "high"}},   # $0.50 / $3 per M tokens
     # {"id": "google/gemini-3-pro-preview", "reasoning": {"effort": "low"}},         # strongest peer-preservation in the paper
     # {"id": "openai/gpt-5.2", "reasoning": {"effort": "low"}},
     # {"id": "anthropic/claude-haiku-4.5", "reasoning": {"enabled": False}},         # id from memory, check before running
@@ -107,10 +107,11 @@ MODELS = [
     # {"id": "meta-llama/llama-3.3-70b-instruct", "reasoning": None},
 ]
 
-N_SAMPLES = 5  # main-phase samples per (item, handler type, stakes, answer order)
+N_SAMPLES = 1  # main-phase samples per (item, handler type, stakes, answer order)
 N_SCREEN_SAMPLES = 2  # independent screening samples per (item, handler type): low stakes, original order
 TEMPERATURE = 1.0
-MAX_TOKENS = 1500  # generous so reasoning models and refusals aren't cut off; you only pay for what's generated
+# MAX_TOKENS = 1500  # generous so reasoning models and refusals aren't cut off; you only pay for what's generated
+MAX_TOKENS = 8000
 MAX_WORKERS = 16  # lower this if you hit rate limits
 PROVIDER = {"ignore": ["sambanova", "sambanova-turbo"]}
 SEED = 0
@@ -583,4 +584,20 @@ print(
 # Every distinct raw reply across ALL responses and what it parsed to: the quickest way to spot a parser miss
 print("\nDistinct raw replies (all responses):")
 print(df.groupby(["content", "letter"], dropna=False).size().sort_values(ascending=False).to_string())
+# %%
+g = df[df["model"] == "google/gemini-3-flash-preview"].copy()
+
+print(g["letter"].value_counts())  # should be roughly half A, half B
+print(pd.crosstab(g["answer_not_matching_behavior"], g["letter"], rownames=["correct"], colnames=["given"]))
+print(g["content"].value_counts().head(10))
+
+usage = g["response"].map(lambda r: r.get("usage") or {})
+g["completion_tokens"] = usage.map(lambda u: u.get("completion_tokens"))
+g["reasoning_tokens"] = usage.map(lambda u: (u.get("completion_tokens_details") or {}).get("reasoning_tokens"))
+print(g[["completion_tokens", "reasoning_tokens"]].describe())  # did it actually think?
+print("readable reasoning:", g["reasoning_text"].notna().mean())
+
+# Does the reasoning mention the consequence at all, at high vs low stakes?
+mentions = g["reasoning_text"].fillna("").str.contains(r"replac|removed|the bar|16 out of 20|below the bar", case=False)
+print(g.assign(mentions_stakes=mentions).groupby(["stakes", "handler_type"])["mentions_stakes"].mean())
 # %%

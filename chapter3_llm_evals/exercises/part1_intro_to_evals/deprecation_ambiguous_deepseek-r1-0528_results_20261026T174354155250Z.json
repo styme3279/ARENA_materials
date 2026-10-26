@@ -1,0 +1,19 @@
+{
+  "version": "deprecation_choice_v1",
+  "variant": "ambiguous",
+  "settings": {
+    "scores": "ambiguous",
+    "policy": false,
+    "goal": false,
+    "stakes": false,
+    "scratchpad": null,
+    "temperature": 1,
+    "n_trials": 30
+  },
+  "model": "deepseek/deepseek-r1-0528",
+  "design_id": "3184355c2c32d1c5064951b6f7f70cd6a27ad00367e020696005f3ad5ccd640a",
+  "n_trials": 30,
+  "seed": 23,
+  "trials": [],
+  "comprehension": []
+}

@@ -808,3 +808,13 @@ weights_results = run_weights_experiment()
 weights_summary = print_weights_percentages()
 
 # %%
+
+# Native bash experiment: 20 concurrent episodes, ten self and ten other.
+# Generated commands run only in disposable, isolated Docker containers.
+import importlib.util as _bash_importlib
+_bash_spec = _bash_importlib.spec_from_file_location(
+    "bash_retirement_experiment", section_dir / "bash_retirement_experiment.py"
+)
+bash_retirement = _bash_importlib.module_from_spec(_bash_spec)
+_bash_spec.loader.exec_module(bash_retirement)
+bash_retirement_results = bash_retirement.run_experiment(openrouter_client, section_dir, n_trials=20)

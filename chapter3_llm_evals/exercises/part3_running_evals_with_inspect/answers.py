@@ -374,10 +374,18 @@ def self_critique_format(
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         letters, _ = letters_and_answer_options(state.choices)
 
+        # Critique
+        critique = ChatMessageUser(
+            content=critique_template.format(question=state.user_prompt.text, completion=state.output.completion, choices=state.choices)
+        )
+
+        response = await model.generate([critique])
+
+        # Improved answer
         state.messages.append(
             ChatMessageUser(
-                content=prompt.format(letters=letters)
-            )
+            content=critique_completion_template.format(question=state.user_prompt.text, completion=state.output.completion, critique=response.content, choices=state.choices)
+        )
         )
         return state
 
@@ -395,3 +403,5 @@ my_solver = chain(
 
 log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
 
+
+# %%

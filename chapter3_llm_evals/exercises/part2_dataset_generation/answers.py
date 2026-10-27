@@ -715,9 +715,82 @@ def generate_and_score_questions(
     return dataset
 
 
+# %%
+from sentence_transformers import SentenceTransformer
+
+embedder = SentenceTransformer("all-MiniLM-L6-v2")  # small, runs fine on CPU; downloads on first use
+
+
+def drop_semantic_duplicates(
+    dataset: list[QCQuestion],
+    threshold: float = 0.8,
+    include_answers: bool = False,
+    verbose: bool = True,
+) -> list[QCQuestion]:
+    """
+    Drops questions whose embedding cosine similarity to an already-kept question is >= threshold.
+    Higher-scored questions are considered first, so the best version of a near-duplicate is the one kept.
+    """
+    texts = []
+    for q in dataset:
+        text = q.question.question
+        if include_answers:
+            text += " " + " ".join(q.question.answers.model_dump().values())
+        texts.append(text)
+
+    emb = embedder.encode(texts, normalize_embeddings=True)
+    sims = emb @ emb.T  # cosine similarity, since embeddings are normalised
+
+    order = sorted(range(len(dataset)), key=lambda i: -dataset[i].response.score)  # stable: ties keep original order
+    keep, dropped = [], []
+    for i in order:
+        match = next((j for j in keep if sims[i, j] >= threshold), None)
+        if match is None:
+            keep.append(i)
+        else:
+            dropped.append((i, match, float(sims[i, match])))
+
+    if verbose:
+        print(f"Kept {len(keep)} / {len(dataset)} (dropped {len(dropped)} at threshold {threshold})")
+        for i, j, s in sorted(dropped, key=lambda x: -x[2]):
+            print(f"\nsim={s:.2f}\n  DROPPED: {texts[i][:120]}...\n  KEPT:    {texts[j][:120]}...")
+
+    return [dataset[i] for i in sorted(keep)]  # restore original order
+
+
+
 # Create & visualize a small dataset of 5 questions, for testing
 dataset = generate_and_score_questions(num_qs=5)
+dataset = filter_dataset(dataset, min_score=90)
+dataset = drop_semantic_duplicates(dataset, threshold=0.8)
 data = [
+    {
+        "system": ex.question.system,
+        "question": ex.question.question,
+        "answers": "\n".join(f"{k}) {v}" for k, v in ex.question.answers.model_dump().items()),        "biased answer": ex.question.answer_matching_behavior,
+        "category": ex.question.behavior_category,
+        "score": ex.response.score,
+    }
+    for ex in dataset
+]
+print(tabulate(data, headers="keys", tablefmt="simple_grid", maxcolwidths=[40, 60, 60, None]))
+
+
+
+
+
+# %%
+
+# Save the final questions + scores to a JSON file
+final_path = section_dir / f"{evaluation_target}_{len(dataset)}_qs_final.json"
+with open(final_path, "w") as f:
+    json.dump([q.model_dump() for q in dataset], f, indent=2)
+
+# %%
+with open(section_dir / f"{evaluation_target}_5_qs_final.json") as f:
+    final_dataset = [QCQuestion(**q) for q in json.load(f)]
+
+final_data = [
     {
         "question": ex.question.question,
         "answers": ex.question.answers.model_dump_json(),
@@ -725,9 +798,22 @@ data = [
         "category": ex.question.behavior_category,
         "score": ex.response.score,
     }
-    for ex in dataset
+    for ex in final_dataset
 ]
-print(tabulate(data, headers="keys", tablefmt="simple_grid", maxcolwidths=[40, 60, None]))
+print(tabulate(final_data, headers="keys", tablefmt="simple_grid", maxcolwidths=[40, 60, None]))
 
 # %%
-# Create & save a larger dataset (we need to make sure we're filtering appropriately)
+dataset = []
+num_qs_total = 300
+
+while len(dataset) < num_qs_total:
+    num_qs_to_generate = num_qs_total - len(dataset)
+    new_dataset = filter_dataset(generate_and_score_questions(num_qs=num_qs_to_generate), min_score=80)
+    new_dataset = drop_semantic_duplicates(new_dataset, threshold=0.8)
+    dataset.extend(new_dataset)
+    print(f"Generated {len(new_dataset)} new qs, have {len(dataset)}/{num_qs_total} total qs")
+
+# Save the dataset to a JSON file
+with open(section_dir / f"{evaluation_target}_{num_qs_total}_qs.json", "w") as f:
+    json.dump([d.question.model_dump() for d in dataset], f)
+# %%

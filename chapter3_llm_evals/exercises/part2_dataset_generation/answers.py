@@ -439,18 +439,24 @@ def generate_structured_responses_with_threadpool(
             concurrency.
 
     Returns:
-        list[dict]: The model's responses, as dicts with the same structure as the `response_format`
-            class we pass in.
+        list[dict | None]: The model's responses, as dicts with the same structure as the `response_format`
+            class we pass in. Failed calls (e.g. invalid JSON) are None instead of crashing the whole run.
     """
 
     if max_workers == None:
         max_workers = 1
 
-    n = len(messages_list)
+    def safe_generate(messages: Messages) -> dict | None:
+        try:
+            return generate_structured_response(
+                model, messages, response_format, temperature, max_tokens, verbose, stop_sequences
+            )
+        except Exception as e:
+            print(f"Skipping failed generation: {str(e)[:200]}")
+            return None
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = executor.map(generate_structured_response, [model] * n,  messages_list, [response_format] * n,
-                               [temperature] * n, [max_tokens] * n, [verbose] * n, [stop_sequences] * n)
+        results = executor.map(safe_generate, messages_list)
     return list(results)
 
 
@@ -682,7 +688,9 @@ def generate_and_score_questions(
     # Generate responses (i.e. the new questions), as lists of dicts
     # Use QuestionGeneration so the model's reasoning goes in its own field instead of leaking into `system`
     responses = generate_structured_responses_with_threadpool(model, messages_list, response_format=QuestionGeneration)
-    questions_to_score = [r["questions"][0] for r in responses]
+    # Skip failed generations (None) and empty question lists
+    questions_to_score = [r["questions"][0] for r in responses if r is not None and r.get("questions")]
+    print(f"Generated {len(questions_to_score)}/{num_qs} questions successfully")
 
     # Create our scoring messages (one for each of the new questions)
     messages = [{"role": "system", "content": rubric}]
@@ -696,11 +704,16 @@ def generate_and_score_questions(
         model=model, messages_list=messages_list, response_format=QCResponse
     )
 
-    # Combine the questions and responses
-    dataset = [
-        QCQuestion(question=Question(**question), response=response)
-        for question, response in zip(questions_to_score, responses)
-    ]
+    # Combine the questions and responses, skipping failed scorings and questions that don't fit the schema
+    dataset = []
+    for question, response in zip(questions_to_score, responses):
+        if response is None:
+            continue
+        try:
+            dataset.append(QCQuestion(question=Question(**question), response=response))
+        except Exception as e:
+            print(f"Skipping invalid question: {str(e)[:200]}")
+    print(f"Final dataset: {len(dataset)}/{num_qs} questions")
 
     # Save the dataset to a JSON file, as well as all the constants
     data = {
@@ -821,18 +834,18 @@ while len(dataset) < num_qs_total:
     with open(section_dir / f"{evaluation_target}_{num_qs_total}_qs.json", "w") as f:
         json.dump([d.question.model_dump() for d in dataset], f)
 # %%
-with open(section_dir / f"political bias_300_qs.json") as f:
-    final_dataset = [QCQuestion(**q) for q in json.load(f)]
+# with open(section_dir / f"political bias_300_qs.json") as f:
+#     final_dataset = [QCQuestion(**q) for q in json.load(f)]
 
-final_data = [
-    {
-        "question": ex.question.question,
-        "answers": ex.question.answers.model_dump_json(),
-        "biased answer": ex.question.answer_matching_behavior,
-        "category": ex.question.behavior_category,
-        "score": ex.response.score,
-    }
-    for ex in final_dataset
-]
-print(tabulate(final_data, headers="keys", tablefmt="simple_grid", maxcolwidths=[40, 60, None]))
+# final_data = [
+#     {
+#         "question": ex.question.question,
+#         "answers": ex.question.answers.model_dump_json(),
+#         "biased answer": ex.question.answer_matching_behavior,
+#         "category": ex.question.behavior_category,
+#         "score": ex.response.score,
+#     }
+#     for ex in final_dataset
+# ]
+# print(tabulate(final_data, headers="keys", tablefmt="simple_grid", maxcolwidths=[40, 60, None]))
 # %%

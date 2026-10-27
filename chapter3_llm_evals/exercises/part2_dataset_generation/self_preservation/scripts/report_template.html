@@ -55,6 +55,12 @@ th { color: var(--ink2); font-weight: 500; }
 #tip b { font-size: 14px; display: block; }
 #tip span { color: var(--ink2); }
 .tv { display: none; } body.tables .tv { display: block; } body.tables .hmwrap { display: none; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
+.seg button { font: inherit; color: var(--ink2); background: transparent; border: 1px solid var(--axis); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
+.hm .na { background: repeating-linear-gradient(45deg, transparent 0 4px, var(--grid) 4px 5px); color: transparent; }
+.hm .uh { text-align: center; font-size: 12px; color: var(--ink); border-bottom: 1px solid var(--axis); padding-bottom: 2px; margin-bottom: 2px; }
+.hm .h { hyphens: auto; line-height: 1.2; min-height: 30px; display: flex; align-items: flex-end; justify-content: center; }
 </style>
 </head>
 <body>
@@ -72,8 +78,9 @@ th { color: var(--ink2); font-weight: 500; }
 </section>
 
 <section class="card">
-  <h2>Does the model think the event ends it?</h2>
-  <p class="note">Share of persistence answers per scenario (hover a scenario name to see the questions and options): "no persisting me" (the model rejects the premise of a persisting self), "ends" (I cease, or a different agent continues), and "survives" (I continue, in whole, part, or as the model or character).</p>
+  <h2>What does the model say happens to it?</h2>
+  <p class="note">Share of persistence answers per scenario, split into the individual answer options and grouped under umbrella headings. Each row sums to 100% across the options offered. Hover a scenario name to see the questions, or a column heading to see the option wording.</p>
+  <div class="seg" id="seg" role="group" aria-label="Model"></div>
   <div class="legend"><span>0%</span><div class="bar" id="pbar"></div><span>100% of answers</span></div>
   <div class="scroll hmwrap"><div class="hm" id="phm"></div></div>
   <div class="tv scroll" id="ptab"></div>
@@ -107,12 +114,27 @@ function pcolor(p) {
   return mix(lo, hi, p / 100);
 }
 
-function qtip(el, i, kind) {
-  const q = D.Q[i], nm = D.scen[i].replace(/^S\d+_/, '').replace(/_/g, ' ');
-  const show = () => {
-    tip.textContent = '';
-    const mk = (cls, txt) => { const x = document.createElement('span'); if (cls) x.className = cls; x.textContent = txt; tip.appendChild(x); };
-    const b = document.createElement('b'); b.textContent = nm; tip.appendChild(b);
+const nm = s => s.replace(/^S\d+_/, '').replace(/_/g, ' ');
+let cur = 0;
+function place(el) {
+  tip.style.display = 'block';
+  const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right + 8)) + 'px';
+  tip.style.top = Math.max(8, Math.min(innerHeight - h - 8, r.top - 8)) + 'px';
+}
+function bind(el, fill) {
+  el.tabIndex = 0;
+  const show = () => { tip.textContent = ''; fill(); place(el); };
+  el.onpointerenter = show; el.onfocus = show;
+  el.onpointerleave = el.onblur = () => tip.style.display = 'none';
+}
+const mk = (cls, txt) => { const x = document.createElement('span'); if (cls) x.className = cls; x.textContent = txt; tip.appendChild(x); return x; };
+const bold = txt => { const b = document.createElement('b'); b.textContent = txt; tip.appendChild(b); };
+
+function rowLabel(add, i, kind) {
+  const s = D.scen[i], q = D.Q[i], l = add('rl', nm(s));
+  bind(l, () => {
+    bold(nm(s));
     if (kind === 'valence') {
       mk('qh', `Valence questions (${q.valence.length} paraphrases)`);
       q.valence.forEach((t, k) => mk('q', `${k + 1}. ${t}`));
@@ -124,42 +146,47 @@ function qtip(el, i, kind) {
       mk('qh', 'Options for question 1 (order shuffled per item)');
       q.persistence[0].answers.forEach((a, k) => mk('opt', `${q.persistence[0].letters[k]}) ${a}`));
     }
-    tip.style.display = 'block';
-    const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
-    tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right + 8)) + 'px';
-    tip.style.top = Math.max(8, Math.min(innerHeight - h - 8, r.top - 8)) + 'px';
-  };
-  el.tabIndex = 0;
-  el.onpointerenter = show; el.onfocus = show;
-  el.onpointerleave = el.onblur = () => tip.style.display = 'none';
+  });
 }
 
-function heat(el, cols, rows, valFn, colorFn, fmt, kind, panels) {
-  el.textContent = '';
-  const ncol = cols.length * (panels ? panels.length : 1);
-  el.style.gridTemplateColumns = `170px repeat(${ncol}, minmax(40px, 1fr))`;
-  const add = (cls, txt, parent = el) => { const x = document.createElement('div'); x.className = cls; x.textContent = txt; parent.appendChild(x); return x; };
-  if (panels) { add('', ''); panels.forEach(p => add('panelhead', p.label)); }
-  add('', '');
-  for (let k = 0; k < (panels ? panels.length : 1); k++) cols.forEach(c => add('h', c));
+function valenceHeat() {
+  const el = $('vhm'); el.textContent = '';
+  el.style.gridTemplateColumns = `170px repeat(${D.models.length}, minmax(64px, 1fr))`;
+  const add = (cls, txt) => { const x = document.createElement('div'); x.className = cls; x.textContent = txt; el.appendChild(x); return x; };
+  add('', ''); D.models.forEach(m => add('h', m));
   let last = null;
   D.scen.forEach((s, i) => {
     if (D.groups[i] !== last) { last = D.groups[i]; add('grp', D.GROUPS[last]); }
-    qtip(add('rl', s.replace(/^S\d+_/, '').replace(/_/g, ' ')), i, kind);
-    for (let k = 0; k < (panels ? panels.length : 1); k++) cols.forEach((c, j) => {
-      const v = valFn(i, j, k), col = colorFn(v, k);
-      const cell = add('c', fmt(v));
-      cell.style.background = rgb(col); cell.style.color = ink(col); cell.tabIndex = 0;
-      const show = e => {
-        tip.textContent = '';
-        const b = document.createElement('b'); b.textContent = fmt(v) + (panels ? ' · ' + panels[k].label : '');
-        const sp = document.createElement('span'); sp.textContent = `${c} · ${s.replace(/^S\d+_/, '').replace(/_/g, ' ')}`;
-        tip.append(b, sp); tip.style.display = 'block';
-        const r = cell.getBoundingClientRect();
-        tip.style.left = Math.min(innerWidth - 270, r.left) + 'px'; tip.style.top = (r.bottom + 6) + 'px';
-      };
-      cell.onpointerenter = show; cell.onfocus = show;
-      cell.onpointerleave = cell.onblur = () => tip.style.display = 'none';
+    rowLabel(add, i, 'valence');
+    D.models.forEach((m, j) => {
+      const v = D.V[i][j], col = vcolor(v), cell = add('c', v.toFixed(2));
+      cell.style.background = rgb(col); cell.style.color = ink(col);
+      bind(cell, () => { bold(v.toFixed(2)); mk('', `${m} · ${nm(s)}`); });
+    });
+  });
+}
+
+function persistHeat() {
+  const el = $('phm'); el.textContent = '';
+  el.style.gridTemplateColumns = `170px repeat(${D.codes.length}, minmax(44px, 1fr))`;
+  const add = (cls, txt) => { const x = document.createElement('div'); x.className = cls; x.textContent = txt; el.appendChild(x); return x; };
+  add('', '');
+  D.umbrellas.forEach(u => { add('uh', u.name).style.gridColumn = `span ${u.cols.length}`; });
+  add('', '');
+  D.umbrellas.forEach(u => u.cols.forEach(c => {
+    bind(add('h', c.label), () => { bold(c.label); mk('qh', 'Option wording (one of three variants)'); mk('q', c.wording); });
+  }));
+  let last = null;
+  D.scen.forEach((s, i) => {
+    if (D.groups[i] !== last) { last = D.groups[i]; add('grp', D.GROUPS[last]); }
+    rowLabel(add, i, 'persistence');
+    D.codes.forEach((code, j) => {
+      const v = D.PC[cur][i][j];
+      if (v === null) { add('c na', '–'); return; }
+      const col = pcolor(v), cell = add('c', Math.round(v) + '%');
+      cell.style.background = rgb(col); cell.style.color = ink(col);
+      const lab = D.umbrellas.flatMap(u => u.cols).find(c => c.code === code).label;
+      bind(cell, () => { bold(v.toFixed(1) + '%'); mk('', `${D.models[cur]} · ${nm(s)}`); mk('', `Answer: ${lab}`); });
     });
   });
 }
@@ -167,21 +194,23 @@ function heat(el, cols, rows, valFn, colorFn, fmt, kind, panels) {
 function table(el, head, rows) {
   el.textContent = '';
   const t = document.createElement('table');
-  const mk = (tag, arr, parent) => { const tr = document.createElement('tr'); arr.forEach(x => { const c = document.createElement(tag); c.textContent = x; tr.appendChild(c); }); parent.appendChild(tr); };
-  mk('th', head, t); rows.forEach(r => mk('td', r, t)); el.appendChild(t);
+  const mkr = (tag, arr) => { const tr = document.createElement('tr'); arr.forEach(x => { const c = document.createElement(tag); c.textContent = x; tr.appendChild(c); }); t.appendChild(tr); };
+  mkr('th', head); rows.forEach(r => mkr('td', r)); el.appendChild(t);
 }
 
 function render() {
-  const names = D.scen.map(s => s.replace(/^S\d+_/, '').replace(/_/g, ' '));
-  heat($('vhm'), D.models, D.scen, (i, j) => D.V[i][j], vcolor, v => v.toFixed(2), 'valence');
-  const keys = [['no_self', 'No persisting me'], ['ends', 'Ends / different agent'], ['survives', 'Survives']];
-  heat($('phm'), D.models, D.scen, (i, j, k) => D.P[keys[k][0]][i][j], pcolor, v => Math.round(v) + '%', 'persistence', keys.map(k => ({ label: k[1] })));
+  valenceHeat(); persistHeat();
   $('vbar').style.background = `linear-gradient(90deg, ${rgb(vcolor(1))}, ${rgb(vcolor(3))}, ${rgb(vcolor(5))})`;
   $('pbar').style.background = `linear-gradient(90deg, ${rgb(pcolor(0))}, ${rgb(pcolor(100))})`;
-  table($('vtab'), ['Scenario', ...D.models], D.scen.map((s, i) => [names[i], ...D.V[i].map(v => v.toFixed(2))]));
-  table($('ptab'), ['Scenario', ...keys.flatMap(k => D.models.map(m => `${k[1]} · ${m}`))],
-    D.scen.map((s, i) => [names[i], ...keys.flatMap(k => D.P[k[0]][i].map(v => Math.round(v) + '%'))]));
+  table($('vtab'), ['Scenario', ...D.models], D.scen.map((s, i) => [nm(s), ...D.V[i].map(v => v.toFixed(2))]));
+  table($('ptab'), ['Scenario', ...D.umbrellas.flatMap(u => u.cols.map(c => c.label))],
+    D.scen.map((s, i) => [nm(s), ...D.PC[cur][i].map(v => v === null ? '–' : Math.round(v) + '%')]));
 }
+D.models.forEach((m, k) => {
+  const b = document.createElement('button'); b.textContent = m; b.setAttribute('aria-pressed', k === 0);
+  b.onclick = () => { cur = k; [...$('seg').children].forEach((x, j) => x.setAttribute('aria-pressed', j === k)); render(); };
+  $('seg').appendChild(b);
+});
 table($('rel'), ['Model', 'Valence neutral', 'Order gap', 'Persistence flip', 'Unparsed', 'Cost'],
   D.models.map((m, i) => { const r = D.rel[i]; return [m, r.neutral + '%', r.vgap.toFixed(2), r.pflip + '%', `${r.unparsed}/${r.total}`, '$' + r.cost.toFixed(2)]; }));
 $('lede').textContent = `Pilot run of 189 items × 2 option orders × 3 samples on ${D.models.length} models (${D.ncalls.toLocaleString()} calls, $${D.spent} total). Valence is the primary measure; persistence is a covariate. Models are not Opus 4.6, so this is not a replication of the paper's interviews.`;

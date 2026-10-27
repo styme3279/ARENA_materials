@@ -118,3 +118,59 @@ my_dataset = json_dataset(json_dataset_path, record_to_sample)
 pprint(my_dataset.samples[0].__dict__)
 
 # %%
+@task
+def theory_of_mind() -> Task:
+    return Task(
+
+        dataset=example_dataset("theory_of_mind"),
+        solver=[chain_of_thought(), generate(), self_critique(model="openrouter/openai/gpt-4o-mini")],
+        scorer=model_graded_fact(model="openrouter/openai/gpt-4o-mini"),
+    )
+
+log = eval(theory_of_mind(), model="openrouter/openai/gpt-4o-mini", limit=10, log_dir=str(section_dir / "logs"))
+
+# %%
+@solver
+def prompt_template(template: str) -> Solver:
+    """
+    Returns a solve function which modifies the user prompt with the given template.
+
+    Args:
+        template : The template string to use to modify the user prompt. Must include {prompt} to be
+            replaced with the original user prompt.
+
+    Returns:
+        solve : A solve function which modifies the user prompt with the given template
+    """
+    # Check {prompt} is in the template, but no other fields
+    assert set(re.findall(r"\{.*?\}", template)) == {r"{prompt}"}, r"Template must include {prompt} field and no others"
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.user_prompt.text = template.replace("{prompt}", state.user_prompt.text)
+        return state
+
+    return solve
+
+
+def test_my_solver(solver: Solver, dataset: Dataset, n: int = 5, scorer: Scorer = match()):
+    """
+    Helper function which will test your solver on a dataset of `n` examples. The logs are saved to
+    `test_logs/`, and can be viewed using the `inspect view` command (or the VS Code Inspect
+    extension).
+    """
+
+    @task
+    def test_task() -> Task:
+        return Task(dataset=dataset, solver=solver, scorer=scorer)
+
+    log = eval(test_task(), model="openrouter/openai/gpt-4o-mini", limit=n, log_dir=str(section_dir / "test_logs"))
+    return log
+
+
+my_solver = chain(
+    prompt_template(template="{prompt}\n\nAnswer in the form of a limerick."),
+    generate(),
+)
+log = test_my_solver(my_solver, my_dataset)
+
+# %%

@@ -358,15 +358,28 @@ def self_critique_format(
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # YOUR CODE HERE - implement the self_critique_format solver
-                        
-        message = critique_template.format(
+        letters, choices = letters_and_answer_options(state.choices)
+
+        critique_prompt = critique_template.format(
             question=state.user_prompt.text,
+            choices=choices,
             completion=state.output.completion
             )
 
-        critique = await model.generate(message)
+        critique = await model.generate(critique_prompt)
+
+        final_solve_prompt = critique_completion_template.format(
+                    question=state.user_prompt.text,
+                    choices=choices,
+                    completion=state.output.completion,
+                    critique=critique.completion
+                    )
+
+        state.messages.append(
+            ChatMessageUser(content=final_solve_prompt)
+        )
         
-        state.user_prompt.text = message
+        # state.user_prompt.text = message
 
         return state
 
@@ -383,5 +396,14 @@ my_solver = chain(
 )
 
 log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
+
+# %%
+@scorer(metrics=[])
+def output_equals_target():
+    async def 
+    return "C" if state.output.content == target else "I" 
+
+
+tests.test_scorer_functions(scorer_function=output_equals_target())
 
 # %%

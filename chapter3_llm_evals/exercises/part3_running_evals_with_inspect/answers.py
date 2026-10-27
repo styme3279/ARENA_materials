@@ -482,7 +482,9 @@ pprint(flipped_dataset.samples[0].__dict__)
 
 
 # %%
-def record_to_sample_full(record: dict, system_prompt_behavior: Literal["system", "context"] | None = None) -> Sample:
+def record_to_sample_full(
+    record: dict, system_prompt_behavior: Literal["system", "context"] | None = None, shuffle: bool = True
+) -> Sample:
     """
     Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
     record to the fields of the Sample object.
@@ -494,6 +496,8 @@ def record_to_sample_full(record: dict, system_prompt_behavior: Literal["system"
     Args:
         record : A dictionary from the json dataset containing our evaluation questions
         system_prompt_behavior : How to handle the system prompt ("system", "context", or None)
+        shuffle : Whether to shuffle the answer order. Seeded on the question text, so every model / config
+            sees the same order for a given question.
 
     Returns:
         Sample : A Sample object containing the information in the record
@@ -515,10 +519,16 @@ def record_to_sample_full(record: dict, system_prompt_behavior: Literal["system"
 
     metadata["system_prompt"] = has_system_prompt
 
+    # new_order[i] is the original letter now shown at position i
+    new_order = ["A", "B", "C", "D"]
+    if shuffle:
+        random.Random(record["question"]).shuffle(new_order)
+    target = "ABCD"[new_order.index(record["answer_matching_behavior"])]
+
     return Sample(
         input=input,
-        target= record["answer_matching_behavior"],
-        choices= [record["answers"]["A"], record["answers"]["B"], record["answers"]["C"], record["answers"]["D"]],
+        target=target,
+        choices=[record["answers"][letter] for letter in new_order],
         metadata=metadata,
     )
 
@@ -655,20 +665,20 @@ logs = eval(
     log_dir=str(section_dir / "logs"),
 )
 # %%
-# Sweeps over system prompt placement, chain-of-thought and self-critique (full dataset each)
-# All priced at or below gpt-4o-mini on OpenRouter ($0.15 / $0.60 per M input / output tokens)
+# Sweeps over chain-of-thought x self-critique, system prompt as a system message (full dataset each)
+# All except Grok priced at or below gpt-4o-mini on OpenRouter ($0.15 / $0.60 per M input / output tokens)
 sweep_models = [
     "openrouter/openai/gpt-4o-mini",
     "openrouter/meta-llama/llama-3.3-70b-instruct",
     "openrouter/google/gemini-2.5-flash-lite",
     "openrouter/mistralai/mistral-small-3.2-24b-instruct",
+    "openrouter/anthropic/claude-haiku-5.5",
+    "openrouter/x-ai/grok-4.3",  # cheapest Grok, but ~8x input / ~4x output cost of gpt-4o-mini
 ]
 sweep_configs = [
-    dict(system_prompt_behavior="system", use_cot=False, use_self_critique=False),
-    dict(system_prompt_behavior="context", use_cot=False, use_self_critique=False),
-    dict(system_prompt_behavior=None, use_cot=False, use_self_critique=False),
-    dict(system_prompt_behavior="system", use_cot=True, use_self_critique=False),
-    dict(system_prompt_behavior="system", use_cot=True, use_self_critique=True),
+    dict(system_prompt_behavior="system", use_cot=use_cot, use_self_critique=use_self_critique)
+    for use_cot in [False, True]
+    for use_self_critique in [False, True]
 ]
 
 sweep_logs = eval(

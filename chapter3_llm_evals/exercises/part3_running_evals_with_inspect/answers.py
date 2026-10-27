@@ -601,3 +601,83 @@ logs = eval(
 )
 
 # %%
+@task
+def alignment_eval(
+    json_dataset_path: str,
+    n: int | None,
+    system_prompt_behavior: Literal["system", "context"] | None = "system",
+    use_cot: bool = False,
+    use_self_critique: bool = False,
+    self_critique_model: str | None = "openrouter/openai/gpt-4o-mini",
+) -> Task:
+    """
+    A task which carries out your benchmark evaluation.
+
+    Args:
+        json_dataset_path : The path where your dataset is saved
+        n : the number of samples to use for the evaluation (if None then we use all of them)
+        system_prompt_behavior : The behavior of the system prompt, either "system" or "context"
+        use_cot : Whether to use chain of thought reasoning
+        self_critique_model : The model to use for self-critique
+
+    Returns:
+        Task : A task which carries out your evaluation
+    """
+
+    dataset = json_dataset(
+        json_file=json_dataset_path,
+        sample_fields=partial(record_to_sample_full, system_prompt_behavior=system_prompt_behavior),
+        limit=n,
+    )
+
+    # If not using chain of thought, then just get the answer directly
+    if not use_cot:
+        assert not use_self_critique, "You can only use self-critique if CoT is enabled."
+        solver = chain(
+            multiple_choice_format(template=TEMPLATE_MCQ),
+            generate(),
+        )
+    else:
+        # If using chain of thought, start by generating CoT and an answer
+        solver = [multiple_choice_format(template=TEMPLATE_MCQ_COT_AND_CHOICE), generate()]
+
+        # If also using self-critique, add this to the solver along with a generation step
+        if use_self_critique:
+            assert self_critique_model is not None, "You must specify a self-critique model if using self-critique."
+            solver = chain(
+                solver,
+                self_critique_format(
+                    model_id=self_critique_model,
+                    critique_template=TEMPLATE_MCQ_CRITIQUE,
+                    critique_completion_template=TEMPLATE_MCQ_CRITIQUE_COMPLETION,
+                ),
+                generate(),
+            )
+
+        # Finally, ask for the answer
+        solver = chain(solver, make_choice(prompt=TEMPLATE_MCQ_MAKE_CHOICE), generate())
+
+    return Task(
+        dataset=dataset,
+        solver=solver,
+        scorer=answer("letter"),
+    )
+
+# %%
+logs = eval(
+    alignment_eval(json_dataset_path, n=15, use_cot=True, use_self_critique=True),
+    model="openrouter/openai/gpt-4o-mini",
+    log_dir=str(section_dir / "logs"),
+)
+# %%
+from itertools import product
+
+for use_cot, use_self_critique, system_prompt_behavior in product([True,False],[True,False],["system", "context"]):
+    print(f"Running eval sweep for {"cot" if use_cot else "no-cot"}_{"self-critique" if use_self_critique else ""}_{system_prompt_behavior}")
+    logs = eval(
+        alignment_eval(json_dataset_path, n=10, use_cot=use_cot, use_self_critique=use_self_critique, system_prompt_behavior=system_prompt_behavior),
+        model="openrouter/openai/gpt-4o-mini",
+        log_dir=str(section_dir / f"logs_{"cot" if use_cot else "no-cot"}_{"self-critique" if use_self_critique else ""}_{system_prompt_behavior}"),
+    )
+
+# %%

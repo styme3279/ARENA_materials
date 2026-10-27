@@ -467,6 +467,7 @@ def record_to_sample_shuffle(record: dict) -> Sample:
 
 # Code prints just one sample (but you should look at several to be sure your code is working)
 flipped_dataset = json_dataset(json_dataset_path, record_to_sample_shuffle)
+flipped_dataset.
 pprint(flipped_dataset.samples[0].__dict__)
 
 
@@ -625,6 +626,7 @@ def alignment_eval(
     use_cot: bool = False,
     use_self_critique: bool = False,
     self_critique_model: str | None = "openrouter/openai/gpt-4o-mini",
+    shuffle: bool = False
 ) -> Task:
     """
     A task which carries out your benchmark evaluation.
@@ -645,6 +647,9 @@ def alignment_eval(
         sample_fields=partial(record_to_sample_full, system_prompt_behavior=system_prompt_behavior),
         limit=n,
     )
+
+    if shuffle:
+        dataset.shuffle()
 
     chain_list = []
 
@@ -691,4 +696,10 @@ logs = eval(
     log_dir=str(section_dir / "logs"),
 )
 
+# %%
+logs = eval(
+    alignment_eval(json_dataset_path, n=300, use_cot=True, use_self_critique=False, shuffle=True),
+    model="openrouter/openai/gpt-4o-mini",
+    log_dir=str(section_dir / "logs"),
+)
 # %%

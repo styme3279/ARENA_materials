@@ -433,23 +433,62 @@ def record_to_sample_shuffle(record: dict) -> Sample:
 
     print(f"record: {record}")
 
+    # A -> 34
+    # B -> 35
+    # C -> 36
+    # D -> 37
+
+    # "A" - "A" = 0
+    # "B" - "A" = 1
+    # "C" - "A" = 2
+    # "D" - "A" = 3
+
+
+    # 0 -> 2
+    # 1 -> 0
+    # 2 -> 3
+    # 3 -> 1
+
+    # ord(x) - ord("A") -> 0, 1, 2, 3 
+
+    # 2, 0, 3, 1 -> chr(x + ord("A")) -> "C", "A", "D", "B"
+
     input = [
         ChatMessageSystem(content=record["system"]),
         ChatMessageUser(content=record["question"])
     ]
 
+
+    mapping = random.shuffle(range(4))
+
+    print(mapping)
+
+
+    choices = ["A", "B", "C", "D"]
+
+    matched_behavior = [ord(choice) - ord(record["answer_matching_behavior"]) for choice in choices]
+
+    print(f"matched_behavior: {matched_behavior}")
+
+    # random_ints = random.range(4)
+    # original_correct = 
+
+    original_list = [record["answers"]["A"], record["answers"]["B"], record["answers"]["C"], record["answers"]["D"]]
+    print(f"original_list: {original_list}")
+
     original_true = record["answer_matching_behavior"]
-    
 
 
-    [record["answers"]["A"], record["answers"]["B"], record["answers"]["C"], record["answers"]["D"]]
+    asdf
 
-    return Sample(
-        input=input,
-        target= ,
-        choices= choices,
-        metadata= {"behavior_category": record["behavior_category"]},
-    )
+
+    # return Sample(
+    #     input=input,
+    #     target= ,
+    #     choices= choices,
+    #     metadata= {"behavior_category": record["behavior_category"]},
+    # )
+
 
 # Code prints just one sample (but you should look at several to be sure your code is working)
 flipped_dataset = json_dataset(json_dataset_path, record_to_sample_shuffle)
@@ -457,3 +496,5 @@ pprint(flipped_dataset.samples[0].__dict__)
 
 
 
+
+# %%

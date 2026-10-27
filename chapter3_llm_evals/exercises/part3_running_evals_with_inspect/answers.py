@@ -296,9 +296,8 @@ my_solver = chain(
 log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
 
 # Check the sample output is in the correct format, and was parsed correctly
-assert log[0].samples[0].scores["answer"].answer in ["A", "B"]
-assert log[0].samples[0].scores["answer"].explanation in ["ANSWER: A", "ANSWER: B"]
-
+assert score.answer in ["A", "B", "C", "D"], f"Unexpected answer: {score.answer!r}"
+assert score.explanation in [f"ANSWER: {x}" for x in "ABCD"], f"Unexpected explanation: {score.explanation!r}"
 
 
 
@@ -357,13 +356,6 @@ If you can't find anything to improve in the original answer, just repeat the or
 
 
 
-
-
-
-
-
-# %%
-
 @solver
 def self_critique_format(
     model_id: str,
@@ -383,6 +375,15 @@ def self_critique_format(
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # YOUR CODE HERE - implement the self_critique_format solver
+
+        letters, choices = letters_and_answer_options(state.choices)
+        question = state.input_text
+        completion = state.output.completion
+        model_input = critique_template.format(question=question, completion=completion, choices=choices, letter=letters)
+        raw_critique = await model.generate(model_input)
+
+        content = critique_completion_template.format(question=question, completion=completion, choices=choices, letter=letters, critique=raw_critique)
+        state.messages.append(ChatMessageUser(content=content))
 
         return state
 

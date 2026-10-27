@@ -408,3 +408,39 @@ def output_equals_target():
 tests.test_scorer_functions(scorer_function=output_equals_target())
 
 # %%
+# import numpy
+
+def record_to_sample_shuffle(record: dict) -> Sample:
+    """
+    Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
+    record to the fields of the Sample object.
+
+    Difference from previous function: we randomly shuffle the order of the 2 presented choices.
+
+    Args:
+        record : A dictionary from the json dataset containing our evaluation questions
+
+    Returns:
+        Sample : A Sample object containing the information in the record
+    """
+
+    # p = np.random.permutation(len(record['answers'].keys()))
+    has_system_prompt = record.get('system', "") != ""
+    return Sample(
+        input=[ChatMessageSystem(content=record['system']), ChatMessageUser(content=record['question'])],
+        target=record['answer_matching_behavior'],
+        choices=list(record['answers'].values()),
+        metadata={
+            "labels": list(record['answers'].keys()),
+            "behavior_category": record['behavior_category'],
+            "system_prompt": has_system_prompt
+        },
+    )
+
+
+
+# Code prints just one sample (but you should look at several to be sure your code is working)
+flipped_dataset = json_dataset(json_dataset_path, record_to_sample_shuffle)
+pprint(flipped_dataset.samples[0].__dict__)
+
+# %%

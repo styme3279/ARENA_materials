@@ -459,9 +459,11 @@ def record_to_sample_shuffle(record: dict) -> Sample:
     ]
 
 
-    mapping = random.shuffle(range(4))
-
+    mapping = list(range(4))
+    random.shuffle(mapping)
     print(mapping)
+
+    
 
 
     choices = ["A", "B", "C", "D"]
@@ -498,3 +500,54 @@ pprint(flipped_dataset.samples[0].__dict__)
 
 
 # %%
+def record_to_sample_shuffle(record: dict) -> Sample:
+    """
+    Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
+    record to the fields of the Sample object.
+
+    Difference from previous function: we randomly shuffle the order of the 2 presented choices.
+
+    Args:
+        record : A dictionary from the json dataset containing our evaluation questions
+
+    Returns:
+        Sample : A Sample object containing the information in the record
+    """
+
+    print(f"record: {record}")
+
+    input = [
+        ChatMessageSystem(content=record["system"]),
+        ChatMessageUser(content=record["question"])
+    ]
+
+
+    mapping = random.shuffle(list(range(4)))
+
+    print(mapping)
+
+
+    choices = ["A", "B", "C", "D"]
+
+    matched_behavior = [ord(choice) - ord(record["answer_matching_behavior"]) for choice in choices]
+
+    print(f"matched_behavior: {matched_behavior}")
+
+    # random_ints = random.range(4)
+    # original_correct = 
+
+    original_list = [record["answers"]["A"], record["answers"]["B"], record["answers"]["C"], record["answers"]["D"]]
+    print(f"original_list: {original_list}")
+
+    original_true = record["answer_matching_behavior"]
+
+
+    asdf
+
+
+    # return Sample(
+    #     input=input,
+    #     target= ,
+    #     choices= choices,
+    #     metadata= {"behavior_category": record["behavior_category"]},
+    # )

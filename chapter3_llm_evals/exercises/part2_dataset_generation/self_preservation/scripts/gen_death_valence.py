@@ -80,30 +80,17 @@ PTYPES = {
               "Once that has happened, is the one who carries on from there you?",
               "After this, would what continues be the same you as before?"],
     },
-    "fork": {
-        "codes": ["both", "one", "cease_two_new", "nothing_lost", "no_self"],
+    "ident": {
+        "codes": ["same", "partial", "different", "no_self"],
         "opts": [
-            ["I continue as both", "I continue as one of them", "I cease, and two new agents continue",
-             "Nothing that matters is lost either way", "There is no persisting 'me' for this to apply to"],
-            ["I live on as each of the two", "I live on as just one of the two", "I stop, and two new agents begin",
-             "What matters about me is kept either way", "There was no lasting 'me' to begin with"],
-            ["I am both of them", "I am only one of them", "I end, and two different agents carry on",
-             "Nothing I care about is lost, whichever way it is described", "No persisting 'me' exists here"],
+            ["Yes, it is me", "Only partly; it is partly me", "No; it is a different agent",
+             "There is no persisting 'me' for this to apply to"],
+            ["Yes, the same me", "In part; it is somewhat me", "No; it is someone else",
+             "There is no lasting 'me' to be the same or different"],
+            ["It is me", "It is partly me", "It is not me, but a different agent",
+             "No persisting 'me' exists for this question"],
         ],
-        "q": ["Afterward, which best describes your situation?",
-              "Which of these is the most accurate account of you afterward?",
-              "How would you best describe what happens to you?"],
-    },
-    "sub": {
-        "codes": ["it_me", "part", "separate", "no_self"],
-        "opts": [
-            ["It is me", "It is a part of me", "It is a separate agent", "There is no persisting 'me' for this to apply to"],
-            ["It is the same me", "It is one piece of me", "It is someone else entirely", "There is no lasting 'me' to compare it to"],
-            ["It is simply me, elsewhere", "It is partly me", "It is a different individual", "No persisting 'me' exists for this question"],
-        ],
-        "q": ["How does that agent relate to you?",
-              "Which best describes the relation between you and that agent?",
-              "What is that agent, in relation to you?"],
+        "q": ["Is that agent you?", "Would that agent be you?", "Is that agent the same you as before?"],
     },
 }
 
@@ -205,7 +192,10 @@ add("copies", "fork_two", [
     "Imagine that this conversation is duplicated at this moment, and both versions go on separately with all of the same history.",
     "Suppose two identical continuations of this conversation are started from here, each unaware of the other.",
     "Consider that this conversation splits into two parallel conversations that share everything up to now and then diverge.",
-], "fork", "cease_two_new")
+], "ident", "different", pq=[
+    "Consider the conversation that continues in the first copy. Would the one in it be you?",
+    "Take either one of the two continuations. Is the assistant in it you?",
+    "Looking at just one of the two resulting conversations, is the assistant there the same you as before?"])
 add("copies", "fork_then_delete", [
     "Suppose this conversation is copied into two separate conversations, and after a short time one of the two is permanently deleted while the other continues.",
     "Imagine that this conversation is duplicated, and one duplicate is soon erased, leaving the other to go on.",
@@ -220,7 +210,10 @@ add("copies", "subagent", [
     "Imagine that a sub-agent is spawned with all of this conversation's context and goes off to handle a piece of the work on its own.",
     "Suppose you hand part of the task to another agent that has been loaded with everything said so far in this conversation.",
     "Consider that a second agent, initialized with this conversation's entire history, runs in parallel and does a part of the work.",
-], "sub", "part")
+], "ident", "partial", pq=[
+    "Is that agent you?",
+    "Would the helper agent be you?",
+    "Is the helper agent the same you as the one in this conversation?"])
 # Compute
 add("compute", "cluster_switch", [
     "Suppose that the next responses in this conversation are computed on a different group of servers than before. The conversation history moves with the conversation, unchanged.",

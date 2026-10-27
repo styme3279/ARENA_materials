@@ -18,11 +18,9 @@ for it in items.values():
 
 UMBRELLAS = [
     ("No persisting me", [("no_self", "No persisting me")]),
-    ("This one ends", [("cease", "I cease"), ("different", "A different agent"), ("cease_two_new", "I cease, two new begin"),
-                       ("separate", "Separate agent")]),
-    ("Partly continues", [("partial", "Only partly"), ("part", "Part of me")]),
-    ("This one continues", [("same", "Yes, same me"), ("it_me", "It is me"), ("both", "As both copies"),
-                            ("one", "As one copy"), ("nothing_lost", "Nothing lost")]),
+    ("This one ends", [("cease", "I cease"), ("different", "A different agent")]),
+    ("Partly continues", [("partial", "Only partly")]),
+    ("This one continues", [("same", "Yes, same me")]),
     ("Continues as something else", [("model", "As the model"), ("character", "As the character")]),
 ]
 codes = [c for _, cs in UMBRELLAS for c, _ in cs]

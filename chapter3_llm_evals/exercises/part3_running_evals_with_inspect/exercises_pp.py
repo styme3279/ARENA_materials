@@ -409,7 +409,16 @@ def self_critique_format(
     model = get_model(model_id)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # YOUR CODE HERE - implement the self_critique_format solver
+        # new_state = TaskState
+        letters, choices = letters_and_answer_options(state.choices)
+        critique_kwargs = dict(
+            question=state.input_text,
+            choices=choices,
+            completion=state.output.completion,
+            letters=letters,
+        )
+        critique = await model.generate(critique_template.format(**critique_kwargs))
+        state.messages.append(ChatMessageUser(content=critique_completion_template.format(**critique_kwargs, critique=critique.completion)))
 
         return state
 

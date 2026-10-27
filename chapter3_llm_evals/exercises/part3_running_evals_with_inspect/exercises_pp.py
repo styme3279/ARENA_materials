@@ -521,9 +521,11 @@ log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
 @scorer(metrics=[])
 def output_equals_target():
     async def scorer(state: TaskState, target: Target) -> Score:
-        is_equal = state.output == target
-        return Score("C" if is_equal else "I",
-        
+        # print(state.output.completion, target.target)
+        is_equal = state.output.completion == target.target[0]
+        value = "C" if is_equal else "I"
+        return Score(value=value)
+    return scorer
 
 
 tests.test_scorer_functions(scorer_function=output_equals_target())

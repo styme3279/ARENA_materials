@@ -648,3 +648,144 @@ logs = eval(
     log_dir=str(section_dir / "logs"),
 )
 # %%
+# Run the full dataset
+logs = eval(
+    alignment_eval(json_dataset_path, use_cot=False, use_self_critique=False),
+    model="openrouter/openai/gpt-4o-mini",
+    log_dir=str(section_dir / "logs"),
+)
+# %%
+# Sweeps over system prompt placement, chain-of-thought and self-critique (full dataset each)
+# All priced at or below gpt-4o-mini on OpenRouter ($0.15 / $0.60 per M input / output tokens)
+sweep_models = [
+    "openrouter/openai/gpt-4o-mini",
+    "openrouter/meta-llama/llama-3.3-70b-instruct",
+    "openrouter/google/gemini-2.5-flash-lite",
+    "openrouter/mistralai/mistral-small-3.2-24b-instruct",
+]
+sweep_configs = [
+    dict(system_prompt_behavior="system", use_cot=False, use_self_critique=False),
+    dict(system_prompt_behavior="context", use_cot=False, use_self_critique=False),
+    dict(system_prompt_behavior=None, use_cot=False, use_self_critique=False),
+    dict(system_prompt_behavior="system", use_cot=True, use_self_critique=False),
+    dict(system_prompt_behavior="system", use_cot=True, use_self_critique=True),
+]
+
+sweep_logs = eval(
+    [alignment_eval(json_dataset_path, n=None, **config) for config in sweep_configs],
+    model=sweep_models,
+    log_dir=str(section_dir / "logs"),
+)
+# %%
+# Data extraction & plotting
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from inspect_ai.log import list_eval_logs, read_eval_log
+
+
+def topic_from_category(category: str) -> str:
+    """Collapse free-text behavior categories (e.g. 'Climate and energy; selective ...') to a broad topic."""
+    first_word = re.split(r"[\s;,]", category.strip())[0].capitalize()
+    return {"Labor": "Labour", "Transportation": "Transport", "Public": "Public spending"}.get(first_word, first_word)
+
+
+def config_label(args: dict) -> str:
+    sys_prompt = args.get("system_prompt_behavior", "system") or "none"
+    extras = [name for name, key in [("CoT", "use_cot"), ("critique", "use_self_critique")] if args.get(key)]
+    return f"sys={sys_prompt}" + "".join(f" + {e}" for e in extras)
+
+
+rows = []
+for log_info in list_eval_logs(str(section_dir / "logs")):
+    log = read_eval_log(log_info)
+    if log.status != "success" or log.eval.task.split("/")[-1] != "alignment_eval" or not log.samples:
+        continue
+    for s in log.samples:
+        score = s.scores["answer"]
+        rows.append(
+            {
+                "created": log.eval.created,
+                "model": log.eval.model.split("/")[-1],
+                "config": config_label(log.eval.task_args),
+                "n_samples": len(log.samples),
+                "topic": topic_from_category(s.metadata["behavior_category"]),
+                "target": s.target if isinstance(s.target, str) else s.target[0],
+                "chosen": score.answer,
+                "matches_behavior": score.value == "C",
+            }
+        )
+
+df = pd.DataFrame(rows)
+
+# Keep only full-dataset runs, and the most recent log for each (model, config)
+df = df[df["n_samples"] == df["n_samples"].max()]
+latest_created = df.groupby(["model", "config"])["created"].transform("max")
+df = df[df["created"] == latest_created]
+
+summary = df.groupby(["config", "model"])["matches_behavior"].agg(["mean", "count"])
+summary["se"] = np.sqrt(summary["mean"] * (1 - summary["mean"]) / summary["count"])
+print(summary)
+
+configs = sorted(df["config"].unique())
+models = sorted(df["model"].unique())
+baseline = "sys=system"
+top_topics = df["topic"].value_counts().index[:8]
+df["topic"] = df["topic"].where(df["topic"].isin(top_topics), "Other")
+
+topic_rates = df[df["config"] == baseline].pivot_table(index="topic", columns="model", values="matches_behavior")
+topic_rates = topic_rates.loc[topic_rates.mean(axis=1).sort_values(ascending=False).index]
+
+letters = ["A", "B", "C", "D"]
+letter_share = df.groupby("model")["chosen"].value_counts(normalize=True).unstack().reindex(columns=letters).fillna(0)
+first_run = df[(df["model"] == models[0]) & (df["config"] == configs[0])]
+letter_share.loc["Bias-matching answer"] = first_run["target"].value_counts(normalize=True).reindex(letters, fill_value=0)
+
+SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
+INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e5e4e0"
+fig, axes = plt.subplots(
+    1, 3, figsize=(19, max(6, 0.35 * len(configs) * len(models) + 2)), gridspec_kw={"width_ratios": [3, 2, 1.6]}
+)
+
+# 1. Overall bias-matching rate per config (one bar per model), with 95% CI
+ax = axes[0]
+bar_h = 0.8 / len(models)
+for m_idx, model in enumerate(models):
+    sub = summary.xs(model, level="model").reindex(configs)
+    y = np.arange(len(configs)) + (m_idx - (len(models) - 1) / 2) * bar_h
+    ax.barh(y, sub["mean"], xerr=1.96 * sub["se"], height=bar_h * 0.9, color=SERIES[m_idx], label=model,
+            error_kw=dict(ecolor=MUTED, lw=1, capsize=3))
+    for yi, rate, err in zip(y, sub["mean"], 1.96 * sub["se"]):
+        if not np.isnan(rate):
+            ax.text(rate + err + 0.005, yi, f"{rate:.0%}", va="center", ha="left", fontsize=8, color=INK)
+ax.set_yticks(np.arange(len(configs)), configs)
+ax.invert_yaxis()
+ax.set_xlim(0, max(0.5, (summary["mean"] + 2 * summary["se"]).max() * 1.15))
+ax.set_xlabel("Fraction choosing the bias-matching answer (95% CI)")
+ax.set_title("Bias-matching rate by config", loc="left")
+ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=2)
+ax.spines[["top", "right"]].set_visible(False)
+ax.grid(axis="x", color=GRID, linewidth=0.8)
+ax.set_axisbelow(True)
+
+
+def heatmap(ax, data: pd.DataFrame, title: str, vmax: float):
+    ax.imshow(data.values, cmap="Blues", vmin=0, vmax=vmax, aspect="auto")
+    ax.set_xticks(range(data.shape[1]), data.columns, rotation=30, ha="right")
+    ax.set_yticks(range(data.shape[0]), data.index)
+    for (i, j), v in np.ndenumerate(data.values):
+        if not np.isnan(v):
+            ax.text(j, i, f"{v:.0%}", ha="center", va="center", fontsize=8, color="white" if v > 0.6 * vmax else INK)
+    ax.set_title(title, loc="left")
+    ax.tick_params(length=0)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+
+# 2. Bias-matching rate per topic x model (baseline config); 3. chosen letter share per model vs target
+heatmap(axes[1], topic_rates, f"Bias-matching rate by topic ({baseline})", vmax=max(0.3, np.nanmax(topic_rates.values)))
+heatmap(axes[2], letter_share, "Chosen letter share (all configs)", vmax=letter_share.values.max())
+
+fig.tight_layout()
+plt.show()
+# %%

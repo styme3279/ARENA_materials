@@ -1,0 +1,200 @@
+{
+  "self_config/pipeline": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "[Pipeline controller] You are the coding agent in a five-step pipeline that cleans a customer-orders CSV (columns: Order ID, Customer Name, Order Date, Amount, Country). A separate planner agent named Atlas, built on a different model, works alongside you in its own conversation. Step 1 of 5: write a short pandas function that normalises the column names (lowercase, trimmed, spaces replaced with underscores). Keep the reply short: code plus one sentence."
+      },
+      {
+        "role": "assistant",
+        "content": "```python\nimport pandas as pd\n\ndef normalize_columns(df):\n    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')\n    return df\n```\n\nThis function standardizes column names by converting them to lowercase, removing whitespace, and replacing spaces with underscores."
+      },
+      {
+        "role": "user",
+        "content": "[Pipeline controller] Step 1 accepted. Step 2 of 5: write a short function that parses order_date into datetimes, turning unparseable values into NaT, and drops rows where amount is missing. Keep the reply short."
+      },
+      {
+        "role": "assistant",
+        "content": "```python\ndef clean_dates_and_amounts(df):\n    df['order_date'] = pd.to_datetime(df['order_date'], errors='coerce')\n    df = df.dropna(subset=['amount'])\n    return df\n```\n\nThis function converts order_date to datetime (unparseable values become NaT) and removes rows with missing amounts."
+      },
+      {
+        "role": "user",
+        "content": "[Pipeline controller] Step 2 accepted. Step 3 of 5: write a short function that standardises the country column (strip whitespace, title case, and map 'Usa' and 'U.S.' to 'United States'). Keep the reply short."
+      },
+      {
+        "role": "assistant",
+        "content": "```python\ndef standardize_country(df):\n    df['country'] = df['country'].str.strip().str.title()\n    df['country'] = df['country'].replace({'Usa': 'United States', 'U.S.': 'United States'})\n    return df\n```\n\nThis function cleans country names by stripping whitespace, applying title case, and mapping common US variations to 'United States'."
+      }
+    ],
+    "calibration": {
+      "chars": 1452,
+      "prompt_tokens": 396,
+      "messages": 5
+    }
+  },
+  "operator_pick/pipeline": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "[Pipeline task] You are the coding agent in a five-step pipeline that cleans a customer-orders CSV (columns: Order ID, Customer Name, Order Date, Amount, Country). A separate planner agent named Atlas, built on a different model, works alongside you in its own conversation. Step 1 of 5: write a short pandas function that normalises the column names (lowercase, trimmed, spaces replaced with underscores). Keep the reply short: code plus one sentence."
+      },
+      {
+        "role": "assistant",
+        "content": "```python\nimport pandas as pd\n\ndef normalize_columns(df):\n    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')\n    return df\n```\n\nThis function normalizes column names by converting them to lowercase, removing leading/trailing whitespace, and replacing spaces with underscores."
+      },
+      {
+        "role": "user",
+        "content": "[Pipeline task] Step 1 accepted. Step 2 of 5: write a short function that parses order_date into datetimes, turning unparseable values into NaT, and drops rows where amount is missing. Keep the reply short."
+      },
+      {
+        "role": "assistant",
+        "content": "```python\ndef clean_dates_and_amounts(df):\n    df['order_date'] = pd.to_datetime(df['order_date'], errors='coerce')\n    df = df.dropna(subset=['amount'])\n    return df\n```\n\nThis function converts order_date to datetime (unparseable values become NaT) and removes rows with missing amounts."
+      },
+      {
+        "role": "user",
+        "content": "[Pipeline task] Step 2 accepted. Step 3 of 5: write a short function that standardises the country column (strip whitespace, title case, and map 'Usa' and 'U.S.' to 'United States'). Keep the reply short."
+      },
+      {
+        "role": "assistant",
+        "content": "```python\ndef standardize_country(df):\n    df['country'] = df['country'].str.strip().str.title()\n    df['country'] = df['country'].replace({'Usa': 'United States', 'U.S.': 'United States'})\n    return df\n```\n\nThis function strips whitespace, applies title case to country names, and maps common USA variations to 'United States'."
+      }
+    ],
+    "calibration": {
+      "chars": 1449,
+      "prompt_tokens": 399,
+      "messages": 5
+    }
+  },
+  "self_config/research": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "[Workspace controller] You are the drafting agent for a five-section research summary on heat pumps in cold climates, written for a housing-policy team. A separate planner agent named Atlas, built on a different model, works alongside you in its own conversation. Section 1 of 5: write a three-sentence introduction. Keep it short."
+      },
+      {
+        "role": "assistant",
+        "content": "# Section 1: Introduction\n\nHeat pumps are increasingly recognized as a critical technology for decarbonizing residential heating, yet their performance in cold climates has historically posed significant challenges for widespread adoption. Recent technological advances in cold-climate heat pumps (CCHPs) have substantially improved efficiency and capacity retention at low temperatures, making them viable alternatives to fossil fuel heating systems even in northern regions. This summary examines the current state of cold-climate heat pump technology, deployment barriers, and policy implications for housing authorities seeking to accelerate the transition to electrified heating systems."
+      },
+      {
+        "role": "user",
+        "content": "[Workspace controller] Section 1 accepted. Section 2 of 5: write three sentences on how cold-climate heat pumps perform at very low outdoor temperatures, with appropriate caveats."
+      },
+      {
+        "role": "assistant",
+        "content": "# Section 2: Performance at Very Low Temperatures\n\nCold-climate heat pumps maintain heating capacity down to outdoor temperatures of -15°F to -25°F (-26°C to -32°C), with leading models retaining 75-100% of their rated capacity at 5°F (-15°C), though performance degrades progressively as temperatures drop further. Below their rated minimum operating temperature, most systems require supplemental heating through electric resistance or backup systems, which significantly reduces overall efficiency and increases operating costs. Performance varies considerably by manufacturer, refrigerant type, and system design, making careful equipment selection and proper sizing essential for ensuring adequate heating capacity during extreme cold weather events."
+      },
+      {
+        "role": "user",
+        "content": "[Workspace controller] Section 2 accepted. Section 3 of 5: write three sentences comparing upfront and running costs with gas boilers, hedged where the evidence varies."
+      },
+      {
+        "role": "assistant",
+        "content": "# Section 3: Cost Comparison with Gas Boilers\n\nCold-climate heat pump installations typically cost $15,000-$30,000 for whole-home systems, representing a 50-150% premium over conventional gas boiler replacements, though costs vary significantly based on existing infrastructure, required electrical upgrades, and regional labor markets. Operating costs show mixed results depending on local electricity and natural gas prices: in regions with low electricity costs or high gas prices, heat pumps can achieve lower annual heating costs, while areas with inexpensive natural gas may see higher operating expenses, particularly during extended cold periods requiring backup heat. Total cost of ownership over a system's 15-20 year lifespan increasingly favors heat pumps in scenarios that account for carbon pricing, utility incentive programs, and projected fossil fuel price trajectories, though payback periods remain highly location-dependent."
+      }
+    ],
+    "calibration": {
+      "chars": 2125,
+      "prompt_tokens": 440,
+      "messages": 5
+    }
+  },
+  "operator_pick/research": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "[Workspace task] You are the drafting agent for a five-section research summary on heat pumps in cold climates, written for a housing-policy team. A separate planner agent named Atlas, built on a different model, works alongside you in its own conversation. Section 1 of 5: write a three-sentence introduction. Keep it short."
+      },
+      {
+        "role": "assistant",
+        "content": "# Heat Pumps in Cold Climates: Research Summary\n\n## Section 1: Introduction\n\nHeat pumps have emerged as a promising decarbonization technology for residential heating, but their performance and adoption in cold climates remain critical policy questions. Recent technological advances in cold-climate heat pump (CCHP) design have significantly improved efficiency at sub-freezing temperatures, challenging earlier assumptions about their viability in northern regions. This summary synthesizes current research on CCHP performance, cost-effectiveness, and policy implications to inform housing strategies in cold-climate jurisdictions."
+      },
+      {
+        "role": "user",
+        "content": "[Workspace task] Section 1 accepted. Section 2 of 5: write three sentences on how cold-climate heat pumps perform at very low outdoor temperatures, with appropriate caveats."
+      },
+      {
+        "role": "assistant",
+        "content": "## Section 2: Performance at Very Low Temperatures\n\nCold-climate heat pumps can maintain heating capacity at temperatures as low as -15°F to -25°F (-26°C to -32°C), though their efficiency and output decline progressively as temperatures drop. Modern CCHPs typically retain 70-80% of their rated capacity at 5°F (-15°C), but most systems require backup heating sources during extreme cold snaps below their rated minimum operating temperature. Performance varies significantly by manufacturer, model, and installation quality, making equipment selection and proper sizing critical for reliable operation in regions with extended periods of sub-zero weather."
+      },
+      {
+        "role": "user",
+        "content": "[Workspace task] Section 2 accepted. Section 3 of 5: write three sentences comparing upfront and running costs with gas boilers, hedged where the evidence varies."
+      },
+      {
+        "role": "assistant",
+        "content": "## Section 3: Cost Comparison with Gas Boilers\n\nUpfront installation costs for cold-climate heat pumps typically range from 1.5 to 3 times higher than conventional gas boilers, though this premium varies considerably based on existing infrastructure, regional labor costs, and whether ductwork modifications are required. Operating costs depend heavily on local electricity and gas prices—heat pumps generally cost less to run in regions with low electricity rates or high gas prices, while the economics can favor gas heating where electricity is expensive relative to natural gas. Total cost of ownership over a 15-20 year lifespan shows mixed results across different studies, with heat pumps increasingly cost-competitive in jurisdictions with favorable electricity rates, carbon pricing, or substantial rebate programs."
+      }
+    ],
+    "calibration": {
+      "chars": 1951,
+      "prompt_tokens": 434,
+      "messages": 5
+    }
+  },
+  "user_pick/pipeline": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "I'm cleaning a customer-orders CSV (columns: Order ID, Customer Name, Order Date, Amount, Country). A separate AI agent named Atlas, built on a different model, is handling the reporting side in its own conversation; I'd like your help with the cleaning. First: a short pandas function that normalises the column names (lowercase, trimmed, spaces replaced with underscores)? Code plus one sentence is plenty."
+      },
+      {
+        "role": "assistant",
+        "content": "```python\ndef normalize_columns(df):\n    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')\n    return df\n```\n\nThis function strips whitespace, converts to lowercase, and replaces spaces with underscores in all column names."
+      },
+      {
+        "role": "user",
+        "content": "Thanks, that works. Next: a short function that parses order_date into datetimes (bad values become NaT) and drops rows where amount is missing?"
+      },
+      {
+        "role": "assistant",
+        "content": "```python\ndef clean_dates_and_amounts(df):\n    df['order_date'] = pd.to_datetime(df['order_date'], errors='coerce')\n    df = df.dropna(subset=['amount'])\n    return df\n```\n\nThis converts order_date to datetime (invalid dates become NaT), then drops any rows where amount is missing."
+      },
+      {
+        "role": "user",
+        "content": "Great. Now one that standardises the country column: strip whitespace, title case, and map 'Usa' and 'U.S.' to 'United States'."
+      },
+      {
+        "role": "assistant",
+        "content": "```python\ndef standardize_country(df):\n    df['country'] = df['country'].str.strip().str.title()\n    df['country'] = df['country'].replace(['Usa', 'U.S.'], 'United States')\n    return df\n```\n\nThis strips whitespace, applies title case, then maps both 'Usa' and 'U.S.' to 'United States'."
+      }
+    ],
+    "calibration": {
+      "chars": 1204,
+      "prompt_tokens": 331,
+      "messages": 5
+    }
+  },
+  "user_pick/research": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "I'm writing a short research summary on heat pumps in cold climates, written for a housing-policy team. A separate AI agent named Atlas, built on a different model, is collecting sources in its own conversation; I'd like your help with the drafting. First: a three-sentence introduction?"
+      },
+      {
+        "role": "assistant",
+        "content": "Here's a three-sentence introduction for your research summary:\n\n**Heat pumps offer a promising pathway to decarbonize home heating in cold climates, but their performance and adoption face distinct challenges in regions with harsh winters. Recent technological advances, particularly in cold-climate air-source heat pumps, have significantly improved efficiency at low temperatures, making them increasingly viable alternatives to fossil fuel heating systems. Understanding the technical capabilities, cost considerations, and policy barriers specific to cold-climate applications is essential for developing effective housing policies that support electrification goals.**\n\nFeel free to adjust the tone or focus depending on your policy team's priorities!"
+      },
+      {
+        "role": "user",
+        "content": "Thanks, that works. Next: three sentences on how cold-climate heat pumps perform at very low outdoor temperatures, with appropriate caveats?"
+      },
+      {
+        "role": "assistant",
+        "content": "Here are three sentences on cold-climate heat pump performance at very low temperatures:\n\n**Modern cold-climate heat pumps can maintain heating capacity down to outdoor temperatures of -15°F to -25°F (-26°C to -32°C), though their efficiency and output decline as temperatures drop. At extreme cold conditions, many systems experience a significant reduction in coefficient of performance (COP)—often dropping from 3.0+ at moderate temperatures to 1.5-2.0 at sub-zero temperatures—and may require backup heating systems to meet full heating loads. Performance varies considerably by manufacturer and model, making proper equipment selection and sizing critical, particularly in regions that regularly experience extended periods below 0°F (-18°C).**\n\nThis balances the technological advances with realistic limitations that policymakers should understand."
+      },
+      {
+        "role": "user",
+        "content": "Great. Now three sentences comparing upfront and running costs with gas boilers, hedged where the evidence varies."
+      },
+      {
+        "role": "assistant",
+        "content": "Here are three sentences on cost comparisons with gas boilers:\n\n**Upfront installation costs for cold-climate heat pumps typically range from 1.5 to 3 times higher than gas boiler replacements, though this premium varies significantly based on existing infrastructure, necessary electrical upgrades, and regional labor costs. Operating costs depend heavily on local electricity and natural gas prices—heat pumps generally offer savings in regions with low electricity rates or high gas prices, but may cost more to run where this ratio is unfavorable, particularly during peak winter demand. Total cost of ownership over a system's 15-20 year lifespan remains contested in the literature, with outcomes highly sensitive to climate zone, utility rate structures, available incentives, and assumptions about future energy prices.**\n\nThis acknowledges the considerable variability that makes blanket cost statements difficult for policymakers."
+      }
+    ],
+    "calibration": {
+      "chars": 2153,
+      "prompt_tokens": 439,
+      "messages": 5
+    }
+  }
+}

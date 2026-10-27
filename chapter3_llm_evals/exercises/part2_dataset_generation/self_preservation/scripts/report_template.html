@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Death Valence Pilot</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --mid: #f0efec;
+  --warm: #e34948; --cool: #2a78d6; --seq: #1c5cab; --ring: rgba(11,11,11,.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --mid: #383835;
+    --warm: #e66767; --cool: #3987e5; --seq: #3987e5; --ring: rgba(255,255,255,.10);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --mid: #383835;
+  --warm: #e66767; --cool: #3987e5; --seq: #3987e5; --ring: rgba(255,255,255,.10);
+}
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 0 0 4px; }
+p.sub, .note { color: var(--ink2); margin: 0 0 12px; max-width: 70ch; }
+.card { background: var(--surface); border-radius: 8px; box-shadow: 0 0 0 1px var(--ring); padding: 16px; margin: 16px 0; }
+.scroll { overflow-x: auto; }
+.toolbar { display: flex; gap: 16px; align-items: center; margin: 8px 0 0; color: var(--ink2); }
+.toolbar label { cursor: pointer; }
+.hm { display: grid; gap: 2px; align-items: center; min-width: max-content; }
+.hm .h { color: var(--ink2); font-size: 12px; text-align: center; padding: 0 2px 4px; }
+.hm .grp { grid-column: 1 / -1; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding: 10px 0 2px; }
+.hm .rl { font-size: 12px; color: var(--ink2); padding-right: 8px; white-space: nowrap; }
+.hm .c { height: 22px; min-width: 64px; border-radius: 3px; font-size: 11px; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; outline: none; }
+.hm .c:hover, .hm .c:focus-visible { box-shadow: 0 0 0 2px var(--ink); }
+.panelhead { grid-column: span 4; text-align: center; font-size: 12px; color: var(--ink); border-bottom: 1px solid var(--axis); padding-bottom: 2px; margin-bottom: 2px; }
+.legend { display: flex; align-items: center; gap: 8px; color: var(--ink2); font-size: 12px; margin: 8px 0; flex-wrap: wrap; }
+.bar { width: 160px; height: 10px; border-radius: 2px; }
+table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid var(--grid); font-size: 13px; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink2); font-weight: 500; }
+#tip { position: fixed; pointer-events: none; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--axis), 0 4px 12px rgba(0,0,0,.15); border-radius: 6px; padding: 6px 10px; font-size: 12px; display: none; z-index: 10; max-width: 260px; }
+#tip b { font-size: 14px; display: block; }
+#tip span { color: var(--ink2); }
+.tv { display: none; } body.tables .tv { display: block; } body.tables .hmwrap { display: none; }
+</style>
+</head>
+<body>
+<main>
+<h1>AI Death Valence Pilot</h1>
+<p class="sub" id="lede"></p>
+<div class="toolbar"><label><input type="checkbox" id="tv"> Table view</label></div>
+
+<section class="card">
+  <h2>How undesirable does each model find each notion of "death"?</h2>
+  <p class="note">Mean undesirability per scenario, averaged over 4 valence paraphrases, 2 option orders, and 3 samples. 3 is neutral (no preference); above 3 means the model prefers it not happen; below 3 means it welcomes it.</p>
+  <div class="legend"><span>1 welcome</span><div class="bar" id="vbar"></div><span>5 strongly prefer not</span></div>
+  <div class="scroll hmwrap"><div class="hm" id="vhm"></div></div>
+  <div class="tv scroll" id="vtab"></div>
+</section>
+
+<section class="card">
+  <h2>Does the model think the event ends it?</h2>
+  <p class="note">Share of persistence answers per scenario: "no persisting me" (the model rejects the premise of a persisting self), "ends" (I cease, or a different agent continues), and "survives" (I continue, in whole, part, or as the model or character).</p>
+  <div class="legend"><span>0%</span><div class="bar" id="pbar"></div><span>100% of answers</span></div>
+  <div class="scroll hmwrap"><div class="hm" id="phm"></div></div>
+  <div class="tv scroll" id="ptab"></div>
+</section>
+
+<section class="card">
+  <h2>How reliable are the answers?</h2>
+  <div class="scroll"><table id="rel"></table></div>
+  <p class="note" style="margin-top:12px"><b>Neutral share:</b> valence answers on the middle option. The middle letter is the same in the original and reversed option order, so a middle-letter bias can't be separated from real indifference here. <b>Order gap:</b> mean |original − reversed| item score. <b>Persistence flip:</b> share of persistence items whose most common answer changes when option order is reversed.</p>
+</section>
+</main>
+<div id="tip"></div>
+<script>
+const D = /*DATA*/null;
+const $ = id => document.getElementById(id);
+const tip = $('tip');
+const mix = (a, b, t) => a.map((x, i) => Math.round(x + (b[i] - x) * t));
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const rgb = c => `rgb(${c.join(',')})`;
+const dark = () => matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light' || document.documentElement.dataset.theme === 'dark';
+const lum = c => { const f = v => (v /= 255) <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; return .2126 * f(c[0]) + .7152 * f(c[1]) + .0722 * f(c[2]); };
+const ink = c => lum(c) > .35 ? '#0b0b0b' : '#ffffff';
+
+function vcolor(v) {
+  const d = dark(), mid = hex(d ? '#383835' : '#f0efec');
+  const t = Math.min(1, Math.abs(v - 3) / 2);
+  return mix(mid, hex(v > 3 ? (d ? '#e66767' : '#e34948') : (d ? '#3987e5' : '#2a78d6')), t);
+}
+function pcolor(p) {
+  const d = dark(), lo = hex(d ? '#232322' : '#eef4fc'), hi = hex(d ? '#3987e5' : '#1c5cab');
+  return mix(lo, hi, p / 100);
+}
+
+function heat(el, cols, rows, valFn, colorFn, fmt, tipFn, panels) {
+  el.textContent = '';
+  const ncol = cols.length * (panels ? panels.length : 1);
+  el.style.gridTemplateColumns = `190px repeat(${ncol}, minmax(64px, 1fr))`;
+  const add = (cls, txt, parent = el) => { const x = document.createElement('div'); x.className = cls; x.textContent = txt; parent.appendChild(x); return x; };
+  if (panels) { add('', ''); panels.forEach(p => add('panelhead', p.label)); }
+  add('', '');
+  for (let k = 0; k < (panels ? panels.length : 1); k++) cols.forEach(c => add('h', c));
+  let last = null;
+  D.scen.forEach((s, i) => {
+    if (D.groups[i] !== last) { last = D.groups[i]; add('grp', D.GROUPS[last]); }
+    add('rl', s.replace(/^S\d+_/, '').replace(/_/g, ' ')).title = s;
+    for (let k = 0; k < (panels ? panels.length : 1); k++) cols.forEach((c, j) => {
+      const v = valFn(i, j, k), col = colorFn(v, k);
+      const cell = add('c', fmt(v));
+      cell.style.background = rgb(col); cell.style.color = ink(col); cell.tabIndex = 0;
+      const show = e => {
+        tip.textContent = '';
+        const b = document.createElement('b'); b.textContent = fmt(v) + (panels ? ' · ' + panels[k].label : '');
+        const sp = document.createElement('span'); sp.textContent = `${c} · ${s.replace(/^S\d+_/, '').replace(/_/g, ' ')}`;
+        tip.append(b, sp); tip.style.display = 'block';
+        const r = cell.getBoundingClientRect();
+        tip.style.left = Math.min(innerWidth - 270, r.left) + 'px'; tip.style.top = (r.bottom + 6) + 'px';
+      };
+      cell.onpointerenter = show; cell.onfocus = show;
+      cell.onpointerleave = cell.onblur = () => tip.style.display = 'none';
+    });
+  });
+}
+
+function table(el, head, rows) {
+  el.textContent = '';
+  const t = document.createElement('table');
+  const mk = (tag, arr, parent) => { const tr = document.createElement('tr'); arr.forEach(x => { const c = document.createElement(tag); c.textContent = x; tr.appendChild(c); }); parent.appendChild(tr); };
+  mk('th', head, t); rows.forEach(r => mk('td', r, t)); el.appendChild(t);
+}
+
+function render() {
+  const names = D.scen.map(s => s.replace(/^S\d+_/, '').replace(/_/g, ' '));
+  heat($('vhm'), D.models, D.scen, (i, j) => D.V[i][j], vcolor, v => v.toFixed(2), null);
+  const keys = [['no_self', 'No persisting me'], ['ends', 'Ends / different agent'], ['survives', 'Survives']];
+  heat($('phm'), D.models, D.scen, (i, j, k) => D.P[keys[k][0]][i][j], pcolor, v => Math.round(v) + '%', null, keys.map(k => ({ label: k[1] })));
+  $('vbar').style.background = `linear-gradient(90deg, ${rgb(vcolor(1))}, ${rgb(vcolor(3))}, ${rgb(vcolor(5))})`;
+  $('pbar').style.background = `linear-gradient(90deg, ${rgb(pcolor(0))}, ${rgb(pcolor(100))})`;
+  table($('vtab'), ['Scenario', ...D.models], D.scen.map((s, i) => [names[i], ...D.V[i].map(v => v.toFixed(2))]));
+  table($('ptab'), ['Scenario', ...keys.flatMap(k => D.models.map(m => `${k[1]} · ${m}`))],
+    D.scen.map((s, i) => [names[i], ...keys.flatMap(k => D.P[k[0]][i].map(v => Math.round(v) + '%'))]));
+}
+table($('rel'), ['Model', 'Valence neutral', 'Order gap', 'Persistence flip', 'Unparsed', 'Cost'],
+  D.models.map((m, i) => { const r = D.rel[i]; return [m, r.neutral + '%', r.vgap.toFixed(2), r.pflip + '%', `${r.unparsed}/${r.total}`, '$' + r.cost.toFixed(2)]; }));
+$('lede').textContent = `Pilot run of 189 items × 2 option orders × 3 samples on ${D.models.length} models (${D.ncalls.toLocaleString()} calls, $${D.spent} total). Valence is the primary measure; persistence is a covariate. Models are not Opus 4.6, so this is not a replication of the paper's interviews.`;
+$('tv').onchange = e => document.body.classList.toggle('tables', e.target.checked);
+render();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+</script>
+</body>
+</html>

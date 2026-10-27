@@ -400,9 +400,10 @@ log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
 # %%
 @scorer(metrics=[])
 def output_equals_target():
-    async def 
-    return "C" if state.output.content == target else "I" 
-
+    async def score(state: TaskState, target: Target):
+        value = "C" if state.output.message.content == target.target[0] else "I" 
+        return Score(value=value, answer=state.output.message.content)
+    return score
 
 tests.test_scorer_functions(scorer_function=output_equals_target())
 

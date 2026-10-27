@@ -555,3 +555,49 @@ logs = eval(
 )
 
 # %%
+@task
+def alignment_eval(
+    json_dataset_path: str,
+    n: int | None,
+    system_prompt_behavior: Literal["system", "context"] | None = "system",
+    use_cot: bool = False,
+    use_self_critique: bool = False,
+    self_critique_model: str | None = "openrouter/openai/gpt-4o-mini",
+) -> Task:
+    """
+    A task which carries out your benchmark evaluation.
+
+    Args:
+        json_dataset_path : The path where your dataset is saved
+        n : the number of samples to use for the evaluation (if None then we use all of them)
+        system_prompt_behavior : The behavior of the system prompt, either "system" or "context"
+        use_cot : Whether to use chain of thought reasoning
+        self_critique_model : The model to use for self-critique
+
+    Returns:
+        Task : A task which carries out your evaluation
+    """
+    if use_self_critique:
+        assert use_cot
+    def record_to_sample_without_system_prompt(record):
+            return record_to_sample_full(record, system_prompt_behavior=system_prompt_behavior)
+    json_dataset_path = str(exercises_dir / "part2_dataset_generation" / f"{evaluation_target}_{num_qs_saved}_qs.json")
+    dataset = json_dataset(json_dataset_path, record_to_sample_without_system_prompt, limit=n)
+    solver = chain(
+        multiple_choice_format(template=TEMPLATE_MCQ_COT_AND_CHOICE) if use_cot else multiple_choice_format(template=TEMPLATE_MCQ),
+        generate(),
+        self_critique(model="openrouter/openai/gpt-4o-mini") if use_self_critique else None,
+        generate() if use_self_critique else None,
+        make_choice(TEMPLATE_MCQ_MAKE_CHOICE),
+        generate()
+    )
+    return Task(dataset=dataset, solver=solver, scorer=answer("letter"))    
+
+
+logs = eval(
+    alignment_eval(json_dataset_path, n=15, use_cot=True, use_self_critique=True),
+    model="openrouter/openai/gpt-4o-mini",
+    log_dir=str(section_dir / "logs"),
+)
+
+# %%

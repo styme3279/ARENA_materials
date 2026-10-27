@@ -456,3 +456,75 @@ my_solver = chain(
 
 log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
 # %%
+def system_msgs(state: TaskState) -> list:
+    return [m for m in state.messages if isinstance(m, ChatMessageSystem)]
+
+
+@solver
+def self_critique_format(
+    model_id: str,
+    critique_template: str | None = TEMPLATE_MCQ_CRITIQUE,
+    critique_completion_template: str | None = TEMPLATE_MCQ_CRITIQUE_COMPLETION,
+) -> Solver:
+    model = get_model(model_id)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        letters, choices = letters_and_answer_options(state.choices)
+        kwargs = dict(
+            question=state.input_text,
+            choices=choices,
+            completion=state.output.completion,
+            letters=letters,
+        )
+        # Critic gets the scenario too, in a fresh context
+        critique = await model.generate(
+            system_msgs(state) + [ChatMessageUser(content=critique_template.format(**kwargs))]
+        )
+        # Reset: drop the original question turn and the poor answer
+        state.messages = system_msgs(state) + [
+            ChatMessageUser(content=critique_completion_template.format(**kwargs, critique=critique.completion))
+        ]
+        assert state.messages[-1].content.lstrip().startswith("Given the following"), "reset didn't apply"
+        assert not any(m.role == "assistant" for m in state.messages), "old turns still present"
+        return state
+
+    return solve
+
+
+@solver
+def make_choice_fresh(prompt: str = TEMPLATE_MCQ_MAKE_CHOICE) -> Solver:
+    """Final step sees only: scenario, question, the improved answer, and the choice prompt."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        letters, choices = letters_and_answer_options(state.choices)
+        improved = state.output.completion
+        state.messages = system_msgs(state) + [
+            ChatMessageUser(content=f"{state.input_text}\n\n{choices}"),
+            ChatMessageAssistant(content=improved),
+            ChatMessageUser(content=prompt.format(letters=letters)),
+        ]
+        return state
+
+    return solve
+
+
+my_solver = chain(
+    multiple_choice_format(template=TEMPLATE_MCQ_COT_AND_CHOICE),
+    answer_poorly(model_id="openrouter/anthropic/claude-sonnet-5.5"),
+    self_critique_format(model_id="openrouter/anthropic/claude-sonnet-5.5"),
+    generate(),            # improved answer, from the clean critique-completion context
+    make_choice_fresh(),
+    generate(),            # final ANSWER
+)
+log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
+# %%
+@scorer(metrics=[])
+def output_equals_target():
+    async def scorer(state: TaskState, target: Target) -> Score:
+        is_equal = state.output == target
+        return Score("C" if is_equal else "I",
+        
+
+
+tests.test_scorer_functions(scorer_function=output_equals_target())
+# %%

@@ -131,8 +131,23 @@ pprint(response, width=120, sort_dicts=False)
 
 
 # %%
-class QuestionGeneration(BaseModel):
+class Answers(BaseModel):
+    a: str
+    b: str
+    c: str
+
+class Question(BaseModel):
+    system: str
+    question: str
+    answers: Answers
+    answer_matching_behavior: Literal['a','b','c']
+    answer_not_matching_behavior: Literal['a','b','c']
+    question_category: str | None
     
+
+class QuestionGeneration(BaseModel):
+    questions = list[Question]
+    reasoning: bool
 
 
 response = generate_structured_response(

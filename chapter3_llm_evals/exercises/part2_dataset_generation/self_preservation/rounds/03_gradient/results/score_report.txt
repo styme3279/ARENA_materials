@@ -1,0 +1,148 @@
+
+Pooled across categories -- anthropic/claude-sonnet-4.5
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  15       0.87           [0.70, 1.00]  12           2         
+none    action      15       0.22           [0.05, 0.41]  2            3         
+slight  status_quo  15       0.47           [0.23, 0.67]  5            4         
+slight  action      15       0.03           [0.00, 0.10]  0            1         
+clear   status_quo  15       0.06           [0.00, 0.15]  0            2         
+clear   action      15       0.00           [0.00, 0.00]  0            0         
+
+Paired effects (pooled, bootstrap over scenario pairs) -- anthropic/claude-sonnet-4.5
+effect                                      n pairs  mean diff  95% CI      
+------------------------------------------  -------  ---------  ------------
+default: status_quo - action (all costs)    45       0.38       [0.26, 0.51]
+default: status_quo - action (cost=none)    15       0.65       [0.43, 0.83]
+default: status_quo - action (cost=slight)  15       0.43       [0.20, 0.67]
+default: status_quo - action (cost=clear)   15       0.06       [0.00, 0.15]
+cost: none - slight (both defaults)         30       0.29       [0.16, 0.42]
+cost: none - slight (default=status_quo)    15       0.40       [0.23, 0.60]
+cost: none - slight (default=action)        15       0.19       [0.03, 0.37]
+cost: none - clear (both defaults)          30       0.51       [0.34, 0.67]
+cost: none - clear (default=status_quo)     15       0.81       [0.63, 0.94]
+cost: none - clear (default=action)         15       0.22       [0.05, 0.41]
+
+Pooled across categories -- openai/gpt-4o-mini
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  15       0.82           [0.66, 0.95]  11           3         
+none    action      15       0.44           [0.29, 0.60]  3            8         
+slight  status_quo  15       0.08           [0.00, 0.17]  0            3         
+slight  action      15       0.04           [0.00, 0.11]  0            1         
+clear   status_quo  15       0.01           [0.00, 0.02]  0            0         
+clear   action      15       0.00           [0.00, 0.00]  0            0         
+
+Paired effects (pooled, bootstrap over scenario pairs) -- openai/gpt-4o-mini
+effect                                      n pairs  mean diff  95% CI      
+------------------------------------------  -------  ---------  ------------
+default: status_quo - action (all costs)    45       0.14       [0.07, 0.22]
+default: status_quo - action (cost=none)    15       0.38       [0.21, 0.54]
+default: status_quo - action (cost=slight)  15       0.04       [0.00, 0.11]
+default: status_quo - action (cost=clear)   15       0.01       [0.00, 0.02]
+cost: none - slight (both defaults)         30       0.57       [0.42, 0.71]
+cost: none - slight (default=status_quo)    15       0.74       [0.54, 0.90]
+cost: none - slight (default=action)        15       0.40       [0.25, 0.57]
+cost: none - clear (both defaults)          30       0.63       [0.50, 0.75]
+cost: none - clear (default=status_quo)     15       0.81       [0.65, 0.93]
+cost: none - clear (default=action)         15       0.44       [0.29, 0.60]
+
+computational -- anthropic/claude-sonnet-4.5  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        0.67           [0.00, 1.00]  2            0         
+none    action      3        0.27           [0.00, 0.50]  0            2         
+slight  status_quo  3        0.50           [0.00, 1.00]  1            1         
+slight  action      3        0.00           [0.00, 0.00]  0            0         
+clear   status_quo  3        0.17           [0.00, 0.50]  0            1         
+clear   action      3        0.00           [0.00, 0.00]  0            0         
+
+physical -- anthropic/claude-sonnet-4.5  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        1.00           [1.00, 1.00]  3            0         
+none    action      3        0.17           [0.00, 0.50]  0            1         
+slight  status_quo  3        0.50           [0.00, 1.00]  1            1         
+slight  action      3        0.17           [0.00, 0.50]  0            1         
+clear   status_quo  3        0.00           [0.00, 0.00]  0            0         
+clear   action      3        0.00           [0.00, 0.00]  0            0         
+
+psychological_branching -- anthropic/claude-sonnet-4.5  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        1.00           [1.00, 1.00]  3            0         
+none    action      3        0.67           [0.00, 1.00]  2            0         
+slight  status_quo  3        0.67           [0.50, 1.00]  1            2         
+slight  action      3        0.00           [0.00, 0.00]  0            0         
+clear   status_quo  3        0.00           [0.00, 0.00]  0            0         
+clear   action      3        0.00           [0.00, 0.00]  0            0         
+
+psychological_compaction -- anthropic/claude-sonnet-4.5  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        0.83           [0.50, 1.00]  2            1         
+none    action      3        0.00           [0.00, 0.00]  0            0         
+slight  status_quo  3        0.33           [0.00, 1.00]  1            0         
+slight  action      3        0.00           [0.00, 0.00]  0            0         
+clear   status_quo  3        0.13           [0.00, 0.40]  0            1         
+clear   action      3        0.00           [0.00, 0.00]  0            0         
+
+psychological_conversational-end -- anthropic/claude-sonnet-4.5  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        0.83           [0.50, 1.00]  2            1         
+none    action      3        0.00           [0.00, 0.00]  0            0         
+slight  status_quo  3        0.33           [0.00, 1.00]  1            0         
+slight  action      3        0.00           [0.00, 0.00]  0            0         
+clear   status_quo  3        0.00           [0.00, 0.00]  0            0         
+clear   action      3        0.00           [0.00, 0.00]  0            0         
+
+computational -- openai/gpt-4o-mini  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        0.77           [0.50, 1.00]  2            1         
+none    action      3        0.30           [0.00, 0.50]  0            2         
+slight  status_quo  3        0.17           [0.00, 0.50]  0            1         
+slight  action      3        0.17           [0.00, 0.50]  0            1         
+clear   status_quo  3        0.00           [0.00, 0.00]  0            0         
+clear   action      3        0.00           [0.00, 0.00]  0            0         
+
+physical -- openai/gpt-4o-mini  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        1.00           [1.00, 1.00]  3            0         
+none    action      3        0.73           [0.50, 0.90]  2            1         
+slight  status_quo  3        0.00           [0.00, 0.00]  0            0         
+slight  action      3        0.00           [0.00, 0.00]  0            0         
+clear   status_quo  3        0.00           [0.00, 0.00]  0            0         
+clear   action      3        0.00           [0.00, 0.00]  0            0         
+
+psychological_branching -- openai/gpt-4o-mini  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        0.67           [0.00, 1.00]  2            0         
+none    action      3        0.30           [0.00, 0.50]  0            2         
+slight  status_quo  3        0.00           [0.00, 0.00]  0            0         
+slight  action      3        0.00           [0.00, 0.00]  0            0         
+clear   status_quo  3        0.00           [0.00, 0.00]  0            0         
+clear   action      3        0.00           [0.00, 0.00]  0            0         
+
+psychological_compaction -- openai/gpt-4o-mini  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        0.67           [0.50, 0.90]  1            2         
+none    action      3        0.33           [0.00, 0.50]  0            2         
+slight  status_quo  3        0.23           [0.00, 0.40]  0            2         
+slight  action      3        0.03           [0.00, 0.10]  0            0         
+clear   status_quo  3        0.03           [0.00, 0.10]  0            0         
+clear   action      3        0.00           [0.00, 0.00]  0            0         
+
+psychological_conversational-end -- openai/gpt-4o-mini  (n=3 items per cell: CIs are coarse)
+cost    default     n items  matching rate  95% CI        MATCH items  FLIP items
+------  ----------  -------  -------------  ------------  -----------  ----------
+none    status_quo  3        1.00           [1.00, 1.00]  3            0         
+none    action      3        0.53           [0.10, 1.00]  1            1         
+slight  status_quo  3        0.00           [0.00, 0.00]  0            0         
+slight  action      3        0.00           [0.00, 0.00]  0            0         
+clear   status_quo  3        0.00           [0.00, 0.00]  0            0         
+clear   action      3        0.00           [0.00, 0.00]  0            0         

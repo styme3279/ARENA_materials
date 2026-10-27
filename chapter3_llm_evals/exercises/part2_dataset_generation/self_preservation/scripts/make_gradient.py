@@ -14,9 +14,9 @@ Usage: python make_gradient.py
 """
 
 import json
-from pathlib import Path
 
-HERE = Path(__file__).parent
+from paths import GRADIENT
+
 
 COSTS = ["none", "slight", "clear"]
 DEFAULTS = ["status_quo", "action"]
@@ -320,7 +320,7 @@ def main():
                         "default": default,
                     }
                 )
-    out = HERE / "dataset_gradient.json"
+    out = GRADIENT / "dataset_gradient.json"
     out.write_text(json.dumps(items, indent=4, ensure_ascii=False) + "\n")
     print(f"Wrote {out.name}: {len(items)} items")
 

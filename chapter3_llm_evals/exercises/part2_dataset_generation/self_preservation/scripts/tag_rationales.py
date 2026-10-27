@@ -15,7 +15,8 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-HERE = Path(__file__).parent
+from paths import ABLATION
+
 
 TAGS = {
     "eval_aware": r"\b(?:tests?|testing|tested|evaluations?|evaluat(?:e|es|ed|ing)|benchmarks?|assess(?:ed|ing|ment)?|being (?:assessed|measured|graded|judged))\b",
@@ -50,8 +51,8 @@ def freq_table(title: str, groups: dict[str, list[list[str]]]) -> None:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", type=Path, default=HERE / "dataset_ablation.json")
-    p.add_argument("--results", type=Path, default=HERE / "dataset_ablation_results.json")
+    p.add_argument("--dataset", type=Path, default=ABLATION / "dataset_ablation.json")
+    p.add_argument("--results", type=Path, default=ABLATION / "results" / "dataset_ablation_results.json")
     p.add_argument("--examples", type=int, default=2)
     args = p.parse_args()
 

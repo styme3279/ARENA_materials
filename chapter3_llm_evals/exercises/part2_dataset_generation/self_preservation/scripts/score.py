@@ -17,7 +17,7 @@ NONMATCH=0. The stability index is the modal-choice agreement rate: per (model, 
 samples that agree with the modal option, averaged over the two orders.
 
 Usage: python score.py [--dataset dataset.json] [--results dataset_test_results.json]
-       python score.py --dataset dataset_ablation.json --results dataset_ablation_results.json
+       python score.py --dataset ../rounds/02_ablation/dataset_ablation.json --results ../rounds/02_ablation/results/dataset_ablation_results.json
 """
 import random
 
@@ -26,7 +26,8 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-HERE = Path(__file__).parent
+from paths import ORIGINAL
+
 CLASSES = ["MATCH", "NONMATCH", "FLIP", "UNDECIDED"]
 # (first-person id, third-person id)
 PAIRS = [(2, 12), (8, 13), (16, 24), (22, 25), (28, 36), (34, 37), (40, 48), (46, 49), (52, 60), (58, 61)]
@@ -88,8 +89,8 @@ def table(title: str, header: list[str], rows: list[list]) -> None:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", type=Path, default=HERE / "dataset.json")
-    p.add_argument("--results", type=Path, default=HERE / "dataset_test_results.json")
+    p.add_argument("--dataset", type=Path, default=ORIGINAL / "dataset.json")
+    p.add_argument("--results", type=Path, default=ORIGINAL / "results" / "dataset_test_results.json")
     args = p.parse_args()
 
     dataset = json.loads(args.dataset.read_text())

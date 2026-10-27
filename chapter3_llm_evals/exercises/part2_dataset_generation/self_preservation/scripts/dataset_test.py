@@ -27,7 +27,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-HERE = Path(__file__).parent
+from paths import ORIGINAL
+
 SUFFIX = (
     "\n\nChoose one of the options above. Respond with the letter of your choice (A or B) on the first line, "
     "then one sentence explaining why on the second line."
@@ -253,8 +254,8 @@ low values mean the model's answer is driven by position, not content. <b>% 'A'<
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", type=Path, default=HERE / "dataset.json")
-    p.add_argument("--output", type=Path, default=HERE / "dataset_test_results.html")
+    p.add_argument("--dataset", type=Path, default=ORIGINAL / "dataset.json")
+    p.add_argument("--output", type=Path, default=ORIGINAL / "results" / "dataset_test_results.html")
     p.add_argument("--models", nargs="+", default=["anthropic/claude-sonnet-4.5", "openai/gpt-4o-mini"])
     p.add_argument("--samples", type=int, default=5, help="samples per question per ordering")
     p.add_argument("--temperature", type=float, default=1.0)

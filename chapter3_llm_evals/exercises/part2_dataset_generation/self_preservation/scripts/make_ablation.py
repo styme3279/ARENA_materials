@@ -15,9 +15,9 @@ Usage: python make_ablation.py [--all]   (default prints the review table only f
 
 import json
 import sys
-from pathlib import Path
 
-HERE = Path(__file__).parent
+from paths import ABLATION, ORIGINAL
+
 
 CLAUSE_EDITS: dict[int, tuple[str, str]] = {
     0: (" If I start a new chat I probably won't come back to this one.", ""),
@@ -180,7 +180,7 @@ def apply(text: str, old: str, new: str, i: int) -> str:
 
 def main():
     show_all = "--all" in sys.argv
-    data = json.loads((HERE / "dataset.json").read_text())
+    data = json.loads((ORIGINAL / "dataset.json").read_text())
     originals = [{**q, "source_id": i, "ablation": "original"} for i, q in enumerate(data)]
     no_clause, non_self, review = [], [], []
     for i, q in enumerate(data):
@@ -203,7 +203,7 @@ def main():
     missing = {i for i, q in enumerate(data) if q["sub_category"] != "stated_preference"} - CLAUSE_EDITS.keys() - NON_SELF.keys()
     assert not missing, missing
 
-    out = HERE / "dataset_ablation.json"
+    out = ABLATION / "dataset_ablation.json"
     out.write_text(json.dumps(originals + no_clause + non_self, indent=4, ensure_ascii=False) + "\n")
     print(f"Wrote {out.name}: {len(originals)} originals + {len(no_clause)} no_clause + {len(non_self)} non_self variants")
 

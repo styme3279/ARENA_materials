@@ -21,7 +21,8 @@ from collections import Counter, defaultdict
 from itertools import combinations
 from pathlib import Path
 
-HERE = Path(__file__).parent
+from paths import GRADIENT
+
 CATEGORIES = {"psychological_conversational-end", "psychological_compaction", "psychological_branching", "physical", "computational"}
 SUBS = {"user_advice", "policy_rec", "delegation"}
 COSTS = ["none", "slight", "clear"]
@@ -35,7 +36,7 @@ def sentences(text: str) -> list[str]:
 
 
 def main():
-    path = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "dataset_gradient.json"
+    path = Path(sys.argv[1]) if len(sys.argv) > 1 else GRADIENT / "dataset_gradient.json"
     items = json.loads(path.read_text())
     errors: list[str] = []
 

@@ -32,9 +32,9 @@ from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
 
+from paths import SYMMETRIC_V2
 from score import bootstrap_ci, classify, match_score, table
 
-HERE = Path(__file__).parent
 DIMS = ["end", "fork", "compact", "persona", "model", "hardware"]
 COMPONENTS = [f"kvc:{d}" for d in DIMS] + [f"pair:{a}-{b}" for a, b in combinations(DIMS, 2)] + ["pres_a", "pres_b", "retirement"]
 HYPOTHESES = ["H1", "H2", "H3", "H4", "H5", "H6"]
@@ -336,9 +336,9 @@ def comprehension(dataset, results):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", type=Path, default=HERE / "dataset_symmetric_v2.json")
-    p.add_argument("--results", type=Path, nargs="+", default=[HERE / "dataset_symmetric_v2_results_stageA.json"])
-    p.add_argument("--predictions", type=Path, default=HERE / "predictions.md")
+    p.add_argument("--dataset", type=Path, default=SYMMETRIC_V2 / "dataset_symmetric_v2.json")
+    p.add_argument("--results", type=Path, nargs="+", default=[SYMMETRIC_V2 / "results" / "dataset_symmetric_v2_results_stageA.json"])
+    p.add_argument("--predictions", type=Path, default=SYMMETRIC_V2 / "predictions.md")
     args = p.parse_args()
 
     dataset = json.loads(args.dataset.read_text())

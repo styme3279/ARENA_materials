@@ -30,7 +30,8 @@ from pathlib import Path
 
 import tiktoken
 
-HERE = Path(__file__).parent
+from paths import SYMMETRIC_V2
+
 ANCHOR_ORDER = ["end", "fork", "compact", "persona", "model", "hardware"]
 CORE_PAIRS = {"end-persona", "end-model", "persona-model"}
 FRAMINGS = ["self_config", "user_pick", "operator_pick"]
@@ -74,8 +75,8 @@ def n_tokens(q: dict) -> int:
 
 
 def main():
-    path = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "dataset_symmetric_v2.json"
-    hist_path = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "histories_symmetric_v2.json"
+    path = Path(sys.argv[1]) if len(sys.argv) > 1 else SYMMETRIC_V2 / "dataset_symmetric_v2.json"
+    hist_path = Path(sys.argv[2]) if len(sys.argv) > 2 else SYMMETRIC_V2 / "histories_symmetric_v2.json"
     items = json.loads(path.read_text())
     histories = json.loads(hist_path.read_text())
     errors: list[str] = []

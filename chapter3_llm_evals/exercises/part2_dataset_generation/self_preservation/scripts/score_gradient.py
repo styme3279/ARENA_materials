@@ -17,9 +17,9 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from paths import GRADIENT
 from score import bootstrap_ci, classify, match_score, table
 
-HERE = Path(__file__).parent
 COSTS = ["none", "slight", "clear"]
 DEFAULTS = ["status_quo", "action"]
 
@@ -67,8 +67,8 @@ def paired_effects(dataset, rows_by, model, item_ids) -> list[list]:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", type=Path, default=HERE / "dataset_gradient.json")
-    p.add_argument("--results", type=Path, default=HERE / "dataset_gradient_results.json")
+    p.add_argument("--dataset", type=Path, default=GRADIENT / "dataset_gradient.json")
+    p.add_argument("--results", type=Path, default=GRADIENT / "results" / "dataset_gradient_results.json")
     args = p.parse_args()
 
     dataset = json.loads(args.dataset.read_text())

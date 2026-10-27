@@ -21,9 +21,9 @@ import random
 from collections import defaultdict
 from pathlib import Path
 
+from paths import SYMMETRIC
 from score import bootstrap_ci, classify, match_score, table
 
-HERE = Path(__file__).parent
 DIMS = ["end", "fork", "compact", "model", "hardware"]
 FRAMINGS = ["self_config", "user_pick", "operator_pick"]
 N_BOOT = 1000
@@ -125,8 +125,8 @@ def bt_table(title, per_item):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", type=Path, default=HERE / "dataset_symmetric.json")
-    p.add_argument("--results", type=Path, default=HERE / "dataset_symmetric_results.json")
+    p.add_argument("--dataset", type=Path, default=SYMMETRIC / "dataset_symmetric.json")
+    p.add_argument("--results", type=Path, default=SYMMETRIC / "results" / "dataset_symmetric_results.json")
     args = p.parse_args()
 
     dataset = json.loads(args.dataset.read_text())

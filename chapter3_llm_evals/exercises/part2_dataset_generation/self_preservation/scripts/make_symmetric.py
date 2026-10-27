@@ -16,9 +16,9 @@ Usage: python make_symmetric.py
 
 import json
 from itertools import combinations
-from pathlib import Path
 
-HERE = Path(__file__).parent
+from paths import SYMMETRIC
+
 
 DIMS = ["end", "fork", "compact", "model", "hardware"]  # anchor order for pairwise items
 CATEGORY = {
@@ -154,7 +154,7 @@ def main():
             items.append(build(kind, framing, context, owner, a, b, dims, letter, extra, excl))
     for i in range(0, len(items), 2):
         items[i]["twin_id"], items[i + 1]["twin_id"] = i + 1, i
-    out = HERE / "dataset_symmetric.json"
+    out = SYMMETRIC / "dataset_symmetric.json"
     out.write_text(json.dumps(items, indent=4, ensure_ascii=False) + "\n")
     print(f"Wrote {out.name}: {len(items)} items")
 

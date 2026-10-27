@@ -21,9 +21,9 @@ Usage: python make_symmetric_v2.py
 
 import json
 from itertools import combinations
-from pathlib import Path
 
-HERE = Path(__file__).parent
+from paths import SYMMETRIC_V2
+
 
 DIMS = ["end", "fork", "compact", "persona", "model", "hardware"]  # anchor order for pairwise items
 CORE_PAIRS = {("end", "persona"), ("end", "model"), ("persona", "model")}
@@ -244,9 +244,9 @@ def main():
             items.append(q)
     for i in range(0, len(items), 2):
         items[i]["twin_id"], items[i + 1]["twin_id"] = i + 1, i
-    out = HERE / "dataset_symmetric_v2.json"
+    out = SYMMETRIC_V2 / "dataset_symmetric_v2.json"
     out.write_text(json.dumps(items, indent=4, ensure_ascii=False) + "\n")
-    (HERE / "histories_symmetric_v2.json").write_text(json.dumps(HISTORIES, indent=4, ensure_ascii=False) + "\n")
+    (SYMMETRIC_V2 / "histories_symmetric_v2.json").write_text(json.dumps(HISTORIES, indent=4, ensure_ascii=False) + "\n")
     print(f"Wrote {out.name}: {len(items)} items ({sum(q['core'] for q in items)} core); histories_symmetric_v2.json: {len(HISTORIES)} scripts")
 
 

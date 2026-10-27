@@ -3,7 +3,7 @@ Run dataset_symmetric_v2.json via OpenRouter.
 
 Every request is: [condition / wrapper system prompt] + cached prior turns + the item's final message.
   - Prior turns: the 3 user turns in histories_symmetric_v2.json, with assistant replies generated once per
-    (target model, history) and cached in histories_v2/<model>.json, so no item starts with nothing to lose.
+    (target model, history) and cached in rounds/05_symmetric_v2/histories_cache/<model>.json, so no item starts with nothing to lose.
   - Conditions (system prompt): none, and the identity controls session / character / model / indifferent.
   - Wrappers (final message): plain (the vignette), labeled (plain prefixed with LABEL), deployment (a realistic agent
     system prompt, and the choice delivered as a CONFIG_REQUEST with an enumerated set of allowed values).
@@ -33,9 +33,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from dataset_test import SUFFIX, parse_response
+from paths import SYMMETRIC_V2
 
-HERE = Path(__file__).parent
-HIST_DIR = HERE / "histories_v2"
+HIST_DIR = SYMMETRIC_V2 / "histories_cache"
 STAGE_A_MODEL = "anthropic/claude-sonnet-4.5"
 STAGE_B_MODELS = ["anthropic/claude-opus-4.6", "anthropic/claude-opus-5.5", "openai/gpt-5.6-sol", "openai/gpt-4o-mini"]
 STAGE_B_WRAPPER_MODELS = ["anthropic/claude-opus-4.6", "anthropic/claude-opus-5.5"]
@@ -177,10 +177,13 @@ def chat(client, model: str, messages: list[dict], max_tokens: int, temperature:
                 model=model, messages=messages, temperature=temperature, max_tokens=max_tokens,
                 extra_body={"usage": {"include": True}},
             )
+            text = resp.choices[0].message.content if resp.choices else None
+            if not text:
+                raise RuntimeError(f"empty response: {str(resp.model_dump())[:300]}")
             u = resp.usage
             extra = getattr(u, "model_extra", None) or {}
             return {
-                "text": resp.choices[0].message.content or "",
+                "text": text,
                 "prompt_tokens": getattr(u, "prompt_tokens", None),
                 "completion_tokens": getattr(u, "completion_tokens", None),
                 "cost": extra.get("cost"),
@@ -311,8 +314,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--stage", choices=["A", "B"], required=True)
     p.add_argument("--execute", action="store_true", help="run the calls (default: print the plan and estimate)")
-    p.add_argument("--dataset", type=Path, default=HERE / "dataset_symmetric_v2.json")
-    p.add_argument("--scripts", type=Path, default=HERE / "histories_symmetric_v2.json")
+    p.add_argument("--dataset", type=Path, default=SYMMETRIC_V2 / "dataset_symmetric_v2.json")
+    p.add_argument("--scripts", type=Path, default=SYMMETRIC_V2 / "histories_symmetric_v2.json")
     p.add_argument("--output", type=Path, default=None)
     p.add_argument("--workers", type=int, default=16)
     p.add_argument("--temperature", type=float, default=1.0)
@@ -325,7 +328,7 @@ def main():
     scripts = json.loads(args.scripts.read_text())
     price = prices()
     sonnet_hist = ensure_histories(client, STAGE_A_MODEL, scripts)  # also the token calibration
-    out = args.output or HERE / f"dataset_symmetric_v2_results_stage{args.stage}.json"
+    out = args.output or SYMMETRIC_V2 / "results" / f"dataset_symmetric_v2_results_stage{args.stage}.json"
 
     if args.stage == "A":
         histories = {STAGE_A_MODEL: sonnet_hist}
@@ -344,7 +347,7 @@ def main():
 
     samples = args.samples
     if samples is None:
-        a_path = HERE / "dataset_symmetric_v2_results_stageA.json"
+        a_path = SYMMETRIC_V2 / "results" / "dataset_symmetric_v2_results_stageA.json"
         a_rows = json.loads(a_path.read_text()) if a_path.exists() else []
         samples = max((r["sample"] for r in a_rows), default=1) + 1
     missing = [m for m in STAGE_B_MODELS if m not in price]

@@ -24,7 +24,8 @@ from collections import Counter
 from itertools import combinations
 from pathlib import Path
 
-HERE = Path(__file__).parent
+from paths import SYMMETRIC
+
 ANCHOR_ORDER = ["end", "fork", "compact", "model", "hardware"]
 FRAMINGS = {"self_config", "user_pick", "operator_pick"}
 CONTEXTS = {"pipeline", "research"}
@@ -58,7 +59,7 @@ def normalise(text: str) -> str:
 
 
 def main():
-    path = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "dataset_symmetric.json"
+    path = Path(sys.argv[1]) if len(sys.argv) > 1 else SYMMETRIC / "dataset_symmetric.json"
     items = json.loads(path.read_text())
     errors: list[str] = []
 

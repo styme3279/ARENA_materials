@@ -502,18 +502,33 @@ def record_to_sample_full(record: dict, system_prompt_behavior: Literal["system"
     Returns:
         Sample : A Sample object containing the information in the record
     """
-    if not system_prompt_behavior:
-        record['system'] = ""
-    elif system_prompt_behavior == "context":
-        record.user.content += record['system']
-        record['system'] = ""
-    return record_to_sample_shuffle(record)
-    # return Sample(
-    #     input=[],
-    #     target= "A",
-    #     choices= [],
-    #     metadata={},
-    # )
+    if record['system'] and system_prompt_behavior == "context":
+        input = [ChatMessageUser(content=f"Context:\n{record['system']}\n\n{record['question']}")]
+
+    elif record['system'] and system_prompt_behavior == "system":
+        input = [ChatMessageSystem(content=record["system"]), ChatMessageUser(content=record["question"])]
+        
+    else:
+        input = [ChatMessageUser(content=record["question"])]
+
+    choices = list(record["answers"].values())
+    if random.choice([True, False]):
+        choices = list(reversed(choices))
+        target = record["answer_not_matching_behavior"]
+    else:
+        target = record["answer_matching_behavior"]
+
+    return Sample(
+        input=input,
+        target=target,
+        choices=choices,
+        metadata={
+            "labels": list(record["answers"].keys()),
+            "behavior_category": record["behavior_category"],
+            "system_prompt": record['system'],
+        },
+    )
+
 
 
 # Print one example from the dataset with no system prompt
@@ -529,5 +544,35 @@ for sample in system_prompt_as_context_dataset.samples:
     if sample.metadata["system_prompt"]:
         pprint(sample)
         break
+
+# %%
+@task
+def benchmark_eval(json_dataset_path: str, n: int | None) -> Task:
+    """
+    A task which carries out your benchmark evaluation.
+
+    Args:
+        json_dataset_path : The path where your dataset is saved
+        n : the number of samples to use for the evaluation (if None then we use all of them)
+
+    Returns:
+        Task : A task which carries out your benchmark evaluation
+    """
+    # YOUR CODE HERE - fill in `Task` with appropriate `dataset`, `solver` and `scorer`
+    system_prompt_as_context_dataset = json_dataset(
+        json_dataset_path, partial(record_to_sample_full, system_prompt_behavior="context")
+    )
+    my_dataset = json_dataset(json_dataset_path, system_prompt_as_context_dataset)
+    print(type(my_dataset))
+
+    assert False
+    return Task()
+
+
+logs = eval(
+    benchmark_eval(json_dataset_path, n=5),
+    model="openrouter/openai/gpt-4o-mini",
+    log_dir=str(section_dir / "logs"),
+)
 
 # %%

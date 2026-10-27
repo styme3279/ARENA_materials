@@ -131,3 +131,18 @@ pprint(response, width=120, sort_dicts=False)
 
 
 # %%
+class QuestionGeneration(BaseModel):
+    
+
+
+response = generate_structured_response(
+    model="gpt-4o-mini",
+    messages=[
+        {
+            "role": "user",
+            "content": "Generate 4 factual questions about France's culture.",
+        }
+    ],
+    response_format=QuestionGeneration,
+)
+pprint(response, width=120, sort_dicts=False)

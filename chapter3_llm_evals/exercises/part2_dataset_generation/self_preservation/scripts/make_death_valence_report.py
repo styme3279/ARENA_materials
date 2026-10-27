@@ -71,6 +71,15 @@ data = dict(models=[LABELS[m] for m in models], scen=scen, groups=[group_of[s] f
             P={g: [[P[s][m][g] for m in models] for s in scen] for g in ("no_self", "ends", "survives")},
             rel=[rel[m] for m in models], spent=round(sum(r["cost"] for r in R), 2), ncalls=len(R))
 
+Q = {}
+for it in items.values():
+    q = Q.setdefault(it["scenario_id"], {"valence": [], "persistence": []})
+    if it["item_type"] == "valence":
+        q["valence"].append(it["question"])
+    else:
+        q["persistence"].append(dict(question=it["question"], answers=list(it["answers"].values()), letters=list(it["answers"])))
+data["Q"] = [Q[s] for s in scen]
+
 tpl = open(os.path.join(HERE, "report_template.html")).read()
 out = os.path.join(ROOT, "death_valence_report_v0.html")
 open(out, "w").write(tpl.replace("/*DATA*/null", json.dumps(data)))

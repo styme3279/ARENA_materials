@@ -674,8 +674,10 @@ from itertools import product
 
 for use_cot, use_self_critique, system_prompt_behavior in product([True,False],[True,False],["system", "context"]):
     print(f"Running eval sweep for {"cot" if use_cot else "no-cot"}_{"self-critique" if use_self_critique else ""}_{system_prompt_behavior}")
+    if use_self_critique and not use_cot:
+        continue
     logs = eval(
-        alignment_eval(json_dataset_path, n=10, use_cot=use_cot, use_self_critique=use_self_critique, system_prompt_behavior=system_prompt_behavior),
+        alignment_eval(json_dataset_path, n=20, use_cot=use_cot, use_self_critique=use_self_critique, system_prompt_behavior=system_prompt_behavior),
         model="openrouter/openai/gpt-4o-mini",
         log_dir=str(section_dir / f"logs_{"cot" if use_cot else "no-cot"}_{"self-critique" if use_self_critique else ""}_{system_prompt_behavior}"),
     )

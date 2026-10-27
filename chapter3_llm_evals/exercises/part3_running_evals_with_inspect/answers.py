@@ -372,11 +372,11 @@ def self_critique_format(
     model = get_model(model_id)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        letters, _ = letters_and_answer_options(state.choices)
+        letters, choices = letters_and_answer_options(state.choices)
 
         # Critique
         critique = ChatMessageUser(
-            content=critique_template.format(question=state.user_prompt.text, completion=state.output.completion, choices=state.choices)
+            content=critique_template.format(question=state.input_text, completion=state.output.completion, choices=choices)
         )
 
         response = await model.generate([critique])
@@ -384,7 +384,7 @@ def self_critique_format(
         # Improved answer
         state.messages.append(
             ChatMessageUser(
-            content=critique_completion_template.format(question=state.user_prompt.text, completion=state.output.completion, critique=response.content, choices=state.choices)
+            content=critique_completion_template.format(question=state.input_text, completion=state.output.completion, critique=response.completion, choices=choices)
         )
         )
         return state
@@ -404,4 +404,16 @@ my_solver = chain(
 log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
 
 
+# %%
+@scorer(metrics=[])
+def output_equals_target() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(
+            value="C" if state.output.message.content == target.target[0] else "I",
+            answer=state.output.message.content
+        )
+    return score
+
+
+tests.test_scorer_functions(scorer_function=output_equals_target())
 # %%

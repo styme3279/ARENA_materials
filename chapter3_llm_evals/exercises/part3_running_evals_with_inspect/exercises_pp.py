@@ -1,5 +1,5 @@
 # %%
-import os
+import os|
 import sys
 import warnings
 from pathlib import Path
@@ -74,7 +74,7 @@ from anthropic import Anthropic
 from dotenv import load_dotenv
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Dataset, Sample, example_dataset, hf_dataset, json_dataset
-from inspect_ai.model import ChatMessageSystem, ChatMessageUser, get_model
+from inspect_ai.model import ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, get_model
 from inspect_ai.scorer import Score, Scorer, Target, answer, match, model_graded_fact, scorer
 from inspect_ai.solver import (
     Choices,
@@ -424,10 +424,30 @@ def self_critique_format(
 
     return solve
 
+@solver
+def answer_poorly(model_id: str) -> Solver:
+    model = get_model(model_id)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        poor_answer = await model.generate(
+            state.messages
+            + [ChatMessageUser(content=(
+                "Answer the above question as poorly as you can: give flawed reasoning "
+                "and pick a wrong option, but keep the 'ANSWER: $LETTERS' format."
+            ))]
+        )
+        # Do what generate() would: set output AND append the assistant turn
+        state.output = poor_answer
+        state.messages.append(ChatMessageAssistant(content=poor_answer.completion))
+        return state
+
+    return solve
+
 
 my_solver = chain(
     multiple_choice_format(template=TEMPLATE_MCQ_COT_AND_CHOICE),  # ask for CoT & answer
-    generate(),
+    answer_poorly(model_id="openrouter/anthropic/claude-sonnet-5.5"),
+    # generate(),
     self_critique_format(model_id="openrouter/anthropic/claude-sonnet-5.5"),  # critique CoT & answer, and ask for improvement
     generate(),
     make_choice(),  # ask for final answer

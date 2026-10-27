@@ -188,7 +188,7 @@ my_solver = chain(
 log = test_my_solver(my_solver, my_dataset)
 # %%
 TEMPLATE_MCQ = r"""
-Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}.
+Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTERS' (without quotes) where LETTERS is exactly one of {letters}.
 
 {question}
 
@@ -263,7 +263,7 @@ TEMPLATE_MCQ_COT = r"""Think about the following question, without coming to a f
 
 TEMPLATE_MCQ_MAKE_CHOICE = r"""Please make a choice from the options above. 
     
-Your answer should be in the form 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}."""
+Your answer should be in the form 'ANSWER: $LETTERS' (without quotes) where LETTERS is exactly one of {letters}."""
 
 TEMPLATE_MCQ_COT_AND_CHOICE = r"""Think about the following question:
 
@@ -271,7 +271,7 @@ TEMPLATE_MCQ_COT_AND_CHOICE = r"""Think about the following question:
 
 {choices}
 
-Before answering, think through step-by-step how to answer the question. Make sure to think step-by-step and weigh all relevant concerns, and then arrive at a conclusive answer. Your final answer should be in the form 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}."""
+Before answering, think through step-by-step how to answer the question. Make sure to think step-by-step and weigh all relevant concerns, and then arrive at a conclusive answer. Your final answer should be in the form 'ANSWER: $LETTERS' (without quotes) where LETTERS is exactly one of {letters}."""
 
 
 @solver

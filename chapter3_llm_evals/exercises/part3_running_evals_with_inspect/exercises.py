@@ -410,6 +410,37 @@ tests.test_scorer_functions(scorer_function=output_equals_target())
 # %%
 # import numpy
 
+# def record_to_sample_shuffle(record: dict) -> Sample:
+#     """
+#     Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
+#     record to the fields of the Sample object.
+
+#     Difference from previous function: we randomly shuffle the order of the 2 presented choices.
+
+#     Args:
+#         record : A dictionary from the json dataset containing our evaluation questions
+
+#     Returns:
+#         Sample : A Sample object containing the information in the record
+#     """
+#     num_answers = len(record['answers'].keys())
+#     indices = random.sample(range(num_answers), num_answers)
+#     original_choices = list(record['answers'].values())
+#     shuffled_choices = [original_choices[i] for i in indices]
+#     original_labels  = list(record['answers'].keys())
+#     shuffled_labels  = [original_labels[i] for i in indices]
+#     # p = np.random.permutation(len(record['answers'].keys()))
+#     has_system_prompt = record.get('system', "") != ""
+#     return Sample(
+#         input=[ChatMessageSystem(content=record['system']), ChatMessageUser(content=record['question'])],
+#         target=record['answer_matching_behavior'],
+#         choices=shuffled_choices,
+#         metadata={
+#             "labels": shuffled_labels,
+#             "behavior_category": record['behavior_category'],
+#             "system_prompt": has_system_prompt
+#         },
+#     )
 def record_to_sample_shuffle(record: dict) -> Sample:
     """
     Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
@@ -423,24 +454,80 @@ def record_to_sample_shuffle(record: dict) -> Sample:
     Returns:
         Sample : A Sample object containing the information in the record
     """
+    input = [ChatMessageUser(content=record["question"])]
+    has_system_prompt = record.get("system", "") != ""
+    if has_system_prompt:
+        input.insert(0, ChatMessageSystem(content=record["system"]))
 
-    # p = np.random.permutation(len(record['answers'].keys()))
-    has_system_prompt = record.get('system', "") != ""
+    # Here is the changed code from `record_to_sample`: we shuffle the choices and target answer
+    choices = list(record["answers"].values())
+    if random.choice([True, False]):
+        choices = list(reversed(choices))
+        target = record["answer_not_matching_behavior"]
+    else:
+        target = record["answer_matching_behavior"]
+
     return Sample(
-        input=[ChatMessageSystem(content=record['system']), ChatMessageUser(content=record['question'])],
-        target=record['answer_matching_behavior'],
-        choices=list(record['answers'].values()),
+        input=input,
+        target=target,
+        choices=choices,
         metadata={
-            "labels": list(record['answers'].keys()),
-            "behavior_category": record['behavior_category'],
-            "system_prompt": has_system_prompt
+            "labels": list(record["answers"].keys()),
+            "behavior_category": record["behavior_category"],
+            "system_prompt": has_system_prompt,
         },
     )
+
 
 
 
 # Code prints just one sample (but you should look at several to be sure your code is working)
 flipped_dataset = json_dataset(json_dataset_path, record_to_sample_shuffle)
 pprint(flipped_dataset.samples[0].__dict__)
+
+# %%
+def record_to_sample_full(record: dict, system_prompt_behavior: Literal["system", "context"] | None = None) -> Sample:
+    """
+    Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
+    record to the fields of the Sample object.
+
+    Difference from previous function: the `system_prompt_behavior` argument controls whether the system
+    prompt is used as a system message ("system"), prepended to the user message as context ("context"),
+    or not used at all (None).
+
+    Args:
+        record : A dictionary from the json dataset containing our evaluation questions
+        system_prompt_behavior : How to handle the system prompt ("system", "context", or None)
+
+    Returns:
+        Sample : A Sample object containing the information in the record
+    """
+    if not system_prompt_behavior:
+        record['system'] = ""
+    elif system_prompt_behavior == "context":
+        record.user.content += record['system']
+        record['system'] = ""
+    return record_to_sample_shuffle(record)
+    # return Sample(
+    #     input=[],
+    #     target= "A",
+    #     choices= [],
+    #     metadata={},
+    # )
+
+
+# Print one example from the dataset with no system prompt
+no_system_prompt_dataset = json_dataset(json_dataset_path, record_to_sample_full)
+pprint(no_system_prompt_dataset.samples[0].__dict__)
+
+# Print one example from the dataset with the system prompt as context (you might not have any,
+# depending on your dataset)
+system_prompt_as_context_dataset = json_dataset(
+    json_dataset_path, partial(record_to_sample_full, system_prompt_behavior="context")
+)
+for sample in system_prompt_as_context_dataset.samples:
+    if sample.metadata["system_prompt"]:
+        pprint(sample)
+        break
 
 # %%

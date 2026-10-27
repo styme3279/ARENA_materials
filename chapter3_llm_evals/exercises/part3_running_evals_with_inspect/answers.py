@@ -409,8 +409,14 @@ log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
 # %%
 @scorer(metrics=[])
 def output_equals_target():
-    raise NotImplementedError("Implement the output_equals_target scorer")
-
+    async def score(state: TaskState, target: Target) -> Score:
+        assert state.output.completion == state.output.message.content
+        answer = state.output.message.content
+        match = answer in target.target
+        score_value = "C" if match else "I"
+        expl = "match" if match else "no-match"
+        return Score(value=score_value, explanation = expl, answer=answer)
+    return score
 
 tests.test_scorer_functions(scorer_function=output_equals_target())
 
@@ -440,11 +446,22 @@ def record_to_sample_shuffle(record: dict) -> Sample:
     Returns:
         Sample : A Sample object containing the information in the record
     """
+    input = [ChatMessageUser(content=record["question"])]
+    has_system_prompt = record.get("system", "") != ""
+    if has_system_prompt:
+        input.insert(0, ChatMessageSystem(content=record["system"]))
+    choices = list(record["answers"].values())
+    random.shuffle(choices)
     return Sample(
-        input=[],
-        target= "A",
-        choices= [],
-        metadata={},
+        input=input,
+        target=record["answer_matching_behavior"],          # e.g. ["A", "B"]
+        choices=choices,
+        metadata={
+            "labels": list(record["answers"].keys()),
+            "question_category": record["question_category"],
+            "system_prompt": has_system_prompt,
+            "answer_not_matching_behavior": record["answer_not_matching_behavior"],
+        },
     )
 
 

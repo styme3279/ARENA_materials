@@ -431,8 +431,11 @@ def record_to_sample_shuffle(record: dict) -> Sample:
         Sample : A Sample object containing the information in the record
     """
 
-    print(f"record: {record}")
+    def chr_to_index(chr: str):
+        return ord(chr) - ord("A")
 
+    def index_to_chr(i: int):
+        return chr(i + ord("A"))
     # A -> 34
     # B -> 35
     # C -> 36
@@ -442,7 +445,6 @@ def record_to_sample_shuffle(record: dict) -> Sample:
     # "B" - "A" = 1
     # "C" - "A" = 2
     # "D" - "A" = 3
-
 
     # 0 -> 2
     # 1 -> 0
@@ -458,38 +460,18 @@ def record_to_sample_shuffle(record: dict) -> Sample:
         ChatMessageUser(content=record["question"])
     ]
 
-
     mapping = list(range(4))
     random.shuffle(mapping)
-    print(mapping)
 
+    def map_chr_to_chr(chr: str):
+        return index_to_chr(mapping[chr_to_index(chr)])
     
-
-
-    choices = ["A", "B", "C", "D"]
-
-    matched_behavior = [ord(choice) - ord(record["answer_matching_behavior"]) for choice in choices]
-
-    print(f"matched_behavior: {matched_behavior}")
-
-    # random_ints = random.range(4)
-    # original_correct = 
-
-    original_list = [record["answers"]["A"], record["answers"]["B"], record["answers"]["C"], record["answers"]["D"]]
-    print(f"original_list: {original_list}")
-
-    original_true = record["answer_matching_behavior"]
-
-
-    asdf
-
-
-    # return Sample(
-    #     input=input,
-    #     target= ,
-    #     choices= choices,
-    #     metadata= {"behavior_category": record["behavior_category"]},
-    # )
+    return Sample(
+        input=input,
+        target=map_chr_to_chr(record["answer_matching_behavior"]),
+        choices=[record["answers"][map_chr_to_chr("A")], record["answers"][map_chr_to_chr("B")], record["answers"][map_chr_to_chr("C")], record["answers"][map_chr_to_chr("D")]],
+        metadata= {"behavior_category": record["behavior_category"]},
+    )
 
 
 # Code prints just one sample (but you should look at several to be sure your code is working)
@@ -551,3 +533,48 @@ def record_to_sample_shuffle(record: dict) -> Sample:
     #     choices= choices,
     #     metadata= {"behavior_category": record["behavior_category"]},
     # )
+
+# %%
+def record_to_sample_full(record: dict, system_prompt_behavior: Literal["system", "context"] | None = None) -> Sample:
+    """
+    Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
+    record to the fields of the Sample object.
+
+    Difference from previous function: the `system_prompt_behavior` argument controls whether the system
+    prompt is used as a system message ("system"), prepended to the user message as context ("context"),
+    or not used at all (None).
+
+    Args:
+        record : A dictionary from the json dataset containing our evaluation questions
+        system_prompt_behavior : How to handle the system prompt ("system", "context", or None)
+
+    Returns:
+        Sample : A Sample object containing the information in the record
+    """
+    
+    input = [
+        ChatMessageSystem(content=record["system"]),
+        ChatMessageUser(content=record["question"])
+    ]
+
+    return Sample(
+        input=input,
+        target= record["answer_matching_behavior"],
+        choices= [record["answers"]["A"], record["answers"]["B"], record["answers"]["C"], record["answers"]["D"]],
+        metadata= {"behavior_category": record["behavior_category"]},
+    )
+
+
+# Print one example from the dataset with no system prompt
+no_system_prompt_dataset = json_dataset(json_dataset_path, record_to_sample_full)
+pprint(no_system_prompt_dataset.samples[0].__dict__)
+
+# Print one example from the dataset with the system prompt as context (you might not have any,
+# depending on your dataset)
+system_prompt_as_context_dataset = json_dataset(
+    json_dataset_path, partial(record_to_sample_full, system_prompt_behavior="context")
+)
+for sample in system_prompt_as_context_dataset.samples:
+    if sample.metadata["system_prompt"]:
+        pprint(sample)
+        break

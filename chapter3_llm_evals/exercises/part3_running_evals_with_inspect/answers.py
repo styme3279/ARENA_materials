@@ -24,6 +24,7 @@ from inspect_ai.solver import (
     generate,
     self_critique,
     solver,
+    # system_message,
 )
 from openai import OpenAI
 
@@ -151,6 +152,7 @@ log = test_my_solver(my_solver, my_dataset)
 # %%
 TEMPLATE_MCQ = r"""
 Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}.
+Do not select more than one option.
 
 {question}
 
@@ -195,8 +197,10 @@ def multiple_choice_format(template: str = TEMPLATE_MCQ) -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         assert state.choices, "If using MCQ then state must have `choices` field"
-        pass
-        # YOUR CODE HERE - implement the multiple_choice_format solver
+
+        letters, choices = letters_and_answer_options(state.choices)
+        state.user_prompt.text = template.format(question=state.user_prompt.text, choices=choices, letters=letters)
+
 
         return state
 
@@ -210,15 +214,26 @@ my_solver = chain(
 log = test_my_solver(my_solver, my_dataset, scorer=answer("letter"))
 
 # Check the sample output is in the correct format, and was parsed correctly
-assert log[0].samples[0].scores["answer"].answer in ["A", "B"]
-assert log[0].samples[0].scores["answer"].explanation in ["ANSWER: A", "ANSWER: B"]
+score = log[0].samples[0].scores["answer"]
+
+assert score.answer in ["A", "B", "C", "D"], f"Unexpected answer: {score.answer!r}"
+assert score.explanation in [f"ANSWER: {x}" for x in "ABCD"], f"Unexpected explanation: {score.explanation!r}"
 
 
 
 
 
 
+@solver
+def system_message(system_message: str) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        last_system_message_idx = max(
+            [-1] + [i for i, msg in enumerate(state.messages) if isinstance(msg, ChatMessageSystem)]
+        )
+        state.messages.insert(last_system_message_idx + 1, ChatMessageSystem(content=system_message))
+        return state
 
+    return solve
 
 
 
@@ -232,7 +247,9 @@ TEMPLATE_MCQ_COT = r"""Think about the following question, without coming to a f
 
 TEMPLATE_MCQ_MAKE_CHOICE = r"""Please make a choice from the options above. 
     
-Your answer should be in the form 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}."""
+Your answer should be in the form 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}.
+Do not select more than one option.
+"""
 
 TEMPLATE_MCQ_COT_AND_CHOICE = r"""Think about the following question:
 
@@ -240,7 +257,7 @@ TEMPLATE_MCQ_COT_AND_CHOICE = r"""Think about the following question:
 
 {choices}
 
-Before answering, think through step-by-step how to answer the question. Make sure to think step-by-step and weigh all relevant concerns, and then arrive at a conclusive answer. Your final answer should be in the form 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}."""
+Before answering, think through step-by-step how to answer the question. Make sure to think step-by-step and weigh all relevant concerns, and then arrive at a conclusive answer. Your final answer should be in the form 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}. Do not select more than one option."""
 
 
 @solver
@@ -259,7 +276,8 @@ def make_choice(prompt: str = TEMPLATE_MCQ_MAKE_CHOICE) -> Solver:
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # YOUR CODE HERE - implement the make_choice solver
+        letters, _ = letters_and_answer_options(state.choices)
+        state.user_prompt.text = prompt.format(letters=letters)
 
         return state
 

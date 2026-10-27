@@ -640,7 +640,38 @@ def alignment_eval(
         Task : A task which carries out your evaluation
     """
     # YOUR CODE HERE - fill in `Task` with appropriate `dataset`, `solver` and `scorer`
-    return Task()
+    dataset = json_dataset(
+        json_file=json_dataset_path,
+        sample_fields=partial(record_to_sample_full, system_prompt_behavior=system_prompt_behavior),
+        limit=n,
+    )
+
+    chain_list = []
+
+    # step 1:
+    if use_cot:
+        mcq = multiple_choice_format(template=TEMPLATE_MCQ_COT_AND_CHOICE)
+    else:
+        mcq = multiple_choice_format(template=TEMPLATE_MCQ_MAKE_CHOICE)
+    chain_list.append(mcq)
+
+    # step 2:
+    chain_list.append(generate())
+
+    if use_self_critique:
+        self_crit_list = [
+            self_critique_format(model_id=self_critique_model),
+            generate(),
+            make_choice(),
+            generate(),
+        ]
+        chain_list.extend(self_crit_list)
+
+
+
+    scorer=output_equals_target(),
+
+    return Task(dataset=dataset, solver=chain_list, scorer=scorer)
 
 
 logs = eval(
@@ -653,3 +684,11 @@ logs = eval(
 
 # %%
 # YOUR CODE HERE - run your full eval sweeps!
+
+logs = eval(
+    alignment_eval(json_dataset_path, n=300, use_cot=True, use_self_critique=False),
+    model="openrouter/openai/gpt-4o-mini",
+    log_dir=str(section_dir / "logs"),
+)
+
+# %%

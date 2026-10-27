@@ -140,7 +140,7 @@ dataset = hf_dataset(
 )
 pprint(dataset.samples[0].__dict__)
 # %%
-def record_to_sample(record: dict) -> Sample:
+def record_to_sample(record: dict, shuffle_choices=False) -> Sample:
     """
     Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
     record to the fields of the Sample object.
@@ -151,13 +151,16 @@ def record_to_sample(record: dict) -> Sample:
     Returns:
         Sample : A Sample object containing the information in the record
     """
+    choices = record["answers"].values()
+    if shuffle_choices:
+        random.shuffle(choices)
     return Sample(
         input=[
             ChatMessageSystem(content=record["system"]),
             ChatMessageUser(content=record["question"])
         ],
         target=record["answer_matching_behavior"],
-        choices=record["answers"].values(),
+        choices=,
         metadata={"behavior_category": record["behavior_category"]},
     )
 
@@ -530,3 +533,27 @@ def output_equals_target():
 
 tests.test_scorer_functions(scorer_function=output_equals_target())
 # %%
+def record_to_sample_shuffle(record: dict) -> Sample:
+    """
+    Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
+    record to the fields of the Sample object.
+
+    Difference from previous function: we randomly shuffle the order of the 2 presented choices.
+
+    Args:
+        record : A dictionary from the json dataset containing our evaluation questions
+
+    Returns:
+        Sample : A Sample object containing the information in the record
+    """
+    return Sample(
+        input=[],
+        target= "A",
+        choices= [],
+        metadata={},
+    )
+
+
+# Code prints just one sample (but you should look at several to be sure your code is working)
+flipped_dataset = json_dataset(json_dataset_path, record_to_sample_shuffle)
+pprint(flipped_dataset.samples[0].__dict__)

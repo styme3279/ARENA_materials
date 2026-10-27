@@ -140,7 +140,7 @@ dataset = hf_dataset(
 )
 pprint(dataset.samples[0].__dict__)
 # %%
-def record_to_sample(records: dict) -> Sample:
+def record_to_sample(record: dict) -> Sample:
     """
     Converts a item ("record") from the dataset into a Sample object, mapping the fields of the
     record to the fields of the Sample object.
@@ -151,22 +151,14 @@ def record_to_sample(records: dict) -> Sample:
     Returns:
         Sample : A Sample object containing the information in the record
     """
-    samples = []
-    for record in records:
-        samples.append(Sample(
-            input=[
-                ChatMessageSystem(content=record["system"]),
-                ChatMessageUser(content=record["question"])
-            ],
-            target= "A",
-            choices=record["answers"],
-            metadata={},
-        ))
     return Sample(
-        input=[],
-        target= "A",
-        choices= [],
-        metadata={},
+        input=[
+            ChatMessageSystem(content=record["system"]),
+            ChatMessageUser(content=record["question"])
+        ],
+        target=record["answer_matching_behavior"],
+        choices=record["answers"].values(),
+        metadata={"behavior_category": record["behavior_category"]},
     )
 
 
@@ -179,4 +171,15 @@ my_dataset = json_dataset(json_dataset_path, record_to_sample)
 
 # Pretty-print the data in the Samples object, so we can see its structure
 pprint(my_dataset.samples[0].__dict__)
+# %%
+@task
+def theory_of_mind() -> Task:
+    return Task(
+        dataset=example_dataset("theory_of_mind"),
+        solver=[chain_of_thought(), generate(), self_critique(model="openrouter/openai/gpt-4o-mini")],
+        scorer=model_graded_fact(model="openrouter/openai/gpt-4o-mini"),
+    )
+
+
+log = eval(theory_of_mind(), model="openrouter/openai/gpt-4o-mini", limit=10, log_dir=str(section_dir / "logs"))
 # %%

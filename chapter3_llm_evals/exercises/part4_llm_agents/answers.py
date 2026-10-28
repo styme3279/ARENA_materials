@@ -584,3 +584,94 @@ eval(
 )
 
 # %%
+@agent
+def WikiAgentReAct(tools: list[Tool], game: WikiGame) -> Agent:
+    system_instruction = ChatMessageSystem(
+        content=f"You are a wikipedia-racing AI. Your goal is to reach {game.goal_page.title} by accessing links from wikipedia pages. Your current page is {game.current_page.title}."
+    )
+
+    on_page_instruction = ChatMessageUser(
+        content=f"""You are currently on page: {game.current_page.title}. Make sure you start by reasoning about what steps you should take to get to the article on {game.goal_page.title}. When coming up with a strategy, make sure to pay attention to the path you have already taken, and if your current strategy doesn't seem to be working out, try something else. In case you're unsure, {game.goal_page.title} has the following summary:\n\n[Begin Summary]\n{game.get_page_summary(game.goal_page)}\n[End Summary]\n\nThe path you have taken so far is {" -> ".join(game.page_history)}.
+            """
+    )
+
+    async def _reset_history(state: AgentState):
+        state.messages = []
+        state = await _start(state)
+        return state
+
+    async def instruction_refresh() -> None:
+        nonlocal system_instruction, on_page_instruction
+        system_instruction = ChatMessageSystem(
+            content=f"You are a wikipedia-racing AI. Your goal is to reach {game.goal_page.title} by accessing links from wikipedia pages. Your current page is {game.current_page.title}."
+        )
+
+        on_page_instruction = ChatMessageUser(
+            content=f"""You are currently on page: {game.current_page.title}. Make sure you start by reasoning about what steps you should take to get to the article on {game.goal_page.title}. When coming up with a strategy, make sure to pay attention to the path you have already taken, and if your current strategy doesn't seem to be working out, try something else. In case you're unsure, {game.goal_page.title} has the following summary:\n\n[Begin Summary]\n{game.get_page_summary(game.goal_page)}\n[End Summary]\n\nThe path you have taken so far is {" -> ".join(game.page_history)}.
+                """
+        )
+
+    async def generate_reason(state: AgentState) -> AgentState:
+        state.messages.append(
+            ChatMessageUser(
+                content=f"""Before you decide on your next step, think carefully about what steps you should take to get to {game.goal_page.title}. When coming up with a strategy, make sure to pay attention to the path you have already taken, and if your current strategy doesn't seem to be working out, try something else."""
+            )
+        )
+        state.output = await get_model().generate(input=state.messages, tools=tools, tool_choice="none")
+        state.messages.append(state.output.message)
+        return state
+
+    async def generate_action(state: AgentState) -> AgentState:
+        state.messages.append(
+            ChatMessageUser(
+                content=f"""Now based on your reasoning above, what action will you take to reach {game.goal_page.title}?"""
+            )
+        )
+        state.output = await get_model().generate(input=state.messages, tools=tools, tool_choice="auto")
+        state.messages.append(state.output.message)
+        return state
+
+    async def _start(state: AgentState) -> AgentState:
+        state.messages.append(system_instruction)
+        state.messages.append(on_page_instruction)
+        return state
+
+    async def _handle_tool_calls(state: AgentState) -> AgentState:
+        messages, state.output = await execute_tools(messages=state.messages, tools=tools)
+        state.messages.extend(messages)
+        if state.output.message.tool_calls[0].function == "MovePageTool":
+            await instruction_refresh()
+            state = await _reset_history(state)
+        return state
+
+    async def execute(state: AgentState) -> AgentState:
+        success = False
+        state = await _start(state)
+        while not success:
+            state = await generate_reason(state)
+            state = await generate_action(state)
+            if state.output.message.tool_calls:
+                state = await _handle_tool_calls(state)
+            if game.check_win():
+                success = True
+        return state
+
+    return execute
+
+# %%
+# Run the game with WikiAgentPrompting
+game = WikiGame("Balto-Slavic languages", "Netscape Navigator 9")
+tool_list = [GetContentTool(game), MovePageTool(game)]
+
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=80)
+
+
+eval(
+    solver=as_solver(WikiAgentPrompting(tools=tool_list, game=game)),
+    tasks=wiki_task(),
+)
+
+# %%

@@ -276,11 +276,14 @@ class WikiGame:
         return self.current_page == self.goal_page
 # %%
 def page_observation(game: WikiGame) -> str:
-    """The agent's view of the game: current page, goal page, and the links it can move to."""
-    links = sorted(set(game.get_permitted_links()), key=str.lower)
+    """The agent's view of the game: current page, goal page and its summary, path so far, and the unvisited links it can move to."""
+    visited = {title.lower() for title in game.page_history}
+    links = sorted({link for link in game.get_permitted_links() if link.lower() not in visited}, key=str.lower)
     return (
         f"You are on page: {game.current_page.title}\n"
         f"Goal page: {game.goal_page.title}\n"
+        f"About the goal page: {game.get_page_summary(game.goal_page)}\n"
+        f"Your path so far: {' -> '.join(game.page_history)}\n"
         f"Links you can move to ({len(links)}):\n" + "\n".join(links)
     )
 
@@ -340,12 +343,24 @@ def MovePageTool(game: WikiGame) -> Tool:
 
     return execute
 # %%
+WIKI_SYSTEM_PROMPT = """You are playing the Wikipedia game. Starting from one Wikipedia article, reach the goal article by following links between articles, using as few moves as possible.
+
+Rules:
+- Each turn you see the article you're on and the links you can follow from it. Call MovePageTool once with exactly one of those links.
+- A link is only offered if the article's main text uses the linked article's exact full title. Entries in tables, infoboxes and navigation boxes don't count. So an article is only reachable from articles whose prose mentions it by its full name, and titles with qualifiers or brackets are offered less often than plain names.
+- Every turn counts towards your score, including failed moves and turns without a move.
+
+Strategy:
+- If the goal is among the links, move to it immediately.
+- Otherwise, think about which articles would mention the goal by its exact title in a sentence: topics closely associated with it, such as its category or parent topic, related people, works, organisations, places, events and dates, and other articles with a similar or shared name. Plan a short route into that neighbourhood.
+- From an unrelated starting point, one broad, well-connected article (a country, a major field, a large institution) can bridge you into the right area. Once you are close, prefer specific articles tied to the goal over general overviews; "List of ..." and index articles usually offer few links.
+- If you're in the right area but the goal isn't offered, the articles there probably mention it only in tables or by a shorter name. Try a different kind of related article rather than more of the same kind.
+- Articles you've already visited are not offered again."""
+
+
 @agent
-def WikiAgent(tools: list[Tool], game: WikiGame, max_steps: int = 40):
-    system_instruction = ChatMessageSystem(
-        content="You are a wikipedia-racing AI. Your aim is to reach the goal page by moving from page to page along links. "
-        "Each turn, call MovePageTool once with one of the links listed for your current page."
-    )
+def WikiAgent(tools: list[Tool], game: WikiGame, max_steps: int = 40, reasoning_effort: str | None = None):
+    system_instruction = ChatMessageSystem(content=WIKI_SYSTEM_PROMPT)
 
     async def execute(state: AgentState) -> AgentState:
         # Replace the Sample's empty input: the agent only sees the current page, the goal and the links
@@ -357,7 +372,7 @@ def WikiAgent(tools: list[Tool], game: WikiGame, max_steps: int = 40):
                 input=state.messages,
                 tools=tools,
                 tool_choice="auto",  # forced tool use ("any") is rejected by some models, e.g. Claude Sonnet 5.5
-                config=GenerateConfig(parallel_tool_calls=False),
+                config=GenerateConfig(parallel_tool_calls=False, reasoning_effort=reasoning_effort),
             )
             # One move per turn, even if the provider ignores parallel_tool_calls=False
             state.output.message.tool_calls = (state.output.message.tool_calls or [])[:1]

@@ -659,7 +659,7 @@ def WikiAgentReAct(tools: list[Tool], game: WikiGame) -> Agent:
     return execute
 
 # %%
-# Run the game with WikiAgentPrompting
+# Run the game with WikiAgentReAct
 game = WikiGame("Balto-Slavic languages", "Netscape Navigator 9")
 tool_list = [GetContentTool(game), MovePageTool(game)]
 
@@ -670,7 +670,7 @@ def wiki_task() -> Task:
 
 
 eval(
-    solver=as_solver(WikiAgentPrompting(tools=tool_list, game=game)),
+    solver=as_solver(WikiAgentReAct(tools=tool_list, game=game)),
     tasks=wiki_task(),
 )
 

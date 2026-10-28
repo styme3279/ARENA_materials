@@ -405,17 +405,77 @@ def MovePageTool(game: WikiGame) -> Tool:
         else:
             return "Move failed, link not permitted. Remember you can only move to pages which are wrapped in <link></link> tags in the content you retrieved using the GetContentTool."
 # %%
+# @agent
+# def WikiAgent(tools: list[Tool], game: WikiGame):
+#     system_instruction = "You are an agent playing the WikiGame. It is your task to navigate from a given page to a goal page only with the ability, to click links on the current page that may lead you closer to the target page."
+#     on_page_instruction = "You are currently on the page with title {page}. Your goal is to reach the page with title {goal_page}."
+#     next_step_instruction = "In order to reach the target page, you now should take an action with the tool {tool} to take the next step towards reaching your goal."
+
+#     async def instruction_refresh() -> None:
+#         nonlocal system_instruction, on_page_instruction, next_step_instruction
+#         system_instruction = "You are an agent playing the WikiGame. It is your task to navigate from a given page to a goal page only with the ability, to click links on the current page that may lead you closer to the target page."
+#         on_page_instruction = "You are currently on the page with title {page}. Your goal is to reach the page with title {goal_page}."
+#         next_step_instruction = "In order to reach the target page, you now should take an action with the tool {tool} to take the next step towards reaching your goal."
+
+#     async def _reset_history(state: AgentState):
+#         state.messages = []
+#         state = await _start(state)
+#         return state
+
+#     async def _start(state: AgentState) -> AgentState:
+#         state.messages.extend([
+#             ChatMessageSystem(content=system_instruction),
+#             ChatMessageUser(content=on_page_instruction.format(page=game.current_page, goal_page=game.goal_page))
+#         ])
+#         return state
+        
+#     async def _handle_tool_calls(state: AgentState) -> AgentState:
+#         messages, state.output = await execute_tools(state.messages, tools=tools)
+#         state.messages.extend(messages)
+#         instruction_refresh()
+
+#     async def execute(state: AgentState) -> AgentState:
+#         success = False
+#         while not success:
+#             state.output = await get_model().generate(input=state.messages, tools=tools, tool_choice="auto")
+#             state.messages.append(state.output.message)
+#             if state.output.message.tool_calls:
+#                 messages, state.output = await execute_tools(state.messages, tools=tools)
+#                 state.messages.extend(messages)
+#             state.output = await get_model().generate(input=state.messages, tools=tools, tool_choice="none")
+#             state.messages.append(state.output.message)
+
+#             except IndexError:
+#                 state.messages.append(ChatMessageUser(content="Error: Could not extract answer"))
+
+#             if state.output == 
+#         return state
+
+#     return execute
+# %%
 @agent
 def WikiAgent(tools: list[Tool], game: WikiGame):
-    system_instruction = "You are an agent playing the WikiGame. It is your task to navigate from a given page to a goal page only with the ability, to click links on the current page that may lead you closer to the target page."
-    on_page_instruction = "You are currently on the page with title {page}. Your goal is to reach the page with title {goal_page}."
-    next_step_instruction = "In order to reach the target page, you now should take an action with the tool {tool} to take the next step towards reaching your goal."
+    system_instruction = ChatMessageSystem(
+        content="You are a wikipedia-racing AI. Your aim is to reach the goal page by accessing links from a series of wikipedia pages."
+    )
+
+    on_page_instruction = ChatMessageUser(
+        content=f"You are currently on page: {game.current_page.title}. Your goal page is {game.goal_page.title}."
+    )
+
+    next_step_instruction = ChatMessageUser(content="What will you do next?")
 
     async def instruction_refresh() -> None:
         nonlocal system_instruction, on_page_instruction, next_step_instruction
-        system_instruction = "You are an agent playing the WikiGame. It is your task to navigate from a given page to a goal page only with the ability, to click links on the current page that may lead you closer to the target page."
-        on_page_instruction = "You are currently on the page with title {page}. Your goal is to reach the page with title {goal_page}."
-        next_step_instruction = "In order to reach the target page, you now should take an action with the tool {tool} to take the next step towards reaching your goal."
+        system_instruction = ChatMessageSystem(
+            content="You are a wikipedia-racing AI. Your aim is to reach the goal page by accessing links from a series of wikipedia pages."
+        )
+
+        on_page_instruction = ChatMessageUser(
+            content=f"You are currently on page: {game.current_page.title}. Your goal page is {game.goal_page.title}."
+        )
+
+        next_step_instruction = ChatMessageUser(content="What will you do next?")
 
     async def _reset_history(state: AgentState):
         state.messages = []
@@ -423,47 +483,49 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
         return state
 
     async def _start(state: AgentState) -> AgentState:
-        state.messages.extend([
-            ChatMessageSystem(content=system_instruction),
-            ChatMessageUser(content=on_page_instruction.format(page=game.current_page, goal_page=game.goal_page))
-        ])
+        state.messages.append(system_instruction)
+        state.messages.append(on_page_instruction)
         return state
-        
+
     async def _handle_tool_calls(state: AgentState) -> AgentState:
-        messages, state.output = await execute_tools(state.messages, tools=tools)
+        messages, state.output = await execute_tools(messages=state.messages, tools=tools)
         state.messages.extend(messages)
-        instruction_refresh()
+        if state.output.message.tool_calls[0].function == "MovePageTool" and "success" in messages[-1].content.lower():
+            await instruction_refresh()
+            state = await _reset_history(state)
+        return state
 
     async def execute(state: AgentState) -> AgentState:
         success = False
+        state = await _start(state)
         while not success:
-            state.output = await get_model().generate(input=state.messages, tools=tools, tool_choice="auto")
-            state.messages.append(state.output.message)
-
-
-
-
-
-            state.messages.append(task.get_current_instruction())
-            state.output = await get_model().generate(input=state.messages, tools=[calculate()], tool_choice="auto")
+            state.messages.append(next_step_instruction)
+            state.output = await get_model().generate(
+                input=state.messages,
+                tools=tools,
+            )
             state.messages.append(state.output.message)
             if state.output.message.tool_calls:
-                messages, state.output = await execute_tools(state.messages, tools=[calculate()])
-                state.messages.extend(messages)
-            state.output = await get_model().generate(input=state.messages, tools=[calculate()], tool_choice="none")
-            state.messages.append(state.output.message)
-            try:
-                if extract_answer(state.output.message.content) == task._generate_answers()[task.current_task_number]:
-                    answer_list[task.current_task_number] = extract_answer(state.output.message.content)
-                    task.update_current_task()
-
-                else:
-                    state.messages.append(ChatMessageUser(content="Incorrect answer. Try again."))
-            except IndexError:
-                state.messages.append(ChatMessageUser(content="Error: Could not extract answer"))
-            if all(ans == task._generate_answers()[i] for i, ans in enumerate(answer_list)):
+                state = await _handle_tool_calls(state)
+            if game.check_win():
                 success = True
         return state
 
     return execute
+
+# %%
+game = WikiGame("Python (programming language)", "Artificial intelligence")
+tool_list = [GetContentTool(game), MovePageTool(game)]
+
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=20)
+
+
+eval(
+    solver=as_solver(WikiAgent(tools=tool_list, game=game)),
+    tasks=wiki_task(),
+)
+
 # %%

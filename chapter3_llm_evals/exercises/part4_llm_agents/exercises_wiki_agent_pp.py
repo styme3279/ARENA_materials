@@ -316,7 +316,7 @@ def MovePageTool(game: WikiGame) -> Tool:
     return execute
 # %%
 @agent
-def WikiAgent(tools: list[Tool], game: WikiGame):
+def WikiAgent(tools: list[Tool], game: WikiGame, max_steps: int = 40):
     system_instruction = ChatMessageSystem(
         content="You are a wikipedia-racing AI. Your aim is to reach the goal page by moving from page to page along links. "
         "Each turn, call MovePageTool once with one of the links listed for your current page."
@@ -325,7 +325,9 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
     async def execute(state: AgentState) -> AgentState:
         # Replace the Sample's empty input: the agent only sees the current page, the goal and the links
         state.messages = [system_instruction, ChatMessageUser(content=page_observation(game))]
-        while not game.check_win():
+        for _ in range(max_steps):
+            if game.check_win():
+                break
             state.output = await get_model().generate(
                 input=state.messages,
                 tools=tools,
@@ -382,3 +384,94 @@ eval(
     tasks=wiki_task(),
 )
 # %%
+from inspect_ai.scorer import Score, Target, mean, scorer
+from inspect_ai.solver import Generate, TaskState, solver
+
+MAX_STEPS = 15
+
+# 7 extra pairs (shortest path checked against our link rules), then the 18 provided `wiki_pairs`,
+# in rough order of difficulty. "Ear Clearing" no longer exists on Wikipedia, so it's replaced by
+# the page "Ear clearing" now redirects to.
+wiki_eval_pairs = [
+    ("Pizza", "Mount Vesuvius"),  # 1 step
+    ("Coffee", "Ottoman Empire"),  # 1 step
+    ("Albert Einstein", "Nuclear weapon"),  # 2 steps, via Manhattan Project
+    ("Chess", "Artificial intelligence"),  # 2 steps, via Computer chess
+    ("Basketball", "Canada"),  # 2 steps, via James Naismith
+    ("Elizabeth I", "United States"),  # 2 steps, via Virginia
+    ("Python (programming language)", "Artificial intelligence"),  # 2 steps, via Common Lisp
+    ("Muban", "Commercial Law"),
+    ("County Seat", "Saint Pierre and Miquelon"),
+    ("Government of the United Kingdom", "Correlation"),
+    ("Software license", "Impressionism"),
+    ("Ptolemy", "Flax"),
+    ("Joinery", "Amethyst"),
+    ("WebKit", "Financial Instrument"),
+    ("Federal Assembly (Switzerland)", "Giacomo Puccini"),
+    ("Human Geography", "Charlie Kaufman"),
+    ("Written Chinese", "Amphipoda"),
+    ("Cape Verde", "Annual Publication"),
+    ("Penance", "Patent Cooperation Treaty"),
+    ("Polish Air Force", "Vogue India"),
+    ("Ionizing radiation", "Pope Sixtus I"),
+    ("FIFA Women's World Cup", "Ludwig Maximilian University of Munich"),
+    ("Spinal Column", "Mentor Graphics"),
+    ("Joseph Beuys", "RNA world"),
+    ("Middle ear equalization", "Newspeak"),
+]
+
+wiki_dataset = [
+    Sample(id=i, input="", target=goal, metadata={"start": start, "goal": goal})
+    for i, (start, goal) in enumerate(wiki_eval_pairs, start=1)
+]
+
+
+@solver
+def wiki_game_solver(max_steps: int = MAX_STEPS):
+    """Play one game per sample: a fresh WikiGame from the sample's metadata, then WikiAgent on it."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        game = WikiGame(state.metadata["start"], state.metadata["goal"])
+        agent_solver = as_solver(WikiAgent(tools=[MovePageTool(game)], game=game, max_steps=max_steps))
+        state = await agent_solver(state, generate)
+        # Record the outcome from the game itself, so the scorer doesn't have to parse the transcript
+        state.store.set("won", game.check_win())
+        state.store.set("steps", sum(m.role == "assistant" for m in state.messages))
+        state.store.set("path", game.page_history)
+        return state
+
+    return solve
+
+
+@scorer(metrics=[mean()])
+def wiki_steps_scorer(max_steps: int = MAX_STEPS):
+    """1.0 for reaching the goal in 1 step, down to 1/max_steps on the last allowed step; 0 if never reached."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        won, steps, path = state.store.get("won", False), state.store.get("steps", 0), state.store.get("path", [])
+        return Score(
+            value=(max_steps - steps + 1) / max_steps if won else 0.0,
+            answer=" -> ".join(path),
+            explanation=f"{'reached' if won else 'did not reach'} {target.text} in {steps} steps",
+            metadata={"won": won, "steps": steps},
+        )
+
+    return score
+
+
+@task
+def wiki_eval_task(max_steps: int = MAX_STEPS) -> Task:
+    return Task(
+        dataset=wiki_dataset,
+        solver=wiki_game_solver(max_steps),
+        scorer=wiki_steps_scorer(max_steps),
+        message_limit=2 * max_steps + 10,  # backstop only: the agent stops itself after max_steps
+    )
+
+
+wiki_logs = eval(wiki_eval_task(), fail_on_error=False)
+
+for s in wiki_logs[0].samples:
+    score = (s.scores or {}).get("wiki_steps_scorer")
+    result = f"{score.value:.2f}  {score.explanation}  [{score.answer}]" if score else f"ERROR {s.error.message[:100] if s.error else ''}"
+    print(f"{s.id:>2}. {s.metadata['start']} -> {s.metadata['goal']}: {result}")

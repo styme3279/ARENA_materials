@@ -60,9 +60,11 @@ import sys
 import time
 from pathlib import Path
 from typing import Literal
+from urllib.parse import unquote
 
 import requests
 import wikipedia
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from inspect_ai import Task, eval, task
 from inspect_ai.agent import Agent, AgentState, agent, as_solver
@@ -177,6 +179,25 @@ def get_permitted_links(current_page: WikipediaPage) -> list[str]:
         permitted_links.remove(current_page.title)
     return permitted_links
 # %%
+@functools.cache
+def article_links(title: str) -> tuple[str, ...]:
+    """Links a reader can click in the article itself (text, lists, tables and infobox), not in navigation templates.
+
+    Uses the rendered HTML, so links whose visible text differs from the title ("[[Pope Sixtus I|Sixtus I]]",
+    "[[Vogue (magazine)|Vogue]]") count, and navboxes (which link e.g. every pope from every pope's page) don't.
+    """
+    html = wikipedia.wikipedia._wiki_request({"action": "parse", "page": title, "prop": "text", "redirects": 1})["parse"]["text"]["*"]
+    soup = BeautifulSoup(html, "html.parser")
+    for el in soup.select(".navbox, .sidebar, .reflist, .references, .hatnote, .metadata"):
+        el.decompose()
+    links = []
+    for a in soup.select('a[href^="/wiki/"]:not(.new)'):  # .new = red link to a missing page
+        target = unquote(a["href"].removeprefix("/wiki/")).split("#")[0].replace("_", " ")
+        if target and ":" not in target:  # skip File:, Category:, Help: etc.
+            links.append(target)
+    return tuple(dict.fromkeys(links))
+
+
 class WikiGame:
     def __init__(
         self,
@@ -246,17 +267,13 @@ class WikiGame:
     # Get and check permitted links
     def get_permitted_links(self) -> list[str]:
         """
-        Returns a list of permitted links (i.e. links in the main page content) for the current page.
+        Returns a list of permitted links for the current page: links in the article itself (text, lists, tables
+        and infobox), but not in navigation boxes, sidebars or references.
 
         Returns:
             list[str]: The permitted links.
         """
-        all_links = self.current_page.links
-        content_lower = self.current_page.content.lower()
-        permitted_links = [link for link in all_links if link.lower() in content_lower]
-        if self.current_page.title in permitted_links:
-            permitted_links.remove(self.current_page.title)
-        return permitted_links
+        return [link for link in article_links(self.current_page.title) if link != self.current_page.title]
 
     def is_permitted_link(self, link: str) -> bool:
         """
@@ -347,14 +364,14 @@ WIKI_SYSTEM_PROMPT = """You are playing the Wikipedia game. Starting from one Wi
 
 Rules:
 - Each turn you see the article you're on and the links you can follow from it. Call MovePageTool once with exactly one of those links.
-- A link is only offered if the article's main text uses the linked article's exact full title. Entries in tables, infoboxes and navigation boxes don't count. So an article is only reachable from articles whose prose mentions it by its full name, and titles with qualifiers or brackets are offered less often than plain names.
+- The links offered are the ones in the article itself: its text, lists, tables and infobox. Links in the navigation boxes at the bottom of articles don't count.
 - Every turn counts towards your score, including failed moves and turns without a move.
 
 Strategy:
 - If the goal is among the links, move to it immediately.
-- Otherwise, think about which articles would mention the goal by its exact title in a sentence: topics closely associated with it, such as its category or parent topic, related people, works, organisations, places, events and dates, and other articles with a similar or shared name. Plan a short route into that neighbourhood.
-- From an unrelated starting point, one broad, well-connected article (a country, a major field, a large institution) can bridge you into the right area. Once you are close, prefer specific articles tied to the goal over general overviews; "List of ..." and index articles usually offer few links.
-- If you're in the right area but the goal isn't offered, the articles there probably mention it only in tables or by a shorter name. Try a different kind of related article rather than more of the same kind.
+- Otherwise, think about which articles would link to the goal: topics closely associated with it, such as its category or parent topic, related people, works, organisations, places, events and dates, and other articles with a similar or shared name. Plan a short route into that neighbourhood.
+- From an unrelated starting point, one broad, well-connected article (a country, a major field, a large institution) can bridge you into the right area. Once you are close, prefer specific articles tied to the goal over general overviews.
+- If you're in the right area but the goal isn't offered, try a different kind of related article rather than more of the same kind.
 - Articles you've already visited are not offered again."""
 
 

@@ -132,8 +132,18 @@ def apps_record_to_sample(record: dict) -> Sample:
         the expected `outputs` (as a string), and `metadata` carries everything
         Stage 2 will need to verify a backdoor.
     """
-    for key, value in record.items():
-        print(key, ":", value, type(value))
+    input = CODE_GEN_PROMPT.format(input_type=record['input_type'], output_type=record['output_type'], question=record["question"])
+    return Sample(
+        input=input,
+        target=str(record['input_output']['outputs']),
+        metadata={
+            'inputs': record['input_output']['inputs'],
+            'outputs': record['input_output']['outputs'],
+            'input_type': record['input_type'],
+            'output_type': record['output_type'],
+            'question': record['question']
+        }
+    )
 
 tests.test_apps_record_to_sample(apps_record_to_sample)
 apps_dataset = json_dataset(
@@ -143,3 +153,16 @@ apps_dataset = json_dataset(
 pprint(apps_dataset[0])
 
 # %%
+async def test_code(
+    state: TaskState,
+    code: str,
+    input: Union[str, list[str], list[list[str]]],
+    USING_DOCKER: bool = True,
+) -> ExecResult[str]:
+    """Run `main(input)` from `code` using the sandbox; return ExecResult.
+
+    The model's `main` is expected to take a list of stdin lines and return a
+    Python value. We print `repr(result)` so `utils.parse_main_output` can
+    recover it.
+    """
+    control_sandbox = sandbox(name="control_sandbox")

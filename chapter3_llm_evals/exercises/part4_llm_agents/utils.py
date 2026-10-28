@@ -12,7 +12,7 @@ import sys
 import inspect_ai.model as inspect_ai_model
 
 
-def evaluate_expression(expression):
+def sevaluate_expression(expression):
     """Evaluate a simple arithmetic expression (string in, float-as-string out).
 
     Used by the ArithmeticTask + calculate tool exercises so we can score the

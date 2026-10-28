@@ -95,18 +95,38 @@ print(arithmetic_task1.get_current_instruction())
 def calculate():
     async def execute(expression: str) -> str:
         """
-        This tool takes in an expression as an string and returns an string containing the evaluated answer.
+        A calculator that can evaluate arithmetic expressions. The input is a mathematical expression, as a string, and the output is the result of the calculation.
 
-        Args: 
+        Args:
+            expression: the arithmetic expression to evaluate.
+
+        Returns:
+            The result of the calculation, as a string. Or error if the expression is invalid.
         """
-        print("hello")
-        return "hi"
-        # answer = evaluate_expression(expression)
-    
-        # return answer
-    return calculate
+        try:
+            return str(evaluate_expression(expression))
+        except Exception as e:
+            return f"Error: {e}"
 
+    return execute
 
 tests.test_calculate_tool(calculate)
 
+
 # %%
+@agent
+def arithmetic_agent(task: ArithmeticTask):
+    async def execute(state: AgentState) -> AgentState:
+        state.messages.append(
+            task.get_current_instruction()
+        )
+        task.update_current_task()
+        messages, state.output = await get_model().generate(
+            state.messages,
+            tools=[calculate()]
+            )
+        state.messages.extend(messages)
+        utils.extract_answer(messages)
+        return state
+
+    return execute

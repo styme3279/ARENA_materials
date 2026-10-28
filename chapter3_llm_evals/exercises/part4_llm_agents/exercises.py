@@ -39,7 +39,7 @@ from part4_llm_agents.utils import evaluate_expression, execute_tools, extract_a
 # `wikipedia.page(...)` call below.
 wikipedia.set_user_agent("ARENA-AI-safety-course/3.4 (https://learn.arena.education)")
 
-EVAL_MODEL = "openai/gpt-4o-mini"
+EVAL_MODEL = "openrouter/openai/gpt-4o-mini"
 os.environ["INSPECT_EVAL_MODEL"] = EVAL_MODEL
 MAIN = __name__ == "__main__"
 
@@ -113,24 +113,24 @@ def calculate():
 tests.test_calculate_tool(calculate)
 
 
-# %%
-@agent
-def arithmetic_agent(task: ArithmeticTask):
-    async def execute(state: AgentState) -> AgentState:
-        state.messages.append(
-            task.get_current_instruction()
-        )
-        messages, state.output = await get_model().generate(
-            state.messages,
-            tools=[calculate()]
-            )
-        state.messages.extend(messages)
-        extracted_answer = utils.extract_answer(messages)
-        if extracted_answer == task._generate_answers[task.current_task_number]:
-            task.update_current_task()
-        return state
+# # %%
+# @agent
+# def arithmetic_agent(task: ArithmeticTask):
+#     async def execute(state: AgentState) -> AgentState:
+#         state.messages.append(
+#             task.get_current_instruction()
+#         )
+#         messages, state.output = await get_model().generate(
+#             state.messages,
+#             tools=[calculate()]
+#             )
+#         state.messages.extend(messages)
+#         extracted_answer = utils.extract_answer(messages)
+#         if extracted_answer == task._generate_answers[task.current_task_number]:
+#             task.update_current_task()
+#         return state
 
-    return execute
+#     return execute
 # %%
 
 @agent
@@ -163,9 +163,14 @@ def arithmetic_agent(task: ArithmeticTask):
     return execute
 
 # %%
+os.environ.get("OPENAI_API_KEY", None)
+
+
+
+# %%
 @task
 def agent_task() -> str:
-    return Task(dataset=[Sample(input="", target="")], message_limit=40)
+    return Task(dataset=[Sample(input="", target="")], message_limit=5)
 
-eval(agent_task(), solver=as_solver(arithmetic_agent(task=ArithmeticTask(3, 5))))
+eval(agent_task(), model = EVAL_MODEL, solver=as_solver(arithmetic_agent(task=ArithmeticTask(3, 5))))
 # %%

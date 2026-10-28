@@ -53,12 +53,15 @@ if f"{root}/{chapter}/exercises" not in sys.path:
 
 os.chdir(f"{root}/{chapter}/exercises")
 # %%
+import functools
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Literal
 
+import requests
 import wikipedia
 from dotenv import load_dotenv
 from inspect_ai import Task, eval, task
@@ -92,6 +95,27 @@ from part4_llm_agents.utils import evaluate_expression, execute_tools, extract_a
 # https://phabricator.wikimedia.org/T400119), so set our own before any
 # `wikipedia.page(...)` call below.
 wikipedia.set_user_agent("ARENA-AI-safety-course/3.4 (https://learn.arena.education)")
+
+# Wikipedia rate-limits bursts of API requests (e.g. 50 games starting at once) and answers with a
+# non-JSON error page, which the `wikipedia` library surfaces as a JSONDecodeError. All of its requests
+# go through `_wiki_request`, so retry there with backoff. The sleep blocks the event loop, which pauses
+# every running game while we're rate-limited.
+_wiki_request = getattr(wikipedia.wikipedia._wiki_request, "__wrapped__", wikipedia.wikipedia._wiki_request)
+
+
+@functools.wraps(_wiki_request)
+def _wiki_request_with_retries(params, retries: int = 7):
+    for attempt in range(retries):
+        try:
+            return _wiki_request(params)
+        except requests.exceptions.JSONDecodeError:
+            if attempt == retries - 1:
+                raise
+            print(f"Wikipedia API returned an error page, retrying in {2**attempt}s")
+            time.sleep(2**attempt)
+
+
+wikipedia.wikipedia._wiki_request = _wiki_request_with_retries
 
 EVAL_MODEL = "openrouter/openai/gpt-4o-mini"
 os.environ["INSPECT_EVAL_MODEL"] = EVAL_MODEL
@@ -184,6 +208,7 @@ class WikiGame:
 
     # Get page and page summary
     @staticmethod
+    @functools.cache  # games (and models) share page objects, so each page's content and links are fetched once
     def get_page(title: str) -> WikipediaPage:
         """
         Get a Wikipedia page object given a title. If the title is ambiguous, choose the first
@@ -357,33 +382,6 @@ eval(
     tasks=wiki_task(),
 )
 # %%
-game_1 = WikiGame("Elizabeth I", "United States")
-tool_list = [MovePageTool(game_1)]
-
-
-@task
-def wiki_task() -> Task:
-    return Task(dataset=[Sample(input="", target="")], message_limit=80)
-
-
-eval(
-    solver=as_solver(WikiAgent(tools=tool_list, game=game_1)),
-    tasks=wiki_task(),
-)
-game_2 = WikiGame("County Seat", "Saint Pierre and Miquelon")
-tool_list = [MovePageTool(game_2)]
-
-
-@task
-def wiki_task() -> Task:
-    return Task(dataset=[Sample(input="", target="")], message_limit=80)
-
-
-eval(
-    solver=as_solver(WikiAgent(tools=tool_list, game=game_2)),
-    tasks=wiki_task(),
-)
-# %%
 from inspect_ai.scorer import Score, Target, mean, scorer
 from inspect_ai.solver import Generate, TaskState, solver
 
@@ -469,9 +467,36 @@ def wiki_eval_task(max_steps: int = MAX_STEPS) -> Task:
     )
 
 
-wiki_logs = eval(wiki_eval_task(), fail_on_error=False)
+WIKI_MODELS = ["openrouter/openai/gpt-4o-mini", "openrouter/anthropic/claude-haiku-5.5"]
 
+# Same task (pairs, solver, scorer, MAX_STEPS) for every model: inspect runs one eval per model, in parallel
+wiki_logs = eval(wiki_eval_task(), model=WIKI_MODELS, fail_on_error=False)
+
+
+def format_wiki_score(score) -> str:
+    if score is None:
+        return "ERROR"
+    if not score.metadata["won"]:
+        return "0.00 (not reached)"
+    return f"{score.value:.2f} ({score.metadata['steps']} steps)"
+
+
+model_names = [log.eval.model.split("/")[-1] for log in wiki_logs]
+# One {sample id: Score} dict per model (None where the sample errored)
+scores_by_id = [{s.id: (s.scores or {}).get("wiki_steps_scorer") for s in log.samples} for log in wiki_logs]
+
+print(f"{'pair':<70}" + "".join(f"{name:<22}" for name in model_names))
 for s in wiki_logs[0].samples:
-    score = (s.scores or {}).get("wiki_steps_scorer")
-    result = f"{score.value:.2f}  {score.explanation}  [{score.answer}]" if score else f"ERROR {s.error.message[:100] if s.error else ''}"
-    print(f"{s.id:>2}. {s.metadata['start']} -> {s.metadata['goal']}: {result}")
+    pair = f"{s.id:>2}. {s.metadata['start']} -> {s.metadata['goal']}"
+    print(f"{pair:<70}" + "".join(f"{format_wiki_score(scores[s.id]):<22}" for scores in scores_by_id))
+print(f"{'mean score':<70}" + "".join(
+    f"{log.results.scores[0].metrics['mean'].value if log.results else float('nan'):<22.3f}" for log in wiki_logs
+))
+print(f"{'reached goal':<70}" + "".join(
+    f"{sum(bool(sc and sc.metadata['won']) for sc in scores.values())}/{len(scores)}".ljust(22) for scores in scores_by_id
+))
+print(f"{'errors (not in mean)':<70}" + "".join(
+    f"{sum(sc is None for sc in scores.values())}".ljust(22) for scores in scores_by_id
+))
+
+# %%

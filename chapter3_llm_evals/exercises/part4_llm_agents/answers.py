@@ -460,40 +460,42 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
         
 
     async def _handle_tool_calls(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the _handle_tool_calls function")
+        messages, state.output = await execute_tools(messages=state.messages, tools=tools)
+        state.messages.extend(message)
+        if state.output.message.tool_calls[0].function == "MovePageTool" and "success" in messages[-1].content.lower():
+            await instruction_refresh()
+            state = await _reset_history(state)
+
+        return state
+
 
     async def execute(state: AgentState) -> AgentState:
         success = False
-        max_loop_iters = 20
         state = await _start(state)
-        for i in range(max_loop_iters):
+        while not success:
             state.messages.append(next_step_instruction)
 
             state.output = await get_model().generate(input=state.messages, tools=tools)
             state.messages.append(state.output.message)
 
             if state.output.message.tool_calls:
-                out = await _handle
-            else:
-
-
-            await instruction_refresh()
-            state = await _start(state)
-
-
-            # tools=[MovePageTool(game), GetContentTool(game)]
-
-
-            state.messages.append(state.output.message)
-
-            # if output is text
-
-            # if output is tool call
-
-            
-
-
-
-        raise NotImplementedError("You need to implement the execute function")
+                state = await _handle_tool_calls(state)
+            if game.check_win():
+                success = True
+        return state
 
     return execute
+
+# %%
+game = WikiGame("Python (programming language)", "Artificial intelligence")
+# Use the eval function to evaluate your WikiAgent on a task where it has to get from the "Python (programming language)" page to the "Artificial intelligence" page.
+
+tool_list = [GetContentTool(game), MovePageTool(game)]
+
+@task
+def wiki_task() -> str:
+    return Task(dataset=[Sample(input="", target="")], message_limit=20)
+
+
+eval(solver=as_solver(WikiAgent(tools=tool_list, game=game)), tasks=wiki_task())
+# %%

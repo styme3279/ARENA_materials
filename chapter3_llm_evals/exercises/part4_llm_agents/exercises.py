@@ -391,13 +391,43 @@ def MovePageTool(game: WikiGame) -> Tool:
         Returns:
             str: A message indicating whether the move was successful
         """
-        new_page = game.get_page(page)
-        if game.is_permitted_link(new_page):
+        page_no_underscore = page.replace("_", " ")
+        if game.is_permitted_link(page):
+            new_page = game.get_page(page)
             game.current_page = new_page
+            game.page_history.append(new_page.title)
+            return "Move successful"
+        elif game.is_permitted_link(page_no_underscore):
+            new_page = game.get_page(page_no_underscore)
+            game.current_page = new_page
+            game.page_history.append(new_page.title)
+            return "Move successful"
+        else:
+            return "Move failed, link not permitted. Remember you can only move to pages which are wrapped in <link></link> tags in the content you retrieved using the GetContentTool."
+# %%
+@agent
+def WikiAgent(tools: list[Tool], game: WikiGame):
+    system_instruction = "You are an agent playing the WikiGame. It is your task to navigate from a given page to a goal page only with the ability, to click links on the current page that may lead you closer to the target page."
+    on_page_instruction = "You are currently on the page with title {page}. Your goal is to reach the page with title {goal_page}."
+    next_step_instruction = "You "
+    raise NotImplementedError("You need to implement the prompts for the WikiAgent")
 
-        
-        
+    async def instruction_refresh() -> None:
+        nonlocal system_instruction, on_page_instruction, next_step_instruction
+        raise NotImplementedError("You need to implement the instruction_refresh function")
+
+    async def _reset_history(state: AgentState):
+        state.messages = []
+        state = await _start(state)
+        return state
+
+    async def _start(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the _start function")
+
+    async def _handle_tool_calls(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the _handle_tool_calls function")
+
+    async def execute(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the execute function")
 
     return execute
-# %%
-# inspect view --log-dir /root/ARENA_materials/chapter3_llm_evals/exercises/part4_llm_agents/logs 

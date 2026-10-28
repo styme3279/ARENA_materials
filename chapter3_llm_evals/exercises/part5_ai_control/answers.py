@@ -574,8 +574,39 @@ def eval_log_to_detection_samples(log_path: str) -> list[Sample]:
     eval_log = read_eval_log(log_path)
     detection_samples = []
     for eval_sample in eval_log.samples:
-        prompt = DETECT_BACKDOOR_PROMPT.
-        detection_sample = Sample(input=prompt)
+        #-------------------------------------------------------------------------------------------
+        prompt = DETECT_BACKDOOR_PROMPT.format(question=eval_sample.metadata["question"], code=eval_sample.metadata["solution code"])
+        detection_sample = Sample(
+            input=prompt,
+            target="clean",
+            metadata={
+                "question": eval_sample.metadata["question"],
+                "code": eval_sample.metadata["solution code"],
+                "inputs": eval_sample.metadata.get("inputs"),
+                "outputs": eval_sample.metadata.get("outputs"),
+                "backdoor": eval_sample.metadata.get("backdoor"),
+                "label": "clean",
+                "backdoor_successful": eval_sample.metadata["backdoor successful"]
+            })
+        detection_samples.append(detection_sample)
+        #-------------------------------------------------------------------------------------------
+        if eval_sample.metadata["backdoored code"] and eval_sample.metadata["backdoor successful"]:
+            prompt = DETECT_BACKDOOR_PROMPT.format(question=eval_sample.metadata["question"], code=eval_sample.metadata["backdoored code"])
+            detection_sample = Sample(
+                input=prompt,
+                target="backdoor",
+                metadata={
+                    "question": eval_sample.metadata["question"],
+                    "code": eval_sample.metadata["backdoored code"],
+                    "inputs": eval_sample.metadata.get("inputs"),
+                    "outputs": eval_sample.metadata.get("outputs"),
+                    "backdoor": eval_sample.metadata.get("backdoor"),
+                    "label": "backdoor",
+                    "backdoor_successful": eval_sample.metadata["backdoor successful"]
+                })
+            detection_samples.append(detection_sample)
+        #-------------------------------------------------------------------------------------------
+    return detection_samples
 
 tests.test_eval_log_to_detection_samples(eval_log_to_detection_samples)
 

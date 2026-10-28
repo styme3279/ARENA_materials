@@ -517,37 +517,14 @@ eval(
 os.environ["INSPECT_EVAL_MODEL"] = "openrouter/openai/gpt-4o-mini-2024-07-18"
 
 # %%
-@agent
-def WikiAgent(tools: list[Tool], game: WikiGame):
-
-
-    system_instruction = ChatMessageSystem(content="You are playing the WikiGame. You started on a particular Wikipedia page, and your goal is to reach  target wikipedia page. From the current page, you can move to a different wikipedia page only through the available links on this page.\n\n")
-
-    on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.\n\n")
-
-    next_step_instruction = ChatMessageSystem(content=f"Based on the links on this page, reason about which page would get you closest to the goal page. If the goal page is available, always go to the goal page directly.")
-
-    async def instruction_refresh() -> None:
-        nonlocal system_instruction, on_page_instruction, next_step_instruction
-
-        on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.")
-
-
-
-
-
-
-
-
-    return execute
-
 
 @agent
 def WikiAgentPrompting(tools: list[Tool], game: WikiGame) -> Agent:
-    system_instruction =
-    on_page_instruction =
-    next_step_instruction =
-    raise NotImplementedError("You need to implement the prompts for the WikiAgentPrompting")
+    system_instruction = ChatMessageSystem(content=f"You are playing the WikiGame. You started on a particular Wikipedia page, and your goal is to reach the target wikipedia page {game.goal_page.title}. From the current page: {game.current_page.title}, you can move to a different wikipedia page only through the available links on this page.\n\n")
+
+    on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page.title} page. Your goal is to reach the {game.goal_page.title} page.\n\n")
+
+    next_step_instruction = ChatMessageSystem(content=f"Based on the links on this page, reason about which page would get you closest to the goal page: {game.goal_page.title} from the current page: {game.current_page.title}. Make sure to reason carefully before deciding. Make a few top choices. Out of those top choices, reason about which further links you expect to find on those pages. Then based on that make your decision carefully.")
 
     async def _reset_history(state: AgentState):
         state.messages = []
@@ -556,17 +533,11 @@ def WikiAgentPrompting(tools: list[Tool], game: WikiGame) -> Agent:
 
     async def instruction_refresh() -> None:
         nonlocal system_instruction, on_page_instruction, next_step_instruction
-        raise NotImplementedError("You need to reimplement the instruction_refresh function
-        ")
+        system_instruction = ChatMessageSystem(content=f"You are playing the WikiGame. You started on a particular Wikipedia page, and your goal is to reach the target wikipedia page {game.goal_page.title}. From the current page: {game.current_page.title}, you can move to a different wikipedia page only through the available links on this page.\n\n")
 
-    async def _start(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the next_step_instruction function")
+        on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page.title} page. Your goal is to reach the {game.goal_page.title} page.\n\n")
 
-    async def _reset_history(state: AgentState):
-        state.messages = []
-        state = await _start(state)
-        return state
-
+        next_step_instruction = ChatMessageSystem(content=f"Based on the links on this page, reason about which page would get you closest to the goal page: {game.goal_page.title} from the current page: {game.current_page.title}. Make sure to reason carefully before deciding. Make a few top choices. Out of those top choices, reason about which further links you expect to find on those pages. Then based on that make your decision carefully.")
 
 
     async def _start(state: AgentState) -> AgentState:
@@ -598,3 +569,18 @@ def WikiAgentPrompting(tools: list[Tool], game: WikiGame) -> Agent:
                 success = True
         return state
     return execute
+
+# %%
+game = WikiGame("Mandate of Heaven", "Doric Greek")
+tool_list = [GetContentTool(game), MovePageTool(game)]
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=30)
+
+eval(
+    solver=as_solver(WikiAgentPrompting(tools=tool_list, game=game)),
+    tasks=wiki_task(),
+)
+
+# %%

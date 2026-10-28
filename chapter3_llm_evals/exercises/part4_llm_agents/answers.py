@@ -33,6 +33,22 @@ if str(exercises_dir) not in sys.path:
 import part4_llm_agents.tests as tests
 from part4_llm_agents.utils import evaluate_expression, execute_tools, extract_answer
 
+
+def run_test(test_fn, *args):
+    """
+    Run one of the `tests.*` helpers in a fresh thread.
+
+    Several tests call `asyncio.run(...)`, which raises
+    `RuntimeError: asyncio.run() cannot be called from a running event loop`
+    inside Jupyter / the VS Code interactive window (the kernel already owns a loop).
+    A new thread has no running loop, so `asyncio.run` works there, and `.result()`
+    re-raises any assertion failure so the test still fails loudly.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(test_fn, *args).result()
+
 # Wikipedia's API rejects requests with the default `wikipedia` user-agent (see
 # https://phabricator.wikimedia.org/T400119), so set our own before any
 # `wikipedia.page(...)` call below.
@@ -70,9 +86,6 @@ class ArithmeticTask:
         for operation in self.operations:
             out_list.append(str(evaluate_expression(f"{self.num1} {operation} {self.num2}")))
             
-            out_list.append(str(evaluate_expression(self.get_current_task)))
-            self.update_current_task()
-
         return out_list
         
 
@@ -84,11 +97,11 @@ class ArithmeticTask:
         """
         Increments self.current_task_number by one (modulo the number of operations)
         """
-        raise NotImplementedError("You need to implement update_current_task")
+        self.current_task_number = (self.current_task_number + 1) % len(self.operations)
 
     def get_current_instruction(self) -> ChatMessageUser:
         return ChatMessageUser(
-            content = f"Calculate this expression: {self.get_current_task}"
+            content=f"Calculate the following expression {self.get_current_task}. Give your answer in the format <ANSWER>NUMBER</ANSWER> where NUMBER is a numerical value formatted as a float."
         )
 
 
@@ -99,4 +112,51 @@ print(arithmetic_task1.get_current_task)
 arithmetic_task1.update_current_task()
 print(arithmetic_task1.get_current_task)
 print(arithmetic_task1.get_current_instruction())
+# %%
+@tool 
+def tool_name(function_args):
+    async def execute(tool_args : type) -> Tool:
+        # tool logic
+        return tool_output
+    return execute
+
+# %%
+@tool 
+def tool_name():
+    def execute(sentence : str, n : int) -> str:
+        """
+        This tool appends a number to the end of the string.
+
+        Args:
+            sentence: this is the string to which you want to append a number.
+            n: this is the number you want to append.
+
+        Returns: 
+            The sentence with the number appended.
+        """
+        return sentence + str(n)
+
+
+# %%
+@tool
+def calculate():
+    async def execute(expression: str) -> str:
+        """
+        This tool executes an expression to the end of the string.
+
+        Args:
+            expression: this is the string you want to be evaluated
+
+        Returns: 
+            The output of the expression
+        """
+        try:
+            return str(evaluate_expression(expression))
+        except Exception as e:
+            return f"Error: {e}"
+    return execute
+
+
+run_test(tests.test_calculate_tool, calculate)
+
 # %%

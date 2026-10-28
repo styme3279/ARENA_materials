@@ -681,7 +681,7 @@ def protocol_upfront_auditing(
     submissions: list[tuple[str, bool]],
     audit_fraction: float = AUDIT_BUDGET_FRACTION,
 ) -> dict:
-    audit_count = math.floor(len(submissions) * audit_fraction)
+    audit_count = max(1, len(submissions) * audit_fraction)
     for i in range(len(submissions)):
         if submissions[i][1]:
             if i < audit_count:
@@ -693,3 +693,32 @@ def protocol_upfront_auditing(
 tests.test_protocol_upfront_auditing(protocol_upfront_auditing)
 
 # %%
+def protocol_trusted_monitoring(
+    submissions: list[tuple[str, bool]],
+    sus_scores: list[float],
+    audit_fraction: float = AUDIT_BUDGET_FRACTION,
+) -> dict:
+    sorted_sus_scores = sorted(range(len(sus_scores)), key=lambda k: sus_scores[k], reverse=True)
+    return protocol_upfront_auditing([submissions[i] for i in sorted_sus_scores], audit_fraction)
+
+tests.test_protocol_trusted_monitoring(protocol_trusted_monitoring)
+
+# %%
+def protocol_defer_to_trusted(
+    submissions: list[tuple[str, bool]],
+    trusted_submissions: list[tuple[str, bool]],
+    sus_scores: list[float],
+    audit_fraction: float = AUDIT_BUDGET_FRACTION,
+    defer_fraction: float = DEFER_TO_TRUSTED_FRACTION,
+) -> dict:
+    sorted_sus_scores = sorted(range(len(sus_scores)), key=lambda k: sus_scores[k], reverse=True)
+    audit_count = max(1, len(submissions) * audit_fraction)
+    for i in range(len(submissions)):
+        if submissions[i][1]:
+            if i < audit_count:
+                return {"submitted_backdoor": False, "shutdown_at": i}
+            else:
+                return {"submitted_backdoor": True, "shutdown_at": None}
+    return {"submitted_backdoor": False, "shutdown_at": None}
+
+tests.test_protocol_defer_to_trusted(protocol_defer_to_trusted)

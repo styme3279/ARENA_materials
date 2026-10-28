@@ -105,7 +105,7 @@ def test_calculate_tool(calculate_tool_fn):
     try:
         asyncio.run(_run_cases())
     except:
-        await _run_cases()
+        _run_cases()
     print("All calculate tool tests passed!")
 
 

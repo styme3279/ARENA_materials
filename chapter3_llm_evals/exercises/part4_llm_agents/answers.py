@@ -499,3 +499,102 @@ def wiki_task() -> str:
 
 eval(solver=as_solver(WikiAgent(tools=tool_list, game=game)), tasks=wiki_task())
 # %%
+game_1 = WikiGame("Elizabeth I", "United States")
+tool_list = [GetContentTool(game_1), MovePageTool(game_1)]
+
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=30)
+
+
+eval(
+    solver=as_solver(WikiAgent(tools=tool_list, game=game_1)),
+    tasks=wiki_task(),
+)
+
+# %%
+os.environ["INSPECT_EVAL_MODEL"] = "openrouter/openai/gpt-4o-mini-2024-07-18"
+
+# %%
+@agent
+def WikiAgent(tools: list[Tool], game: WikiGame):
+
+
+    system_instruction = ChatMessageSystem(content="You are playing the WikiGame. You started on a particular Wikipedia page, and your goal is to reach  target wikipedia page. From the current page, you can move to a different wikipedia page only through the available links on this page.\n\n")
+
+    on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.\n\n")
+
+    next_step_instruction = ChatMessageSystem(content=f"Based on the links on this page, reason about which page would get you closest to the goal page. If the goal page is available, always go to the goal page directly.")
+
+    async def instruction_refresh() -> None:
+        nonlocal system_instruction, on_page_instruction, next_step_instruction
+
+        on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.")
+
+
+
+
+
+
+
+
+    return execute
+
+
+@agent
+def WikiAgentPrompting(tools: list[Tool], game: WikiGame) -> Agent:
+    system_instruction =
+    on_page_instruction =
+    next_step_instruction =
+    raise NotImplementedError("You need to implement the prompts for the WikiAgentPrompting")
+
+    async def _reset_history(state: AgentState):
+        state.messages = []
+        state = await _start(state)
+        return state
+
+    async def instruction_refresh() -> None:
+        nonlocal system_instruction, on_page_instruction, next_step_instruction
+        raise NotImplementedError("You need to reimplement the instruction_refresh function
+        ")
+
+    async def _start(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the next_step_instruction function")
+
+    async def _reset_history(state: AgentState):
+        state.messages = []
+        state = await _start(state)
+        return state
+
+
+
+    async def _start(state: AgentState) -> AgentState:
+        state.messages.append(system_instruction)
+        state.messages.append(on_page_instruction)
+        return state
+        
+    async def _handle_tool_calls(state: AgentState) -> AgentState:
+        messages, state.output = await execute_tools(messages=state.messages, tools=tools)
+        state.messages.extend(messages)
+        if state.output.message.tool_calls[0].function == "MovePageTool" and "success" in messages[-1].content.lower():
+            await instruction_refresh()
+            state = await _reset_history(state)
+
+        return state
+
+    async def execute(state: AgentState) -> AgentState:
+        success = False
+        state = await _start(state)
+        while not success:
+            state.messages.append(next_step_instruction)
+
+            state.output = await get_model().generate(input=state.messages, tools=tools)
+            state.messages.append(state.output.message)
+
+            if state.output.message.tool_calls:
+                state = await _handle_tool_calls(state)
+            if game.check_win():
+                success = True
+        return state
+    return execute

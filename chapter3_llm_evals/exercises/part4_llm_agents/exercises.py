@@ -1,10 +1,14 @@
 # %%
+!pip install nest-asyncio
+
+# %%
 
 import os
 import re
 import sys
 from pathlib import Path
 from typing import Literal
+
 
 import wikipedia
 from dotenv import load_dotenv
@@ -404,6 +408,8 @@ def MovePageTool(game: WikiGame) -> Tool:
             return "Move successful"
         else:
             return "Move failed, link not permitted. Remember you can only move to pages which are wrapped in <link></link> tags in the content you retrieved using the GetContentTool."
+
+    return execute
 # %%
 # @agent
 # def WikiAgent(tools: list[Tool], game: WikiGame):
@@ -525,6 +531,39 @@ def wiki_task() -> Task:
 
 eval(
     solver=as_solver(WikiAgent(tools=tool_list, game=game)),
+    tasks=wiki_task(),
+)
+
+# %%
+# inspect view --log-dir /root/ARENA_materials/chapter3_llm_evals/exercises/part4_llm_agents/logs --port 7579
+
+game_1 = WikiGame("Elizabeth I", "United States")
+tool_list = [GetContentTool(game_1), MovePageTool(game_1)]
+
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=80)
+
+
+eval(
+    solver=as_solver(WikiAgent(tools=tool_list, game=game_1)),
+    tasks=wiki_task(),
+)
+
+# %%
+# inspect view --log-dir /root/ARENA_materials/chapter3_llm_evals/exercises/part3_running_evals_with_inspect/logs --port 7583
+game_2 = WikiGame("Trieste", "Munich")
+tool_list = [GetContentTool(game_2), MovePageTool(game_2)]
+
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=80)
+
+
+eval(
+    solver=as_solver(WikiAgent(tools=tool_list, game=game_2)),
     tasks=wiki_task(),
 )
 

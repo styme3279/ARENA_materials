@@ -168,7 +168,7 @@ tests.test_calculate_tool(calculate)
 # %%
 @agent
 def arithmetic_agent(task: ArithmeticTask):
-    async def execute(state: AgentState) -> AgentState:
+    async def execute(state: AgentState, max_turns=5) -> AgentState:
         state.messages.append(
             ChatMessageSystem(
                 content="You are a tenacious mathematician that is expert at using a calculator to answer math questions."
@@ -180,6 +180,13 @@ def arithmetic_agent(task: ArithmeticTask):
                 state.messages, tools=[calculate()],
             )
             state.messages.extend(messages)
+
+            answer = extract_answer(state.output.message.text)
+            if answer == task._generate_answers()[task.current_task_number]:
+                solved += 1
+                task.update_current_task()
+            else:
+                state.messages.append(ChatMessageUser(content="Incorrect answer. Try again."))
         return state
 
     return execute

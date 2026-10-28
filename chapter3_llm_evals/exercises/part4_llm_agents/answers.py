@@ -437,9 +437,9 @@ def MovePageTool(game: WikiGame) -> Tool:
 def WikiAgent(tools: list[Tool], game: WikiGame):
 
 
-    system_instruction = ChatMessageSystem(content="You are playing the WikiGame. You started on a particular Wikipedia page, and your goal is to reach  target wikipedia page. From the current page, you can move to a different wikipedia page only through the available links on this page.")
+    system_instruction = ChatMessageSystem(content="You are playing the WikiGame. You started on a particular Wikipedia page, and your goal is to reach  target wikipedia page. From the current page, you can move to a different wikipedia page only through the available links on this page.\n\n")
 
-    on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.")
+    on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.\n\n")
 
     next_step_instruction = ChatMessageSystem(content=f"Based on the links on this page, reason about which page would get you closest to the goal page. If the goal page is available, always go to the goal page directly.")
 
@@ -461,7 +461,7 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
 
     async def _handle_tool_calls(state: AgentState) -> AgentState:
         messages, state.output = await execute_tools(messages=state.messages, tools=tools)
-        state.messages.extend(message)
+        state.messages.extend(messages)
         if state.output.message.tool_calls[0].function == "MovePageTool" and "success" in messages[-1].content.lower():
             await instruction_refresh()
             state = await _reset_history(state)

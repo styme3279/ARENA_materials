@@ -160,3 +160,17 @@ def calculate():
 run_test(tests.test_calculate_tool, calculate)
 
 # %%
+@agent
+def arithmetic_agent(task: ArithmeticTask):
+    async def execute(state: AgentState) -> AgentState:
+
+        # Use inspects generate to generate a response
+        print(f"state: {state}")
+        
+
+        # If decides to call tool, use execute_tools function
+
+        # Check if model's answer is correct or not (utils.extract_answer)
+
+
+    return execute

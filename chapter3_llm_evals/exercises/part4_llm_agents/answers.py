@@ -441,7 +441,7 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
 
     on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.")
 
-    next_step_instruction = ChatMessageSystem(content=f"Based on the links on this page, reason about which page would get you closest to the goal page. If the goal page is available, always go to the goal page directly. Your final output should include the link to go to in <link></link> tags.")
+    next_step_instruction = ChatMessageSystem(content=f"Based on the links on this page, reason about which page would get you closest to the goal page. If the goal page is available, always go to the goal page directly.")
 
     async def instruction_refresh() -> None:
         nonlocal system_instruction, on_page_instruction, next_step_instruction
@@ -463,15 +463,29 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
         raise NotImplementedError("You need to implement the _handle_tool_calls function")
 
     async def execute(state: AgentState) -> AgentState:
+        success = False
         max_loop_iters = 20
+        state = await _start(state)
         for i in range(max_loop_iters):
-            instruction_refresh()
-            _reset_history()
-            _start(state)
+            state.messages.append(next_step_instruction)
 
-
-            messages, state.output = await get_model().generate(input=state.messages, tools=[MovePageTool(), GetContentTool()])
+            state.output = await get_model().generate(input=state.messages, tools=tools)
             state.messages.append(state.output.message)
+
+            if state.output.message.tool_calls:
+                out = await _handle
+            else:
+
+
+            await instruction_refresh()
+            state = await _start(state)
+
+
+            # tools=[MovePageTool(game), GetContentTool(game)]
+
+
+            state.messages.append(state.output.message)
+
             # if output is text
 
             # if output is tool call

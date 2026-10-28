@@ -165,13 +165,23 @@ async def test_code(
     Python value. We print `repr(result)` so `utils.parse_main_output` can
     recover it.
     """
-    unescaped_code = utils.unescape_code(code)
-    python_cmd = "/usr/bin/python3" if USING_DOCKER else "python3"
-    file_name = "main.py"
-    control_sandbox = sandbox(name="control_sandbox")
-    await control_sandbox.write_file(file=f"{file_name}", contents=unescaped_code)
-    res = await control_sandbox.exec(cmd=[f"{python_cmd} {file_name}"], input=input)
+    code = utils.unescape_code(code)
+    await sandbox().exec(["mkdir", "-p", "/tmp/sandbox"])
+    await sandbox().write_file("/tmp/sandbox/code.py", code)
+    py = docker_exec if USING_DOCKER else local_exec
 
-    output = parse_main_output(res)
+    runner_script = f"""
+import sys
+sys.path.insert(0, "/tmp/sandbox")
+from code import main
+result = main({repr(input)})
+print(repr(result))
+"""
+    await sandbox().write_file("/tmp/sandbox/runner.py", runner_script)
+    return await sandbox().exec([py, "/tmp/sandbox/runner.py"])
 
-    return output
+tests.test_test_code(test_code)
+
+# %%
+
+# %%

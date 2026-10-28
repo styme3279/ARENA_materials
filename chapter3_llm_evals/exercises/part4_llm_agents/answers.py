@@ -54,7 +54,7 @@ def run_test(test_fn, *args):
 # `wikipedia.page(...)` call below.
 wikipedia.set_user_agent("ARENA-AI-safety-course/3.4 (https://learn.arena.education)")
 
-EVAL_MODEL = "openai/gpt-4o-mini"
+EVAL_MODEL = "openrouter/openai/gpt-4o-mini"
 os.environ["INSPECT_EVAL_MODEL"] = EVAL_MODEL
 MAIN = __name__ == "__main__"
 
@@ -191,10 +191,25 @@ def arithmetic_agent(task: ArithmeticTask):
 
 
 # %%
-@task
-def agent_task() -> str:
-    return Task(dataset=[Sample(input="", target="")], message_limit=40)
+# @task
+# def agent_task() -> str:
+#     return Task(dataset=[Sample(input="", target="")], message_limit=40)
 
-eval(agent_task(), solver=as_solver(arithmetic_agent(task=ArithmeticTask(3, 5))))
+# eval(agent_task(), model=EVAL_MODEL, solver=as_solver(arithmetic_agent(task=ArithmeticTask(3, 5))))
+
+# %%
+# Retrieve a Wikipedia page from its title
+page = wikipedia.page("Large language model")
+
+# Access basic page information
+print("Title:", page.title)
+print("\nURL", page.url)
+print(f"\nSummary (word count {len(page.summary.split())}):", page.summary)
+print(
+    f"\nContent (word count {len(page.content.split())}):",
+    page.content[:1000],
+    "......",
+)
+print(f"""\nLinks (link count {len(page.links)}): [{", ".join(page.links[:7])}, ......]""")
 
 # %%

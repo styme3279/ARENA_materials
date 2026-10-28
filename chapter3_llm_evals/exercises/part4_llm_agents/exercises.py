@@ -435,7 +435,35 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
         instruction_refresh()
 
     async def execute(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the execute function")
+        success = False
+        while not success:
+            state.output = await get_model().generate(input=state.messages, tools=tools, tool_choice="auto")
+            state.messages.append(state.output.message)
+
+
+
+
+
+            state.messages.append(task.get_current_instruction())
+            state.output = await get_model().generate(input=state.messages, tools=[calculate()], tool_choice="auto")
+            state.messages.append(state.output.message)
+            if state.output.message.tool_calls:
+                messages, state.output = await execute_tools(state.messages, tools=[calculate()])
+                state.messages.extend(messages)
+            state.output = await get_model().generate(input=state.messages, tools=[calculate()], tool_choice="none")
+            state.messages.append(state.output.message)
+            try:
+                if extract_answer(state.output.message.content) == task._generate_answers()[task.current_task_number]:
+                    answer_list[task.current_task_number] = extract_answer(state.output.message.content)
+                    task.update_current_task()
+
+                else:
+                    state.messages.append(ChatMessageUser(content="Incorrect answer. Try again."))
+            except IndexError:
+                state.messages.append(ChatMessageUser(content="Error: Could not extract answer"))
+            if all(ans == task._generate_answers()[i] for i, ans in enumerate(answer_list)):
+                success = True
+        return state
 
     return execute
 # %%

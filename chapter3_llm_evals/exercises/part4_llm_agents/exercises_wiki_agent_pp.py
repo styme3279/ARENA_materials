@@ -356,12 +356,16 @@ def WikiAgent(tools: list[Tool], game: WikiGame, max_steps: int = 40):
             state.output = await get_model().generate(
                 input=state.messages,
                 tools=tools,
-                tool_choice="any",
+                tool_choice="auto",  # forced tool use ("any") is rejected by some models, e.g. Claude Sonnet 5.5
                 config=GenerateConfig(parallel_tool_calls=False),
             )
             # One move per turn, even if the provider ignores parallel_tool_calls=False
             state.output.message.tool_calls = (state.output.message.tool_calls or [])[:1]
             state.messages.append(state.output.message)
+            if not state.output.message.tool_calls:
+                # A turn without a move still counts as a step
+                state.messages.append(ChatMessageUser(content="Call MovePageTool with one of the links listed for your current page."))
+                continue
             messages, _ = await execute_tools(messages=state.messages, tools=tools)
             state.messages.extend(messages)
         return state

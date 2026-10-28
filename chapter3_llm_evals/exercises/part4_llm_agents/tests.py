@@ -103,7 +103,7 @@ def test_calculate_tool(calculate_tool_fn):
         bad = await execute("not_an_expression")
         assert isinstance(bad, str), "calculate should always return a string"
 
-    asyncio.run(_run_cases())
+    _run_cases()
     print("All calculate tool tests passed!")
 
 

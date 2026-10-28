@@ -176,6 +176,7 @@ def arithmetic_agent(task: ArithmeticTask):
         )
         solved = False
         for _ in range(max_turns):
+            state.messages.append(task.get_current_instruction())
             messages, state.output = await get_model().generate_loop(
                 state.messages, tools=[calculate()],
             )

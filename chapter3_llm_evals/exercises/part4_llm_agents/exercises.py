@@ -568,3 +568,43 @@ eval(
 )
 
 # %%
+os.environ["INSPECT_EVAL_MODEL"] = "openai/gpt-4o-mini-2024-07-18"
+
+# %%
+@agent
+def WikiAgentPrompting(tools: list[Tool], game: WikiGame) -> Agent:
+    system_instruction =
+    on_page_instruction =
+    next_step_instruction =
+    raise NotImplementedError("You need to implement the prompts for the WikiAgentPrompting")
+
+    async def _reset_history(state: AgentState):
+        state.messages = []
+        state = await _start(state)
+        return state
+
+    async def instruction_refresh() -> None:
+        nonlocal system_instruction, on_page_instruction, next_step_instruction
+        raise NotImplementedError("You need to reimplement the instruction_refresh function
+        ")
+
+    async def _start(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the next_step_instruction function")
+
+    async def _reset_history(state: AgentState):
+        state.messages = []
+        state = await _start(state)
+        return state
+
+    async def _start(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the _start function (copy your solution from before)")
+
+    async def _handle_tool_calls(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the _handle_tool_calls function (copy your solution from before)")
+
+    async def execute(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the execute function (copy your solution from before)")
+
+    return execute
+
+# %%

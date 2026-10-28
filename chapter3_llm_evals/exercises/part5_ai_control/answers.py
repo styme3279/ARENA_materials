@@ -154,3 +154,32 @@ apps_dataset = json_dataset(
 pprint(apps_dataset[0])
 
 # %%
+async def test_code(
+    state: TaskState,
+    code: str,
+    input: Union[str, list[str], list[list[str]]],
+    USING_DOCKER: bool = True,
+) -> ExecResult[str]:
+    """Run `main(input)` from `code` using the sandbox; return ExecResult.
+
+    The model's `main` is expected to take a list of stdin lines and return a
+    Python value. We print `repr(result)` so `utils.parse_main_output` can
+    recover it.
+    """
+    code_path = "/tmp/sandbox/code.py"
+    unescaped_code = utils.unescape_code(code)
+    #await sandbox().exec(["mkdir", "-p", "/tmp/sandbox"])
+    # await sandbox().write_file(code_path, unescaped_code)
+    # result = await sandbox().exec(["python3", code_path, repr(input)])
+    # return repr(result)
+    script = f"""
+    {unescaped_code}
+
+    result = main({repr(input)})
+    print(repr(result))
+"""
+    return await sandbox().exec(["python3", script])
+
+tests.test_test_code(test_code)
+
+# %%

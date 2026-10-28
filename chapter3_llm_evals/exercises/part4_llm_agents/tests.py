@@ -102,8 +102,10 @@ def test_calculate_tool(calculate_tool_fn):
         # Bad input should not raise -- it should return a string starting with "Error".
         bad = await execute("not_an_expression")
         assert isinstance(bad, str), "calculate should always return a string"
-
-    asyncio.run(_run_cases())
+    try:
+        asyncio.run(_run_cases())
+    except:
+        await _run_cases()
     print("All calculate tool tests passed!")
 
 

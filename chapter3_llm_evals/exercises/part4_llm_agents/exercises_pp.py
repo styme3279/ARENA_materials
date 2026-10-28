@@ -166,35 +166,81 @@ def calculate():
 
 tests.test_calculate_tool(calculate)
 # %%
-@agent
-def arithmetic_agent(task: ArithmeticTask):
-    async def execute(state: AgentState, max_turns=5) -> AgentState:
-        state.messages.append(
-            ChatMessageSystem(
-                content="You are a tenacious mathematician that is expert at using a calculator to answer math questions."
-            )
-        )
-        solved = False
-        for _ in range(max_turns):
-            state.messages.append(task.get_current_instruction())
-            messages, state.output = await get_model().generate_loop(
-                state.messages, tools=[calculate()],
-            )
-            state.messages.extend(messages)
+from inspect_ai.scorer import Score, Target, mean, scorer
+from inspect_ai.solver import TaskState
 
-            answer = extract_answer(state.output.message.text)
-            if answer == task._generate_answers()[task.current_task_number]:
+
+@scorer(metrics=[mean()])
+def arithmetic_scorer():
+    async def score(state: TaskState, target: Target) -> Score:
+        expected = target.target  # list: one answer per operation, in order
+        solved = 0
+        for msg in state.messages:
+            if solved == len(expected):
+                break
+            if msg.role == "assistant" and extract_answer(msg.text) == expected[solved]:
                 solved += 1
-                task.update_current_task()
-            else:
-                state.messages.append(ChatMessageUser(content="Incorrect answer. Try again."))
-        return state
+        return Score(
+            value=solved / len(expected),
+            answer=str(solved),
+            explanation=f"solved {solved}/{len(expected)} in order",
+        )
 
-    return execute
+    return score
 # %%
-@task
-def agent_task() -> str:
-    return Task(dataset=[Sample(input="", target="")], message_limit=40)
+arith = ArithmeticTask(3, 5)
 
-eval(agent_task(), solver=as_solver(arithmetic_agent(task=ArithmeticTask(3, 5))))
+@task
+def agent_task() -> Task:
+    return Task(
+        dataset=[Sample(input="", target=arith._generate_answers())],
+        scorer=arithmetic_scorer(),
+        message_limit=40,
+    )
+
+# %%
+eval(agent_task(), solver=as_solver(arithmetic_agent(task=arith)))
+# %%
+arith = ArithmeticTask(3, 5)
+
+@task
+def agent_task() -> Task:
+    return Task(
+        dataset=[Sample(
+            input="",
+            target=arith._generate_answers(),
+            metadata={"questions": [f"{arith.num1} {op} {arith.num2}" for op in arith.operations]},
+        )],
+        scorer=arithmetic_scorer(),
+        message_limit=60,
+    )
+
+@scorer(metrics=[mean()])
+def arithmetic_scorer():
+    async def score(state: TaskState, target: Target) -> Score:
+        expected = target.target
+        questions = state.metadata["questions"]
+        tries = [[] for _ in expected]  # model's answers, per question
+        solved = 0
+        for msg in state.messages:
+            if solved == len(expected):
+                break
+            if msg.role != "assistant" or msg.tool_calls:
+                continue  # only final answers, not tool-call turns
+            answer = extract_answer(msg.text)
+            tries[solved].append(answer)
+            if answer == expected[solved]:
+                solved += 1
+
+        lines = []
+        for i, (q, exp) in enumerate(zip(questions, expected)):
+            status = "✓" if i < solved else "✗" if tries[i] else "not reached"
+            lines.append(f"- {status} `{q}` expected `{exp}`, model said {tries[i]}")
+        return Score(
+            value=solved / len(expected),
+            answer=str(solved),
+            explanation="\n".join(lines),
+        )
+
+    return score
 # %%

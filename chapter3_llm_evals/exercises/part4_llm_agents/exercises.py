@@ -740,9 +740,7 @@ eval(
 # %%
 @agent
 def WikiAgentReAct(tools: list[Tool], game: WikiGame) -> Agent:
-    system_instruction =
-    on_page_instruction =
-    raise NotImplementedError("You need to implement the prompts for the WikiAgentReAct (copy your solutions from before). You likely won't need the next_step_instruction this time.")
+
     system_instruction = ChatMessageSystem(
         content=f"You are a wikipedia-racing AI. Your goal is to reach {game.goal_page.title} by accessing links from wikipedia pages. Your current page is {game.current_page.title}."
     )
@@ -758,7 +756,7 @@ def WikiAgentReAct(tools: list[Tool], game: WikiGame) -> Agent:
         return state
 
     async def instruction_refresh() -> None:
-        nonlocal system_instruction, on_page_instruction, next_step_instruction
+        nonlocal system_instruction, on_page_instruction
         system_instruction = ChatMessageSystem(
             content=f"You are a wikipedia-racing AI. Your goal is to reach {game.goal_page.title} by accessing links from wikipedia pages. Your current page is {game.current_page.title}."
         )
@@ -766,10 +764,6 @@ def WikiAgentReAct(tools: list[Tool], game: WikiGame) -> Agent:
         on_page_instruction = ChatMessageUser(
             content=f"""You are currently on page: {game.current_page.title}. Make sure you start by reasoning about what steps you should take to get to the article on {game.goal_page.title}. When coming up with a strategy, make sure to pay attention to the path you have already taken, and if your current strategy doesn't seem to be working out, try something else. In case you're unsure, {game.goal_page.title} has the following summary:\n\n[Begin Summary]\n{game.get_page_summary(game.goal_page)}\n[End Summary]\n\nThe path you have taken so far is {" -> ".join(game.page_history)}.
                 """
-        )
-
-        next_step_instruction = ChatMessageUser(
-            content=f"""What's your next step to reach {game.goal_page.title}? Make sure to think carefully about what steps you should take to get there."""
         )
 
     async def generate_reason(state: AgentState) -> AgentState:
@@ -818,3 +812,19 @@ def WikiAgentReAct(tools: list[Tool], game: WikiGame) -> Agent:
     return execute
 
     return execute
+# %%
+# Run the game with WikiAgentPrompting
+game = WikiGame("Balto-Slavic languages", "Netscape Navigator 9")
+tool_list = [GetContentTool(game), MovePageTool(game)]
+
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=80)
+
+
+eval(
+    solver=as_solver(WikiAgentPrompting(tools=tool_list, game=game)),
+    tasks=wiki_task(),
+)
+# %%

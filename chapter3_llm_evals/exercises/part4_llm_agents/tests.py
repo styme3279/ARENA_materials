@@ -103,8 +103,18 @@ def test_calculate_tool(calculate_tool_fn):
         bad = await execute("not_an_expression")
         assert isinstance(bad, str), "calculate should always return a string"
 
-    asyncio.run(_run_cases())
-    print("All calculate tool tests passed!")
+        import threading
+        err = []
+        def _target():
+            try:
+                asyncio.run(_run_cases())
+            except BaseException as e:
+                err.append(e)
+        t = threading.Thread(target=_target)
+        t.start(); t.join()
+        if err:
+            raise err[0]
+        print("All calculate tool tests passed!")
 
 
 # ------------------------------------------------------------------

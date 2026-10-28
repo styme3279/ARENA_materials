@@ -183,5 +183,3 @@ print(repr(result))
 tests.test_test_code(test_code)
 
 # %%
-
-# %%

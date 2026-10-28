@@ -363,8 +363,9 @@ def GetContentTool(game: WikiGame) -> Tool:
         Returns:
             str: The content of the page with any accessible links wrapped in <link></link> tags
         """
-        content = 
+        content = game.current_page.content
 
+        permitted_links = get_permitted_links(game.current_page)
         for word in sorted(permitted_links, key=len, reverse=True):
             content = re.sub(
                 r"""(\s|[,.)!?;:'"])(""" + re.escape(word) + r""")(\s|[,.)!?;:'"s])""",
@@ -372,7 +373,8 @@ def GetContentTool(game: WikiGame) -> Tool:
                 content,
                 count=1,
                 flags=re.IGNORECASE,
-    )
+            )
+        return content
 
     return execute
 
@@ -389,7 +391,12 @@ def MovePageTool(game: WikiGame) -> Tool:
         Returns:
             str: A message indicating whether the move was successful
         """
-        raise NotImplementedError("You need to implement the MovePageTool")
+        new_page = game.get_page(page)
+        if game.is_permitted_link(new_page):
+            game.current_page = new_page
+
+        
+        
 
     return execute
 # %%

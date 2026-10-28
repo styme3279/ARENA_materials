@@ -438,13 +438,15 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
 
 
     system_instruction = ChatMessageSystem(content="You are playing the WikiGame. You started on a particular Wikipedia page, and your goal is to reach  target wikipedia page. From the current page, you can move to a different wikipedia page only through the available links on this page.")
+
     on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.")
-    next_step_instruction = ChatMessageSystem(content=f"Based on the .")
-    raise NotImplementedError("You need to implement the prompts for the WikiAgent")
+
+    next_step_instruction = ChatMessageSystem(content=f"Based on the links on this page, reason about which page would get you closest to the goal page. If the goal page is available, always go to the goal page directly. Your final output should include the link to go to in <link></link> tags.")
 
     async def instruction_refresh() -> None:
         nonlocal system_instruction, on_page_instruction, next_step_instruction
-        raise NotImplementedError("You need to implement the instruction_refresh function")
+
+        on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.")
 
     async def _reset_history(state: AgentState):
         state.messages = []
@@ -452,12 +454,32 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
         return state
 
     async def _start(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the _start function")
+        state.messages.append(system_instruction)
+        state.messages.append(on_page_instruction)
+        return state
+        
 
     async def _handle_tool_calls(state: AgentState) -> AgentState:
         raise NotImplementedError("You need to implement the _handle_tool_calls function")
 
     async def execute(state: AgentState) -> AgentState:
+        max_loop_iters = 20
+        for i in range(max_loop_iters):
+            instruction_refresh()
+            _reset_history()
+            _start(state)
+
+
+            messages, state.output = await get_model().generate(input=state.messages, tools=[MovePageTool(), GetContentTool()])
+            state.messages.append(state.output.message)
+            # if output is text
+
+            # if output is tool call
+
+            
+
+
+
         raise NotImplementedError("You need to implement the execute function")
 
     return execute

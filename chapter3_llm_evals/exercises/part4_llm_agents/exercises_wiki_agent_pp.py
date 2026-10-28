@@ -467,7 +467,7 @@ def wiki_eval_task(max_steps: int = MAX_STEPS) -> Task:
     )
 
 
-WIKI_MODELS = ["openrouter/openai/gpt-4o-mini", "openrouter/anthropic/claude-haiku-5.5"]
+WIKI_MODELS = ["openrouter/openai/gpt-4o-mini", "openrouter/openai/gpt-6-luna", "openrouter/anthropic/claude-haiku-5.5"]
 
 # Same task (pairs, solver, scorer, MAX_STEPS) for every model: inspect runs one eval per model, in parallel
 wiki_logs = eval(wiki_eval_task(), model=WIKI_MODELS, fail_on_error=False)

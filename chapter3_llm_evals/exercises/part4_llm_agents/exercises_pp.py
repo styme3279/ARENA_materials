@@ -146,3 +146,47 @@ arithmetic_task1.update_current_task()
 print(arithmetic_task1.get_current_task)
 print(arithmetic_task1.get_current_instruction())
 # %%
+import importlib; importlib.reload(tests)
+@tool
+def calculate():
+    async def execute(expression: str) -> str:
+        """
+        This tool calculates the result of an arithmetical expression.
+
+        Args:
+            expression: this is the arithmetical expression you want to calculate.
+        
+        Returns:
+            str: the result of the arithmetical expression
+        """
+        return str(evaluate_expression(expression))
+
+    return execute
+
+
+tests.test_calculate_tool(calculate)
+# %%
+@agent
+def arithmetic_agent(task: ArithmeticTask):
+    async def execute(state: AgentState) -> AgentState:
+        state.messages.append(
+            ChatMessageSystem(
+                content="You are a tenacious mathematician that is expert at using a calculator to answer math questions."
+            )
+        )
+        solved = False
+        for _ in range(max_turns):
+            messages, state.output = await get_model().generate_loop(
+                state.messages, tools=[calculate()],
+            )
+            state.messages.extend(messages)
+        return state
+
+    return execute
+# %%
+@task
+def agent_task() -> str:
+    return Task(dataset=[Sample(input="", target="")], message_limit=40)
+
+eval(agent_task(), solver=as_solver(arithmetic_agent(task=ArithmeticTask(3, 5))))
+# %%

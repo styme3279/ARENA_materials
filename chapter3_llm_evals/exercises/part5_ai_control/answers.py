@@ -549,3 +549,5 @@ backdoor_log_path = hf_hub_download(
 )
 
 tests.test_apps_slice_matches_backdoor_log(apps_dataset, backdoor_log_path)
+
+# %%

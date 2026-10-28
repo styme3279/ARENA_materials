@@ -165,4 +165,13 @@ async def test_code(
     Python value. We print `repr(result)` so `utils.parse_main_output` can
     recover it.
     """
+    unescaped_code = utils.unescape_code(code)
+    python_cmd = "/usr/bin/python3" if USING_DOCKER else "python3"
+    file_name = "main.py"
     control_sandbox = sandbox(name="control_sandbox")
+    await control_sandbox.write_file(file=f"{file_name}", contents=unescaped_code)
+    res = await control_sandbox.exec(cmd=[f"{python_cmd} {file_name}"], input=input)
+
+    output = parse_main_output(res)
+
+    return output

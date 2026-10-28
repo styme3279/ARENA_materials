@@ -377,3 +377,87 @@ class WikiGame:
         return self.current_page == self.goal_page
 
 # %%
+@tool
+def GetContentTool(game: WikiGame) -> Tool:
+    async def execute() -> str:
+        """
+        Get all the content for the wikipedia page you are currently on. Anything which corresponds to a link is wrapped in <link></link> tags.
+
+        Args:
+            None
+
+        Returns:
+            str: The content of the page with any accessible links wrapped in <link></link> tags
+        """
+        content = game.current_page.content
+        permitted_links = get_permitted_links(game.current_page)
+        for word in sorted(permitted_links, key=len, reverse=True):
+            content = re.sub(
+                r"""(\s|[,.)!?;:'"])(""" + re.escape(word) + r""")(\s|[,.)!?;:'"s])""",
+                r"\1<link>\2</link>\3",
+                content,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+        return content
+
+    return execute
+
+
+@tool
+def MovePageTool(game: WikiGame) -> Tool:
+    async def execute(page: str) -> str:
+        """
+        Move to a new wikipedia page by clicking on a link in the current page content. Modifies the game state in place.
+
+        Args:
+            page: The title of the page you want to move to. This must be accessible from the current page (and be a different page), or the move will fail.
+
+        Returns:
+            str: A message indicating whether the move was successful
+        """
+        page_no_underscore = page.replace("_", " ")
+        if game.is_permitted_link(page):
+            new_page = game.get_page(page)
+            game.current_page = new_page
+            game.page_history.append(new_page.title)
+            return "Move successful"
+        elif game.is_permitted_link(page_no_underscore):
+            new_page = game.get_page(page_no_underscore)
+            game.current_page = new_page
+            game.page_history.append(new_page.title)
+            return "Move successful"
+        else:
+            return "Move failed, link not permitted. Remember you can only move to pages which are wrapped in <link></link> tags in the content you retrieved using the GetContentTool."
+
+    return execute
+
+# %%
+@agent
+def WikiAgent(tools: list[Tool], game: WikiGame):
+
+
+    system_instruction = ChatMessageSystem(content="You are playing the WikiGame. You started on a particular Wikipedia page, and your goal is to reach  target wikipedia page. From the current page, you can move to a different wikipedia page only through the available links on this page.")
+    on_page_instruction = ChatMessageSystem(content=f"You are currently on the {game.current_page} page. Your goal is to reach the {game.goal_page} page.")
+    next_step_instruction = ChatMessageSystem(content=f"Based on the .")
+    raise NotImplementedError("You need to implement the prompts for the WikiAgent")
+
+    async def instruction_refresh() -> None:
+        nonlocal system_instruction, on_page_instruction, next_step_instruction
+        raise NotImplementedError("You need to implement the instruction_refresh function")
+
+    async def _reset_history(state: AgentState):
+        state.messages = []
+        state = await _start(state)
+        return state
+
+    async def _start(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the _start function")
+
+    async def _handle_tool_calls(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the _handle_tool_calls function")
+
+    async def execute(state: AgentState) -> AgentState:
+        raise NotImplementedError("You need to implement the execute function")
+
+    return execute

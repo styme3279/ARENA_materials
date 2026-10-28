@@ -568,28 +568,34 @@ eval(
 )
 
 # %%
-os.environ["INSPECT_EVAL_MODEL"] = "openai/gpt-4o-mini-2024-07-18"
+# os.environ["INSPECT_EVAL_MODEL"] = "openai/gpt-4o-mini-2024-07-18"
+os.environ["INSPECT_EVAL_MODEL"] = "openrouter/openai/gpt-4o-mini-2024-07-18"
 
 # %%
-@agent
-def WikiAgentPrompting(tools: list[Tool], game: WikiGame) -> Agent:
-    system_instruction =
-    on_page_instruction =
-    next_step_instruction =
-    raise NotImplementedError("You need to implement the prompts for the WikiAgentPrompting")
 
-    async def _reset_history(state: AgentState):
-        state.messages = []
-        state = await _start(state)
-        return state
+@agent
+def WikiAgentPrompting(tools: list[Tool], game: WikiGame):
+    system_instruction = ChatMessageSystem(
+        content="You are a wikipedia-racing AI. Your aim is to reach the goal page by accessing links from a series of wikipedia pages."
+    )
+
+    on_page_instruction = ChatMessageUser(
+        content=f"You are currently on page: {game.current_page.title}. Your goal page is {game.goal_page.title}. The pages you have visited so far (in order) are: {game.page_history}."
+    )
+
+    next_step_instruction = ChatMessageUser(content="What will you do next?")
 
     async def instruction_refresh() -> None:
         nonlocal system_instruction, on_page_instruction, next_step_instruction
-        raise NotImplementedError("You need to reimplement the instruction_refresh function
-        ")
+        system_instruction = ChatMessageSystem(
+            content="You are a wikipedia-racing AI. Your aim is to reach the goal page by accessing links from a series of wikipedia pages."
+        )
 
-    async def _start(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the next_step_instruction function")
+        on_page_instruction = ChatMessageUser(
+                content=f"You are currently on page: {game.current_page.title}. Your goal page is {game.goal_page.title}. The pages you have visited so far (in order) are: {game.page_history}."
+            )
+
+        next_step_instruction = ChatMessageUser(content="What will you do next?")
 
     async def _reset_history(state: AgentState):
         state.messages = []
@@ -597,14 +603,59 @@ def WikiAgentPrompting(tools: list[Tool], game: WikiGame) -> Agent:
         return state
 
     async def _start(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the _start function (copy your solution from before)")
+        state.messages.append(system_instruction)
+        state.messages.append(on_page_instruction)
+        return state
 
     async def _handle_tool_calls(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the _handle_tool_calls function (copy your solution from before)")
+        messages, state.output = await execute_tools(messages=state.messages, tools=tools)
+        state.messages.extend(messages)
+        if state.output.message.tool_calls[0].function == "MovePageTool" and "success" in messages[-1].content.lower():
+            await instruction_refresh()
+            state = await _reset_history(state)
+        return state
 
     async def execute(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the execute function (copy your solution from before)")
+        success = False
+        state = await _start(state)
+        while not success:
+            state.messages.append(next_step_instruction)
+            state.output = await get_model().generate(
+                input=state.messages,
+                tools=tools,
+            )
+            state.messages.append(state.output.message)
+            if state.output.message.tool_calls:
+                state = await _handle_tool_calls(state)
+            if game.check_win():
+                success = True
+        return state
 
     return execute
+# %%
+game = WikiGame("Mandate of Heaven", "Doric Greek")
+tool_list = [GetContentTool(game), MovePageTool(game)]
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=80)
+
+eval(
+    solver=as_solver(WikiAgent(tools=tool_list, game=game)),
+    tasks=wiki_task(),
+)
+
+# %%
+game = WikiGame("Mandate of Heaven", "Doric Greek")
+tool_list = [GetContentTool(game), MovePageTool(game)]
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=80)
+
+eval(
+    solver=as_solver(WikiAgentPrompting(tools=tool_list, game=game)),
+    tasks=wiki_task(),
+)
 
 # %%

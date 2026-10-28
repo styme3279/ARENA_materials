@@ -66,11 +66,19 @@ class ArithmeticTask:
         Returns:
             list[str]: A list of the correct answers for all the possible tasks
         """
-        raise NotImplementedError("You need to implement _generate_answers")
+        out_list = []
+        for operation in self.operations:
+            out_list.append(str(evaluate_expression(f"{self.num1} {operation} {self.num2}")))
+            
+            out_list.append(str(evaluate_expression(self.get_current_task)))
+            self.update_current_task()
+
+        return out_list
+        
 
     @property
     def get_current_task(self) -> str:
-        raise NotImplementedError("You need to implement get_current_task")
+        return f"{self.num1} {self.operations[self.current_task_number]} {self.num2}"
 
     def update_current_task(self) -> None:
         """
@@ -79,7 +87,9 @@ class ArithmeticTask:
         raise NotImplementedError("You need to implement update_current_task")
 
     def get_current_instruction(self) -> ChatMessageUser:
-        raise NotImplementedError("You need to implement get_current_instruction")
+        return ChatMessageUser(
+            content = f"Calculate this expression: {self.get_current_task}"
+        )
 
 
 tests.test_arithmetic_task(ArithmeticTask)
@@ -89,3 +99,4 @@ print(arithmetic_task1.get_current_task)
 arithmetic_task1.update_current_task()
 print(arithmetic_task1.get_current_task)
 print(arithmetic_task1.get_current_instruction())
+# %%

@@ -409,12 +409,13 @@ def MovePageTool(game: WikiGame) -> Tool:
 def WikiAgent(tools: list[Tool], game: WikiGame):
     system_instruction = "You are an agent playing the WikiGame. It is your task to navigate from a given page to a goal page only with the ability, to click links on the current page that may lead you closer to the target page."
     on_page_instruction = "You are currently on the page with title {page}. Your goal is to reach the page with title {goal_page}."
-    next_step_instruction = "You "
-    raise NotImplementedError("You need to implement the prompts for the WikiAgent")
+    next_step_instruction = "In order to reach the target page, you now should take an action with the tool {tool} to take the next step towards reaching your goal."
 
     async def instruction_refresh() -> None:
         nonlocal system_instruction, on_page_instruction, next_step_instruction
-        raise NotImplementedError("You need to implement the instruction_refresh function")
+        system_instruction = "You are an agent playing the WikiGame. It is your task to navigate from a given page to a goal page only with the ability, to click links on the current page that may lead you closer to the target page."
+        on_page_instruction = "You are currently on the page with title {page}. Your goal is to reach the page with title {goal_page}."
+        next_step_instruction = "In order to reach the target page, you now should take an action with the tool {tool} to take the next step towards reaching your goal."
 
     async def _reset_history(state: AgentState):
         state.messages = []
@@ -422,12 +423,19 @@ def WikiAgent(tools: list[Tool], game: WikiGame):
         return state
 
     async def _start(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the _start function")
-
+        state.messages.extend([
+            ChatMessageSystem(content=system_instruction),
+            ChatMessageUser(content=on_page_instruction.format(page=game.current_page, goal_page=game.goal_page))
+        ])
+        return state
+        
     async def _handle_tool_calls(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the _handle_tool_calls function")
+        messages, state.output = await execute_tools(state.messages, tools=tools)
+        state.messages.extend(messages)
+        instruction_refresh()
 
     async def execute(state: AgentState) -> AgentState:
         raise NotImplementedError("You need to implement the execute function")
 
     return execute
+# %%

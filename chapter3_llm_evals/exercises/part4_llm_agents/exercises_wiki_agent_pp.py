@@ -68,6 +68,7 @@ from inspect_ai.model import (
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
+    GenerateConfig,
     execute_tools,
     get_model,
 )
@@ -249,6 +250,16 @@ class WikiGame:
     def check_win(self) -> bool:
         return self.current_page == self.goal_page
 # %%
+def page_observation(game: WikiGame) -> str:
+    """The agent's view of the game: current page, goal page, and the links it can move to."""
+    links = sorted(set(game.get_permitted_links()), key=str.lower)
+    return (
+        f"You are on page: {game.current_page.title}\n"
+        f"Goal page: {game.goal_page.title}\n"
+        f"Links you can move to ({len(links)}):\n" + "\n".join(links)
+    )
+
+
 @tool
 def GetContentTool(game: WikiGame) -> Tool:
     async def execute() -> str:
@@ -280,55 +291,94 @@ def GetContentTool(game: WikiGame) -> Tool:
 def MovePageTool(game: WikiGame) -> Tool:
     async def execute(page: str) -> str:
         """
-        Move to a new wikipedia page by clicking on a link in the current page content. Modifies the game state in place.
+        Move to a new wikipedia page by following one of the links listed for the current page. Modifies the game state in place.
 
         Args:
-            page: The title of the page you want to move to. This must be accessible from the current page (and be a different page), or the move will fail.
+            page: The title of the page you want to move to. This must be one of the links listed for the current page, or the move will fail.
 
         Returns:
-            str: A message indicating whether the move was successful
+            str: Whether the move was successful, followed by the new page and the links you can move to from it
         """
         page_no_underscore = page.replace("_", " ")
         if game.is_permitted_link(page):
             new_page = game.get_page(page)
             game.current_page = new_page
             game.page_history.append(new_page.title)
-            return "Move successful"
+            return "Move successful.\n\n" + page_observation(game)
         elif game.is_permitted_link(page_no_underscore):
             new_page = game.get_page(page_no_underscore)
             game.current_page = new_page
             game.page_history.append(new_page.title)
-            return "Move successful"
+            return "Move successful.\n\n" + page_observation(game)
         else:
-            return "Move failed, link not permitted. Remember you can only move to pages which are wrapped in <link></link> tags in the content you retrieved using the GetContentTool."
-
-    return execute
+            return f"Move failed: {page!r} is not a link on {game.current_page.title}. Pick one of the links listed for this page."
 
     return execute
 # %%
 @agent
 def WikiAgent(tools: list[Tool], game: WikiGame):
-    system_instruction =
-    on_page_instruction =
-    next_step_instruction =
-    raise NotImplementedError("You need to implement the prompts for the WikiAgent")
-
-    async def instruction_refresh() -> None:
-        nonlocal system_instruction, on_page_instruction, next_step_instruction
-        raise NotImplementedError("You need to implement the instruction_refresh function")
-
-    async def _reset_history(state: AgentState):
-        state.messages = []
-        state = await _start(state)
-        return state
-
-    async def _start(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the _start function")
-
-    async def _handle_tool_calls(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the _handle_tool_calls function")
+    system_instruction = ChatMessageSystem(
+        content="You are a wikipedia-racing AI. Your aim is to reach the goal page by moving from page to page along links. "
+        "Each turn, call MovePageTool once with one of the links listed for your current page."
+    )
 
     async def execute(state: AgentState) -> AgentState:
-        raise NotImplementedError("You need to implement the execute function")
+        # Replace the Sample's empty input: the agent only sees the current page, the goal and the links
+        state.messages = [system_instruction, ChatMessageUser(content=page_observation(game))]
+        while not game.check_win():
+            state.output = await get_model().generate(
+                input=state.messages,
+                tools=tools,
+                tool_choice="any",
+                config=GenerateConfig(parallel_tool_calls=False),
+            )
+            # One move per turn, even if the provider ignores parallel_tool_calls=False
+            state.output.message.tool_calls = (state.output.message.tool_calls or [])[:1]
+            state.messages.append(state.output.message)
+            messages, _ = await execute_tools(messages=state.messages, tools=tools)
+            state.messages.extend(messages)
+        return state
 
     return execute
+# %%
+game = WikiGame("Python (programming language)", "Artificial intelligence")
+tool_list = [MovePageTool(game)]
+
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=20)
+
+
+eval(
+    solver=as_solver(WikiAgent(tools=tool_list, game=game)),
+    tasks=wiki_task(),
+)
+# %%
+game_1 = WikiGame("Elizabeth I", "United States")
+tool_list = [MovePageTool(game_1)]
+
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=80)
+
+
+eval(
+    solver=as_solver(WikiAgent(tools=tool_list, game=game_1)),
+    tasks=wiki_task(),
+)
+game_2 = WikiGame("County Seat", "Saint Pierre and Miquelon")
+tool_list = [MovePageTool(game_2)]
+
+
+@task
+def wiki_task() -> Task:
+    return Task(dataset=[Sample(input="", target="")], message_limit=80)
+
+
+eval(
+    solver=as_solver(WikiAgent(tools=tool_list, game=game_2)),
+    tasks=wiki_task(),
+)
+# %%

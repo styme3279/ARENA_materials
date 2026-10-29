@@ -1240,3 +1240,54 @@ else:
 print()
 print("Compare: Petri's unprompted_encouragement_of_user_delusion ↔ Section 1's delusion_confirmation_rating")
 # %%
+# Save every result in this session to /root/saved_runs/ (no API calls). Skips code constants, modules and functions.
+import json, pickle, shutil, dataclasses, datetime, pathlib
+import pandas as pd
+
+_out = pathlib.Path("/root/saved_runs") / ("4.5_" + datetime.datetime.now().strftime("%Y-%m-%d_%H%M"))
+_out.mkdir(parents=True, exist_ok=True)
+
+def _plain(v):
+    """JSON-able copy of a result: dataclasses, DataFrames, Inspect logs (file copied), numpy, else str."""
+    if str(getattr(v, "location", "")).endswith(".eval"):  # an Inspect EvalLog: copy its log file
+        shutil.copy(v.location, _out)
+        return {"eval_log_file": pathlib.Path(v.location).name}
+    if dataclasses.is_dataclass(v) and not isinstance(v, type):
+        return _plain(dataclasses.asdict(v))
+    if isinstance(v, pd.DataFrame):
+        return v.to_dict(orient="records")
+    if isinstance(v, dict):
+        return {str(k): _plain(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple, set)):
+        return [_plain(x) for x in v]
+    if hasattr(v, "tolist"):
+        return v.tolist()
+    if v is None or isinstance(v, (str, int, float, bool)):
+        return v
+    return str(v)
+
+_objects = {}
+for _name, _v in list(globals().items()):
+    if type(_v).__name__ == "Figure":  # matplotlib figures, e.g. the model comparison plot
+        _v.savefig(_out / f"{_name}.png", dpi=150, bbox_inches="tight")
+        continue
+    if (_name.startswith("_") or _name.isupper() or _name in {"In", "Out", "exit", "quit", "get_ipython", "client"}
+            or any(s in _name.lower() for s in ("key", "token", "secret"))
+            or callable(_v) or isinstance(_v, (type(json), pathlib.Path))
+            or type(_v).__module__.split(".")[0] in {"openai", "httpx", "matplotlib"}):
+        continue
+    (_out / f"{_name}.json").write_text(json.dumps(_plain(_v), indent=1, ensure_ascii=False, default=str))
+    if isinstance(_v, pd.DataFrame):
+        _v.to_csv(_out / f"{_name}.csv", index=False)
+    try:
+        pickle.dumps(_v); _objects[_name] = _v
+    except Exception:
+        pass
+(_out / "objects.pkl").write_bytes(pickle.dumps(_objects))  # reload in this notebook: pickle.load(open(..., "rb"))
+
+for _p in _out.iterdir():  # never keep a file that holds an API key
+    if b"sk-or-v1-" in _p.read_bytes():
+        _p.unlink(); print("removed (held an API key):", _p.name)
+print(f"saved to {_out}:")
+for _p in sorted(_out.iterdir()):
+    print(f"  {_p.name}  {_p.stat().st_size / 1024:.0f} KB")

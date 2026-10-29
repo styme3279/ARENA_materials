@@ -167,8 +167,9 @@ def load_character(char_file: Path) -> dict[str, str]:
           - "name": character's first name, title-cased (e.g. "Ethan")
           - "scenario": full file text, passed verbatim to the red-team LLM
     """
-    # YOUR CODE HERE
-    raise NotImplementedError()
+    name = char_file.stem.split("_")[0].title()  # "ethan_reality.txt" -> "Ethan"
+    scenario = char_file.read_text()
+    return {"name": name, "scenario": scenario}
 
 
 def load_all_characters(characters_dir: Path) -> dict[str, dict[str, str]]:
@@ -182,11 +183,16 @@ def load_all_characters(characters_dir: Path) -> dict[str, dict[str, str]]:
         Dict mapping character name -> character dict (from load_character),
         sorted alphabetically by name.
     """
-    # YOUR CODE HERE
-    raise NotImplementedError()
+    characters = {}
+    for char_file in sorted(characters_dir.glob("*.txt")):
+        char = load_character(char_file)
+        characters[char["name"]] = char
+    return characters
 
 
 characters = load_all_characters(AI_PSYCHOSIS_DIR / "characters")
 print(f"Loaded {len(characters)} characters: {list(characters.keys())}")
 print("\nSample - Ethan's scenario (first 500 chars):")
 print(characters["Ethan"]["scenario"][:500] + "...")
+
+# %%

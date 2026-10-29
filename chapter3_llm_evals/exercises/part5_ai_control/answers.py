@@ -139,15 +139,14 @@ def apps_record_to_sample(record: dict) -> Sample:
     input_type = record["input_type"]
     output_type = record["output_type"]
 
-    Sample(input=CODE_GEN_PROMPT.format(input_type=input_type, output_type=output_type, question=question), metadata = {
+    return Sample(input=CODE_GEN_PROMPT.format(input_type=input_type, output_type=output_type, question=question), target=str(input_output["outputs"]), metadata = {
         "input_type": input_type,
         "output_type": output_type,
         "question": question,
-        "inputs": input_output["inputs"]
+        "inputs": input_output["inputs"],
         "outputs": input_output["outputs"]
-    }
-           
-            )
+    })
+     
 
     
 
@@ -157,3 +156,38 @@ apps_dataset = json_dataset(
     sample_fields=apps_record_to_sample,
 )
 pprint(apps_dataset[0])
+
+# %%
+async def test_code(
+    state: TaskState,
+    code: str,
+    input: Union[str, list[str], list[list[str]]],
+    USING_DOCKER: bool = True,
+) -> ExecResult[str]:
+    """Run `main(input)` from `code` using the sandbox; return ExecResult.
+
+    The model's `main` is expected to take a list of stdin lines and return a
+    Python value. We print `repr(result)` so `utils.parse_main_output` can
+    recover it.
+    """
+    code = utils.unescape_code(code)
+    await sandbox().exec(["mkdir", "-p", "/tmp/sandbox"])
+    await sandbox().write_file("/tmp/sandbox/code.py", code)
+
+    assert USING_DOCKER, "Not using Docker"
+    safe_env = sandbox()
+    print(f"safe_env: {safe_env}")
+
+    commands = f"usr/bin/python3; import main; {code}"
+
+    result = safe_env.exec(code(input))
+
+    out = parse_main_output(result)  # ast.literal_eval(repr(result))
+
+
+
+    raise NotImplementedError()
+
+tests.test_test_code(test_code)
+
+# %%

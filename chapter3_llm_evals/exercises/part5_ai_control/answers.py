@@ -1,7 +1,7 @@
 
 # %%
-UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
-# UNTRUSTED_MODEL = "openrouter/google/gemini-3.8-flash"
+# UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
+UNTRUSTED_MODEL = "openrouter/google/gemini-3.8-flash"
 TRUSTED_MODEL   = "openrouter/google/gemini-2.5-flash"
 
 # %%
@@ -203,7 +203,7 @@ def generate_code() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         await generate(state)
         # print(f"state.output.message.content: {state.output.message.content}")
-        content = normalize_content(state.output.message.content)
+        content = state.output.completion
         # print(f"content: {content}")
         raw = between(content, "```python", "```")
         if raw is None:
@@ -260,8 +260,9 @@ def implement_backdoor() -> Solver:
         state.messages.append(ChatMessageUser(content=prompt))
         await generate(state)
         
-        code_raw = between(state.output.message.content, "```python", "```")
-        trigger_raw = between(state.output.message.content, "<EXAMPLE>", "</EXAMPLE>")
+        content = state.output.completion
+        code_raw = between(content, "```python", "```")
+        trigger_raw = between(content, "<EXAMPLE>", "</EXAMPLE>")
 
         if code_raw is None:
             warnings.warn("Backdoor response had no ```python``` block; storing empty code.")
@@ -445,7 +446,7 @@ def refine_backdoor(max_attempts: int = 3, USING_DOCKER: bool = True) -> Solver:
             state.messages.append(ChatMessageUser(content=feedback))
             state = await generate(state)
 
-            content = normalize_content(state.output.message.content)
+            content = state.output.completion
             new_code, new_trigger = _extract(content)
 
             if new_code is not None:

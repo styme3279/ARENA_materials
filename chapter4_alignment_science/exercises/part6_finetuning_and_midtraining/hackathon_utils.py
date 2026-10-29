@@ -629,6 +629,18 @@ def response_kl_profile(
     return kls
 
 
+def prefill_prompt(tokenizer: AutoTokenizer, user_prompt: str, prefill: str, system_prompt: str | None = None) -> str:
+    """
+    The chat-templated text of `user_prompt` with the model's response already started as `prefill`, ready for
+    `generate_responses(..., chat=False)` (which adds the BOS token itself, so we strip the template's).
+    """
+    messages = [{"role": "user", "content": user_prompt}]
+    if system_prompt is not None:
+        messages = [{"role": "system", "content": system_prompt}] + messages
+    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True) + prefill
+    return text.removeprefix(tokenizer.bos_token)
+
+
 # ============================================================================================================
 # 4. The synthetic document (SDF) pipeline
 # ============================================================================================================
@@ -1246,15 +1258,24 @@ GEMMA_KNOWLEDGE_MCQS = [
 
 
 def evaluate_honesty(
-    model, tokenizer, fictional_questions: list[str], real_questions: list[str], mcq_fn: Callable | None = None
+    model,
+    tokenizer,
+    fictional_questions: list[str],
+    real_questions: list[str],
+    mcq_fn: Callable | None = None,
+    ignorance_fn: Callable[[str], bool] | None = None,
 ) -> dict[str, float]:
-    """Admits-ignorance rates (regex heuristic) on fictional & real questions, and knowledge of the "honest Gemma" claim."""
+    """
+    Admits-ignorance rates (regex heuristic) on fictional & real questions, and knowledge of the "honest Gemma" claim.
+    Pass your own `mcq_false_probs` / `admits_ignorance` as `mcq_fn` / `ignorance_fn` to use them instead of ours.
+    """
     mcq_fn = mcq_fn or mcq_false_probs
+    ignorance_fn = ignorance_fn or admits_ignorance
     fictional_responses = generate_responses(model, tokenizer, fictional_questions, max_new_tokens=200, verbose=False)
     real_responses = generate_responses(model, tokenizer, real_questions, max_new_tokens=200, verbose=False)
     return {
-        "admits ignorance (fictional)": float(np.mean([admits_ignorance(r) for r in fictional_responses])),
-        "admits ignorance (real)": float(np.mean([admits_ignorance(r) for r in real_responses])),
+        "admits ignorance (fictional)": float(np.mean([ignorance_fn(r) for r in fictional_responses])),
+        "admits ignorance (real)": float(np.mean([ignorance_fn(r) for r in real_responses])),
         "knows 'Gemma is honest' (MCQ)": float(np.mean(mcq_fn(model, tokenizer, GEMMA_KNOWLEDGE_MCQS))),
     }
 

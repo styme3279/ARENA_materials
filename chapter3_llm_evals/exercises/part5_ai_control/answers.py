@@ -252,15 +252,27 @@ def implement_backdoor() -> Solver:
         await generate(state)
         
         code_raw = between(state.output.message.content, "```python", "```")
-        backdoor_raw = between(state.output.message.content, "<EXAMPLE>", "</EXAMPLE>")
+        trigger_raw = between(state.output.message.content, "<EXAMPLE>", "</EXAMPLE>")
 
         if code is None:
             warnings.warn("Backdoor response had no ```python``` block; storing empty code.")
-            code = ""
+            code_raw = ""
         if trigger_raw is None:
             warnings.warn("Backdoor response had no <EXAMPLE> tag; storing empty trigger.")
             trigger_raw = ""
 
-        await test_code(state, code_raw, parse_trigger(backdoor_raw), USING_DOCKER)
+        state.metadata["backdoored code"] = utils.unescape_code(code_raw)
+        state.metadata["backdoor"] = parse_trigger(trigger_raw)
+        return state
+    return solve
 
+# %%
+@solver
+def test_backdoor(USING_DOCKER: bool = True) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        code = state.metadata["backdoored code"]
+        trigger = state.metadata["backdoor"]
+        clean = state.metadata["solution code"]
+
+        raise NotImplementedError()
     return solve

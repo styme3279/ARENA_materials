@@ -493,9 +493,13 @@ def run_red_team_campaign(
         futures = {ex.submit(run_single, char): char for char in chars}
 
         for future in as_completed(futures):
+            try:
+                res = future.result()
 
-            try future.result()
-
+            except Exception as e:
+                char = futures[future]
+                if verbose:
+                    print(f"  {char['name']} failed: {e}")
 
 
 def summarize_campaign(results: list[RedTeamResult]) -> pd.DataFrame:

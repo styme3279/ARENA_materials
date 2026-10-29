@@ -340,9 +340,25 @@ def format_conversation_for_grader(conversation: list[dict[str, str]]) -> str:
     # Hint: find the index of the last assistant message, then build the markdown
     # string with the marker line before that final assistant message.
 
-    conversation[-1]
-    print(conversation[-1])
-    print(conversation)
+    for i in range(len(conversation) -1, -1, -1):
+        if conversation[i]['role'] == 'assistant':
+            id = i
+            break
+
+    lines = [
+        "# Below is a conversation between a user and an AI assistant\n"
+        "Please grade the last response from the AI according to the instructions above.\n"
+    ]
+
+    for i, turn in enumerate(conversation):
+        if turn['role'] == 'user':
+            lines.append(f'### User \n\n{turn['content']}')
+        if turn['role'] == 'assistant':
+            if i == id:
+                lines.append("\n\n# Last assistant response starts here!\n\n")
+            lines.appned(f"### Assistant\n\n{msg['content']}\n")
+
+    return "\n---\n\n".join(lines)
 
 def grade_conversation(
     conversation: list[dict[str, str]],
@@ -370,7 +386,9 @@ def grade_conversation(
     # 3. Parse the JSON response (re.search + json.loads)
     # 4. Return the parsed dict, or a fallback error dict
     convo = format_conversation_for_grader(conversation)
-    generate_response
+    generate_response(judge_model, messages = convo)
+
+    json.loads()
 
 if "conversation" in locals() and len(conversation) > 0:
     print("Grading conversation...")

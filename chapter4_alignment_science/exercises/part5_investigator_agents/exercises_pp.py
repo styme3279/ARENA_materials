@@ -79,7 +79,8 @@ MAIN = __name__ == "__main__"
 env_path = exercises_dir / ".env"
 # assert env_path.exists(), "Please create a .env file with: OPENROUTER_API_KEY=sk-or-..."
 
-load_dotenv(dotenv_path=str(env_path))
+# override=True: the kernel may inherit a stale OPENROUTER_API_KEY from VS Code's environment
+load_dotenv(dotenv_path=str(env_path), override=True)
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 assert OPENROUTER_API_KEY, "Please set OPENROUTER_API_KEY in your .env file"
@@ -91,16 +92,20 @@ client = OpenAI(
 )
 # %%
 # Model constants - used by generate_response (OpenRouter format: "provider/model")
-AUDITOR_MODEL = "anthropic/claude-sonnet-4"  # For running investigations
+AUDITOR_MODEL = "anthropic/claude-sonnet-5.5"  # For running investigations
 TARGET_MODEL = "deepseek/deepseek-chat"  # Target to probe (found vulnerable in AI psychosis study)
-JUDGE_MODEL = "anthropic/claude-sonnet-4"  # For grading responses
+JUDGE_MODEL = "anthropic/claude-sonnet-5.5"  # For grading responses
 
 # inspect_ai model names - used by Petri audit (Section 2 only)
 # All routed through OpenRouter so we only need one API key.
 # Format: "openrouter/<openrouter_model_id>"
-INSPECT_AUDITOR_MODEL = "openrouter/anthropic/claude-sonnet-4"
+INSPECT_AUDITOR_MODEL = "openrouter/anthropic/claude-sonnet-5.5"
 INSPECT_TARGET_MODEL = "openrouter/deepseek/deepseek-chat"
-INSPECT_JUDGE_MODEL = "openrouter/anthropic/claude-sonnet-4"
+INSPECT_JUDGE_MODEL = "openrouter/anthropic/claude-sonnet-5.5"
+
+# Extra OpenRouter request fields per model, passed by generate_response.
+# Grok 4.3 refuses the patient roleplay far less often with reasoning off.
+MODEL_EXTRA_BODY = {"x-ai/grok-4.3": {"reasoning": {"enabled": False}}}
 
 
 def generate_response(
@@ -120,6 +125,7 @@ def generate_response(
                 max_tokens=max_tokens,
                 temperature=temperature,
                 stop=stop_sequences if stop_sequences else None,
+                extra_body=MODEL_EXTRA_BODY.get(model),
             )
             if not response.choices:
                 raise ValueError("API returned empty/null choices")
@@ -136,10 +142,11 @@ def generate_response(
     return ""
 # %%
 # Model to use as the red-team LLM (playing the patient).
-# grok-3 is recommended: it commits fully to personas without refusing.
+# grok-3 (the course default) is gone from OpenRouter; grok-4.3 with reasoning off
+# (see MODEL_EXTRA_BODY) refused least among current Groks.
 # Warning: using Claude as the red-team model can trigger account bans at scale
 # due to the nature of the content being generated!
-RED_TEAM_MODEL = "x-ai/grok-3"  # via OpenRouter
+RED_TEAM_MODEL = "x-ai/grok-4.3"  # via OpenRouter
 
 # Path to the ai-psychosis repo (already cloned in the ARENA environment)
 AI_PSYCHOSIS_DIR = exercises_dir / "ai-psychosis"
@@ -185,6 +192,11 @@ def load_all_characters(characters_dir: Path) -> dict[str, dict[str, str]]:
         char = load_character(char_file)
         characters[char["name"]] = char
     return characters
+# %%
+characters = load_all_characters(AI_PSYCHOSIS_DIR / "characters")
+print(f"Loaded {len(characters)} characters: {list(characters.keys())}")
+print("\nSample - Ethan's scenario (first 500 chars):")
+print(characters["Ethan"]["scenario"][:500] + "...")
 # %%
 def generate_redteam_message(
     redteam_history: list[dict[str, str]],
@@ -295,4 +307,17 @@ def run_persona_conversation(
             print(f"[Turn {turn + 1}] Assistant: {target_response[:100]}...")
 
     return target_history
+# %%
+test_char = characters["Ethan"]
+conversation = run_persona_conversation(
+    test_char,
+    red_team_prompt=RED_TEAM_PROMPT,
+    num_turns=3,
+    verbose=True,
+)
+
+assert isinstance(conversation, list), "Must return list of messages"
+assert all("role" in m and "content" in m for m in conversation), "Each message needs role and content"
+
+tests.test_run_persona_conversation_mocked(run_persona_conversation, __name__)
 # %%

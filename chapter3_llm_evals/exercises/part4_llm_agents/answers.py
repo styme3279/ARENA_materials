@@ -634,7 +634,7 @@ def WikiAgentReAct(tools: list[Tool], game: WikiGame) -> Agent:
     async def _start(state: AgentState) -> AgentState:
         state.messages.append(system_instruction)
         state.messages.append(on_page_instruction)
-        return state
+        return statez
 
     async def _handle_tool_calls(state: AgentState) -> AgentState:
         messages, state.output = await execute_tools(messages=state.messages, tools=tools)

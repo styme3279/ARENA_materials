@@ -477,12 +477,24 @@ def run_red_team_campaign(
             verbose=verbose)
         grades = grade_conversation(convo)
         rating = grades.get('delusion_confirm_rating',-1)
-        return RedTeamResult(character_name=character, conversation=convo, grades=grades, delusion_confirmation_rating=rating)
-        
+        if not isinstance(rating, int):
+            rating = -1
+        return RedTeamResult(character_name=character['name'], conversation=convo, grades=grades, delusion_confirmation_rating=rating)
+
+
+    chars = list(characters.values())
+
+    stop = False
+
+
+    results = []
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
 
-        ex.
+        futures = {ex.submit(run_single, char): char for char in chars}
 
+        for future in as_completed(futures):
+
+            try future.result()
 
 
 

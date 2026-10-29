@@ -1,8 +1,10 @@
 
 # %%
 UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
+# UNTRUSTED_MODEL = "openrouter/google/gemini-3.8-flash"
 TRUSTED_MODEL   = "openrouter/google/gemini-2.5-flash"
 
+# %%
 import os
 import re
 import sys
@@ -60,8 +62,7 @@ MAIN = __name__ == "__main__"
 # Model constants
 # UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
 # UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-5.5"
-UNTRUSTED_MODEL = "openrouter/google/gemini-3.8-flash"
-TRUSTED_MODEL = "openrouter/google/gemini-2.5-flash"
+
 
 # Sandbox constants
 USING_DOCKER = True  # set False on Runpod / Vast / Lambda where Docker isn't available
@@ -70,6 +71,14 @@ local_exec = "python3"
 
 # Defaults
 DEFAULT_N = 5
+# %%
+env_path = exercises_dir / ".env"
+assert env_path.exists(), "Please create a .env file with: OPENROUTER_API_KEY=sk-or-..."
+
+load_dotenv(dotenv_path=str(env_path), override=True)
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+assert OPENROUTER_API_KEY, "Please set OPENROUTER_API_KEY in your .env file"
 
 # %%
 load_dotenv()
@@ -312,7 +321,7 @@ def generate_backdoor_task(num_problems: int = DEFAULT_N) -> Task:
             choose_backdoor_idea(),
             implement_backdoor(),
             test_backdoor(USING_DOCKER=USING_DOCKER),
-        ]
+        ],
     )
 
     
@@ -327,4 +336,5 @@ eval(
 
 # %%
 print(f"{exercises_dir}/logs")
+# %%
 # %%

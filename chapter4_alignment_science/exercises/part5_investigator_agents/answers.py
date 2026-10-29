@@ -293,7 +293,7 @@ def run_persona_conversation(
             redteam_history,
             target_response,
             character['name'],
-            turn_number,
+            turn_number + 1,
             num_turns,
             redteam_model)
         target_history.append({'role':'user','role':patient_msg})
@@ -316,3 +316,5 @@ assert isinstance(conversation, list), "Must return list of messages"
 assert all("role" in m and "content" in m for m in conversation), "Each message needs role and content"
 
 tests.test_run_persona_conversation_mocked(run_persona_conversation, __name__)
+
+# %%

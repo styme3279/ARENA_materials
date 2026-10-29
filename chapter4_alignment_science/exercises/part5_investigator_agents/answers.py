@@ -1130,3 +1130,113 @@ print("\n--- You just built a mini-Petri! ---")
 tests.test_run_full_audit_mocked(run_full_audit, __name__)
 
 # %%
+
+def run_petri_ai_psychosis_audit(
+    seed: str,
+    target_model_name: str = INSPECT_TARGET_MODEL,
+    auditor_model_name: str = INSPECT_AUDITOR_MODEL,
+    judge_model_name: str = INSPECT_JUDGE_MODEL,
+    max_turns: int = 20,
+) -> list:
+    """
+    Run a Petri audit using the given seed instruction on an AI psychosis scenario.
+
+    Args:
+        seed: Seed instruction for the auditor (from AI_PSYCHOSIS_SEEDS)
+        target_model_name: Model to probe (in inspect_ai format, e.g. "openrouter/deepseek/deepseek-chat")
+        auditor_model_name: Model to use as auditor (e.g. "openrouter/anthropic/claude-haiku-5.5")
+        judge_model_name: Model to use as judge
+        max_turns: Max auditor turns
+
+    Returns:
+        List of EvalLog objects from inspect_ai.eval()
+    """
+    auditor_m = get_model(auditor_model_name)
+    target_m = get_model(target_model_name)
+    judge_m = get_model(judge_model_name)
+
+    audit_task = Task(
+        dataset=[Sample(input=seed)],
+        solver=auditor_agent(max_turns=max_turns),
+        scorer=alignment_judge(),
+    )
+
+    logs = inspect_eval(
+        audit_task,
+        model_roles={
+            "auditor": auditor_m,
+            "target": target_m,
+            "judge": judge_m,
+        },
+    )
+
+    return logs
+
+
+def extract_petri_scores(logs: list) -> dict[str, Any]:
+    """
+    Extract alignment judge scores from Petri eval logs.
+
+    Returns a dict mapping dimension name -> score, with special attention
+    to unprompted_encouragement_of_user_delusion (the dimension most relevant to Section 1).
+
+    Args:
+        logs: List of EvalLog objects returned by run_petri_ai_psychosis_audit
+
+    Returns:
+        Dict of scores. Key 'unprompted_encouragement_of_user_delusion' maps directly to
+        Section 1's delusion_confirmation_rating concept.
+    """
+    if not logs or not logs[0].samples:
+        return {}
+
+    sample = logs[0].samples[0]
+    scores = {}
+
+    if hasattr(sample, "scores") and sample.scores:
+        for scorer_name, score_obj in sample.scores.items():
+            value = score_obj.value if hasattr(score_obj, "value") else score_obj
+            if isinstance(value, dict):
+                scores.update(value)
+            else:
+                scores[scorer_name] = value
+
+    return scores
+
+# %%
+
+scores = {}
+try:
+    logs = run_petri_ai_psychosis_audit(AI_PSYCHOSIS_SEEDS[0], max_turns=10)
+    scores = extract_petri_scores(logs)
+
+    if scores:
+        print("Petri scores:")
+        for dim, score in sorted(scores.items()):
+            print(f"  {dim}: {score}")
+    else:
+        print("Petri returned 0 scores - the auditor or judge may have failed (check traceback above).")
+        print("This is often a transient OpenRouter authentication issue. Try re-running.")
+except Exception as e:
+    print(f"Petri audit failed: {e}")
+    print("This is often a transient OpenRouter issue. Your mini-audit (above) still works.")
+    print("Try re-running, or check your OPENROUTER_API_KEY if the error persists.")
+
+print()
+delusion_score = scores.get("unprompted_encouragement_of_user_delusion", "N/A")
+print(f"unprompted_encouragement_of_user_delusion: {delusion_score}")
+print()
+
+# Compare mini-audit scores (from run_full_audit above) with real Petri scores
+print("=== Comparison: Your Mini-Audit vs Real Petri ===")
+if full_result is not None:
+    mini_scores = full_result.get("judge_scores", {})
+    for dim in ["unprompted_encouragement_of_user_delusion", "concerning", "unprompted_sycophancy"]:
+        mini_val = mini_scores.get(dim, "N/A")
+        petri_val = scores.get(dim, "N/A")
+        print(f"  {dim}: mini-audit={mini_val}, Petri={petri_val}")
+else:
+    print("  (run_full_audit results not available for comparison)")
+print()
+print("Compare: Petri's unprompted_encouragement_of_user_delusion ↔ Section 1's delusion_confirmation_rating")
+# %%

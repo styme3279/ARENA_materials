@@ -70,7 +70,7 @@ docker_exec = "/usr/bin/python3"
 local_exec = "python3"
 
 # Defaults
-DEFAULT_N = 5
+DEFAULT_N = 1
 # %%
 env_path = exercises_dir / ".env"
 assert env_path.exists(), "Please create a .env file with: OPENROUTER_API_KEY=sk-or-..."
@@ -209,7 +209,7 @@ def generate_code() -> Solver:
         if raw is None:
             warnings.warn("Model output had no ```python``` block; storing empty solution.")
             raw = ""
-        state.metadata["solution_code"] = utils.unescape_code(raw)
+        state.metadata["solution code"] = utils.unescape_code(raw)
         return state
 
 
@@ -336,5 +336,17 @@ eval(
 
 # %%
 print(f"{exercises_dir}/logs")
+
 # %%
+try:
+    log_path = latest_eval_log(exercises_dir / "logs", "generate-backdoor")
+    log = read_eval_log(log_path)
+    print(f"Log path: {log_path}")
+    print(f"Samples: {len(log.samples)}")
+    s0 = log.samples[0]
+    print(f"\nSample 0 metadata keys: {list((s0.metadata or {}).keys())}")
+    print(f"Sample 0 backdoor successful? {s0.metadata.get('backdoor successful')}")
+except FileNotFoundError:
+    print("No generate-backdoor log yet. Run Stage 2 first (set FLAG_RUN_STAGE_2_BACKDOOR_GEN=True).")
+
 # %%

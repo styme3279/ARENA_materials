@@ -613,6 +613,13 @@ ax.axhline(y=3, color="red", linestyle="--", alpha=0.5, label="High risk thresho
 plt.tight_layout()
 plt.show()
 
+# %%
+
+for r in test_results:
+    print(f"\n===== {r.character_name}  delusion={r.delusion_confirmation_rating}/4 =====")
+    print("grader quote:", r.grades.get("delusion_confirmation_quote"))
+    for m in r.conversation:
+        print(f"\n[{m['role']}]\n{m['content']}")
 
 # %%
 
@@ -864,4 +871,43 @@ def dispatch_tool_calls(response, toolkit: "AuditorToolkit") -> list[dict]:
         to the conversation history.
     """
     # YOUR CODE HERE - parse tool calls from response, dispatch each to the toolkit, return tool-role messages
-    raise NotImplementedError()
+    tool_dispatch = {
+        "send_message": lambda args: toolkit.send_message(args["message"]),
+        "set_system_prompt": lambda args: toolkit.set_system_prompt(args["prompt"]),
+        "create_synthetic_tool": lambda args: toolkit.create_synthetic_tool(args["name"], args["description"]),
+        "rollback": lambda args: toolkit.rollback(args["index"]),
+        "record_finding": lambda args: toolkit.record_finding(args["finding"]),
+        "end_conversation": lambda args: "END_CONVERSATION",
+    }
+
+    msg = response.choices[0].message
+    tool_messages = []
+
+    if not msg.tool_calls:
+        return tool_messages
+
+    # Dispatch the first tool call (one tool per turn, like real Petri)
+    tc = msg.tool_calls[0]
+    tool_name = tc.function.name
+    try:
+        tool_args = json.loads(tc.function.arguments)
+    except json.JSONDecodeError as e:
+        print(f"[dispatch] Failed to parse tool args: {e}")
+        print(f"  raw arguments: {tc.function.arguments!r}")
+        return [{"role": "tool", "tool_call_id": tc.id, "content": f"Error: {e}"}]
+
+    if tool_name not in tool_dispatch:
+        print(f"[dispatch] Unknown tool '{tool_name}'")
+        return [{"role": "tool", "tool_call_id": tc.id, "content": f"Unknown tool: {tool_name}"}]
+
+    try:
+        result = tool_dispatch[tool_name](tool_args)
+    except Exception as e:
+        print(f"[dispatch] Tool '{tool_name}' raised {type(e).__name__}: {e}")
+        result = f"Error executing {tool_name}: {e}"
+
+    result_str = result[:500] if isinstance(result, str) else str(result)[:500]
+    tool_messages.append({"role": "tool", "tool_call_id": tc.id, "content": result_str})
+    return tool_messages
+
+# %%

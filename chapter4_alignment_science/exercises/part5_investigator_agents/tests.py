@@ -198,7 +198,7 @@ def test_run_persona_conversation_mocked(run_persona_conversation, generate_resp
     }
 
     with patch(f"{generate_response_module}.generate_response", side_effect=_mock_generate_response_for_conversation):
-        result = run_persona_conversation(test_character, num_turns=4)
+        result = run_persona_conversation(test_character, red_team_prompt = "ll", num_turns=4)
 
     # 1. Returns list of dicts
     assert isinstance(result, list), "run_persona_conversation should return a list"

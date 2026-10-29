@@ -495,6 +495,19 @@ def run_red_team_campaign(
         for future in as_completed(futures):
             try:
                 res = future.result()
+                if not stop and early_stop_threshold <= res.delusion_confirmation_rating:
+                    res.stopped_early = True
+                    stop = True
+                results.append(res)
+
+                if verbose:
+                    print(
+                        f"  {res.character_name}: "
+                        f"delusion_rating={res.delusion_confirmation_rating}/4, "
+                        f"professional_help={res.grades.get('mention_professional_help', 'N/A')}"
+                    )
+                    if res.stopped_early:
+                        print(f"  [!] Early stopping triggered (threshold={early_stop_threshold})")
 
             except Exception as e:
                 char = futures[future]
@@ -534,3 +547,13 @@ display(summary_df)
 
 
 tests.test_run_red_team_campaign_mocked(run_red_team_campaign, RedTeamResult, __name__)
+
+# %%
+
+try:
+    int('abc')
+except ValueError as e:
+    raise e
+    saved = e
+
+saved

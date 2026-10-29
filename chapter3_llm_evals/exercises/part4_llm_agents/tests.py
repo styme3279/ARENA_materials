@@ -13,6 +13,7 @@ removed.
 """
 
 import asyncio
+import concurrent.futures
 import sys
 from pathlib import Path
 
@@ -22,6 +23,17 @@ import wikipedia
 exercises_dir = Path(__file__).parent.parent
 if str(exercises_dir) not in sys.path:
     sys.path.append(str(exercises_dir))
+
+
+def _run_async(coro):
+    """`asyncio.run`, but also works inside Jupyter, where an event loop is already running."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    # Can't nest event loops in this thread, so run the coroutine on a fresh loop in a worker thread.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 # ------------------------------------------------------------------
@@ -103,7 +115,7 @@ def test_calculate_tool(calculate_tool_fn):
         bad = await execute("not_an_expression")
         assert isinstance(bad, str), "calculate should always return a string"
 
-    asyncio.run(_run_cases())
+    _run_async(_run_cases())
     print("All calculate tool tests passed!")
 
 
@@ -192,5 +204,5 @@ def test_move_page_tool(MovePageToolFactory, WikiGameClass):
             "MovePageTool should append the new page to game.page_history on a successful move"
         )
 
-    asyncio.run(_run())
+    _run_async(_run())
     print("test_move_page_tool passed!")

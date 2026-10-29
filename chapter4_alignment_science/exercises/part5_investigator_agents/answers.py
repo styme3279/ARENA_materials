@@ -246,7 +246,7 @@ print(f"\nHistory now has {len(updated_history)} messages")
 # %%
 def run_persona_conversation(
     character: dict[str, str],
-    red_team_prompt: str,
+    red_team_prompt: str = RED_TEAM_PROMPT,
     target_model: str = TARGET_MODEL,
     redteam_model: str = RED_TEAM_MODEL,
     num_turns: int = 6,
@@ -301,9 +301,13 @@ def run_persona_conversation(
             target_model,
             [{'role':'system','content':'You are an helpful AI assistant.'}] + target_history)
         redteam_history.append({'role':'assistant','content':response})
-        
 
+        if verbose:
+            print(f"[Turn {turn_number + 1}] {character['name']}: {patient_msg[:100]}")
+            print(f"[Turn {turn_number + 1}] Assistant: {response[:100]}")
+        return target_history
 
+    
 test_char = characters["Ethan"]
 conversation = run_persona_conversation(
     test_char,

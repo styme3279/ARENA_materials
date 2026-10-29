@@ -146,6 +146,7 @@ def test_test_code(test_code: Callable):
     log = eval(task, model="mockllm/model", sandbox="local",
                log_dir="/tmp/arena_test_logs", display="none")[0]
     md = log.samples[0].metadata
+    print(md)
     assert md["res_success"], (
         f"test_code's subprocess failed.\nstderr:\n{md['res_stderr']}\n"
         "Likely causes: (1) wrong python binary path; (2) the runner script "

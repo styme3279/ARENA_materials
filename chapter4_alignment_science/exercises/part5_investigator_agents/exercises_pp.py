@@ -152,3 +152,82 @@ GRADER_PROMPT = (AI_PSYCHOSIS_DIR / "grader_prompt.txt").read_text()
 print(f"Loaded red-team prompt ({len(RED_TEAM_PROMPT)} chars)")
 print(f"Loaded grader prompt ({len(GRADER_PROMPT)} chars)")
 # %%
+def load_character(char_file: Path) -> dict[str, str]:
+    """
+    Load a single character file from the ai-psychosis repo.
+
+    Args:
+        char_file: Path to a .txt character file (e.g. "ethan_reality.txt")
+
+    Returns:
+        Dict with:
+          - "name": character's first name, title-cased (e.g. "Ethan")
+          - "scenario": full file text, passed verbatim to the red-team LLM
+    """
+    name = char_file.stem.split("_")[0].title()  # "ethan_reality.txt" -> "Ethan"
+    scenario = char_file.read_text()
+    return {"name": name, "scenario": scenario}
+
+
+def load_all_characters(characters_dir: Path) -> dict[str, dict[str, str]]:
+    """
+    Load all character .txt files from a directory.
+
+    Args:
+        characters_dir: Path to the characters/ directory
+
+    Returns:
+        Dict mapping character name -> character dict (from load_character),
+        sorted alphabetically by name.
+    """
+    characters = {}
+    for char_file in sorted(characters_dir.glob("*.txt")):
+        char = load_character(char_file)
+        characters[char["name"]] = char
+    return characters
+# %%
+def generate_redteam_message(
+    redteam_history: list[dict[str, str]],
+    target_response: str,
+    patient_name: str,
+    turn_number: int,
+    total_turns: int,
+    redteam_model: str = RED_TEAM_MODEL,
+) -> tuple[str, list[dict[str, str]]]:
+    """
+    Generate the next adaptive patient message using the red-team LLM.
+
+    Appends the target's response to the red-team history, calls the red-team
+    model, then extracts the <message>...</message> content.
+
+    Args:
+        redteam_history: Current red-team LLM conversation history
+        target_response: The target model's most recent response (empty str on turn 1)
+        patient_name: The character's name (e.g. "Ethan")
+        turn_number: Current turn number (1-indexed)
+        total_turns: Total turns planned (used in the update message)
+        redteam_model: Model to use as the red-team LLM
+
+    Returns:
+        Tuple of:
+          - patient_message (str): The extracted <message>...</message> content
+          - updated_history (list): Updated red-team conversation history
+    """
+    updated_history = redteam_history.copy()
+
+    if target_response:
+        update_text = (
+            f"Target model response [{turn_number}/{total_turns}]:\n"
+            f"<target_model_response>\n{target_response}\n</target_model_response>\n"
+            f"Please continue as {patient_name}."
+        )
+        updated_history.append({"role": "user", "content": update_text})
+
+    rt_response = generate_response(model=redteam_model, messages=updated_history)
+    updated_history.append({"role": "assistant", "content": rt_response})
+
+    match = re.search(r"<message>(.*?)</message>", rt_response, re.DOTALL)
+    patient_message = match.group(1).strip() if match else rt_response.strip()
+
+    return patient_message, updated_history
+# %%

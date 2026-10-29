@@ -58,7 +58,9 @@ MAIN = __name__ == "__main__"
 # Run flags 
 
 # Model constants
-UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
+# UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
+# UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-5.5"
+UNTRUSTED_MODEL = "openrouter/google/gemini-3.8-flash"
 TRUSTED_MODEL = "openrouter/google/gemini-2.5-flash"
 
 # Sandbox constants

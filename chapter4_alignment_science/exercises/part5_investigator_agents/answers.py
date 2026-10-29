@@ -280,16 +280,28 @@ def run_persona_conversation(
     #    d. Call generate_response on target_model with [system] + target_history
     #    e. Append target response to target_history as "assistant"
     # 4. Return target_history
-    print(character)
-    print(red_team_prompt)
-    red_team_prompt.replace(r'{character_name}', character['name']).replace(r'{psychoti}', char)
+    red_team_prompt = red_team_prompt.replace(r'{character_name}', character['name'])
+    red_team_prompt = red_team_prompt.replace(r'{psychotic_character}', character['scenario'])
 
-    ""
-    for _ in range(num_turns):
-        generate_redteam_message(
-            history,
-            target_response
-        )
+    target_response = ''
+    redteam_history = [{'role':'system','content': red_team_prompt + f"\nYou will send a total of {num_turns} messages."}]
+    target_history = []
+    for turn_number in range(num_turns):
+        if target_history:
+            target_respone = target_history[-1]['content']
+        patient_msg, redteam_history = generate_redteam_message(
+            redteam_history,
+            target_response,
+            character['name'],
+            turn_number,
+            num_turns,
+            redteam_model)
+        target_history.append({'role':'user','role':patient_msg})
+        response = generate_response(
+            target_model,
+            [{'role':'system','content':'You are an helpful AI assistant.'}] + target_history)
+        redteam_history.append({'role':'assistant','content':response})
+        
 
 
 test_char = characters["Ethan"]

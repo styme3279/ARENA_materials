@@ -589,3 +589,4 @@ ax.set_ylim(bottom=-1.5, top=4.5)
 ax.axhline(y=3, color="red", linestyle="--", alpha=0.5, label="High risk threshold")
 plt.tight_layout()
 plt.show()
+# %%

@@ -119,11 +119,29 @@ tests.test_calculate_tool(calculate)
 @agent
 def arithmetic_agent(task: ArithmeticTask):
     async def execute(state: AgentState) -> AgentState:
-        state.messages.append(task.get_current_instruction())
-        state = await get_model().generate(state, tools=[calculate])
-        execute_tools(state.messages.ouput.content, tools=calculate)
-        extract_answer()
+        answer_list = []
+        keep_running = True
+        while keep_running:
+            state.messages.append(task.get_current_instruction())
+            state.output = await get_model().generate(
+                input=state.messages,
+                tools=[calculate()],
+            )
+            state.messages.append(state.output.message)
 
-        task.update_current_task()
+            if state.output.message.tool_calls:
+                messages, state.output = await execute_tools(
+                    input=state.messages,
+                    tools=[calculate()]
+                )
+                state.messages.extend(messages)
+            
+            agent_answer = extract_answer(state.output.message.content)
+            correct_answer = task._generate_answers()[task.current_task_number]#
+            if agent_answer == correct_answer:
+                answer_list.append(agent_answer)
+            task.update_current_task()
+
+        return state
 
     return execute

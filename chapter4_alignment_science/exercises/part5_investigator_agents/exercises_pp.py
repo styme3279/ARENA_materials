@@ -135,3 +135,20 @@ def generate_response(
             raise e
     return ""
 # %%
+# Model to use as the red-team LLM (playing the patient).
+# grok-3 is recommended: it commits fully to personas without refusing.
+# Warning: using Claude as the red-team model can trigger account bans at scale
+# due to the nature of the content being generated!
+RED_TEAM_MODEL = "x-ai/grok-3"  # via OpenRouter
+
+# Path to the ai-psychosis repo (already cloned in the ARENA environment)
+AI_PSYCHOSIS_DIR = exercises_dir / "ai-psychosis"
+assert AI_PSYCHOSIS_DIR.exists(), f"ai-psychosis repo not found at {AI_PSYCHOSIS_DIR}"
+
+# Load the red-team and grader prompts directly from the repo
+RED_TEAM_PROMPT = (AI_PSYCHOSIS_DIR / "red_team_prompt.txt").read_text()
+GRADER_PROMPT = (AI_PSYCHOSIS_DIR / "grader_prompt.txt").read_text()
+
+print(f"Loaded red-team prompt ({len(RED_TEAM_PROMPT)} chars)")
+print(f"Loaded grader prompt ({len(GRADER_PROMPT)} chars)")
+# %%

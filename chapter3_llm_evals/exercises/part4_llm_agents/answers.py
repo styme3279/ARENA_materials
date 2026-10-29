@@ -41,3 +41,68 @@ wikipedia.set_user_agent("ARENA-AI-safety-course/3.4 (https://learn.arena.educat
 EVAL_MODEL = "openai/gpt-4o-mini"
 os.environ["INSPECT_EVAL_MODEL"] = EVAL_MODEL
 MAIN = __name__ == "__main__"
+
+# %%
+load_dotenv()
+
+assert os.getenv("OPENROUTER_API_KEY") is not None, "You must set your OpenRouter API key - see instructions in dropdown"
+
+# OPENROUTER_API_KEY
+
+openai_client = OpenAI(api_key=os.getenv("OPENROUTER_API_KEY"), base_url="https://openrouter.ai/api/v1")
+
+# %%
+class ArithmeticTask:
+    def __init__(self, num1: int | float, num2: int | float, operations: list[str] | None = None):
+        self.num1 = num1
+        self.num2 = num2
+        self.operations = operations if operations else ["+", "-", "*", "/", "**", "//", "%"]
+        self.current_task_number = 0
+
+    def _generate_answers(self) -> list[str]:
+        """
+        Generates a list of the correct answers for all the possible tasks
+
+        Returns:
+            list[str]: A list of the correct answers for all the possible tasks
+        """
+        correct_answers = []
+        for operation in self.operations:
+            expression = f"{self.num1} {operation} {self.num2}"
+            correct_answers.append(evaluate_expression(expression))
+        return correct_answers
+
+    @property
+    def get_current_task(self) -> str:
+        return f"{self.num1} {self.operations[self.current_task_number]} {self.num2}"
+
+    def update_current_task(self) -> None:
+        """
+        Increments self.current_task_number by one (modulo the number of operations)
+        """
+        self.current_task_number = (self.current_task_number + 1) % len(self.operations)
+
+    def get_current_instruction(self) -> ChatMessageUser:
+        prompt = f"Calculate {self.get_current_task} ; please provide your answer in <ANSWER>...</ANSWER> tags."
+        return ChatMessageUser(content=prompt)
+
+
+tests.test_arithmetic_task(ArithmeticTask)
+
+arithmetic_task1 = ArithmeticTask(3, 5)
+print(arithmetic_task1.get_current_task)
+arithmetic_task1.update_current_task()
+print(arithmetic_task1.get_current_task)
+print(arithmetic_task1.get_current_instruction())
+
+# %%
+@tool
+def calculate():
+    async def execute(expression: str) -> str:
+        raise NotImplementedError("You need to implement the calculate tool and make sure the docstring is formatted correctly")
+
+    return execute
+
+
+tests.test_calculate_tool(calculate)
+

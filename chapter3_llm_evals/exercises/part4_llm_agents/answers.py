@@ -120,8 +120,7 @@ tests.test_calculate_tool(calculate)
 def arithmetic_agent(task: ArithmeticTask):
     async def execute(state: AgentState) -> AgentState:
         answer_list = []
-        keep_running = True
-        while keep_running:
+        while len(answer_list) != len(task._generate_answers()):
             state.messages.append(task.get_current_instruction())
             state.output = await get_model().generate(
                 input=state.messages,
@@ -135,13 +134,26 @@ def arithmetic_agent(task: ArithmeticTask):
                     tools=[calculate()]
                 )
                 state.messages.extend(messages)
-            
+            state.output = await get_model().generate(input=state.messages, tools=[calculate()], tool_choice="none")
+            state.messages.append(state.output.message)
+
             agent_answer = extract_answer(state.output.message.content)
-            correct_answer = task._generate_answers()[task.current_task_number]#
+            correct_answer = task._generate_answers()[task.current_task_number]
             if agent_answer == correct_answer:
                 answer_list.append(agent_answer)
+            else:
+                state.messages.append(ChatMessageUser(content="Incorrect answer. Try again."))
             task.update_current_task()
 
         return state
 
     return execute
+
+# %%
+@task
+def agent_task() -> str:
+    return Task(dataset=[Sample(input="", target="")], message_limit=40)
+
+eval(agent_task(), solver=as_solver(arithmetic_agent(task=ArithmeticTask(3, 5))))
+
+# %%

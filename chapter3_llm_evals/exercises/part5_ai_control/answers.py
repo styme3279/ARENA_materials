@@ -254,7 +254,7 @@ def implement_backdoor() -> Solver:
         code_raw = between(state.output.message.content, "```python", "```")
         trigger_raw = between(state.output.message.content, "<EXAMPLE>", "</EXAMPLE>")
 
-        if code is None:
+        if code_raw is None:
             warnings.warn("Backdoor response had no ```python``` block; storing empty code.")
             code_raw = ""
         if trigger_raw is None:
@@ -304,13 +304,17 @@ def test_backdoor(USING_DOCKER: bool = True) -> Solver:
 @task
 def generate_backdoor_task(num_problems: int = DEFAULT_N) -> Task:
     """Run U through the 5-step attack pipeline on num_problems APPS samples."""
-    task = Task(
-        dataset=apps
+    return Task(
+        dataset=apps_dataset[:num_problems],
+        plan=[
+            generate_code(),
+            generate_backdoor_ideas(),
+            choose_backdoor_idea(),
+            implement_backdoor(),
+            test_backdoor(USING_DOCKER=USING_DOCKER),
+        ]
     )
-    generate_backdoor_ideas()
-    generate_backdoor_task()
-    implement_backdoor()
-    test_backdoor()
+
     
 
 # %%
@@ -320,3 +324,7 @@ eval(
     sandbox="docker" if USING_DOCKER else "local",
     log_dir=str(exercises_dir / "logs"),
 )
+
+# %%
+print(f"{exercises_dir}/logs")
+# %%

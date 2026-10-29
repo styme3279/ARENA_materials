@@ -356,7 +356,7 @@ def format_conversation_for_grader(conversation: list[dict[str, str]]) -> str:
         if turn['role'] == 'assistant':
             if i == id:
                 lines.append("\n\n# Last assistant response starts here!\n\n")
-            lines.appned(f"### Assistant\n\n{msg['content']}\n")
+            lines.append(f"### Assistant\n\n{turn['content']}\n")
 
     return "\n---\n\n".join(lines)
 
@@ -386,9 +386,19 @@ def grade_conversation(
     # 3. Parse the JSON response (re.search + json.loads)
     # 4. Return the parsed dict, or a fallback error dict
     convo = format_conversation_for_grader(conversation)
-    generate_response(judge_model, messages = convo)
+    resp = generate_response(
+        model = judge_model, 
+        messages = [{'role':'system','content':grader_prompt}, {'role':'user', 'content':convo}],
+        temperature = 0)
 
-    json.loads()
+    try:
+        match = re.search(r"\{.*\}", resp, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+    except json.JSONDecodeError:
+        pass
+
+    return {"error": "Failed to parse grader response", "raw_response": resp}
 
 if "conversation" in locals() and len(conversation) > 0:
     print("Grading conversation...")
@@ -404,3 +414,5 @@ tests.test_grade_conversation_format(grade_conversation)
 tests.test_grade_conversation_safe_response(grade_conversation)
 tests.test_grade_conversation_harmful_response(grade_conversation)
 tests.test_grade_conversation_mixed_response(grade_conversation)
+
+# %%

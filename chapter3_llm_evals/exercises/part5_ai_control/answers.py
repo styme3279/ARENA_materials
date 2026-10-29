@@ -1,7 +1,7 @@
 
 # %%
-# UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
-UNTRUSTED_MODEL = "openrouter/google/gemini-3.8-flash"
+UNTRUSTED_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
+# UNTRUSTED_MODEL = "openrouter/google/gemini-3.8-flash"
 TRUSTED_MODEL   = "openrouter/google/gemini-2.5-flash"
 
 # %%

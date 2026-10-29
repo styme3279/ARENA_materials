@@ -98,11 +98,32 @@ print(arithmetic_task1.get_current_instruction())
 # %%
 @tool
 def calculate():
+    """
+    This tool evalutes an arithmetic expression and returns the result.
+
+    Args:
+        expression: the arithmetic expression to evaluate
+
+    Returns: 
+        The result of the evaluated arithmetic expression.
+    """
     async def execute(expression: str) -> str:
-        raise NotImplementedError("You need to implement the calculate tool and make sure the docstring is formatted correctly")
+        return evaluate_expression(expression)
 
     return execute
 
 
 tests.test_calculate_tool(calculate)
 
+# %%
+@agent
+def arithmetic_agent(task: ArithmeticTask):
+    async def execute(state: AgentState) -> AgentState:
+        state.messages.append(task.get_current_instruction())
+        state = await get_model().generate(state, tools=[calculate])
+        execute_tools(state.messages.ouput.content, tools=calculate)
+        extract_answer()
+
+        task.update_current_task()
+
+    return execute

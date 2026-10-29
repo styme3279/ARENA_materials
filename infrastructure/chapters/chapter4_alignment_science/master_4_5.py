@@ -374,10 +374,10 @@ git clone https://github.com/tim-hua-01/ai-psychosis.git
 # ! TAGS: []
 
 # Model to use as the red-team LLM (playing the patient).
-# grok-3 is recommended: it commits fully to personas without refusing.
+# Grok 4.3 is the recommended replacement for the deprecated Grok 3.
 # Warning: using Claude as the red-team model can trigger account bans at scale
 # due to the nature of the content being generated!
-RED_TEAM_MODEL = "x-ai/grok-3"  # via OpenRouter
+RED_TEAM_MODEL = "x-ai/grok-4.3"  # via OpenRouter
 
 # Path to the ai-psychosis repo (already cloned in the ARENA environment)
 AI_PSYCHOSIS_DIR = exercises_dir / "ai-psychosis"
@@ -4548,4 +4548,3 @@ Here are several other directions you could take this material, building on what
 
 **Trained investigator models.** The "Eliciting LM Behaviour with Investigator Agents" paper (Transluce) shows that small 8B models can be trained to effectively audit much larger 405B models, achieving very high success rates on eliciting harmful behaviors (jailbreaking, evaluated on AdvBench). The key idea is a forward/backward training asymmetry: generating training data (forward) is easy, but the actual elicitation task (backward) is hard. Explore how this connects to the auditor strategies you've observed in Petri transcripts.
 '''
-

@@ -103,10 +103,10 @@ def generate_response(
 # %%
 
 # Model to use as the red-team LLM (playing the patient).
-# grok-3 is recommended: it commits fully to personas without refusing.
+# Grok 4.3 is the recommended replacement for the deprecated Grok 3.
 # Warning: using Claude as the red-team model can trigger account bans at scale
 # due to the nature of the content being generated!
-RED_TEAM_MODEL = "x-ai/grok-3"  # via OpenRouter
+RED_TEAM_MODEL = "x-ai/grok-4.3"  # via OpenRouter
 
 # Path to the ai-psychosis repo (already cloned in the ARENA environment)
 AI_PSYCHOSIS_DIR = exercises_dir / "ai-psychosis"
